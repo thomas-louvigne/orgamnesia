@@ -1,0 +1,9 @@
+# Rust / build artifacts
+/target
+/src-tauri/target
+
+# Frontend build output (Trunk)
+/dist
+
+# Tauri generated schemas
+/src-tauri/gen/schemas

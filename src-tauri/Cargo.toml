@@ -1,0 +1,29 @@
+[workspace]
+
+[package]
+name = "org-wiki-flow"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "org_wiki_flow_lib"
+path = "src/lib.rs"
+crate-type = ["lib"]
+
+[[bin]]
+name = "org-wiki-flow"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri              = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde              = { version = "1", features = ["derive"] }
+serde_json         = "1"
+tokio              = { version = "1", features = ["sync"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
