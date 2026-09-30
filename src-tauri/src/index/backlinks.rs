@@ -7,6 +7,8 @@ pub struct BacklinkIndex {
     reverse_map: HashMap<String, HashSet<String>>,
     /// forward_map[source] = {target, ...}  — needed to remove stale links on re-index
     forward_map: HashMap<String, HashSet<String>>,
+    /// link_counts[source][target] = how many times `source` links to `target`
+    link_counts: HashMap<String, HashMap<String, usize>>,
 }
 
 impl BacklinkIndex {
@@ -25,10 +27,14 @@ impl BacklinkIndex {
                 .insert(source.to_string());
         }
         self.forward_map.insert(source.to_string(), targets);
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        for l in links { *counts.entry(l.clone()).or_default() += 1; }
+        self.link_counts.insert(source.to_string(), counts);
     }
 
     /// Remove all outgoing links from a source page (e.g. on file deletion).
     pub fn remove_source(&mut self, source: &str) {
+        self.link_counts.remove(source);
         if let Some(old) = self.forward_map.remove(source) {
             for target in old {
                 if let Some(set) = self.reverse_map.get_mut(&target) {
@@ -49,6 +55,40 @@ impl BacklinkIndex {
             .map(|s| s.iter().cloned().collect())
             .unwrap_or_default();
         v.sort();
+        v
+    }
+
+    /// Every link target with the pages that link to it and the total number of
+    /// times it is linked, sorted by target.
+    pub fn all_links(&self) -> Vec<(String, Vec<String>, usize)> {
+        let mut v: Vec<(String, Vec<String>, usize)> = self
+            .reverse_map
+            .iter()
+            .map(|(t, s)| {
+                let mut s: Vec<String> = s.iter().cloned().collect();
+                s.sort();
+                let count = s
+                    .iter()
+                    .filter_map(|src| self.link_counts.get(src).and_then(|m| m.get(t)))
+                    .sum();
+                (t.clone(), s, count)
+            })
+            .collect();
+        v.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+        v
+    }
+
+    /// Like `get_backlinks`, but link targets match `page` ignoring case.
+    pub fn get_backlinks_ignore_case(&self, page: &str) -> Vec<String> {
+        let page = page.to_lowercase();
+        let mut v: Vec<String> = self
+            .reverse_map
+            .iter()
+            .filter(|(target, _)| target.to_lowercase() == page)
+            .flat_map(|(_, sources)| sources.iter().cloned())
+            .collect();
+        v.sort();
+        v.dedup();
         v
     }
 
@@ -88,6 +128,23 @@ mod tests {
         bl.sort();
         assert_eq!(bl, vec!["a", "d"]);
         assert_eq!(b.get_backlinks("c"), vec!["a"]);
+    }
+
+    #[test]
+    fn backlinks_ignore_case() {
+        let b = idx(&[("a", &["Page"]), ("b", &["page"]), ("c", &["other"])]);
+        assert_eq!(b.get_backlinks("Page"), vec!["a"]);
+        assert_eq!(b.get_backlinks_ignore_case("PAGE"), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn all_links_lists_targets_with_sources() {
+        let b = idx(&[("a", &["x", "y", "x"]), ("b", &["x"])]);
+        assert_eq!(
+            b.all_links(),
+            vec![("x".to_string(), vec!["a".to_string(), "b".to_string()], 3),
+                 ("y".to_string(), vec!["a".to_string()], 1)]
+        );
     }
 
     #[test]

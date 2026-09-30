@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capabilities for Org Wiki Flow",
+  "description": "Default capabilities for Orgamnesia",
   "windows": ["main"],
   "permissions": [
     "core:default",

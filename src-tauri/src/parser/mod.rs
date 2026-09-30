@@ -9,8 +9,24 @@ pub fn parse_document(content: &str) -> Document {
     Document { blocks: parse_blocks(&lines, 0) }
 }
 
+fn is_tag_char(c: char) -> bool { c.is_alphanumeric() || c == '_' || c == '-' }
+
+/// A `#hashtag` starting at `i` (preceded by a space or an opening bracket, followed by a
+/// letter or digit — so `#+TITLE`, `# comment` and `a#b` are not tags).
+/// Returns the tag name (without `#`) and the index just after it.
+pub fn hashtag_at(chars: &[char], i: usize) -> Option<(String, usize)> {
+    if chars.get(i) != Some(&'#') { return None; }
+    if i > 0 && !(chars[i - 1].is_whitespace() || "([{\"'".contains(chars[i - 1])) { return None; }
+    let mut end = i + 1;
+    while end < chars.len() && is_tag_char(chars[end]) { end += 1; }
+    while end > i + 1 && chars[end - 1] == '-' { end -= 1; }
+    if end == i + 1 || !chars[i + 1].is_alphanumeric() { return None; }
+    Some((chars[i + 1..end].iter().collect(), end))
+}
+
 /// Extract all `[[target]]` link targets — used for backlink indexing.
-pub fn extract_links(content: &str) -> Vec<String> {
+/// With `hashtags`, every `#tag` counts as a link to the page `tag`.
+pub fn extract_links(content: &str, hashtags: bool) -> Vec<String> {
     let chars: Vec<char> = content.chars().collect();
     let mut links = Vec::new();
     let mut i = 0;
@@ -33,11 +49,74 @@ pub fn extract_links(content: &str) -> Vec<String> {
             }
             let t = target.trim().to_string();
             if !t.is_empty() { links.push(t); }
+        } else if let (true, Some((tag, end))) = (hashtags, hashtag_at(&chars, i)) {
+            links.push(tag);
+            i = end;
         } else {
             i += 1;
         }
     }
     links
+}
+
+/// True for `[[targets]]` that name a wiki page (not a URL, a file or an internal anchor).
+pub fn is_page_link(target: &str) -> bool {
+    let t = target.trim();
+    !(t.is_empty()
+        || t.contains("://")
+        || t.starts_with("file:")
+        || t.starts_with("mailto:")
+        || t.starts_with('#')
+        || t.starts_with('*')
+        || t.starts_with("./")
+        || t.starts_with("../"))
+}
+
+/// Rewrite every `[[old]]` / `[[old][label]]` link so it targets `new`.
+/// With `ignore_case`, `[[pageMagique]]` also matches `PageMagique`.
+/// Returns `None` when nothing changed. The display label is left untouched.
+pub fn rewrite_links(content: &str, old: &str, new: &str, ignore_case: bool, hashtags: bool) -> Option<String> {
+    let chars: Vec<char> = content.chars().collect();
+    let norm = |s: &str| if ignore_case { s.to_lowercase() } else { s.to_string() };
+    let old = norm(old);
+    let mut out = String::with_capacity(content.len());
+    let mut changed = false;
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '[' && i + 1 < chars.len() && chars[i + 1] == '[' {
+            out.push_str("[[");
+            i += 2;
+            let mut target = String::new();
+            while i < chars.len() && chars[i] != ']' && chars[i] != '[' {
+                target.push(chars[i]);
+                i += 1;
+            }
+            if norm(target.trim()) == old {
+                let lead: String = target.chars().take_while(|c| c.is_whitespace()).collect();
+                let trail: String = target.chars().rev().take_while(|c| c.is_whitespace()).collect();
+                out.push_str(&lead);
+                out.push_str(new);
+                out.push_str(&trail);
+                changed = true;
+            } else {
+                out.push_str(&target);
+            }
+        } else if let (true, Some((tag, end))) = (hashtags, hashtag_at(&chars, i)) {
+            if norm(&tag) == old {
+                // A name that is not a valid tag (spaces…) becomes a regular link
+                if new.chars().all(is_tag_char) { out.push('#'); out.push_str(new); }
+                else { out.push_str(&format!("[[{new}]]")); }
+                changed = true;
+            } else {
+                out.extend(&chars[i..end]);
+            }
+            i = end;
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    changed.then_some(out)
 }
 
 // ─── Block parsing ───────────────────────────────────────────────────────────
@@ -370,25 +449,71 @@ mod tests {
 
     #[test]
     fn extract_links_finds_simple() {
-        let links = extract_links("See [[Page One]] done");
+        let links = extract_links("See [[Page One]] done", false);
         assert_eq!(links, vec!["Page One"]);
     }
 
     #[test]
     fn extract_links_with_display() {
-        let links = extract_links("[[Target][label]]");
+        let links = extract_links("[[Target][label]]", false);
         assert_eq!(links, vec!["Target"]);
     }
 
     #[test]
     fn extract_links_multiple() {
-        let links = extract_links("[[A]] and [[B]] and [[C][display]]");
+        let links = extract_links("[[A]] and [[B]] and [[C][display]]", false);
         assert_eq!(links, vec!["A", "B", "C"]);
     }
 
     #[test]
+    fn page_links_vs_others() {
+        assert!(is_page_link("My Page"));
+        assert!(!is_page_link("https://orgmode.org"));
+        assert!(!is_page_link("file:../assets/a.svg"));
+        assert!(!is_page_link("../assets/a.svg"));
+    }
+
+    #[test]
+    fn rewrite_links_simple_and_labeled() {
+        let out = rewrite_links("a [[Old]] b [[Old][lbl]] c [[Other]]", "Old", "New", false, false).unwrap();
+        assert_eq!(out, "a [[New]] b [[New][lbl]] c [[Other]]");
+    }
+
+    #[test]
+    fn rewrite_links_ignores_case() {
+        let out = rewrite_links("[[pageMagique]] [[PAGEMAGIQUE][x]]", "PageMagique", "PageMagique3", true, false).unwrap();
+        assert_eq!(out, "[[PageMagique3]] [[PageMagique3][x]]");
+    }
+
+    #[test]
+    fn rewrite_links_case_sensitive_when_asked() {
+        assert!(rewrite_links("[[pageMagique]]", "PageMagique", "X", false, false).is_none());
+    }
+
+    #[test]
+    fn rewrite_links_no_match() {
+        assert!(rewrite_links("[[Other]] and Old", "Old", "New", false, false).is_none());
+    }
+
+    #[test]
+    fn hashtags_are_links_only_when_enabled() {
+        let t = "Voir #idée et (#Rust) #+TITLE: x # note a#b [[P]] #fin-";
+        assert_eq!(extract_links(t, true), vec!["idée", "Rust", "P", "fin"]);
+        assert_eq!(extract_links(t, false), vec!["P"]);
+    }
+
+    #[test]
+    fn rewrite_hashtags() {
+        let out = rewrite_links("a #Old b #Older", "old", "New", true, true).unwrap();
+        assert_eq!(out, "a #New b #Older");
+        let out = rewrite_links("a #Old", "Old", "Deux mots", false, true).unwrap();
+        assert_eq!(out, "a [[Deux mots]]");
+        assert!(rewrite_links("a #Old", "Old", "New", false, false).is_none());
+    }
+
+    #[test]
     fn extract_links_empty() {
-        assert!(extract_links("no links here").is_empty());
+        assert!(extract_links("no links here", false).is_empty());
     }
 
     // ── split_title_tags ──

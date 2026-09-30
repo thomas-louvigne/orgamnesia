@@ -1,17 +1,17 @@
 [workspace]
 
 [package]
-name = "org-wiki-flow"
+name = "orgamnesia"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "org_wiki_flow_lib"
+name = "orgamnesia_lib"
 path = "src/lib.rs"
 crate-type = ["lib"]
 
 [[bin]]
-name = "org-wiki-flow"
+name = "orgamnesia"
 path = "src/main.rs"
 
 [build-dependencies]

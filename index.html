@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Org Wiki Flow</title>
+    <title>Orgamnesia</title>
     <link data-trunk rel="css" href="public/css/app.css" />
     <link data-trunk rel="rust" data-wasm-opt="z" />
 </head>
@@ -15,11 +15,10 @@
         if (t && t.classList && t.classList.contains('edit-layer')) {
             const wrap = t.closest('.editor-wrap');
             if (wrap) {
-                const hl = wrap.querySelector('.hl-layer');
-                if (hl) {
+                wrap.querySelectorAll('.hl-layer').forEach(function (hl) {
                     hl.scrollTop  = t.scrollTop;
                     hl.scrollLeft = t.scrollLeft;
-                }
+                });
             }
         }
     }, true);

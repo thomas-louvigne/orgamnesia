@@ -91,6 +91,7 @@ pub fn TabBar() -> impl IntoView {
                                             f.path = nf.path.clone();
                                         }
                                     });
+                                    crate::components::sidebar::reload_clean_tabs(ctx).await;
                                     ctx.status.set(Some(format!("Renamed to {}", nf.name)));
                                 }
                                 Err(e) => ctx.status.set(Some(format!("Rename error: {e}"))),

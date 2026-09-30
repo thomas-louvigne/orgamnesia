@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{FileEntry, Settings}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -37,6 +37,10 @@ pub async fn open_vault(path: &str) -> Result<Vec<FileEntry>, String> {
     call("open_vault", serde_json::json!({ "path": path })).await
 }
 
+pub async fn remove_project(path: &str) -> Result<Vec<String>, String> {
+    call("remove_project", serde_json::json!({ "path": path })).await
+}
+
 pub async fn list_files() -> Result<Vec<FileEntry>, String> {
     call("list_files", serde_json::json!({})).await
 }
@@ -57,8 +61,16 @@ pub async fn rename_page(old_path: &str, new_name: &str) -> Result<FileEntry, St
     call("rename_page", serde_json::json!({ "oldPath": old_path, "newName": new_name })).await
 }
 
+pub async fn delete_page(path: &str) -> Result<(), String> {
+    call("delete_page", serde_json::json!({ "path": path })).await
+}
+
 pub async fn get_backlinks(page: &str) -> Result<Vec<String>, String> {
     call("get_backlinks", serde_json::json!({ "pageName": page })).await
+}
+
+pub async fn get_broken_links() -> Result<Vec<BrokenLink>, String> {
+    call("get_broken_links", serde_json::json!({})).await
 }
 
 pub async fn export_vault() -> Result<String, String> {

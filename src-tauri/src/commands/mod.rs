@@ -11,6 +11,12 @@ use crate::{
 
 type Cmd<T> = Result<T, String>;
 
+fn hashtags_enabled(app: &AppHandle) -> bool {
+    app.path().app_config_dir().ok()
+        .map(|d| settings::load(&d).hashtag_links())
+        .unwrap_or(true)
+}
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -20,9 +26,27 @@ pub async fn get_settings(app: AppHandle) -> Cmd<settings::Settings> {
 }
 
 #[tauri::command]
-pub async fn set_settings(app: AppHandle, settings: settings::Settings) -> Cmd<()> {
+pub async fn set_settings(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    settings: settings::Settings,
+) -> Cmd<()> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    settings::save(&dir, &settings).map_err(|e| e.to_string())
+    let hashtags_changed = settings::load(&dir).hashtag_links() != settings.hashtag_links();
+    settings::save(&dir, &settings).map_err(|e| e.to_string())?;
+
+    // `#tags` now count (or no longer) as links: rebuild the index
+    let vault_path = state.vault_path.lock().unwrap().clone();
+    if let (true, Some(vp)) = (hashtags_changed, vault_path) {
+        let hashtags = settings.hashtag_links();
+        let mut idx = BacklinkIndex::new();
+        for f in vault::list_org_files(&vp).map_err(|e| e.to_string())? {
+            let content = std::fs::read_to_string(&f.path).unwrap_or_default();
+            idx.index_file(&f.name, &parser::extract_links(&content, hashtags));
+        }
+        *state.backlinks.lock().unwrap() = idx;
+    }
+    Ok(())
 }
 
 // ─── Vault ───────────────────────────────────────────────────────────────────
@@ -39,21 +63,34 @@ pub async fn open_vault(
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     let mut s = settings::load(&dir);
     s.vault_path = Some(path.clone());
+    s.projects.retain(|p| p != &path);
+    s.projects.insert(0, path.clone());
     settings::save(&dir, &s).map_err(|e| e.to_string())?;
 
     let files = vault::list_org_files(&path).map_err(|e| e.to_string())?;
 
     // Rebuild backlink index
+    let hashtags = s.hashtag_links();
     let mut idx = BacklinkIndex::new();
     for f in &files {
         let content = std::fs::read_to_string(&f.path).unwrap_or_default();
-        idx.index_file(&f.name, &parser::extract_links(&content));
+        idx.index_file(&f.name, &parser::extract_links(&content, hashtags));
     }
 
     *state.vault_path.lock().unwrap() = Some(path);
     *state.backlinks.lock().unwrap() = idx;
 
     Ok(files)
+}
+
+/// Forget a project (the folder itself is left untouched); returns the remaining list.
+#[tauri::command]
+pub async fn remove_project(app: AppHandle, path: String) -> Cmd<Vec<String>> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let mut s = settings::load(&dir);
+    s.projects.retain(|p| p != &path);
+    settings::save(&dir, &s).map_err(|e| e.to_string())?;
+    Ok(s.projects)
 }
 
 #[tauri::command]
@@ -72,6 +109,7 @@ pub async fn read_file(path: String) -> Cmd<String> {
 #[tauri::command]
 pub async fn write_file(
     state: State<'_, AppState>,
+    app: AppHandle,
     path: String,
     content: String,
 ) -> Cmd<()> {
@@ -79,7 +117,7 @@ pub async fn write_file(
     // Re-index this file's links
     let name = vault::page_name(&path);
     state.backlinks.lock().unwrap()
-        .index_file(&name, &parser::extract_links(&content));
+        .index_file(&name, &parser::extract_links(&content, hashtags_enabled(&app)));
     Ok(())
 }
 
@@ -101,14 +139,92 @@ pub async fn create_page(
     })
 }
 
+/// Delete a page file of the open vault (irreversible).
+#[tauri::command]
+pub async fn delete_page(state: State<'_, AppState>, path: String) -> Cmd<()> {
+    let vault_path = state.vault_path.lock().unwrap().clone().ok_or("No vault open")?;
+    let file = std::path::Path::new(&path);
+    let pages = std::fs::canonicalize(vault::pages_dir(&vault_path)).map_err(|e| e.to_string())?;
+    let inside = std::fs::canonicalize(file).ok()
+        .and_then(|f| f.parent().map(|p| p == pages))
+        .unwrap_or(false);
+    if !inside || file.extension().and_then(|s| s.to_str()) != Some("org") {
+        return Err("Not a page of the open project".to_string());
+    }
+    std::fs::remove_file(file).map_err(|e| e.to_string())?;
+    state.backlinks.lock().unwrap().remove_source(&vault::page_name(&path));
+    Ok(())
+}
+
 // ─── Backlinks ───────────────────────────────────────────────────────────────
 
 #[tauri::command]
 pub async fn get_backlinks(
     state: State<'_, AppState>,
+    app: AppHandle,
     page_name: String,
 ) -> Cmd<Vec<String>> {
-    Ok(state.backlinks.lock().unwrap().get_backlinks(&page_name))
+    let ignore_case = app.path().app_config_dir().ok()
+        .map(|d| settings::load(&d).case_insensitive_links())
+        .unwrap_or(true);
+    let idx = state.backlinks.lock().unwrap();
+    Ok(if ignore_case {
+        idx.get_backlinks_ignore_case(&page_name)
+    } else {
+        idx.get_backlinks(&page_name)
+    })
+}
+
+/// A `[[link]]` whose page does not exist, with the pages using it.
+#[derive(serde::Serialize)]
+pub struct BrokenLink {
+    pub target: String,
+    pub sources: Vec<String>,
+    /// Total number of times the link appears in the project.
+    pub count: usize,
+}
+
+#[tauri::command]
+pub async fn get_broken_links(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Cmd<Vec<BrokenLink>> {
+    let vault_path = state.vault_path.lock().unwrap().clone().ok_or("No vault open")?;
+    let ignore_case = app.path().app_config_dir().ok()
+        .map(|d| settings::load(&d).case_insensitive_links())
+        .unwrap_or(true);
+    let norm = |s: &str| if ignore_case { s.trim().to_lowercase() } else { s.trim().to_string() };
+
+    let pages: std::collections::HashSet<String> = vault::list_org_files(&vault_path)
+        .map_err(|e| e.to_string())?
+        .iter()
+        .map(|f| norm(&f.name))
+        .collect();
+
+    // Group targets that only differ by case when case is ignored
+    let mut grouped: Vec<(String, BrokenLink)> = Vec::new();
+    for (target, sources, count) in state.backlinks.lock().unwrap().all_links() {
+        if !parser::is_page_link(&target) || pages.contains(&norm(&target)) {
+            continue;
+        }
+        let key = norm(&target);
+        match grouped.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, b)) => {
+                b.count += count;
+                for s in sources {
+                    if !b.sources.contains(&s) { b.sources.push(s); }
+                }
+                b.sources.sort();
+            }
+            None => grouped.push((key, BrokenLink { target: target.trim().to_string(), sources, count })),
+        }
+    }
+    // Most used first; alphabetical among equals
+    let mut links: Vec<BrokenLink> = grouped.into_iter().map(|(_, b)| b).collect();
+    links.sort_by(|a, b| {
+        b.count.cmp(&a.count).then_with(|| a.target.to_lowercase().cmp(&b.target.to_lowercase()))
+    });
+    Ok(links)
 }
 
 // ─── Export ──────────────────────────────────────────────────────────────────
@@ -143,6 +259,7 @@ pub async fn export_vault(
 #[tauri::command]
 pub async fn rename_page(
     state: State<'_, AppState>,
+    app: AppHandle,
     old_path: String,
     new_name: String,
 ) -> Cmd<FileEntry> {
@@ -158,10 +275,27 @@ pub async fn rename_page(
     }
     std::fs::rename(&old_path, &new_path).map_err(|e| e.to_string())?;
 
-    // Update backlink index: remove old source, index new name
+    // Point every `[[old]]` link of the vault at the new name (if enabled in settings)
     let old_name = vault::page_name(&old_path);
+    let cfg = app.path().app_config_dir().ok().map(|d| settings::load(&d));
+    let update_links = cfg.as_ref().map(|s| s.update_links_on_rename()).unwrap_or(true);
+    let ignore_case = cfg.as_ref().map(|s| s.case_insensitive_links()).unwrap_or(true);
+    let hashtags = cfg.as_ref().map(|s| s.hashtag_links()).unwrap_or(true);
+    let vault_path = state.vault_path.lock().unwrap().clone();
+    if let (true, Some(vp), true) = (update_links, vault_path, old_name != new_name) {
+        for f in vault::list_org_files(&vp).map_err(|e| e.to_string())? {
+            let Ok(text) = std::fs::read_to_string(&f.path) else { continue };
+            if let Some(updated) = parser::rewrite_links(&text, &old_name, &new_name, ignore_case, hashtags) {
+                std::fs::write(&f.path, &updated).map_err(|e| e.to_string())?;
+                state.backlinks.lock().unwrap()
+                    .index_file(&f.name, &parser::extract_links(&updated, hashtags));
+            }
+        }
+    }
+
+    // Update backlink index: remove old source, index new name
     let content = std::fs::read_to_string(&new_path).unwrap_or_default();
-    let links = parser::extract_links(&content);
+    let links = parser::extract_links(&content, hashtags);
     {
         let mut idx = state.backlinks.lock().unwrap();
         idx.remove_source(&old_name);

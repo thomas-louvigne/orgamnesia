@@ -2,16 +2,30 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 
-use crate::{highlight, i18n::t, invoke, state::{AppCtx, Tab}}; // FileEntry inferred
+use crate::{
+    highlight,
+    i18n::t,
+    invoke,
+    keybindings::{Resolution, Scope},
+    state::{AppCtx, SplitKind, Tab},
+}; // FileEntry inferred
 
 /// Returns the wiki-link target at char position `pos`, scanning the full text.
 /// Handles both `[[target]]` and `[[target][display]]` forms.
-fn find_link_at_pos(text: &str, pos: usize) -> Option<String> {
+fn find_link_at_pos(text: &str, pos: usize, hashtags: bool) -> Option<String> {
     let chars: Vec<char> = text.chars().collect();
     let n = chars.len();
     let mut i = 0;
 
-    while i + 1 < n {
+    while i < n {
+        if hashtags {
+            if let Some((tag, end)) = crate::motion::hashtag_at(&chars, i) {
+                if pos >= i && pos < end { return Some(tag); }
+                i = end;
+                continue;
+            }
+        }
+        if i + 1 >= n { break; }
         if chars[i] != '[' || chars[i + 1] != '[' {
             i += 1;
             continue;
@@ -52,6 +66,55 @@ fn find_link_at_pos(text: &str, pos: usize) -> Option<String> {
     None
 }
 
+/// Open the page named `link_name` in a tab, creating it when it doesn't exist yet.
+fn follow_link(ctx: AppCtx, link_name: String) {
+    // Pre-allocate signals before async boundary
+    let content_sig = RwSignal::new(String::new());
+    let dirty_sig   = RwSignal::new(false);
+
+    spawn_local(async move {
+        // Already open?
+        if let Some(idx) = ctx.tabs.get().iter().position(|t| ctx.same_page(&t.name, &link_name)) {
+            ctx.active_tab.set(Some(idx));
+            return;
+        }
+        // Resolve: existing file or create new one?
+        let (file, init_content, is_dirty) = {
+            let files = ctx.files.get();
+            if let Some(f) = files.iter().find(|f| ctx.same_page(&f.name, &link_name)).cloned() {
+                match invoke::read_file(&f.path).await {
+                    Ok(c)    => (f, c, false),
+                    Err(err) => { ctx.status.set(Some(format!("Error: {err}"))); return; }
+                }
+            } else {
+                match invoke::create_page(&link_name).await {
+                    Ok(f) => {
+                        let init = format!("* {}\n", f.name);
+                        ctx.files.update(|fs| {
+                            fs.push(f.clone());
+                            fs.sort_by(|a, b| a.name.cmp(&b.name));
+                        });
+                        (f, init, true)
+                    }
+                    Err(err) => { ctx.status.set(Some(format!("Error: {err}"))); return; }
+                }
+            }
+        };
+        content_sig.set(init_content);
+        dirty_sig.set(is_dirty);
+        ctx.tabs.update(|tabs| {
+            tabs.push(Tab {
+                path: file.path.clone(),
+                name: file.name.clone(),
+                content: content_sig,
+                dirty: dirty_sig,
+            });
+        });
+        let idx = ctx.tabs.get().len() - 1;
+        ctx.active_tab.set(Some(idx));
+    });
+}
+
 fn exec_insert(text: &str) {
     if let Ok(encoded) = serde_json::to_string(text) {
         let _ = js_sys::eval(&format!("document.execCommand('insertText',false,{})", encoded));
@@ -88,6 +151,29 @@ fn get_pos(el: &Textarea) -> (usize, usize) {
     (s, e)
 }
 
+/// Shortcuts a textarea handles natively; they only work when the active profile binds them.
+const NATIVE_EDIT_SHORTCUTS: &[&str] = &[
+    "ctrl+c", "ctrl+x", "ctrl+v", "ctrl+a", "ctrl+z", "ctrl+y", "ctrl+shift+z",
+    "ctrl+Insert", "shift+Insert", "shift+Delete",
+];
+
+/// Caret position: the moving end of the selection.
+fn caret(el: &Textarea) -> usize {
+    let (s, e) = get_pos(el);
+    match el.selection_direction().ok().flatten().as_deref() {
+        Some("backward") => s,
+        _ => e,
+    }
+}
+
+/// Run `f` once the browser has applied the default action of the current event.
+fn after_tick(f: impl FnOnce() + 'static) {
+    if let Some(w) = web_sys::window() {
+        let cb = wasm_bindgen::closure::Closure::once_into_js(f);
+        let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 0);
+    }
+}
+
 fn set_cursor(el: &Textarea, pos: usize) {
     let p = pos as u32;
     el.set_selection_start(Some(p)).ok();
@@ -113,6 +199,27 @@ fn line_bounds(chars: &[char], pos: usize) -> (usize, usize) {
     let end   = chars[pos..].iter().position(|&c| c == '\n').map(|i| pos + i).unwrap_or(chars.len());
     (start, end)
 }
+
+/// Position `delta` lines down (negative: up) keeping the column when possible.
+fn move_lines(chars: &[char], pos: usize, delta: i32) -> usize {
+    let (mut start, _) = line_bounds(chars, pos);
+    let col = pos - start;
+    for _ in 0..delta.unsigned_abs() {
+        if delta > 0 {
+            let (_, end) = line_bounds(chars, start);
+            if end >= chars.len() { return chars.len(); }
+            start = end + 1;
+        } else {
+            if start == 0 { return pos; }
+            start = line_bounds(chars, start - 1).0;
+        }
+    }
+    let (s, e) = line_bounds(chars, start);
+    (s + col).min(e)
+}
+
+/// Lines moved by the page-up / page-down actions.
+const PAGE_LINES: i32 = 20;
 
 fn word_end_forward(chars: &[char], pos: usize) -> usize {
     let mut i = pos;
@@ -151,27 +258,86 @@ fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
+/// The editor: one pane, or two when split (Emacs `C-x 2` / `C-x 3`).
 #[component]
-pub fn EditorArea() -> impl IntoView {
+pub fn EditorSplit() -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    view! {
+        <div class=move || match ctx.split.get() {
+            None => "editor-split",
+            Some(SplitKind::Vertical) => "editor-split vertical",
+            Some(SplitKind::Horizontal) => "editor-split horizontal",
+        }>
+            <EditorArea second=false />
+            {move || ctx.split.get().is_some().then(|| view! { <EditorArea second=true /> })}
+        </div>
+    }
+}
+
+#[component]
+pub fn EditorArea(second: bool) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
 
+    // The focused pane shows the active tab, the other one `other_path`
+    let path = Memo::new(move |_| -> Option<String> {
+        if ctx.focus_second.get() == second {
+            ctx.active_tab_data().map(|t| t.path)
+        } else {
+            ctx.other_path.get()
+        }
+    });
+    let focused = move || ctx.split.get().is_none() || ctx.focus_second.get() == second;
+
+    // When this pane takes the focus (C-x o, C-o…), the keyboard must follow:
+    // put the text cursor in its editor.
+    let area_ref = NodeRef::<leptos::html::Div>::new();
+    Effect::new(move |_| {
+        let has_focus = ctx.focus_second.get() == second;
+        if ctx.split.get().is_none() || !has_focus { return; }
+        crate::keybindings::after_ms(0, move || {
+            let textarea = area_ref.get_untracked()
+                .and_then(|div| div.query_selector("textarea").ok().flatten())
+                .and_then(|el| el.dyn_into::<Textarea>().ok());
+            if let Some(t) = textarea { let _ = t.focus(); }
+        });
+    });
+
     view! {
-        <div class="editor-area">
-            {move || match ctx.active_tab_data() {
+        <div
+            node_ref=area_ref
+            class=move || if focused() { "editor-area focused" } else { "editor-area" }
+            on:mousedown=move |_| ctx.focus_pane(second)
+        >
+            {move || (ctx.split.get() == Some(SplitKind::Vertical)).then(|| {
+                let name = path.get()
+                    .and_then(|p| ctx.tabs.get().into_iter().find(|t| t.path == p))
+                    .map(|t| t.name)
+                    .unwrap_or_default();
+                view! { <div class="pane-tab"><span class="pane-tab-name">{name}</span></div> }
+            })}
+            <div class="editor-pane-body">
+            {move || match path.get() {
                 None => view! {
                     <div class="editor-empty">
                         <p>{t("no_file", ctx.lang.get())}</p>
                         <p>{t("open_hint", ctx.lang.get())}</p>
                     </div>
                 }.into_any(),
-                Some(tab) => view! { <Editor tab=tab /> }.into_any(),
+                Some(p) => {
+                    let tab = ctx.tabs.get_untracked().into_iter().find(|t| t.path == p);
+                    match tab {
+                        Some(tab) => view! { <Editor tab=tab second=second /> }.into_any(),
+                        None => ().into_any(),
+                    }
+                }
             }}
+            </div>
         </div>
     }
 }
 
 #[component]
-fn Editor(tab: Tab) -> impl IntoView {
+fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
 
     let tab_input = tab.clone();
@@ -179,8 +345,53 @@ fn Editor(tab: Tab) -> impl IntoView {
     let tab_hl    = tab.clone();
     let tab_click = tab.clone();
 
+    // Auto-save: re-runs on every content change while the tab is dirty.
+    // A single write loop runs at a time, so writes never reach the disk out of order.
+    let saving = RwSignal::new(false);
+    let tab_auto = tab.clone();
+    Effect::new(move |_| {
+        tab_auto.content.track();
+        if !ctx.autosave.get() || !tab_auto.dirty.get_untracked() || saving.get_untracked() {
+            return;
+        }
+        saving.set(true);
+        let tab = tab_auto.clone();
+        spawn_local(async move {
+            loop {
+                let content = tab.content.get_untracked();
+                if let Err(e) = invoke::write_file(&tab.path, &content).await {
+                    ctx.status.set(Some(format!("Save error: {e}")));
+                    break;
+                }
+                ctx.links_version.update(|v| *v += 1);
+                if tab.content.get_untracked() == content {
+                    tab.dirty.set(false);
+                    break;
+                }
+            }
+            saving.set(false);
+        });
+    });
+
+    // Emacs mark (char index) and the caret ("point"); the region is what lies between.
+    let mark  = RwSignal::new(None::<usize>);
+    let point = RwSignal::new(0usize);
+
+    // Region to act on: mark..point when a mark is set (and enabled), else the native selection.
+    let region_of = move |el: &Textarea| -> (usize, usize) {
+        if ctx.emacs_mark.get_untracked() {
+            if let Some(m) = mark.get_untracked() {
+                let p = caret(el);
+                return (m.min(p), m.max(p));
+            }
+        }
+        get_pos(el)
+    };
+
     let on_input = move |e: web_sys::Event| {
         let el = e.target().unwrap().dyn_into::<Textarea>().unwrap();
+        // Typing ends the region
+        mark.set(None);
         tab_input.content.set(el.value());
         tab_input.dirty.set(true);
     };
@@ -189,46 +400,88 @@ fn Editor(tab: Tab) -> impl IntoView {
         let el: Textarea = e.target().unwrap().dyn_into().unwrap();
         let kb = ctx.keybindings.get();
 
+        // Multi-key chords ("ctrl+x ctrl+s"): swallow the keys of a chord in progress
+        let resolution = crate::keybindings::resolve(&kb, &e);
+        match &resolution {
+            Resolution::Pending(keys) => {
+                e.prevent_default();
+                e.stop_propagation();
+                ctx.set_chord_status(keys);
+                return;
+            }
+            Resolution::Aborted => {
+                e.prevent_default();
+                e.stop_propagation();
+                ctx.clear_chord_status();
+                return;
+            }
+            _ => ctx.clear_chord_status(),
+        }
+
+        // With a mark set, the region follows the caret after each key press
+        if mark.get_untracked().is_some() {
+            let el2 = el.clone();
+            after_tick(move || point.set(caret(&el2)));
+        }
+
         // Helper: sync Leptos signal after DOM edit
         let sync = |new_val: String| {
             tab_key.content.set(new_val);
             tab_key.dirty.set(true);
         };
 
-        // ── Auto-pairing ──────────────────────────────────────────────────────
-        let close_char = match e.key().as_str() {
-            "[" => Some("]"),
-            "(" => Some(")"),
-            "{" => Some("}"),
-            "\"" => Some("\""),
+        // ── Auto-pairing / electric wrapping ──────────────────────────────────
+        // Without a selection, ( [ { and " insert their closing character too.
+        // With a selection, electric mode wraps it in the typed pair.
+        let key = e.key();
+        let (start, end) = get_pos(&el);
+        let pair = match key.as_str() {
+            "(" | ")" => Some(("(", ")")),
+            "[" | "]" => Some(("[", "]")),
+            "{" | "}" => Some(("{", "}")),
+            "\"" => Some(("\"", "\"")),
+            "'" => Some(("'", "'")),
             _ => None,
         };
-        if let Some(close) = close_char {
-            e.prevent_default();
-            let (start, end) = get_pos(&el);
-            let open = e.key();
+        if let Some((open, close)) = pair {
             if start != end {
-                let val = el.value();
-                let chars: Vec<char> = val.chars().collect();
-                let selected: String = chars[start..end].iter().collect();
-                let wrapped = format!("{}{}{}", open, selected, close);
-                let new_end = splice(&el, start, end, &wrapped);
-                set_selection(&el, start + 1, new_end - 1);
-            } else {
-                let pair = format!("{}{}", open, close);
-                let cursor = splice(&el, start, start, &pair);
+                if ctx.electric_mode.get_untracked() {
+                    e.prevent_default();
+                    let chars: Vec<char> = el.value().chars().collect();
+                    let selected: String = chars[start..end].iter().collect();
+                    let new_end = splice(&el, start, end, &format!("{open}{selected}{close}"));
+                    set_selection(&el, start + 1, new_end - 1);
+                    sync(el.value());
+                    return;
+                }
+            } else if matches!(key.as_str(), "(" | "[" | "{" | "\"") {
+                e.prevent_default();
+                let cursor = splice(&el, start, start, &format!("{open}{close}"));
                 set_cursor(&el, cursor - 1);
+                sync(el.value());
+                return;
             }
-            sync(el.value());
-            return;
         }
 
         // ── Configured editor action (classic or emacs preset) ────────────────
-        let Some(action) = crate::keybindings::match_action(&kb.editor, &e) else { return };
+        let action = match resolution {
+            Resolution::Action(Scope::Editor, id) => id,
+            other => {
+                // Not an editor shortcut of this profile: the browser's built-in
+                // clipboard/undo shortcuts must not work either (unless the
+                // combination belongs to an application shortcut).
+                if other == Resolution::None
+                    && NATIVE_EDIT_SHORTCUTS.iter().any(|b| crate::keybindings::key_matches(&e, b))
+                {
+                    e.prevent_default();
+                }
+                return;
+            }
+        };
         e.prevent_default();
         e.stop_propagation();
 
-        match action {
+        match action.as_str() {
             // ── Classic clipboard / editing ───────────────────────────────────
             "copy" => {
                 let (start, end) = get_pos(&el);
@@ -306,7 +559,7 @@ fn Editor(tab: Tab) -> impl IntoView {
                 sync(el.value());
             }
             "kill_region" => {
-                let (start, end) = get_pos(&el);
+                let (start, end) = region_of(&el);
                 if start < end {
                     let chars: Vec<char> = el.value().chars().collect();
                     ctx.kill_ring.set(chars[start..end].iter().collect());
@@ -314,13 +567,36 @@ fn Editor(tab: Tab) -> impl IntoView {
                     set_cursor(&el, cursor);
                     sync(el.value());
                 }
+                mark.set(None);
             }
             "copy_region" => {
-                let (start, end) = get_pos(&el);
+                let (start, end) = region_of(&el);
                 if start < end {
                     let chars: Vec<char> = el.value().chars().collect();
                     ctx.kill_ring.set(chars[start..end].iter().collect());
-                    set_selection(&el, start, end); // preserve selection
+                    if mark.get_untracked().is_none() {
+                        set_selection(&el, start, end); // preserve native selection
+                    }
+                }
+                mark.set(None);
+            }
+            "set_mark" => {
+                if ctx.emacs_mark.get_untracked() {
+                    let c = caret(&el);
+                    if mark.get_untracked() == Some(c) {
+                        mark.set(None); // Ctrl+Space twice at the same spot cancels
+                    } else {
+                        mark.set(Some(c));
+                        point.set(c);
+                    }
+                }
+            }
+            "keyboard_quit" => mark.set(None),
+            "open_link" => {
+                let content = tab_key.content.get_untracked();
+                let pos = el.selection_start().ok().flatten().unwrap_or(0) as usize;
+                if let Some(name) = find_link_at_pos(&content, pos, ctx.hashtag_links.get_untracked()) {
+                    follow_link(ctx, name);
                 }
             }
             "yank" => {
@@ -349,6 +625,35 @@ fn Editor(tab: Tab) -> impl IntoView {
                 let cursor = splice(&el, word_start, pos, "");
                 set_cursor(&el, cursor);
                 sync(el.value());
+            }
+            // ── Emacs cursor movement ─────────────────────────────────────────
+            "forward_char" | "backward_char" | "next_line" | "previous_line"
+            | "forward_word" | "backward_word" | "beginning_of_buffer" | "end_of_buffer"
+            | "scroll_down" | "scroll_up" | "forward_sentence" | "backward_sentence"
+            | "forward_paragraph" | "backward_paragraph" | "back_to_indentation"
+            | "next_heading" | "previous_heading" => {
+                let pos = caret(&el);
+                let chars: Vec<char> = el.value().chars().collect();
+                let target = match action.as_str() {
+                    "forward_char" => (pos + 1).min(chars.len()),
+                    "backward_char" => pos.saturating_sub(1),
+                    "next_line" => move_lines(&chars, pos, 1),
+                    "previous_line" => move_lines(&chars, pos, -1),
+                    "forward_word" => word_end_forward(&chars, pos),
+                    "backward_word" => word_start_backward(&chars, pos),
+                    "beginning_of_buffer" => 0,
+                    "end_of_buffer" => chars.len(),
+                    "forward_sentence" => crate::motion::forward_sentence(&chars, pos),
+                    "backward_sentence" => crate::motion::backward_sentence(&chars, pos),
+                    "forward_paragraph" => crate::motion::forward_paragraph(&chars, pos),
+                    "backward_paragraph" => crate::motion::backward_paragraph(&chars, pos),
+                    "back_to_indentation" => crate::motion::back_to_indentation(&chars, pos),
+                    "next_heading" => crate::motion::next_heading(&chars, pos),
+                    "previous_heading" => crate::motion::previous_heading(&chars, pos),
+                    "scroll_down" => move_lines(&chars, pos, PAGE_LINES),
+                    _ => move_lines(&chars, pos, -PAGE_LINES),
+                };
+                set_cursor(&el, target);
             }
             "beginning_of_line" => {
                 let (pos, _) = get_pos(&el);
@@ -383,68 +688,63 @@ fn Editor(tab: Tab) -> impl IntoView {
         };
         let pos = el.selection_start().ok().flatten().unwrap_or(0) as usize;
         let content = tab_click.content.get();
-        let Some(link_name) = find_link_at_pos(&content, pos) else { return };
+        let Some(link_name) = find_link_at_pos(&content, pos, ctx.hashtag_links.get_untracked()) else { return };
 
         e.prevent_default();
-        // Pre-allocate signals before async boundary
-        let content_sig = RwSignal::new(String::new());
-        let dirty_sig   = RwSignal::new(false);
-
-        spawn_local(async move {
-            // Already open?
-            if let Some(idx) = ctx.tabs.get().iter().position(|t| t.name == link_name) {
-                ctx.active_tab.set(Some(idx));
-                return;
-            }
-            // Resolve: existing file or create new one?
-            let (file, init_content, is_dirty) = {
-                let files = ctx.files.get();
-                if let Some(f) = files.iter().find(|f| f.name == link_name).cloned() {
-                    match invoke::read_file(&f.path).await {
-                        Ok(c)    => (f, c, false),
-                        Err(err) => { ctx.status.set(Some(format!("Error: {err}"))); return; }
-                    }
-                } else {
-                    match invoke::create_page(&link_name).await {
-                        Ok(f) => {
-                            let init = format!("* {}\n", f.name);
-                            ctx.files.update(|fs| {
-                                fs.push(f.clone());
-                                fs.sort_by(|a, b| a.name.cmp(&b.name));
-                            });
-                            (f, init, true)
-                        }
-                        Err(err) => { ctx.status.set(Some(format!("Error: {err}"))); return; }
-                    }
-                }
-            };
-            content_sig.set(init_content);
-            dirty_sig.set(is_dirty);
-            ctx.tabs.update(|tabs| {
-                tabs.push(Tab {
-                    path: file.path.clone(),
-                    name: file.name.clone(),
-                    content: content_sig,
-                    dirty: dirty_sig,
-                });
-            });
-            let idx = ctx.tabs.get().len() - 1;
-            ctx.active_tab.set(Some(idx));
-        });
+        follow_link(ctx, link_name);
     };
 
-    let highlighted = move || highlight::render(&tab_hl.content.get());
+    // Jump to a link requested from the "pages not created" list
+    let area_ref = NodeRef::<leptos::html::Textarea>::new();
+    let tab_goto = tab.clone();
+    Effect::new(move |_| {
+        let Some((path, target)) = ctx.goto.get() else { return };
+        if path != tab_goto.path || ctx.focus_second.get_untracked() != second { return; }
+        let Some(el) = area_ref.get() else { return };
+        ctx.goto.set(None);
+        let chars: Vec<char> = tab_goto.content.get_untracked().chars().collect();
+        let ci = ctx.case_insensitive_links.get_untracked();
+        if let Some((start, end)) = crate::motion::find_link(&chars, &target, ci, ctx.hashtag_links.get_untracked()) {
+            let line = chars[..start].iter().filter(|&&c| c == '\n').count();
+            let _ = el.focus();
+            set_selection(&el, start, end);
+            // Bring the line to the middle of the view (14px font, 1.65 line height)
+            let y = (line as f64 * 14.0 * 1.65 - el.client_height() as f64 / 2.0).max(0.0);
+            el.set_scroll_top(y as i32);
+        }
+    });
+
+    let highlighted = move || highlight::render(&tab_hl.content.get(), ctx.hashtag_links.get());
+    let tab_region = tab.clone();
+    let region_html = move || {
+        if !ctx.emacs_mark.get() { return String::new(); }
+        mark.get().map(|m| {
+            let p = point.get();
+            highlight::render_region(&tab_region.content.get(), m.min(p), m.max(p))
+        }).unwrap_or_default()
+    };
+    // Mouse moves the caret too
+    let on_pointer = move |e: web_sys::MouseEvent| {
+        if mark.get_untracked().is_some() {
+            if let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) {
+                after_tick(move || point.set(caret(&el)));
+            }
+        }
+    };
 
     view! {
         <div class="editor-wrap">
             <div class="hl-layer" aria-hidden="true" inner_html=highlighted />
+            <div class="hl-layer region-layer" aria-hidden="true" inner_html=region_html />
             <textarea
+                node_ref=area_ref
                 class="edit-layer"
                 spellcheck=false
                 prop:value=move || tab.content.get()
                 on:input=on_input
                 on:keydown=on_keydown
                 on:click=on_click
+                on:mouseup=on_pointer
             />
         </div>
     }

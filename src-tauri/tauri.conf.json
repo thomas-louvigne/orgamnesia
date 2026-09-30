@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Org Wiki Flow",
+  "productName": "Orgamnesia",
   "version": "0.1.0",
-  "identifier": "com.org-wiki-flow.app",
+  "identifier": "com.orgamnesia.app",
   "build": {
     "beforeDevCommand": "trunk serve --port 1420",
     "beforeBuildCommand": "trunk build",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Org Wiki Flow",
+        "title": "Orgamnesia",
         "width": 1400,
         "height": 900,
         "resizable": true,

@@ -9,6 +9,16 @@ pub type Bindings = BTreeMap<String, Vec<String>>;
 
 fn default_preset() -> String { "classic".to_string() }
 
+/// A user-made shortcut profile. Built-in ones ("classic", "emacs") are not stored.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Profile {
+    pub id: String,
+    pub name: String,
+    pub editor_preset: String,
+    pub app: Bindings,
+    pub editor: Bindings,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Keybindings {
     #[serde(default = "default_preset")]
@@ -17,6 +27,11 @@ pub struct Keybindings {
     pub app: Bindings,
     #[serde(default)]
     pub editor: Bindings,
+    /// Active profile id: a built-in preset id or a custom `Profile::id`.
+    #[serde(default)]
+    pub active_profile: String,
+    #[serde(default)]
+    pub profiles: Vec<Profile>,
 }
 
 impl Default for Keybindings {
@@ -25,6 +40,8 @@ impl Default for Keybindings {
             editor_preset: default_preset(),
             app: default_app(),
             editor: classic_editor(),
+            active_profile: default_preset(),
+            profiles: vec![],
         }
     }
 }
@@ -57,6 +74,7 @@ fn classic_editor() -> Bindings {
         ("undo",        &["ctrl+z"]),
         ("redo",        &["ctrl+shift+z", "ctrl+y"]),
         ("new_heading", &["shift+Enter"]),
+        ("open_link",   &["ctrl+Enter"]),
     ])
 }
 
@@ -71,8 +89,28 @@ fn emacs_editor() -> Bindings {
         ("kill_region",         &["ctrl+w"]),
         ("copy_region",         &["alt+w"]),
         ("delete_char_forward", &["ctrl+d"]),
-        ("undo",                &["ctrl+/", "ctrl+z"]),
-        ("new_heading",         &["shift+Enter"]),
+        ("undo",                &["ctrl+/", "ctrl+x u"]),
+        ("new_heading",         &["alt+Enter", "shift+Enter"]),
+        ("open_link",           &["ctrl+c ctrl+o"]),
+        ("forward_char",        &["ctrl+f"]),
+        ("backward_char",       &["ctrl+b"]),
+        ("next_line",           &["ctrl+n"]),
+        ("previous_line",       &["ctrl+p"]),
+        ("forward_word",        &["alt+f"]),
+        ("backward_word",       &["alt+b"]),
+        ("beginning_of_buffer", &["alt+<", "alt+shift+<"]),
+        ("end_of_buffer",       &["alt+>", "alt+shift+>"]),
+        ("scroll_down",         &["ctrl+v"]),
+        ("scroll_up",           &["alt+v"]),
+        ("backward_sentence",   &["alt+a"]),
+        ("forward_sentence",    &["alt+e"]),
+        ("backward_paragraph",  &["alt+shift+{", "ctrl+ArrowUp"]),
+        ("forward_paragraph",   &["alt+shift+}", "ctrl+ArrowDown"]),
+        ("back_to_indentation", &["alt+m"]),
+        ("previous_heading",    &["ctrl+c ctrl+p"]),
+        ("next_heading",        &["ctrl+c ctrl+n"]),
+        ("set_mark",            &["ctrl+space"]),
+        ("keyboard_quit",       &["ctrl+g"]),
     ])
 }
 

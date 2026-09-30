@@ -1,12 +1,29 @@
+thread_local! {
+    /// Whether `#tags` are drawn as links (set by `render`, read while highlighting a line).
+    static HASHTAGS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// Render org-mode text as syntax-highlighted HTML for the editor overlay.
 /// Pure function — no side effects, easy to test.
-pub fn render(content: &str) -> String {
+pub fn render(content: &str, hashtags: bool) -> String {
+    HASHTAGS.with(|h| h.set(hashtags));
     let mut out = String::with_capacity(content.len() * 2);
     for line in content.split('\n') {
         out.push_str(&highlight_line(line));
         out.push('\n');
     }
     out
+}
+
+/// Plain-text copy of the document with the char range `start..end` wrapped in
+/// `<mark>`, drawn (transparent text) on top of the highlight layer to show the
+/// Emacs region. Same trailing-newline handling as `render` so the layers line up.
+pub fn render_region(content: &str, start: usize, end: usize) -> String {
+    let chars: Vec<char> = content.chars().collect();
+    let end = end.min(chars.len());
+    let start = start.min(end);
+    let part = |a: usize, b: usize| escape(&chars[a..b].iter().collect::<String>());
+    format!("{}<mark class='region'>{}</mark>{}\n", part(0, start), part(start, end), part(end, chars.len()))
 }
 
 fn highlight_line(line: &str) -> String {
@@ -76,6 +93,15 @@ fn inline_html(s: &str) -> String {
             if let Some((html, len)) = try_link(&chars, i) {
                 out.push_str(&html);
                 i += len;
+                continue;
+            }
+        }
+        // #hashtag
+        if chars[i] == '#' && HASHTAGS.with(|h| h.get()) {
+            if let Some((tag, end)) = crate::motion::hashtag_at(&chars, i) {
+                out.push_str(&format!(
+                    "<span class='link'>#<span class='link-t'>{}</span></span>", escape(&tag)));
+                i = end;
                 continue;
             }
         }

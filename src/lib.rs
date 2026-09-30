@@ -4,6 +4,7 @@ mod highlight;
 pub mod i18n;
 mod invoke;
 pub mod keybindings;
+pub mod motion;
 mod state;
 
 use app::App;
