@@ -4,6 +4,15 @@ Un wiki personnel en fichiers =org-mode=, avec des liens entre pages, des
 liens entrants et des raccourcis clavier à la Emacs. Application de bureau
 écrite en Rust : Tauri v2 (backend) et Leptos 0.7 (frontend, compilé en WebAssembly).
 
+#+BEGIN_QUOTE
+*Version bêta.* Le projet est en cours de développement : des bugs sont probables,
+des fonctionnalités peuvent changer, et il vaut mieux garder une copie de ses fichiers =.org=.
+
+*Code généré par IA.* Cette application a été codée avec l'aide de Claude (Anthropic),
+une intelligence artificielle. Le code est à relire avec le même esprit critique
+que n'importe quelle contribution.
+#+END_QUOTE
+
 [[file:docs/screenshot.png]]
 
 /Éditeur coupé en deux (=C-x 3=), mots-clés =#tag= et liens =[[page]]= cliquables,
