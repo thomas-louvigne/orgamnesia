@@ -1,130 +1,131 @@
 #+TITLE: Orgamnesia
 
-Un wiki personnel en fichiers =org-mode=, avec des liens entre pages, des
-liens entrants et des raccourcis clavier à la Emacs. Application de bureau
-écrite en Rust : Tauri v2 (backend) et Leptos 0.7 (frontend, compilé en WebAssembly).
+A personal wiki made of =org-mode= files, with links between pages, backlinks and
+Emacs-style keybindings. Desktop app written in Rust: Tauri v2 (backend) and
+Leptos 0.7 (frontend, compiled to WebAssembly).
+
+/[[file:readme.fr.org][Version française]]/
 
 #+BEGIN_QUOTE
-*Version bêta.* Le projet est en cours de développement : des bugs sont probables,
-des fonctionnalités peuvent changer, et il vaut mieux garder une copie de ses fichiers =.org=.
+*Beta version.* The project is under active development: expect bugs, features may
+change, and you should keep a copy of your =.org= files.
 
-*Code généré par IA.* Cette application a été codée avec l'aide de Claude (Anthropic),
-une intelligence artificielle. Le code est à relire avec le même esprit critique
-que n'importe quelle contribution.
+*AI-generated code.* This application was coded with the help of Claude (Anthropic),
+an AI. Review the code with the same critical eye as any other contribution.
 #+END_QUOTE
 
 [[file:docs/screenshot.png]]
 
-/Éditeur coupé en deux (=C-x 3=), mots-clés =#tag= et liens =[[page]]= cliquables,
-liens entrants à droite, « Pages non créées » en bas à droite./
+/Editor split in two (=C-x 3=), clickable =#tag= keywords and =[[page]]= links,
+backlinks on the right, "Uncreated pages" at the bottom right./
 
-* Fonctionnalités
+* Features
 
-** Projets
-- Un projet est un dossier de fichiers =.org= (les pages sont dans =pages/=).
-- Bouton « ouvrir un dossier » et sélecteur pour passer d'un projet à l'autre.
-- Un projet par défaut réglable dans les préférences.
+** Projects
+- A project is a folder of =.org= files (pages live in =pages/=).
+- "Open folder" button and a selector to switch between projects.
+- A default project can be set in the preferences.
 
-** Pages et liens
-- Liens =[[Page]]= et =[[Page][texte affiché]]=. Ctrl+clic (ou /Suivre le lien/) ouvre la page, et la crée si elle n'existe pas.
-- *Mots-clés* : =#idée= est un lien vers la page =idée= (option, activée par défaut).
-  Ne sont pas des mots-clés : =#+TITLE=, =# commentaire= et =a#b=.
-- *Liens entrants* : panneau de droite listant les pages qui pointent vers la page ouverte.
-- *Pages non créées* : liens qui ne mènent à rien, triés par nombre d'appels
-  (=cible (3)=). Clic : aller là où le lien est utilisé. Clic droit : créer la page ou aller au lien.
-- Liens insensibles à la casse (option, activée par défaut).
-- Barre latérale : clic droit pour /renommer/ ou /supprimer/ (le fichier est effacé).
-- Renommer une page réécrit tous les liens qui y pointent, =[[…]]= comme =#…= (option, activée par défaut).
+** Pages and links
+- =[[Page]]= and =[[Page][display text]]= links. Ctrl+click (or /Follow link/) opens the page, creating it if it doesn't exist.
+- *Keywords*: =#idea= is a link to the page =idea= (option, on by default).
+  Not keywords: =#+TITLE=, =# comment= and =a#b=.
+- *Backlinks*: right-hand panel listing the pages that point to the open page.
+- *Uncreated pages*: links that lead nowhere, sorted by number of uses
+  (=target (3)=). Click: go where the link is used. Right-click: create the page or go to the link.
+- Case-insensitive links (option, on by default).
+- Sidebar: right-click to /rename/ or /delete/ a page (the file is really removed).
+- Renaming a page rewrites every link pointing to it, =[[…]]= and =#…= alike (option, on by default).
 
-** Édition
-- Coloration org-mode : titres, =TODO=/=DONE=, gras, italique, citations, tableaux, liens.
-- Sauvegarde automatique à chaque frappe (option, activée par défaut).
-- Mode « électrique » : avec du texte sélectionné, taper =( ) [ ] " '= l'entoure.
-- Marqueur de sélection à la Emacs (=C-SPC=).
-- Éditeur coupé en deux, façon fenêtres Emacs (voir plus bas).
+** Editing
+- org-mode highlighting: headings, =TODO=/=DONE=, bold, italic, quotes, tables, links.
+- Autosave on every keystroke (option, on by default).
+- "Electric" mode: with text selected, typing =( ) [ ] " '= wraps the selection.
+- Emacs-style selection marker (=C-SPC=).
+- Editor split in two, like Emacs windows (see below).
 
 ** Interface
-- Largeur de la barre latérale et du panneau de droite réglables en glissant leur bordure ;
-  hauteur du bloc « Pages non créées » réglable aussi. Les tailles sont mémorisées.
-- Fenêtre des préférences redimensionnable, sa taille est mémorisée.
-- Français et anglais.
+- The sidebar and right panel widths can be resized by dragging their border;
+  so can the height of the "Uncreated pages" block. Sizes are remembered.
+- Resizable preferences window; its size is remembered.
+- French and English.
 
-* Raccourcis clavier
+* Keybindings
 
-Tout est configurable dans *Paramètres → Raccourcis*.
+Everything is configurable in *Settings → Shortcuts*.
 
-- Deux jeux prédéfinis : *Classique* et *Emacs*.
-- Dès qu'on modifie un raccourci, un profil *Personnalisé* est créé ; on peut en avoir
-  plusieurs et les renommer. Tous les profils ont les mêmes champs (certains restent vides).
-- Suites de touches (=C-x C-s=), avec Ctrl, Maj, Alt.
-- Deux actions ne peuvent pas partager la même combinaison : un conflit s'affiche en rouge,
-  avec une alerte, et empêche d'enregistrer.
-- Bouton *Appliquer* (sans fermer la fenêtre), grisé quand il n'y a rien à appliquer.
+- Two presets: *Classic* and *Emacs*.
+- As soon as you change a shortcut, a *Custom* profile is created; you can have several
+  and rename them. All profiles have the same fields (some stay empty).
+- Key sequences (=C-x C-s=), with Ctrl, Shift, Alt.
+- Two actions cannot share the same combination: a conflict is shown in red, with an alert,
+  and prevents saving.
+- *Apply* button (doesn't close the window), greyed out when there is nothing to apply.
 
-** Profil Emacs (principaux raccourcis)
+** Emacs profile (main shortcuts)
 
-| Action                         | Raccourci               |
-|--------------------------------+-------------------------|
-| Enregistrer                    | =C-x C-s=               |
-| Nouvelle page                  | =C-x C-f=               |
-| Changer de page / fermer       | =C-x b= / =C-x k=       |
-| Suivre le lien                 | =C-c C-o=               |
-| Caractère, ligne               | =C-f C-b C-n C-p=       |
-| Mot                            | =M-f M-b=               |
-| Début / fin de ligne           | =C-a= / =C-e=           |
-| Début / fin du document        | =M-<= / =M->=           |
-| Phrase                         | =M-a= / =M-e=           |
-| Paragraphe                     | =M-{= / =M-}=           |
-| Titre précédent / suivant      | =C-c C-p= / =C-c C-n=   |
-| Défiler                        | =C-v= / =M-v=           |
-| Marqueur, couper, copier, coller | =C-SPC=, =C-w=, =M-w=, =C-y= |
-| Couper le reste de la ligne    | =C-k=                   |
-| Annuler                        | =C-/=                   |
+| Action                           | Shortcut                     |
+|----------------------------------+------------------------------|
+| Save                             | =C-x C-s=                    |
+| New page                         | =C-x C-f=                    |
+| Switch page / close              | =C-x b= / =C-x k=            |
+| Follow link                      | =C-c C-o=                    |
+| Character, line                  | =C-f C-b C-n C-p=            |
+| Word                             | =M-f M-b=                    |
+| Start / end of line              | =C-a= / =C-e=                |
+| Start / end of document          | =M-<= / =M->=                |
+| Sentence                         | =M-a= / =M-e=                |
+| Paragraph                        | =M-{= / =M-}=                |
+| Previous / next heading          | =C-c C-p= / =C-c C-n=        |
+| Scroll                           | =C-v= / =M-v=                |
+| Mark, cut, copy, paste           | =C-SPC=, =C-w=, =M-w=, =C-y= |
+| Kill rest of line                | =C-k=                        |
+| Undo                             | =C-/=                        |
 
-** Fenêtres (split)
+** Windows (split)
 
-| Action                    | Emacs       | Classique  |
-|---------------------------+-------------+------------|
-| Split vertical            | =C-x 3=     | =C-M-v=    |
-| Split horizontal          | =C-x 2=     | =C-M-h=    |
-| Fermer ce volet           | =C-x 0=     | =C-M-w=    |
-| Garder ce seul volet      | =C-x 1=     | =C-M-o=    |
-| Passer à l'autre volet    | =C-x o=, =C-o= | =C-o=, =F6= |
+| Action                | Emacs          | Classic      |
+|-----------------------+----------------+--------------|
+| Vertical split        | =C-x 3=        | =C-M-v=      |
+| Horizontal split      | =C-x 2=        | =C-M-h=      |
+| Close this pane       | =C-x 0=        | =C-M-w=      |
+| Keep only this pane   | =C-x 1=        | =C-M-o=      |
+| Switch to other pane  | =C-x o=, =C-o= | =C-o=, =F6=  |
 
-En split vertical, chaque volet a son bandeau avec le nom de sa page.
+With a vertical split, each pane has its own header showing its page name.
 
-* Installation et lancement
+* Installation and running
 
-Prérequis : Rust (avec la cible =wasm32-unknown-unknown=), [[https://trunkrs.dev][Trunk]],
-=cargo-tauri= et les dépendances système de Tauri v2 (WebKitGTK sous Linux).
+Requirements: Rust (with the =wasm32-unknown-unknown= target), [[https://trunkrs.dev][Trunk]],
+=cargo-tauri= and Tauri v2's system dependencies (WebKitGTK on Linux).
 
 #+BEGIN_SRC sh
 rustup target add wasm32-unknown-unknown
 cargo install trunk tauri-cli --locked
 
-cargo tauri dev      # développement, rechargement à chaud
-cargo tauri build    # paquet de l'application
+cargo tauri dev      # development, hot reload
+cargo tauri build    # application bundle
 #+END_SRC
 
-Tests :
+Tests:
 
 #+BEGIN_SRC sh
-cargo test --lib           # frontend (fonctions pures)
-cd src-tauri && cargo test # backend (parseur, index des liens, réglages)
+cargo test --lib           # frontend (pure functions)
+cd src-tauri && cargo test # backend (parser, link index, settings)
 #+END_SRC
 
-* Organisation du code
+* Code layout
 
-| Chemin                    | Rôle                                                       |
-|---------------------------+------------------------------------------------------------|
-| =src/=                    | Frontend Leptos : =app.rs=, =state.rs=, =components/=       |
-| =src/keybindings.rs=      | Profils, suites de touches, résolution des raccourcis       |
-| =src/motion.rs=           | Déplacements à la Emacs et recherche de liens (fonctions pures) |
-| =src/highlight.rs=        | Coloration syntaxique de l'éditeur                          |
-| =src-tauri/src/commands/= | Commandes Tauri : projets, fichiers, renommage, liens       |
-| =src-tauri/src/parser/=   | Parseur org-mode, extraction et réécriture des liens        |
-| =src-tauri/src/index/=    | Index des liens entrants                                    |
-| =public/css/app.css=      | Styles                                                      |
+| Path                      | Role                                                        |
+|---------------------------+-------------------------------------------------------------|
+| =src/=                    | Leptos frontend: =app.rs=, =state.rs=, =components/=         |
+| =src/keybindings.rs=      | Profiles, key sequences, shortcut resolution                 |
+| =src/motion.rs=           | Emacs-style motions and link lookup (pure functions)         |
+| =src/highlight.rs=        | Editor syntax highlighting                                   |
+| =src-tauri/src/commands/= | Tauri commands: projects, files, renaming, links             |
+| =src-tauri/src/parser/=   | org-mode parser, link extraction and rewriting               |
+| =src-tauri/src/index/=    | Backlink index                                               |
+| =public/css/app.css=      | Styles                                                       |
 
-Les réglages sont dans =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=).
-Les tailles des panneaux sont gardées dans le =localStorage= de la fenêtre.
+Settings live in =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=).
+Panel sizes are kept in the window's =localStorage=.
