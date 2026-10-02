@@ -256,6 +256,49 @@ fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
     }
 }
 
+// ─── Page name completion (#tag and [[link]]) ─────────────────────────────────
+
+/// Suggestions shown while a `#tag` or a `[[link` is being typed.
+#[derive(Clone, PartialEq)]
+struct PageCompletion {
+    /// The typed part of the name lies between `start` and the caret.
+    start: usize,
+    caret: usize,
+    /// `[[link`: accepting also closes the link with `]]`.
+    link: bool,
+    items: Vec<String>,
+    selected: usize,
+    /// Popup position in pixels, relative to the editor wrapper.
+    x: f64,
+    y: f64,
+}
+
+const MAX_SUGGESTIONS: usize = 8;
+/// Characters to type after `[[` before pages are suggested.
+const LINK_MIN_CHARS: usize = 2;
+const POPUP_WIDTH: f64 = 260.0;
+const ITEM_HEIGHT: f64 = 26.0;
+
+/// Caret position in pixels (left, line top, line bottom) relative to the editor
+/// wrapper, measured with a hidden copy of the text laid out like the highlight layer.
+fn caret_coords(el: &Textarea, chars: &[char], pos: usize) -> Option<(f64, f64, f64)> {
+    let doc = web_sys::window()?.document()?;
+    let parent = el.parent_element()?;
+    let mirror = doc.create_element("div").ok()?;
+    mirror.set_class_name("hl-layer caret-mirror");
+    mirror.set_text_content(Some(&chars[..pos].iter().collect::<String>()));
+    let marker = doc.create_element("span").ok()?;
+    marker.set_text_content(Some("\u{200b}"));
+    mirror.append_child(&marker).ok()?;
+    parent.append_child(&mirror).ok()?;
+    let m: web_sys::HtmlElement = marker.dyn_into().ok()?;
+    let x = (m.offset_left() - el.scroll_left()) as f64;
+    let top = (m.offset_top() - el.scroll_top()) as f64;
+    let bottom = top + m.offset_height() as f64;
+    mirror.remove();
+    Some((x, top, bottom))
+}
+
 // ─── Components ──────────────────────────────────────────────────────────────
 
 /// The editor: one pane, or two when split (Emacs `C-x 2` / `C-x 3`).
@@ -319,6 +362,9 @@ pub fn EditorArea(second: bool) -> impl IntoView {
             {move || match path.get() {
                 None => view! {
                     <div class="editor-empty">
+                        {move || ctx.vault_path.get().is_none().then(|| view! {
+                            <img class="empty-logo" src="app-icon.svg" alt="" />
+                        })}
                         <p>{t("no_file", ctx.lang.get())}</p>
                         <p>{t("open_hint", ctx.lang.get())}</p>
                     </div>
@@ -388,16 +434,90 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         get_pos(el)
     };
 
+    // Page name completion while a `#tag` or a `[[link` is being typed
+    let completion = RwSignal::new(None::<PageCompletion>);
+    let accepting  = StoredValue::new(false);
+    let refresh_completion = move |el: &Textarea| {
+        let (caret, end) = get_pos(el);
+        let chars: Vec<char> = el.value().chars().collect();
+        let found = if caret != end { None } else {
+            crate::motion::link_prefix(&chars, caret)
+                .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
+                .map(|(start, p)| (start, p, true))
+                .or_else(|| ctx.hashtag_links.get_untracked()
+                    .then(|| crate::motion::hashtag_prefix(&chars, caret))
+                    .flatten()
+                    .map(|(hash, p)| (hash + 1, p, false)))
+        };
+        let Some((start, prefix, link)) = found else { completion.set(None); return };
+        let names: Vec<String> = ctx.files.get_untracked().into_iter().map(|f| f.name).collect();
+        let items = crate::motion::complete_page(&names, &prefix, !link, MAX_SUGGESTIONS);
+        if items.is_empty() { completion.set(None); return; }
+        let Some((x, top, bottom)) = caret_coords(el, &chars, start) else { return };
+        // Keep the popup inside the editor: flip above the line near the bottom edge
+        let height = items.len() as f64 * ITEM_HEIGHT + 8.0;
+        let y = if bottom + height > el.client_height() as f64 && top > height { top - height } else { bottom };
+        let x = x.min(el.client_width() as f64 - POPUP_WIDTH).max(0.0);
+        completion.set(Some(PageCompletion { start, caret, link, items, selected: 0, x, y }));
+    };
+    let (content_sig, dirty_sig) = (tab.content, tab.dirty);
+    let accept_completion = move |el: &Textarea, name: &str| {
+        let Some(c) = completion.get_untracked() else { return };
+        accepting.set_value(true);
+        let mut cursor = splice(el, c.start, c.caret, name);
+        if c.link {
+            // `[[` usually comes with its `]]` (auto-pairing): step over it, else add it
+            let after: String = el.value().chars().skip(cursor).take(2).collect();
+            cursor = if after == "]]" { cursor + 2 } else { splice(el, cursor, cursor, "]]") };
+        }
+        accepting.set_value(false);
+        set_cursor(el, cursor);
+        completion.set(None);
+        content_sig.set(el.value());
+        dirty_sig.set(true);
+    };
+
     let on_input = move |e: web_sys::Event| {
         let el = e.target().unwrap().dyn_into::<Textarea>().unwrap();
         // Typing ends the region
         mark.set(None);
         tab_input.content.set(el.value());
         tab_input.dirty.set(true);
+        if !accepting.get_value() { refresh_completion(&el); }
     };
 
     let on_keydown = move |e: web_sys::KeyboardEvent| {
         let el: Textarea = e.target().unwrap().dyn_into().unwrap();
+
+        // Completion popup: navigate, accept or dismiss before any shortcut
+        if let Some(c) = completion.get_untracked() {
+            let n = c.items.len();
+            let plain = !e.ctrl_key() && !e.alt_key() && !e.meta_key() && !e.shift_key();
+            let ctrl_only = e.ctrl_key() && !e.alt_key() && !e.meta_key() && !e.shift_key();
+            let key = e.key();
+            let handled = match key.as_str() {
+                "ArrowDown" if plain => { completion.set(Some(PageCompletion { selected: (c.selected + 1) % n, ..c })); true }
+                "n" if ctrl_only     => { completion.set(Some(PageCompletion { selected: (c.selected + 1) % n, ..c })); true }
+                "ArrowUp" if plain   => { completion.set(Some(PageCompletion { selected: (c.selected + n - 1) % n, ..c })); true }
+                "p" if ctrl_only     => { completion.set(Some(PageCompletion { selected: (c.selected + n - 1) % n, ..c })); true }
+                "Enter" | "Tab" if plain => { accept_completion(&el, &c.items[c.selected]); true }
+                "Escape" if plain    => { completion.set(None); true }
+                "g" if ctrl_only     => { completion.set(None); true }
+                _ => false,
+            };
+            if handled {
+                e.prevent_default();
+                e.stop_propagation();
+                return;
+            }
+            // Moving the caret elsewhere closes the popup; typing refreshes it (on input)
+            if matches!(key.as_str(), "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown")
+                || e.ctrl_key() || e.alt_key()
+            {
+                completion.set(None);
+            }
+        }
+
         let kb = ctx.keybindings.get();
 
         // Multi-key chords ("ctrl+x ctrl+s"): swallow the keys of a chord in progress
@@ -745,7 +865,33 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 on:keydown=on_keydown
                 on:click=on_click
                 on:mouseup=on_pointer
+                on:mousedown=move |_| completion.set(None)
+                on:blur=move |_| completion.set(None)
+                on:scroll=move |_| completion.set(None)
             />
+            {move || completion.get().map(|c| view! {
+                <ul
+                    class="page-completion"
+                    style=format!("left: {}px; top: {}px; width: {}px;", c.x, c.y, POPUP_WIDTH)
+                >
+                    {c.items.iter().enumerate().map(|(i, name)| {
+                        let pick = name.clone();
+                        view! {
+                            <li
+                                class=if i == c.selected { "page-completion-item selected" } else { "page-completion-item" }
+                                // mousedown + preventDefault keeps the focus in the textarea
+                                on:mousedown=move |e: web_sys::MouseEvent| {
+                                    e.prevent_default();
+                                    if let Some(el) = area_ref.get() { accept_completion(&el, &pick); }
+                                }
+                            >
+                                <span class="page-completion-sigil">{if c.link { "[[" } else { "#" }}</span>
+                                {name.clone()}
+                            </li>
+                        }
+                    }).collect_view()}
+                </ul>
+            })}
         </div>
     }
 }

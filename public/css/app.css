@@ -271,6 +271,15 @@ html, body { height: 100%; overflow: hidden; }
     gap: 8px;
 }
 
+/* Faded logo shown above the hints while no project is open */
+.empty-logo {
+    width: min(50%, 45vh, 360px);
+    margin-bottom: 16px;
+    opacity: 0.18;
+    pointer-events: none;
+    user-select: none;
+}
+
 .editor-wrap {
     flex: 1;
     position: relative;
@@ -804,3 +813,31 @@ html, body { height: 100%; overflow: hidden; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--fg-dim); }
+
+/* ── Page name completion (#tag, [[link]]) ───────────────────────────────────────── */
+.caret-mirror { visibility: hidden; z-index: -1; }
+.page-completion {
+    position: absolute;
+    z-index: 20;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.4);
+    font-size: 13px;
+}
+.page-completion-item {
+    height: 26px;
+    line-height: 26px;
+    padding: 0 10px;
+    cursor: pointer;
+    color: var(--fg);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.page-completion-item:hover { background: var(--bg3); }
+.page-completion-item.selected { background: var(--bg3); color: var(--accent2); }
+.page-completion-sigil { color: var(--fg-dim); margin-right: 2px; }

@@ -144,6 +144,51 @@ pub fn hashtag_at(chars: &[char], i: usize) -> Option<(String, usize)> {
     Some((chars[i + 1..end].iter().collect(), end))
 }
 
+fn is_tag_char(c: char) -> bool { c.is_alphanumeric() || c == '_' || c == '-' }
+
+/// The `#tag` being typed when the caret is at `caret`: returns the index of the
+/// `#` and the part of the tag already typed (possibly empty, right after `#`).
+pub fn hashtag_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
+    if chars.get(caret).is_some_and(|&c| is_tag_char(c)) { return None; }
+    let mut start = caret;
+    while start > 0 && is_tag_char(chars[start - 1]) { start -= 1; }
+    let hash = start.checked_sub(1)?;
+    if chars[hash] != '#' { return None; }
+    if hash > 0 && !(chars[hash - 1].is_whitespace() || "([{\"'".contains(chars[hash - 1])) { return None; }
+    if start < caret && !chars[start].is_alphanumeric() { return None; }
+    Some((hash, chars[start..caret].iter().collect()))
+}
+
+/// The `[[target` being typed when the caret is at `caret` (inside `[[…`, before
+/// any `]` or `[`, on the same line): returns the index where the target starts
+/// and the part already typed.
+pub fn link_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
+    let mut start = caret;
+    while start > 0 && !matches!(chars[start - 1], '[' | ']' | '\n') { start -= 1; }
+    if start < 2 || chars[start - 1] != '[' || chars[start - 2] != '[' { return None; }
+    Some((start, chars[start..caret].iter().collect()))
+}
+
+/// Page names completing `prefix` (case-insensitive): names starting with it first
+/// (shortest first), then names containing it; the exact name is left out. With
+/// `tag_only`, only names usable as a `#tag` (letters, digits, `_`, `-`) are kept.
+pub fn complete_page(names: &[String], prefix: &str, tag_only: bool, limit: usize) -> Vec<String> {
+    let p = prefix.trim().to_lowercase();
+    let mut starts = Vec::new();
+    let mut contains = Vec::new();
+    for name in names {
+        let valid = !tag_only || (name.chars().next().is_some_and(char::is_alphanumeric)
+            && name.chars().all(is_tag_char));
+        let n = name.to_lowercase();
+        if !valid || n == p { continue; }
+        if n.starts_with(&p) { starts.push(name.clone()); }
+        else if n.contains(&p) { contains.push(name.clone()); }
+    }
+    starts.sort_by_key(|n| (n.chars().count(), n.to_lowercase()));
+    contains.sort_by_key(|n| n.to_lowercase());
+    starts.into_iter().chain(contains).take(limit).collect()
+}
+
 /// Char range of the target text of the first `[[target]]` / `[[target][label]]`
 /// link naming `target`.
 pub fn find_link(chars: &[char], target: &str, ignore_case: bool, hashtags: bool) -> Option<(usize, usize)> {
@@ -177,6 +222,42 @@ mod tests {
     use super::*;
 
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
+
+    #[test]
+    fn hashtag_prefix_while_typing() {
+        assert_eq!(hashtag_prefix(&c("see #"), 5), Some((4, String::new())));
+        assert_eq!(hashtag_prefix(&c("see #ru"), 7), Some((4, "ru".into())));
+        assert_eq!(hashtag_prefix(&c("#ru"), 3), Some((0, "ru".into())));
+        assert_eq!(hashtag_prefix(&c("(#ru)"), 4), Some((1, "ru".into())));
+        // Caret in the middle of a tag, `#` glued to a word, heading-like `#_`
+        assert_eq!(hashtag_prefix(&c("#rust"), 3), None);
+        assert_eq!(hashtag_prefix(&c("a#ru"), 4), None);
+        assert_eq!(hashtag_prefix(&c("#_x"), 3), None);
+        assert_eq!(hashtag_prefix(&c("no tag"), 6), None);
+    }
+
+    #[test]
+    fn complete_page_ranks_prefix_matches_first() {
+        let names: Vec<String> = ["Rust", "rust-async", "Trust", "Notes", "my page", "Rustacean"]
+            .iter().map(|s| s.to_string()).collect();
+        assert_eq!(complete_page(&names, "ru", true, 10), vec!["Rust", "Rustacean", "rust-async", "Trust"]);
+        // The exact name is not proposed; names with spaces can't be tags
+        assert_eq!(complete_page(&names, "rust", true, 10), vec!["Rustacean", "rust-async", "Trust"]);
+        assert_eq!(complete_page(&names, "", true, 2), vec!["Rust", "Notes"]);
+        assert!(complete_page(&names, "page", true, 10).is_empty());
+        // Links accept any page name
+        assert_eq!(complete_page(&names, "page", false, 10), vec!["my page"]);
+    }
+
+    #[test]
+    fn link_prefix_while_typing() {
+        assert_eq!(link_prefix(&c("see [[my pa"), 11), Some((6, "my pa".into())));
+        assert_eq!(link_prefix(&c("[[]]"), 2), Some((2, String::new())));
+        assert_eq!(link_prefix(&c("[[a][lab"), 8), None);   // in the label
+        assert_eq!(link_prefix(&c("[[a]] b"), 7), None);    // after the link
+        assert_eq!(link_prefix(&c("[x"), 2), None);
+        assert_eq!(link_prefix(&c("[[a\nb"), 5), None);     // other line
+    }
 
     #[test]
     fn hashtag_link_found() {
