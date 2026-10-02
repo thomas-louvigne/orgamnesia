@@ -1,10 +1,10 @@
 #+TITLE: Orgamnesia
 
-A personal wiki made of =org-mode= files, with links between pages, backlinks and
-Emacs-style keybindings. Desktop app written in Rust: Tauri v2 (backend) and
+A lite Obsidian with an Emacs flavour: a personal wiki made of =org-mode= files,
+with links between pages and backlinks. Desktop app written in Rust: Tauri v2 (backend) and
 Leptos 0.7 (frontend, compiled to WebAssembly).
 
-/[[file:readme.fr.org][Version française]]/
+/[[file:readme.fr.org][🇫🇷 Version française]]/
 
 #+BEGIN_QUOTE
 *Beta version.* The project is under active development: expect bugs, features may
@@ -16,7 +16,7 @@ an AI. Review the code with the same critical eye as any other contribution.
 
 [[file:docs/screenshot.png]]
 
-/Editor split in two (=C-x 3=), clickable =#tag= keywords and =[[page]]= links,
+/Editor split in two, clickable =#tag= keywords and =[[page]]= links,
 backlinks on the right, "Uncreated pages" at the bottom right./
 
 * Features
@@ -41,8 +41,7 @@ backlinks on the right, "Uncreated pages" at the bottom right./
 - org-mode highlighting: headings, =TODO=/=DONE=, bold, italic, quotes, tables, links.
 - Autosave on every keystroke (option, on by default).
 - "Electric" mode: with text selected, typing =( ) [ ] " '= wraps the selection.
-- Emacs-style selection marker (=C-SPC=).
-- Editor split in two, like Emacs windows (see below).
+- Editor split in two panes (vertical or horizontal), each with its own header.
 
 ** Interface
 - The sidebar and right panel widths can be resized by dragging their border;
@@ -52,47 +51,8 @@ backlinks on the right, "Uncreated pages" at the bottom right./
 
 * Keybindings
 
-Everything is configurable in *Settings → Shortcuts*.
-
-- Two presets: *Classic* and *Emacs*.
-- As soon as you change a shortcut, a *Custom* profile is created; you can have several
-  and rename them. All profiles have the same fields (some stay empty).
-- Key sequences (=C-x C-s=), with Ctrl, Shift, Alt.
-- Two actions cannot share the same combination: a conflict is shown in red, with an alert,
-  and prevents saving.
-- *Apply* button (doesn't close the window), greyed out when there is nothing to apply.
-
-** Emacs profile (main shortcuts)
-
-| Action                           | Shortcut                     |
-|----------------------------------+------------------------------|
-| Save                             | =C-x C-s=                    |
-| New page                         | =C-x C-f=                    |
-| Switch page / close              | =C-x b= / =C-x k=            |
-| Follow link                      | =C-c C-o=                    |
-| Character, line                  | =C-f C-b C-n C-p=            |
-| Word                             | =M-f M-b=                    |
-| Start / end of line              | =C-a= / =C-e=                |
-| Start / end of document          | =M-<= / =M->=                |
-| Sentence                         | =M-a= / =M-e=                |
-| Paragraph                        | =M-{= / =M-}=                |
-| Previous / next heading          | =C-c C-p= / =C-c C-n=        |
-| Scroll                           | =C-v= / =M-v=                |
-| Mark, cut, copy, paste           | =C-SPC=, =C-w=, =M-w=, =C-y= |
-| Kill rest of line                | =C-k=                        |
-| Undo                             | =C-/=                        |
-
-** Windows (split)
-
-| Action                | Emacs          | Classic      |
-|-----------------------+----------------+--------------|
-| Vertical split        | =C-x 3=        | =C-M-v=      |
-| Horizontal split      | =C-x 2=        | =C-M-h=      |
-| Close this pane       | =C-x 0=        | =C-M-w=      |
-| Keep only this pane   | =C-x 1=        | =C-M-o=      |
-| Switch to other pane  | =C-x o=, =C-o= | =C-o=, =F6=  |
-
-With a vertical split, each pane has its own header showing its page name.
+Shortcuts are configurable in *Settings → Shortcuts*: two presets (*Classic* and
+*Emacs*) plus your own custom profiles, with key sequences and conflict detection.
 
 * Installation and running
 
@@ -106,6 +66,35 @@ cargo install trunk tauri-cli --locked
 cargo tauri dev      # development, hot reload
 cargo tauri build    # application bundle
 #+END_SRC
+
+** Manual installation (Linux)
+
+Packaging (=.deb=, AppImage…) is not enabled yet: =cargo tauri build= produces a
+single binary, with the frontend embedded, at =src-tauri/target/release/orgamnesia=.
+To install it for your user:
+
+#+BEGIN_SRC sh
+cargo tauri build
+install -Dm755 src-tauri/target/release/orgamnesia ~/.local/bin/orgamnesia
+install -Dm644 src-tauri/icons/icon.png ~/.local/share/icons/hicolor/32x32/apps/orgamnesia.png
+#+END_SRC
+
+Make sure =~/.local/bin= is in your =PATH=, then run =orgamnesia=. To add it to
+the application menu, create =~/.local/share/applications/orgamnesia.desktop=:
+
+#+BEGIN_SRC conf
+[Desktop Entry]
+Type=Application
+Name=Orgamnesia
+Comment=Personal wiki in org-mode files
+Exec=orgamnesia
+Icon=orgamnesia
+Categories=Office;Utility;
+Terminal=false
+#+END_SRC
+
+The WebKitGTK runtime (=libwebkit2gtk-4.1=) must be installed on the machine.
+To uninstall, delete these three files; settings live in =~/.config/com.orgamnesia.app/=.
 
 Tests:
 

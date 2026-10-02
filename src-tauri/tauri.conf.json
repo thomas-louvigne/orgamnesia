@@ -5,7 +5,7 @@
   "identifier": "com.orgamnesia.app",
   "build": {
     "beforeDevCommand": "trunk serve --port 1420",
-    "beforeBuildCommand": "trunk build",
+    "beforeBuildCommand": "trunk build --release",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
@@ -25,8 +25,25 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all",
-    "icon": []
+    "active": true,
+    "targets": ["deb"],
+    "category": "Productivity",
+    "publisher": "Thomas L",
+    "longDescription": "Personal wiki made of org-mode files, with links between pages, backlinks, #tag keywords, split panes and configurable (Classic or Emacs) keybindings.",
+    "shortDescription": "A lite Obsidian with an Emacs flavour, in org-mode files",
+    "icon": [
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "deb": {
+        "section": "editors"
+      }
+    }
   }
 }

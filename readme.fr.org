@@ -1,7 +1,7 @@
 #+TITLE: Orgamnesia
 
-Un wiki personnel en fichiers =org-mode=, avec des liens entre pages, des
-liens entrants et des raccourcis clavier à la Emacs. Application de bureau
+Un Obsidian léger à la saveur Emacs : un wiki personnel en fichiers =org-mode=,
+avec des liens entre pages et des liens entrants. Application de bureau
 écrite en Rust : Tauri v2 (backend) et Leptos 0.7 (frontend, compilé en WebAssembly).
 
 #+BEGIN_QUOTE
@@ -17,7 +17,7 @@ que n'importe quelle contribution.
 
 [[file:docs/screenshot.png]]
 
-/Éditeur coupé en deux (=C-x 3=), mots-clés =#tag= et liens =[[page]]= cliquables,
+/Éditeur coupé en deux, mots-clés =#tag= et liens =[[page]]= cliquables,
 liens entrants à droite, « Pages non créées » en bas à droite./
 
 * Fonctionnalités
@@ -42,8 +42,7 @@ liens entrants à droite, « Pages non créées » en bas à droite./
 - Coloration org-mode : titres, =TODO=/=DONE=, gras, italique, citations, tableaux, liens.
 - Sauvegarde automatique à chaque frappe (option, activée par défaut).
 - Mode « électrique » : avec du texte sélectionné, taper =( ) [ ] " '= l'entoure.
-- Marqueur de sélection à la Emacs (=C-SPC=).
-- Éditeur coupé en deux, façon fenêtres Emacs (voir plus bas).
+- Éditeur coupé en deux (verticalement ou horizontalement), chaque volet avec son en-tête.
 
 ** Interface
 - Largeur de la barre latérale et du panneau de droite réglables en glissant leur bordure ;
@@ -53,47 +52,9 @@ liens entrants à droite, « Pages non créées » en bas à droite./
 
 * Raccourcis clavier
 
-Tout est configurable dans *Paramètres → Raccourcis*.
-
-- Deux jeux prédéfinis : *Classique* et *Emacs*.
-- Dès qu'on modifie un raccourci, un profil *Personnalisé* est créé ; on peut en avoir
-  plusieurs et les renommer. Tous les profils ont les mêmes champs (certains restent vides).
-- Suites de touches (=C-x C-s=), avec Ctrl, Maj, Alt.
-- Deux actions ne peuvent pas partager la même combinaison : un conflit s'affiche en rouge,
-  avec une alerte, et empêche d'enregistrer.
-- Bouton *Appliquer* (sans fermer la fenêtre), grisé quand il n'y a rien à appliquer.
-
-** Profil Emacs (principaux raccourcis)
-
-| Action                         | Raccourci               |
-|--------------------------------+-------------------------|
-| Enregistrer                    | =C-x C-s=               |
-| Nouvelle page                  | =C-x C-f=               |
-| Changer de page / fermer       | =C-x b= / =C-x k=       |
-| Suivre le lien                 | =C-c C-o=               |
-| Caractère, ligne               | =C-f C-b C-n C-p=       |
-| Mot                            | =M-f M-b=               |
-| Début / fin de ligne           | =C-a= / =C-e=           |
-| Début / fin du document        | =M-<= / =M->=           |
-| Phrase                         | =M-a= / =M-e=           |
-| Paragraphe                     | =M-{= / =M-}=           |
-| Titre précédent / suivant      | =C-c C-p= / =C-c C-n=   |
-| Défiler                        | =C-v= / =M-v=           |
-| Marqueur, couper, copier, coller | =C-SPC=, =C-w=, =M-w=, =C-y= |
-| Couper le reste de la ligne    | =C-k=                   |
-| Annuler                        | =C-/=                   |
-
-** Fenêtres (split)
-
-| Action                    | Emacs       | Classique  |
-|---------------------------+-------------+------------|
-| Split vertical            | =C-x 3=     | =C-M-v=    |
-| Split horizontal          | =C-x 2=     | =C-M-h=    |
-| Fermer ce volet           | =C-x 0=     | =C-M-w=    |
-| Garder ce seul volet      | =C-x 1=     | =C-M-o=    |
-| Passer à l'autre volet    | =C-x o=, =C-o= | =C-o=, =F6= |
-
-En split vertical, chaque volet a son bandeau avec le nom de sa page.
+Les raccourcis se configurent dans *Paramètres → Raccourcis* : deux jeux prédéfinis
+(*Classique* et *Emacs*) et des profils personnalisés, avec suites de touches et
+détection des conflits.
 
 * Installation et lancement
 
@@ -107,6 +68,35 @@ cargo install trunk tauri-cli --locked
 cargo tauri dev      # développement, rechargement à chaud
 cargo tauri build    # paquet de l'application
 #+END_SRC
+
+** Installation manuelle (Linux)
+
+Le packaging (=.deb=, AppImage…) n'est pas encore activé : =cargo tauri build= produit
+un seul binaire, avec le frontend embarqué, dans =src-tauri/target/release/orgamnesia=.
+Pour l'installer pour votre utilisateur :
+
+#+BEGIN_SRC sh
+cargo tauri build
+install -Dm755 src-tauri/target/release/orgamnesia ~/.local/bin/orgamnesia
+install -Dm644 src-tauri/icons/icon.png ~/.local/share/icons/hicolor/32x32/apps/orgamnesia.png
+#+END_SRC
+
+Vérifiez que =~/.local/bin= est dans votre =PATH=, puis lancez =orgamnesia=. Pour
+l'ajouter au menu des applications, créez =~/.local/share/applications/orgamnesia.desktop= :
+
+#+BEGIN_SRC conf
+[Desktop Entry]
+Type=Application
+Name=Orgamnesia
+Comment=Wiki personnel en fichiers org-mode
+Exec=orgamnesia
+Icon=orgamnesia
+Categories=Office;Utility;
+Terminal=false
+#+END_SRC
+
+Le runtime WebKitGTK (=libwebkit2gtk-4.1=) doit être installé sur la machine.
+Pour désinstaller, supprimez ces trois fichiers ; les réglages sont dans =~/.config/com.orgamnesia.app/=.
 
 Tests :
 
