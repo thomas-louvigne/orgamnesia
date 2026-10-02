@@ -6,8 +6,9 @@ pkgrel=1
 pkgdesc="A lite Obsidian with an Emacs flavour: personal wiki in org-mode files"
 arch=('x86_64' 'aarch64')
 url="https://github.com/thomas-louvigne/orgamnesia"
-license=('unknown')
-depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
+license=('GPL-3.0-or-later')
+depends=('webkit2gtk-4.1' 'gtk3' 'glib2' 'gdk-pixbuf2' 'cairo' 'libsoup3' 'dbus'
+         'glibc' 'libgcc' 'hicolor-icon-theme')
 makedepends=('git' 'rust' 'rust-wasm' 'trunk' 'cargo-tauri')
 provides=("$_pkgname")
 conflicts=("$_pkgname")

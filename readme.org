@@ -54,79 +54,90 @@ backlinks on the right, "Uncreated pages" at the bottom right./
 Shortcuts are configurable in *Settings → Shortcuts*: two presets (*Classic* and
 *Emacs*) plus your own custom profiles, with key sequences and conflict detection.
 
-* Installation and running
+* Installation
 
-Requirements: Rust (with the =wasm32-unknown-unknown= target), [[https://trunkrs.dev][Trunk]],
-=cargo-tauri= and Tauri v2's system dependencies (WebKitGTK on Linux).
+Orgamnesia runs on Linux. There are no prebuilt downloads yet: the app is
+compiled on your machine, which takes a few minutes the first time.
+
+** Debian, Ubuntu, Linux Mint, Pop!_OS…
+
+1. Install the build tools and system libraries:
+
+   #+BEGIN_SRC sh
+   sudo apt update
+   sudo apt install build-essential curl wget file git pkg-config libssl-dev \
+     libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
+   #+END_SRC
+
+2. Install Rust (skip if =cargo= is already available), then the web target,
+   Trunk and the Tauri CLI:
+
+   #+BEGIN_SRC sh
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   source "$HOME/.cargo/env"
+   rustup target add wasm32-unknown-unknown
+   cargo install trunk tauri-cli --locked
+   #+END_SRC
+
+3. Download the sources, build the =.deb= package and install it:
+
+   #+BEGIN_SRC sh
+   git clone https://github.com/thomas-louvigne/orgamnesia.git
+   cd orgamnesia
+   cargo tauri build --bundles deb
+   sudo apt install ./src-tauri/target/release/bundle/deb/Orgamnesia_*_amd64.deb
+   #+END_SRC
+
+Orgamnesia now appears in your applications menu. To uninstall:
+=sudo apt remove orgamnesia=.
+
+** Arch Linux, Manjaro, EndeavourOS…
+
+A =PKGBUILD= is provided. =makepkg= installs the build dependencies itself
+(=-s=) and then installs the package with pacman (=-i=):
 
 #+BEGIN_SRC sh
-rustup target add wasm32-unknown-unknown
-cargo install trunk tauri-cli --locked
-
-cargo tauri dev      # development, hot reload
-cargo tauri build    # application bundle
+sudo pacman -S --needed base-devel git
+git clone https://github.com/thomas-louvigne/orgamnesia.git
+cd orgamnesia/packaging/arch
+makepkg -si
 #+END_SRC
 
-** Arch Linux (and derivatives)
+The package (=orgamnesia-git=) builds the latest version of =main=; run
+=makepkg -si= again in the same folder to update. To uninstall:
+=sudo pacman -R orgamnesia-git=.
 
-A =PKGBUILD= is provided in =packaging/arch/=. It builds the latest =main= from
-GitHub and installs the binary, the menu entry and the icons:
+** Other Linux distributions
 
-#+BEGIN_SRC sh
-cd packaging/arch
-makepkg -si          # build, then install with pacman
-#+END_SRC
-
-To uninstall: =sudo pacman -R orgamnesia-git=.
-
-** Manual installation (Linux)
-
-Packaging (=.deb=, AppImage…) is not enabled yet: =cargo tauri build= produces a
-single binary, with the frontend embedded, at =src-tauri/target/release/orgamnesia=.
-To install it for your user:
+Install the [[https://v2.tauri.app/start/prerequisites/#linux][Tauri prerequisites]]
+for your distribution (mainly WebKitGTK 4.1), Rust, then build as in step 2 and 3
+of the Debian section but without packaging:
 
 #+BEGIN_SRC sh
-cargo tauri build
+cargo tauri build --no-bundle
 install -Dm755 src-tauri/target/release/orgamnesia ~/.local/bin/orgamnesia
-install -Dm644 src-tauri/icons/icon.png ~/.local/share/icons/hicolor/32x32/apps/orgamnesia.png
+install -Dm644 src-tauri/icons/icon.png ~/.local/share/icons/hicolor/512x512/apps/orgamnesia.png
+install -Dm644 packaging/arch/orgamnesia.desktop ~/.local/share/applications/orgamnesia.desktop
 #+END_SRC
 
-Make sure =~/.local/bin= is in your =PATH=, then run =orgamnesia=. To add it to
-the application menu, create =~/.local/share/applications/orgamnesia.desktop=:
+Make sure =~/.local/bin= is in your =PATH=. To uninstall, delete these three files.
 
-#+BEGIN_SRC conf
-[Desktop Entry]
-Type=Application
-Name=Orgamnesia
-Comment=Personal wiki in org-mode files
-Exec=orgamnesia
-Icon=orgamnesia
-Categories=Office;Utility;
-Terminal=false
-#+END_SRC
+** Your data
 
-The WebKitGTK runtime (=libwebkit2gtk-4.1=) must be installed on the machine.
-To uninstall, delete these three files; settings live in =~/.config/com.orgamnesia.app/=.
+Your wiki pages are plain =.org= files in the folder you choose in the app; they
+are never touched by uninstalling. Settings live in =~/.config/com.orgamnesia.app/=.
 
-Tests:
+* Development
 
 #+BEGIN_SRC sh
-cargo test --lib           # frontend (pure functions)
-cd src-tauri && cargo test # backend (parser, link index, settings)
+cargo tauri dev            # run with hot reload
+cargo tauri build          # release build (+ .deb)
+cargo test --lib           # frontend tests (pure functions)
+cd src-tauri && cargo test # backend tests (parser, link index, settings)
 #+END_SRC
 
-* Code layout
+* License
 
-| Path                      | Role                                                        |
-|---------------------------+-------------------------------------------------------------|
-| =src/=                    | Leptos frontend: =app.rs=, =state.rs=, =components/=         |
-| =src/keybindings.rs=      | Profiles, key sequences, shortcut resolution                 |
-| =src/motion.rs=           | Emacs-style motions and link lookup (pure functions)         |
-| =src/highlight.rs=        | Editor syntax highlighting                                   |
-| =src-tauri/src/commands/= | Tauri commands: projects, files, renaming, links             |
-| =src-tauri/src/parser/=   | org-mode parser, link extraction and rewriting               |
-| =src-tauri/src/index/=    | Backlink index                                               |
-| =public/css/app.css=      | Styles                                                       |
-
-Settings live in =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=).
-Panel sizes are kept in the window's =localStorage=.
+Orgamnesia is free software, released under the
+[[https://www.gnu.org/licenses/gpl-3.0.html][GNU General Public License v3]] (or any later version).
+See the [[file:LICENSE][LICENSE]] file.

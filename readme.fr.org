@@ -56,79 +56,91 @@ Les raccourcis se configurent dans *Paramètres → Raccourcis* : deux jeux pré
 (*Classique* et *Emacs*) et des profils personnalisés, avec suites de touches et
 détection des conflits.
 
-* Installation et lancement
+* Installation
 
-Prérequis : Rust (avec la cible =wasm32-unknown-unknown=), [[https://trunkrs.dev][Trunk]],
-=cargo-tauri= et les dépendances système de Tauri v2 (WebKitGTK sous Linux).
+Orgamnesia fonctionne sous Linux. Il n'y a pas encore de version précompilée à
+télécharger : l'application est compilée sur votre machine, ce qui prend quelques
+minutes la première fois.
+
+** Debian, Ubuntu, Linux Mint, Pop!_OS…
+
+1. Installer les outils de compilation et les bibliothèques système :
+
+   #+BEGIN_SRC sh
+   sudo apt update
+   sudo apt install build-essential curl wget file git pkg-config libssl-dev \
+     libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
+   #+END_SRC
+
+2. Installer Rust (inutile si =cargo= est déjà présent), puis la cible web,
+   Trunk et la CLI Tauri :
+
+   #+BEGIN_SRC sh
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   source "$HOME/.cargo/env"
+   rustup target add wasm32-unknown-unknown
+   cargo install trunk tauri-cli --locked
+   #+END_SRC
+
+3. Récupérer les sources, construire le paquet =.deb= et l'installer :
+
+   #+BEGIN_SRC sh
+   git clone https://github.com/thomas-louvigne/orgamnesia.git
+   cd orgamnesia
+   cargo tauri build --bundles deb
+   sudo apt install ./src-tauri/target/release/bundle/deb/Orgamnesia_*_amd64.deb
+   #+END_SRC
+
+Orgamnesia apparaît alors dans le menu des applications. Pour désinstaller :
+=sudo apt remove orgamnesia=.
+
+** Arch Linux, Manjaro, EndeavourOS…
+
+Un =PKGBUILD= est fourni. =makepkg= installe lui-même les dépendances de
+compilation (=-s=), puis installe le paquet avec pacman (=-i=) :
 
 #+BEGIN_SRC sh
-rustup target add wasm32-unknown-unknown
-cargo install trunk tauri-cli --locked
-
-cargo tauri dev      # développement, rechargement à chaud
-cargo tauri build    # paquet de l'application
+sudo pacman -S --needed base-devel git
+git clone https://github.com/thomas-louvigne/orgamnesia.git
+cd orgamnesia/packaging/arch
+makepkg -si
 #+END_SRC
 
-** Arch Linux (et dérivées)
+Le paquet (=orgamnesia-git=) compile la dernière version de =main= ; relancez
+=makepkg -si= dans le même dossier pour mettre à jour. Pour désinstaller :
+=sudo pacman -R orgamnesia-git=.
 
-Un =PKGBUILD= est fourni dans =packaging/arch/=. Il compile la dernière version de
-=main= depuis GitHub et installe le binaire, l'entrée de menu et les icônes :
+** Autres distributions Linux
 
-#+BEGIN_SRC sh
-cd packaging/arch
-makepkg -si          # compile, puis installe avec pacman
-#+END_SRC
-
-Pour désinstaller : =sudo pacman -R orgamnesia-git=.
-
-** Installation manuelle (Linux)
-
-Le packaging (=.deb=, AppImage…) n'est pas encore activé : =cargo tauri build= produit
-un seul binaire, avec le frontend embarqué, dans =src-tauri/target/release/orgamnesia=.
-Pour l'installer pour votre utilisateur :
+Installez les [[https://v2.tauri.app/start/prerequisites/#linux][prérequis Tauri]]
+de votre distribution (surtout WebKitGTK 4.1) et Rust, puis compilez comme aux
+étapes 2 et 3 de la section Debian, mais sans paquet :
 
 #+BEGIN_SRC sh
-cargo tauri build
+cargo tauri build --no-bundle
 install -Dm755 src-tauri/target/release/orgamnesia ~/.local/bin/orgamnesia
-install -Dm644 src-tauri/icons/icon.png ~/.local/share/icons/hicolor/32x32/apps/orgamnesia.png
+install -Dm644 src-tauri/icons/icon.png ~/.local/share/icons/hicolor/512x512/apps/orgamnesia.png
+install -Dm644 packaging/arch/orgamnesia.desktop ~/.local/share/applications/orgamnesia.desktop
 #+END_SRC
 
-Vérifiez que =~/.local/bin= est dans votre =PATH=, puis lancez =orgamnesia=. Pour
-l'ajouter au menu des applications, créez =~/.local/share/applications/orgamnesia.desktop= :
+Vérifiez que =~/.local/bin= est dans votre =PATH=. Pour désinstaller, supprimez ces trois fichiers.
 
-#+BEGIN_SRC conf
-[Desktop Entry]
-Type=Application
-Name=Orgamnesia
-Comment=Wiki personnel en fichiers org-mode
-Exec=orgamnesia
-Icon=orgamnesia
-Categories=Office;Utility;
-Terminal=false
-#+END_SRC
+** Vos données
 
-Le runtime WebKitGTK (=libwebkit2gtk-4.1=) doit être installé sur la machine.
-Pour désinstaller, supprimez ces trois fichiers ; les réglages sont dans =~/.config/com.orgamnesia.app/=.
+Vos pages sont de simples fichiers =.org= dans le dossier choisi dans l'application ;
+une désinstallation n'y touche jamais. Les réglages sont dans =~/.config/com.orgamnesia.app/=.
 
-Tests :
+* Développement
 
 #+BEGIN_SRC sh
-cargo test --lib           # frontend (fonctions pures)
-cd src-tauri && cargo test # backend (parseur, index des liens, réglages)
+cargo tauri dev            # lancement avec rechargement à chaud
+cargo tauri build          # build de production (+ .deb)
+cargo test --lib           # tests frontend (fonctions pures)
+cd src-tauri && cargo test # tests backend (parseur, index des liens, réglages)
 #+END_SRC
 
-* Organisation du code
+* Licence
 
-| Chemin                    | Rôle                                                       |
-|---------------------------+------------------------------------------------------------|
-| =src/=                    | Frontend Leptos : =app.rs=, =state.rs=, =components/=       |
-| =src/keybindings.rs=      | Profils, suites de touches, résolution des raccourcis       |
-| =src/motion.rs=           | Déplacements à la Emacs et recherche de liens (fonctions pures) |
-| =src/highlight.rs=        | Coloration syntaxique de l'éditeur                          |
-| =src-tauri/src/commands/= | Commandes Tauri : projets, fichiers, renommage, liens       |
-| =src-tauri/src/parser/=   | Parseur org-mode, extraction et réécriture des liens        |
-| =src-tauri/src/index/=    | Index des liens entrants                                    |
-| =public/css/app.css=      | Styles                                                      |
-
-Les réglages sont dans =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=).
-Les tailles des panneaux sont gardées dans le =localStorage= de la fenêtre.
+Orgamnesia est un logiciel libre, distribué sous la
+[[https://www.gnu.org/licenses/gpl-3.0.html][licence publique générale GNU v3]] (GPL v3, ou toute version ultérieure).
+Voir le fichier [[file:LICENSE][LICENSE]].

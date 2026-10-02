@@ -29,6 +29,8 @@
     "targets": ["deb"],
     "category": "Productivity",
     "publisher": "Thomas L",
+    "license": "GPL-3.0-or-later",
+    "licenseFile": "../LICENSE",
     "longDescription": "Personal wiki made of org-mode files, with links between pages, backlinks, #tag keywords, split panes and configurable (Classic or Emacs) keybindings.",
     "shortDescription": "A lite Obsidian with an Emacs flavour, in org-mode files",
     "icon": [
