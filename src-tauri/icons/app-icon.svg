@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="orb" cx="38%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#b48ef0"/>
+      <stop offset="0.55" stop-color="#7650c4"/>
+      <stop offset="1" stop-color="#3d2378"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a2f86"/>
+      <stop offset="1" stop-color="#1f1240"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e3dcf5"/>
+    </linearGradient>
+    <mask id="gap">
+      <rect width="1024" height="1024" fill="white"/>
+      <!-- wedge opening at upper right -->
+      <path d="M512 512 L1000 250 L1000 470 Z" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- orb with dark ring, Emacs style -->
+  <circle cx="512" cy="512" r="470" fill="url(#ring)"/>
+  <circle cx="512" cy="512" r="438" fill="url(#orb)"/>
+  <!-- glossy highlight -->
+  <ellipse cx="430" cy="270" rx="250" ry="120" fill="#ffffff" opacity="0.10"/>
+
+  <!-- tapered crescent "O": thick lower-left, thin upper-right -->
+  <path mask="url(#gap)" fill="url(#ribbon)" fill-rule="evenodd"
+        d="M492 512 m-270 0 a270 270 0 1 0 540 0 a270 270 0 1 0 -540 0 Z
+           M548 486 m-185 0 a185 195 0 1 0 370 0 a185 195 0 1 0 -370 0 Z"/>
+
+  <!-- flourish tail sweeping out of the gap, like the Emacs E swoosh -->
+  <path fill="url(#ribbon)"
+        d="M640 300 C 720 312, 790 290, 846 228 C 830 300, 790 360, 724 404 C 706 362, 680 328, 640 300 Z"/>
+
+  <!-- link nodes: a tiny wiki graph inside the O -->
+  <g stroke="#a3be8c" stroke-width="18" stroke-linecap="round">
+    <line x1="470" y1="560" x2="560" y2="430"/>
+    <line x1="560" y1="430" x2="630" y2="560"/>
+  </g>
+  <circle cx="470" cy="560" r="34" fill="#a3be8c"/>
+  <circle cx="560" cy="430" r="40" fill="#ffffff"/>
+  <circle cx="630" cy="560" r="34" fill="#a3be8c"/>
+</svg>
