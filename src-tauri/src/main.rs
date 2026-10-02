@@ -26,6 +26,8 @@ fn main() {
             commands::create_page,
             commands::get_backlinks,
             commands::get_broken_links,
+            commands::list_tags,
+            commands::search_tags,
             commands::rename_page,
             commands::delete_page,
             commands::export_vault,

@@ -343,6 +343,8 @@ html, body { height: 100%; overflow: hidden; }
 .em-i  { color: var(--green); font-style: italic; }
 .em-u  { color: var(--accent2); text-decoration: underline; }
 
+.kw         { color: var(--fg-dim); }
+.tag-t      { text-decoration: underline; text-underline-offset: 2px; }
 .link       { color: var(--cyan); }
 .link-t     { color: var(--accent2); text-decoration: underline; text-underline-offset: 2px; }
 .link-d     { color: var(--cyan); text-decoration: underline; text-underline-offset: 2px; }
@@ -392,6 +394,22 @@ html, body { height: 100%; overflow: hidden; }
     background: var(--bg3);
     border-left-color: var(--accent);
 }
+
+/* Backlinks / Tags switch */
+.panel-tabs { display: flex; gap: 4px; padding: 0 8px; }
+.panel-tab {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--fg-dim); cursor: pointer; padding: 10px 6px 8px;
+    font: inherit; text-transform: inherit; letter-spacing: inherit; font-weight: 600;
+}
+.panel-tab:hover { color: var(--fg); }
+.panel-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
+
+.tag-search { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.tag-item { display: flex; justify-content: space-between; gap: 8px; }
+.tag-count { color: var(--fg-dim); font-size: 11px; }
+.tag-hit-page { overflow: hidden; text-overflow: ellipsis; }
+.tag-hit-heading { color: var(--fg-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Status bar ────────────────────────────────────────────── */
 .status-bar {
@@ -531,6 +549,9 @@ html, body { height: 100%; overflow: hidden; }
 .setting-row { display: flex; flex-direction: column; gap: 6px; }
 .setting-hint { font-size: 11px; color: var(--fg-dim); }
 .setting-row label { font-size: 12px; color: var(--fg-dim); }
+
+.setting-sub { padding-left: 24px; }
+.setting-sub:has(input:disabled) { opacity: 0.5; }
 
 .setting-check { display: flex !important; flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
 

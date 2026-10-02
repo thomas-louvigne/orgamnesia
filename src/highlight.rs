@@ -1,11 +1,13 @@
+use crate::motion::Hashtags;
+
 thread_local! {
-    /// Whether `#tags` are drawn as links (set by `render`, read while highlighting a line).
-    static HASHTAGS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// How `#tags` are drawn as links (set by `render`, read while highlighting a line).
+    static HASHTAGS: std::cell::Cell<Hashtags> = const { std::cell::Cell::new(Hashtags::Off) };
 }
 
 /// Render org-mode text as syntax-highlighted HTML for the editor overlay.
 /// Pure function — no side effects, easy to test.
-pub fn render(content: &str, hashtags: bool) -> String {
+pub fn render(content: &str, hashtags: Hashtags) -> String {
     HASHTAGS.with(|h| h.set(hashtags));
     let mut out = String::with_capacity(content.len() * 2);
     for line in content.split('\n') {
@@ -27,21 +29,35 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
 }
 
 fn highlight_line(line: &str) -> String {
+    let chars: Vec<char> = line.chars().collect();
+    let text = |a: usize, b: usize| chars[a..b].iter().collect::<String>();
+
     // Headline: count leading '*'
     let stars = line.bytes().take_while(|&b| b == b'*').count();
     if stars > 0 && matches!(line.as_bytes().get(stars), Some(b' ') | None) {
         let level = stars.min(6);
-        let rest = if stars < line.len() { &line[stars + 1..] } else { "" };
-        let (title, tags_html) = split_and_render_tags(rest);
+        let title_start = (stars + 1).min(chars.len());
+        let (title, tags_html) = match crate::motion::headline_tags_range(&chars) {
+            Some((a, b)) => (text(title_start, a), format!(
+                "<span class='tags'>{}</span>{}", tag_links(&text(a, b)), escape(&text(b, chars.len())))),
+            None => (text(title_start, chars.len()), String::new()),
+        };
         return format!(
             "<span class='h{level}'>\
-             <span class='h-stars'>{}</span> \
+             <span class='h-stars'>{}</span>{}\
              {}{}\
              </span>",
             "*".repeat(stars),
-            inline_html(title),
+            if stars < chars.len() { " " } else { "" },
+            inline_html(&title),
             tags_html,
         );
+    }
+
+    // `#+FILETAGS: :a:b:`
+    if let Some(v) = crate::motion::filetags_value_start(&chars) {
+        return format!("<span class='kw'>{}</span><span class='tags'>{}</span>",
+            escape(&text(0, v)), tag_links(&text(v, chars.len())));
     }
 
     // Table line
@@ -53,32 +69,20 @@ fn highlight_line(line: &str) -> String {
     inline_html(line)
 }
 
-/// Detect ":tag1:tag2:" at end of headline title and render separately.
-fn split_and_render_tags(rest: &str) -> (&str, String) {
-    let trimmed = rest.trim_end();
-    if trimmed.ends_with(':') {
-        if let Some(idx) = find_tag_start(trimmed) {
-            let title = &rest[..idx];
-            let tag_str = &trimmed[idx..];
-            let tags_html = format!(" <span class='tags'>{}</span>", escape(tag_str));
-            return (title, tags_html);
-        }
+/// Org-mode tags (`:a:b:`) drawn as links to their pages; separators left as they are.
+fn tag_links(s: &str) -> String {
+    let mut out = String::new();
+    let mut word = String::new();
+    let flush = |word: &mut String, out: &mut String| {
+        if !word.is_empty() { out.push_str(&format!("<span class='tag-t'>{}</span>", escape(word))); }
+        word.clear();
+    };
+    for c in s.chars() {
+        if crate::motion::is_org_tag_char(c) { word.push(c); }
+        else { flush(&mut word, &mut out); out.push_str(&escape_char(c)); }
     }
-    (rest, String::new())
-}
-
-fn find_tag_start(s: &str) -> Option<usize> {
-    let bytes = s.as_bytes();
-    let mut i = bytes.len();
-    while i > 0 {
-        i -= 1;
-        let c = bytes[i];
-        if c == b':' { continue; }
-        if c == b' ' || c == b'\t' { return Some(i + 1); }
-        if c.is_ascii_alphanumeric() || c == b'_' || c == b'-' || c == b'@' { continue; }
-        return None;
-    }
-    None
+    flush(&mut word, &mut out);
+    out
 }
 
 /// Convert inline org-mode markup to highlighted HTML.
@@ -97,8 +101,8 @@ fn inline_html(s: &str) -> String {
             }
         }
         // #hashtag
-        if chars[i] == '#' && HASHTAGS.with(|h| h.get()) {
-            if let Some((tag, end)) = crate::motion::hashtag_at(&chars, i) {
+        if chars[i] == '#' {
+            if let Some((tag, end)) = crate::motion::hashtag_at(&chars, i, HASHTAGS.with(|h| h.get())) {
                 out.push_str(&format!(
                     "<span class='link'>#<span class='link-t'>{}</span></span>", escape(&tag)));
                 i = end;
@@ -224,7 +228,29 @@ mod tests {
         let html = highlight_line("** Work :project:");
         assert!(html.contains("h2"));
         assert!(html.contains("tags"));
-        assert!(html.contains(":project:"));
+        assert!(html.contains("<span class='tag-t'>project</span>"));
+    }
+
+    #[test]
+    fn headline_text_is_kept_as_is() {
+        // The overlay must show exactly the typed characters to line up with the text
+        let strip = |h: String| {
+            let mut out = String::new();
+            let mut tag = false;
+            for c in h.chars() {
+                match c { '<' => tag = true, '>' => tag = false, _ if !tag => out.push(c), _ => {} }
+            }
+            out
+        };
+        for l in ["** Work :project:", "* T  :a:b:  ", "*", "* Idée :été:", "#+FILETAGS: :x:"] {
+            assert_eq!(strip(highlight_line(l)), l);
+        }
+    }
+
+    #[test]
+    fn filetags_rendered() {
+        let html = highlight_line("#+FILETAGS: :a:b:");
+        assert!(html.contains("<span class='tags'> :<span class='tag-t'>a</span>:<span class='tag-t'>b</span>:</span>"));
     }
 
     #[test]

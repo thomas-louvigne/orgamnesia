@@ -18,6 +18,7 @@ struct Snapshot {
     autosave: bool,
     ci_links: bool,
     hashtags: bool,
+    hashtag_dashes: bool,
     emacs_mark: bool,
     electric: bool,
     active: String,
@@ -147,6 +148,7 @@ pub fn SettingsModal() -> impl IntoView {
     let autosave      = RwSignal::new(ctx.autosave.get_untracked());
     let ci_links      = RwSignal::new(ctx.case_insensitive_links.get_untracked());
     let hashtags      = RwSignal::new(ctx.hashtag_links.get_untracked());
+    let hashtag_dashes = RwSignal::new(ctx.hashtag_dashes.get_untracked());
     let emacs_mark    = RwSignal::new(ctx.emacs_mark.get_untracked());
     let electric      = RwSignal::new(ctx.electric_mode.get_untracked());
 
@@ -259,6 +261,7 @@ pub fn SettingsModal() -> impl IntoView {
         autosave: autosave.get(),
         ci_links: ci_links.get(),
         hashtags: hashtags.get(),
+        hashtag_dashes: hashtag_dashes.get(),
         emacs_mark: emacs_mark.get(),
         electric: electric.get(),
         active: active_id.get(),
@@ -280,6 +283,7 @@ pub fn SettingsModal() -> impl IntoView {
             autosave.set(s.autosave.unwrap_or(true));
             ci_links.set(s.case_insensitive_links.unwrap_or(true));
             hashtags.set(s.hashtag_links.unwrap_or(true));
+            hashtag_dashes.set(s.hashtag_dashes.unwrap_or(true));
             emacs_mark.set(s.emacs_mark.unwrap_or(true));
             electric.set(s.electric_mode.unwrap_or(true));
             if let Some(l) = s.language {
@@ -377,6 +381,7 @@ pub fn SettingsModal() -> impl IntoView {
         let autosave_val = autosave.get();
         let ci_links_val = ci_links.get();
         let hashtags_val = hashtags.get();
+        let hashtag_dashes_val = hashtag_dashes.get();
         let emacs_mark_val = emacs_mark.get();
         let electric_val = electric.get();
         let vault    = vault_input.get();
@@ -405,6 +410,7 @@ pub fn SettingsModal() -> impl IntoView {
                 autosave: Some(autosave_val),
                 case_insensitive_links: Some(ci_links_val),
                 hashtag_links: Some(hashtags_val),
+                hashtag_dashes: Some(hashtag_dashes_val),
                 emacs_mark: Some(emacs_mark_val),
                 electric_mode: Some(electric_val),
                 projects: ctx.projects.get_untracked(),
@@ -416,6 +422,7 @@ pub fn SettingsModal() -> impl IntoView {
                     ctx.autosave.set(autosave_val);
                     ctx.case_insensitive_links.set(ci_links_val);
                     ctx.hashtag_links.set(hashtags_val);
+                    ctx.hashtag_dashes.set(hashtag_dashes_val);
                     ctx.links_version.update(|v| *v += 1);
                     ctx.emacs_mark.set(emacs_mark_val);
                     ctx.electric_mode.set(electric_val);
@@ -554,6 +561,19 @@ pub fn SettingsModal() -> impl IntoView {
                                     />
                                     {move || t("hashtag_links", lang())}
                                 </label>
+                            </div>
+
+                            <div class="setting-row setting-sub">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:disabled=move || !hashtags.get()
+                                        prop:checked=move || hashtag_dashes.get()
+                                        on:change=move |e| hashtag_dashes.set(event_target_checked(&e))
+                                    />
+                                    {move || t("hashtag_dashes", lang())}
+                                </label>
+                                <span class="setting-hint">{move || t("hashtag_dashes_hint", lang())}</span>
                             </div>
 
                             <div class="setting-row">

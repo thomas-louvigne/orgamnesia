@@ -7,23 +7,21 @@ use crate::{
     i18n::t,
     invoke,
     keybindings::{Resolution, Scope},
-    state::{AppCtx, SplitKind, Tab},
+    state::{AppCtx, Goto, SplitKind, Tab},
 }; // FileEntry inferred
 
 /// Returns the wiki-link target at char position `pos`, scanning the full text.
 /// Handles both `[[target]]` and `[[target][display]]` forms.
-fn find_link_at_pos(text: &str, pos: usize, hashtags: bool) -> Option<String> {
+fn find_link_at_pos(text: &str, pos: usize, hashtags: crate::motion::Hashtags) -> Option<String> {
     let chars: Vec<char> = text.chars().collect();
     let n = chars.len();
     let mut i = 0;
 
     while i < n {
-        if hashtags {
-            if let Some((tag, end)) = crate::motion::hashtag_at(&chars, i) {
-                if pos >= i && pos < end { return Some(tag); }
-                i = end;
-                continue;
-            }
+        if let Some((tag, end)) = crate::motion::hashtag_at(&chars, i, hashtags) {
+            if pos >= i && pos < end { return Some(tag); }
+            i = end;
+            continue;
         }
         if i + 1 >= n { break; }
         if chars[i] != '[' || chars[i + 1] != '[' {
@@ -256,16 +254,26 @@ fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
     }
 }
 
-// ─── Page name completion (#tag and [[link]]) ─────────────────────────────────
+// ─── Completion of page names (#tag and [[link]]) and org-mode :tags: ─────────
 
-/// Suggestions shown while a `#tag` or a `[[link` is being typed.
+/// What is being completed.
+#[derive(Clone, Copy, PartialEq)]
+enum CompletionKind {
+    /// A page name in `[[link`: accepting also closes the link with `]]`.
+    Link,
+    /// A page name after `#`.
+    Hashtag,
+    /// An org-mode tag (`* Title :tag`, `#+FILETAGS:`): accepting adds the closing `:`.
+    OrgTag,
+}
+
+/// Suggestions shown while a `#tag`, a `[[link` or a `:tag:` is being typed.
 #[derive(Clone, PartialEq)]
 struct PageCompletion {
     /// The typed part of the name lies between `start` and the caret.
     start: usize,
     caret: usize,
-    /// `[[link`: accepting also closes the link with `]]`.
-    link: bool,
+    kind: CompletionKind,
     items: Vec<String>,
     selected: usize,
     /// Popup position in pixels, relative to the editor wrapper.
@@ -443,32 +451,47 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let found = if caret != end { None } else {
             crate::motion::link_prefix(&chars, caret)
                 .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
-                .map(|(start, p)| (start, p, true))
-                .or_else(|| ctx.hashtag_links.get_untracked()
-                    .then(|| crate::motion::hashtag_prefix(&chars, caret))
-                    .flatten()
-                    .map(|(hash, p)| (hash + 1, p, false)))
+                .map(|(start, p)| (start, p, CompletionKind::Link))
+                .or_else(|| crate::motion::org_tag_prefix(&chars, caret)
+                    .map(|(start, p)| (start, p, CompletionKind::OrgTag)))
+                .or_else(|| crate::motion::hashtag_prefix(&chars, caret, ctx.hashtags_untracked())
+                    .map(|(hash, p)| (hash + 1, p, CompletionKind::Hashtag)))
         };
-        let Some((start, prefix, link)) = found else { completion.set(None); return };
-        let names: Vec<String> = ctx.files.get_untracked().into_iter().map(|f| f.name).collect();
-        let items = crate::motion::complete_page(&names, &prefix, !link, MAX_SUGGESTIONS);
+        let Some((start, prefix, kind)) = found else { completion.set(None); return };
+        let items = match kind {
+            CompletionKind::OrgTag => {
+                let names: Vec<String> = ctx.tags.get_untracked().into_iter().map(|t| t.name).collect();
+                crate::motion::complete_page(&names, &prefix, None, MAX_SUGGESTIONS)
+            }
+            _ => {
+                let names: Vec<String> = ctx.files.get_untracked().into_iter().map(|f| f.name).collect();
+                let tag = (kind == CompletionKind::Hashtag).then(|| ctx.hashtags_untracked());
+                crate::motion::complete_page(&names, &prefix, tag, MAX_SUGGESTIONS)
+            }
+        };
         if items.is_empty() { completion.set(None); return; }
         let Some((x, top, bottom)) = caret_coords(el, &chars, start) else { return };
         // Keep the popup inside the editor: flip above the line near the bottom edge
         let height = items.len() as f64 * ITEM_HEIGHT + 8.0;
         let y = if bottom + height > el.client_height() as f64 && top > height { top - height } else { bottom };
         let x = x.min(el.client_width() as f64 - POPUP_WIDTH).max(0.0);
-        completion.set(Some(PageCompletion { start, caret, link, items, selected: 0, x, y }));
+        completion.set(Some(PageCompletion { start, caret, kind, items, selected: 0, x, y }));
     };
     let (content_sig, dirty_sig) = (tab.content, tab.dirty);
     let accept_completion = move |el: &Textarea, name: &str| {
         let Some(c) = completion.get_untracked() else { return };
         accepting.set_value(true);
         let mut cursor = splice(el, c.start, c.caret, name);
-        if c.link {
-            // `[[` usually comes with its `]]` (auto-pairing): step over it, else add it
-            let after: String = el.value().chars().skip(cursor).take(2).collect();
-            cursor = if after == "]]" { cursor + 2 } else { splice(el, cursor, cursor, "]]") };
+        // Close the link / tag: step over the closing characters if already there, else add them
+        let close = match c.kind {
+            CompletionKind::Link => "]]",
+            CompletionKind::OrgTag => ":",
+            CompletionKind::Hashtag => "",
+        };
+        if !close.is_empty() {
+            let n = close.chars().count();
+            let after: String = el.value().chars().skip(cursor).take(n).collect();
+            cursor = if after == close { cursor + n } else { splice(el, cursor, cursor, close) };
         }
         accepting.set_value(false);
         set_cursor(el, cursor);
@@ -715,8 +738,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             "open_link" => {
                 let content = tab_key.content.get_untracked();
                 let pos = el.selection_start().ok().flatten().unwrap_or(0) as usize;
-                if let Some(name) = find_link_at_pos(&content, pos, ctx.hashtag_links.get_untracked()) {
+                if let Some(name) = find_link_at_pos(&content, pos, ctx.hashtags_untracked()) {
                     follow_link(ctx, name);
+                } else if let Some(tag) = crate::motion::org_tag_at(&content.chars().collect::<Vec<_>>(), pos) {
+                    follow_link(ctx, tag);
                 }
             }
             "yank" => {
@@ -799,7 +824,8 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
     };
 
-    // Ctrl+Click navigates to (or creates) the wiki link under the cursor
+    // Ctrl+Click navigates to (or creates) the page of the wiki link, #tag or
+    // org-mode :tag: under the cursor
     let on_click = move |e: web_sys::MouseEvent| {
         if !e.ctrl_key() { return; }
         let el: Textarea = match e.target().and_then(|t| t.dyn_into().ok()) {
@@ -808,23 +834,38 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         };
         let pos = el.selection_start().ok().flatten().unwrap_or(0) as usize;
         let content = tab_click.content.get();
-        let Some(link_name) = find_link_at_pos(&content, pos, ctx.hashtag_links.get_untracked()) else { return };
-
-        e.prevent_default();
-        follow_link(ctx, link_name);
+        if let Some(link_name) = find_link_at_pos(&content, pos, ctx.hashtags_untracked()) {
+            e.prevent_default();
+            follow_link(ctx, link_name);
+        } else if let Some(tag) = crate::motion::org_tag_at(&content.chars().collect::<Vec<_>>(), pos) {
+            e.prevent_default();
+            follow_link(ctx, tag);
+        }
     };
 
-    // Jump to a link requested from the "pages not created" list
+    // Jump to a link (from the "pages not created" list) or a line (from a tag search)
     let area_ref = NodeRef::<leptos::html::Textarea>::new();
     let tab_goto = tab.clone();
     Effect::new(move |_| {
-        let Some((path, target)) = ctx.goto.get() else { return };
+        let Some((path, goto)) = ctx.goto.get() else { return };
         if path != tab_goto.path || ctx.focus_second.get_untracked() != second { return; }
         let Some(el) = area_ref.get() else { return };
         ctx.goto.set(None);
         let chars: Vec<char> = tab_goto.content.get_untracked().chars().collect();
-        let ci = ctx.case_insensitive_links.get_untracked();
-        if let Some((start, end)) = crate::motion::find_link(&chars, &target, ci, ctx.hashtag_links.get_untracked()) {
+        let range = match goto {
+            Goto::Link(target) => {
+                let ci = ctx.case_insensitive_links.get_untracked();
+                crate::motion::find_link(&chars, &target, ci, ctx.hashtags_untracked())
+            }
+            Goto::Line(n) => {
+                let start = if n == 0 { 0 } else {
+                    chars.iter().enumerate().filter(|(_, &c)| c == '\n').nth(n - 1)
+                        .map_or(chars.len(), |(i, _)| i + 1)
+                };
+                Some((start, start))
+            }
+        };
+        if let Some((start, end)) = range {
             let line = chars[..start].iter().filter(|&&c| c == '\n').count();
             let _ = el.focus();
             set_selection(&el, start, end);
@@ -834,7 +875,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
     });
 
-    let highlighted = move || highlight::render(&tab_hl.content.get(), ctx.hashtag_links.get());
+    let highlighted = move || highlight::render(&tab_hl.content.get(), ctx.hashtags());
     let tab_region = tab.clone();
     let region_html = move || {
         if !ctx.emacs_mark.get() { return String::new(); }
@@ -885,7 +926,11 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                                     if let Some(el) = area_ref.get() { accept_completion(&el, &pick); }
                                 }
                             >
-                                <span class="page-completion-sigil">{if c.link { "[[" } else { "#" }}</span>
+                                <span class="page-completion-sigil">{match c.kind {
+                                    CompletionKind::Link => "[[",
+                                    CompletionKind::Hashtag => "#",
+                                    CompletionKind::OrgTag => ":",
+                                }}</span>
                                 {name.clone()}
                             </li>
                         }

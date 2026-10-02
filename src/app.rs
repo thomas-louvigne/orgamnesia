@@ -132,6 +132,7 @@ pub fn App() -> impl IntoView {
             ctx.projects.set(settings.projects);
             ctx.case_insensitive_links.set(settings.case_insensitive_links.unwrap_or(true));
             ctx.hashtag_links.set(settings.hashtag_links.unwrap_or(true));
+            ctx.hashtag_dashes.set(settings.hashtag_dashes.unwrap_or(true));
             ctx.electric_mode.set(settings.electric_mode.unwrap_or(true));
             ctx.emacs_mark.set(settings.emacs_mark.unwrap_or(true));
             ctx.autosave.set(settings.autosave.unwrap_or(true));

@@ -131,32 +131,122 @@ pub fn previous_heading(chars: &[char], pos: usize) -> usize {
     pos
 }
 
+/// How `#tags` in the text are read (same as the backend's `parser::Hashtags`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hashtags {
+    /// `#tags` are plain text.
+    Off,
+    /// `#tags` are links to pages; letters, digits and `_` (like org-mode tags).
+    Org,
+    /// Same, also allowing `-` (`#mon-tag`), which org-mode tags don't.
+    Dashes,
+}
+
+impl Hashtags {
+    pub fn new(enabled: bool, dashes: bool) -> Self {
+        match (enabled, dashes) {
+            (false, _) => Self::Off,
+            (true, false) => Self::Org,
+            (true, true) => Self::Dashes,
+        }
+    }
+
+    fn is_tag_char(self, c: char) -> bool {
+        c.is_alphanumeric() || c == '_' || (c == '-' && self == Self::Dashes)
+    }
+}
+
 /// A `#hashtag` starting at `i` (same rules as the backend indexer): returns the tag
-/// (without `#`) and the index just after it.
-pub fn hashtag_at(chars: &[char], i: usize) -> Option<(String, usize)> {
-    if chars.get(i) != Some(&'#') { return None; }
+/// (without `#`) and the index just after it. Always `None` when `tags` is `Off`.
+pub fn hashtag_at(chars: &[char], i: usize, tags: Hashtags) -> Option<(String, usize)> {
+    if tags == Hashtags::Off || chars.get(i) != Some(&'#') { return None; }
     if i > 0 && !(chars[i - 1].is_whitespace() || "([{\"'".contains(chars[i - 1])) { return None; }
-    let is_tag_char = |c: char| c.is_alphanumeric() || c == '_' || c == '-';
     let mut end = i + 1;
-    while end < chars.len() && is_tag_char(chars[end]) { end += 1; }
+    while end < chars.len() && tags.is_tag_char(chars[end]) { end += 1; }
     while end > i + 1 && chars[end - 1] == '-' { end -= 1; }
     if end == i + 1 || !chars[i + 1].is_alphanumeric() { return None; }
     Some((chars[i + 1..end].iter().collect(), end))
 }
 
-fn is_tag_char(c: char) -> bool { c.is_alphanumeric() || c == '_' || c == '-' }
-
 /// The `#tag` being typed when the caret is at `caret`: returns the index of the
 /// `#` and the part of the tag already typed (possibly empty, right after `#`).
-pub fn hashtag_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
-    if chars.get(caret).is_some_and(|&c| is_tag_char(c)) { return None; }
+pub fn hashtag_prefix(chars: &[char], caret: usize, tags: Hashtags) -> Option<(usize, String)> {
+    if tags == Hashtags::Off || chars.get(caret).is_some_and(|&c| tags.is_tag_char(c)) { return None; }
     let mut start = caret;
-    while start > 0 && is_tag_char(chars[start - 1]) { start -= 1; }
+    while start > 0 && tags.is_tag_char(chars[start - 1]) { start -= 1; }
     let hash = start.checked_sub(1)?;
     if chars[hash] != '#' { return None; }
     if hash > 0 && !(chars[hash - 1].is_whitespace() || "([{\"'".contains(chars[hash - 1])) { return None; }
     if start < caret && !chars[start].is_alphanumeric() { return None; }
     Some((hash, chars[start..caret].iter().collect()))
+}
+
+/// Characters allowed in an org-mode tag (same as the backend): letters, digits, `_ @ # %`.
+pub fn is_org_tag_char(c: char) -> bool {
+    c.is_alphanumeric() || matches!(c, '_' | '@' | '#' | '%')
+}
+
+/// In a `#+FILETAGS:` line, the index where its value starts (after the keyword).
+pub fn filetags_value_start(line: &[char]) -> Option<usize> {
+    const KW: &str = "#+filetags:";
+    let indent = line.iter().take_while(|c| c.is_whitespace()).count();
+    let n = KW.chars().count();
+    let head: String = line.get(indent..indent + n)?.iter().collect();
+    head.eq_ignore_ascii_case(KW).then_some(indent + n)
+}
+
+/// In a headline, the range of its `:a:b:` tags (the last word, between colons).
+pub fn headline_tags_range(line: &[char]) -> Option<(usize, usize)> {
+    let stars = line.iter().take_while(|&&c| c == '*').count();
+    if stars == 0 || line.get(stars) != Some(&' ') { return None; }
+    let mut end = line.len();
+    while end > stars && line[end - 1].is_whitespace() { end -= 1; }
+    let mut start = end;
+    while start > stars && !line[start - 1].is_whitespace() { start -= 1; }
+    let block = &line[start..end];
+    let valid = block.len() >= 3 && block[0] == ':' && block[block.len() - 1] == ':'
+        && block.iter().all(|&c| c == ':' || is_org_tag_char(c));
+    valid.then_some((start, end))
+}
+
+/// The org-mode tag under `pos`: in the `:a:b:` of a headline or a `#+FILETAGS:` line.
+pub fn org_tag_at(chars: &[char], pos: usize) -> Option<String> {
+    let (ls, le) = (line_start(chars, pos), line_end(chars, pos));
+    let line = &chars[ls..le];
+    let (zs, ze) = filetags_value_start(line).map(|v| (v, line.len()))
+        .or_else(|| headline_tags_range(line))?;
+    let p = pos - ls;
+    if p < zs || p > ze { return None; }
+    let mut a = p;
+    while a > zs && is_org_tag_char(line[a - 1]) { a -= 1; }
+    let mut b = p;
+    while b < ze && is_org_tag_char(line[b]) { b += 1; }
+    (a < b).then(|| line[a..b].iter().collect())
+}
+
+/// The org-mode tag being typed when the caret is at `caret`: after `:` in the tags
+/// of a headline (`* Title :pro`), or in a `#+FILETAGS:` line. Returns the index
+/// where the tag starts and the part already typed (possibly empty).
+pub fn org_tag_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
+    if chars.get(caret).is_some_and(|&c| is_org_tag_char(c)) { return None; }
+    let (ls, le) = (line_start(chars, caret), line_end(chars, caret));
+    let mut start = caret;
+    while start > ls && is_org_tag_char(chars[start - 1]) { start -= 1; }
+    let prefix: String = chars[start..caret].iter().collect();
+    let line = &chars[ls..le];
+    if let Some(v) = filetags_value_start(line) {
+        let ok = start - ls >= v && (start - ls == v || chars[start - 1] == ':' || chars[start - 1].is_whitespace());
+        return ok.then_some((start, prefix));
+    }
+    // Headline: the caret is in its last word, which starts with `:` after a space
+    let stars = line.iter().take_while(|&&c| c == '*').count();
+    if stars == 0 || line.get(stars) != Some(&' ') { return None; }
+    let after: String = chars[caret..le].iter().collect();
+    if after.trim_end().chars().any(|c| c != ':' && !is_org_tag_char(c)) { return None; }
+    if start == 0 || chars[start - 1] != ':' { return None; }
+    let mut b = start - 1;
+    while b > ls + stars && (chars[b - 1] == ':' || is_org_tag_char(chars[b - 1])) { b -= 1; }
+    (chars[b] == ':' && chars[b - 1].is_whitespace()).then_some((start, prefix))
 }
 
 /// The `[[target` being typed when the caret is at `caret` (inside `[[…`, before
@@ -171,14 +261,14 @@ pub fn link_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
 
 /// Page names completing `prefix` (case-insensitive): names starting with it first
 /// (shortest first), then names containing it; the exact name is left out. With
-/// `tag_only`, only names usable as a `#tag` (letters, digits, `_`, `-`) are kept.
-pub fn complete_page(names: &[String], prefix: &str, tag_only: bool, limit: usize) -> Vec<String> {
+/// `tag: Some(_)`, only names usable as such a `#tag` are kept.
+pub fn complete_page(names: &[String], prefix: &str, tag: Option<Hashtags>, limit: usize) -> Vec<String> {
     let p = prefix.trim().to_lowercase();
     let mut starts = Vec::new();
     let mut contains = Vec::new();
     for name in names {
-        let valid = !tag_only || (name.chars().next().is_some_and(char::is_alphanumeric)
-            && name.chars().all(is_tag_char));
+        let valid = tag.is_none_or(|t| name.chars().next().is_some_and(char::is_alphanumeric)
+            && name.chars().all(|c| t.is_tag_char(c)));
         let n = name.to_lowercase();
         if !valid || n == p { continue; }
         if n.starts_with(&p) { starts.push(name.clone()); }
@@ -191,12 +281,12 @@ pub fn complete_page(names: &[String], prefix: &str, tag_only: bool, limit: usiz
 
 /// Char range of the target text of the first `[[target]]` / `[[target][label]]`
 /// link naming `target`.
-pub fn find_link(chars: &[char], target: &str, ignore_case: bool, hashtags: bool) -> Option<(usize, usize)> {
+pub fn find_link(chars: &[char], target: &str, ignore_case: bool, hashtags: Hashtags) -> Option<(usize, usize)> {
     let norm = |s: &str| if ignore_case { s.trim().to_lowercase() } else { s.trim().to_string() };
     let wanted = norm(target);
     let mut i = 0;
     while i < chars.len() {
-        if let (true, Some((tag, end))) = (hashtags, hashtag_at(chars, i)) {
+        if let Some((tag, end)) = hashtag_at(chars, i, hashtags) {
             if norm(&tag) == wanted { return Some((i + 1, end)); }
             i = end;
         } else if i + 1 < chars.len() && chars[i] == '[' && chars[i + 1] == '[' {
@@ -214,6 +304,22 @@ pub fn find_link(chars: &[char], target: &str, ignore_case: bool, hashtags: bool
             i += 1;
         }
     }
+    // Then the org-mode tags (`#+FILETAGS:`, `* Title :tag:`)
+    let mut ls = 0;
+    while ls <= chars.len() {
+        let le = line_end(chars, ls);
+        let line = &chars[ls..le];
+        if let Some((zs, ze)) = filetags_value_start(line).map(|v| (v, line.len())).or_else(|| headline_tags_range(line)) {
+            let mut a = zs;
+            while a < ze {
+                let mut b = a;
+                while b < ze && is_org_tag_char(line[b]) { b += 1; }
+                if b > a && norm(&line[a..b].iter().collect::<String>()) == wanted { return Some((ls + a, ls + b)); }
+                a = b + 1;
+            }
+        }
+        ls = le + 1;
+    }
     None
 }
 
@@ -225,28 +331,36 @@ mod tests {
 
     #[test]
     fn hashtag_prefix_while_typing() {
-        assert_eq!(hashtag_prefix(&c("see #"), 5), Some((4, String::new())));
-        assert_eq!(hashtag_prefix(&c("see #ru"), 7), Some((4, "ru".into())));
-        assert_eq!(hashtag_prefix(&c("#ru"), 3), Some((0, "ru".into())));
-        assert_eq!(hashtag_prefix(&c("(#ru)"), 4), Some((1, "ru".into())));
+        let d = Hashtags::Dashes;
+        assert_eq!(hashtag_prefix(&c("see #"), 5, d), Some((4, String::new())));
+        assert_eq!(hashtag_prefix(&c("see #ru"), 7, d), Some((4, "ru".into())));
+        assert_eq!(hashtag_prefix(&c("#ru"), 3, d), Some((0, "ru".into())));
+        assert_eq!(hashtag_prefix(&c("(#ru)"), 4, d), Some((1, "ru".into())));
         // Caret in the middle of a tag, `#` glued to a word, heading-like `#_`
-        assert_eq!(hashtag_prefix(&c("#rust"), 3), None);
-        assert_eq!(hashtag_prefix(&c("a#ru"), 4), None);
-        assert_eq!(hashtag_prefix(&c("#_x"), 3), None);
-        assert_eq!(hashtag_prefix(&c("no tag"), 6), None);
+        assert_eq!(hashtag_prefix(&c("#rust"), 3, d), None);
+        assert_eq!(hashtag_prefix(&c("a#ru"), 4, d), None);
+        assert_eq!(hashtag_prefix(&c("#_x"), 3, d), None);
+        assert_eq!(hashtag_prefix(&c("no tag"), 6, d), None);
+        // A dash ends an org-mode style tag
+        assert_eq!(hashtag_prefix(&c("#mon-ta"), 7, d), Some((0, "mon-ta".into())));
+        assert_eq!(hashtag_prefix(&c("#mon-ta"), 7, Hashtags::Org), None);
+        assert_eq!(hashtag_prefix(&c("#ru"), 3, Hashtags::Off), None);
     }
 
     #[test]
     fn complete_page_ranks_prefix_matches_first() {
         let names: Vec<String> = ["Rust", "rust-async", "Trust", "Notes", "my page", "Rustacean"]
             .iter().map(|s| s.to_string()).collect();
-        assert_eq!(complete_page(&names, "ru", true, 10), vec!["Rust", "Rustacean", "rust-async", "Trust"]);
+        let d = Some(Hashtags::Dashes);
+        assert_eq!(complete_page(&names, "ru", d, 10), vec!["Rust", "Rustacean", "rust-async", "Trust"]);
         // The exact name is not proposed; names with spaces can't be tags
-        assert_eq!(complete_page(&names, "rust", true, 10), vec!["Rustacean", "rust-async", "Trust"]);
-        assert_eq!(complete_page(&names, "", true, 2), vec!["Rust", "Notes"]);
-        assert!(complete_page(&names, "page", true, 10).is_empty());
+        assert_eq!(complete_page(&names, "rust", d, 10), vec!["Rustacean", "rust-async", "Trust"]);
+        assert_eq!(complete_page(&names, "", d, 2), vec!["Rust", "Notes"]);
+        assert!(complete_page(&names, "page", d, 10).is_empty());
+        // Names with a dash can't be org-mode style tags
+        assert_eq!(complete_page(&names, "ru", Some(Hashtags::Org), 10), vec!["Rust", "Rustacean", "Trust"]);
         // Links accept any page name
-        assert_eq!(complete_page(&names, "page", false, 10), vec!["my page"]);
+        assert_eq!(complete_page(&names, "page", None, 10), vec!["my page"]);
     }
 
     #[test]
@@ -260,10 +374,42 @@ mod tests {
     }
 
     #[test]
+    fn org_tags_under_the_caret() {
+        let t = c("* Titre :projet:urgent:\n#+FILETAGS: :a:b:\ntexte :x:");
+        assert_eq!(org_tag_at(&t, 10), Some("projet".into()));
+        assert_eq!(org_tag_at(&t, 20), Some("urgent".into()));
+        assert_eq!(org_tag_at(&t, 3), None);            // in the title
+        assert_eq!(org_tag_at(&t, 38), Some("a".into()));
+        assert_eq!(org_tag_at(&t, 48), None);           // not a headline
+    }
+
+    #[test]
+    fn org_tag_prefix_while_typing() {
+        assert_eq!(org_tag_prefix(&c("* T :pro"), 8), Some((5, "pro".into())));
+        assert_eq!(org_tag_prefix(&c("* T :"), 5), Some((5, String::new())));
+        assert_eq!(org_tag_prefix(&c("* T :a:b"), 8), Some((7, "b".into())));
+        assert_eq!(org_tag_prefix(&c("* T :pr:"), 7), Some((5, "pr".into())));
+        assert_eq!(org_tag_prefix(&c("#+FILETAGS: :a"), 14), Some((13, "a".into())));
+        assert_eq!(org_tag_prefix(&c("#+filetags: "), 12), Some((12, String::new())));
+        // `Note:` glued to a word, a colon in text, a caret before more words
+        assert_eq!(org_tag_prefix(&c("* Note:"), 7), None);
+        assert_eq!(org_tag_prefix(&c("texte :a"), 8), None);
+        assert_eq!(org_tag_prefix(&c("* T :a suite"), 6), None);
+        assert_eq!(org_tag_prefix(&c("#+TITLE: x"), 10), None);
+    }
+
+    #[test]
+    fn org_tag_link_found() {
+        let t = c("texte :x:\n* T :a:Cible:\n");
+        assert_eq!(find_link(&t, "cible", true, Hashtags::Off), Some((17, 22)));
+        assert_eq!(find_link(&t, "x", true, Hashtags::Off), None);
+    }
+
+    #[test]
     fn hashtag_link_found() {
         let t = c("Voir #Cible ici [[Autre]]");
-        assert_eq!(find_link(&t, "cible", true, true), Some((6, 11)));
-        assert_eq!(find_link(&t, "cible", true, false), None);
+        assert_eq!(find_link(&t, "cible", true, Hashtags::Org), Some((6, 11)));
+        assert_eq!(find_link(&t, "cible", true, Hashtags::Off), None);
     }
 
     #[test]
@@ -297,10 +443,10 @@ mod tests {
     #[test]
     fn finds_links() {
         let t = c("voir [[Autre]] puis [[ Cible ][label]] fin");
-        assert_eq!(find_link(&t, "Cible", false, false), Some((23, 28)));
-        assert_eq!(find_link(&t, "cible", false, false), None);
-        assert_eq!(find_link(&t, "cible", true, false), Some((23, 28)));
-        assert_eq!(find_link(&t, "Absent", true, false), None);
+        assert_eq!(find_link(&t, "Cible", false, Hashtags::Off), Some((23, 28)));
+        assert_eq!(find_link(&t, "cible", false, Hashtags::Off), None);
+        assert_eq!(find_link(&t, "cible", true, Hashtags::Off), Some((23, 28)));
+        assert_eq!(find_link(&t, "Absent", true, Hashtags::Off), None);
     }
 
     #[test]

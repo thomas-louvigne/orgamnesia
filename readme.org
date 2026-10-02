@@ -30,6 +30,12 @@ backlinks on the right, "Uncreated pages" at the bottom right./
 - =[[Page]]= and =[[Page][display text]]= links. Ctrl+click (or /Follow link/) opens the page, creating it if it doesn't exist.
 - *Keywords*: =#idea= is a link to the page =idea= (option, on by default).
   Not keywords: =#+TITLE=, =# comment= and =a#b=.
+  Dashes (=#my-tag=) are allowed as an option; unchecked, only letters, digits and =_= count, like in org-mode.
+- *Org-mode tags*: =#+FILETAGS: :project:rust:= for the whole page, =* Title :urgent:= for a headline.
+  A headline inherits the tags of the page and of its parent headlines, like in Emacs.
+  A tag is a link: Ctrl+click opens (or creates) the page of the same name, whose backlinks list what carries the tag.
+  Completion after =:= in a headline and in =#+FILETAGS:=. The /Tags/ tab of the right-hand panel lists every tag
+  and allows searches in org syntax (=project+urgent-personal=, =a|b=).
 - *Backlinks*: right-hand panel listing the pages that point to the open page.
 - *Uncreated pages*: links that lead nowhere, sorted by number of uses
   (=target (3)=). Click: go where the link is used. Right-click: create the page or go to the link.

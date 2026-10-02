@@ -31,6 +31,12 @@ liens entrants à droite, « Pages non créées » en bas à droite./
 - Liens =[[Page]]= et =[[Page][texte affiché]]=. Ctrl+clic (ou /Suivre le lien/) ouvre la page, et la crée si elle n'existe pas.
 - *Mots-clés* : =#idée= est un lien vers la page =idée= (option, activée par défaut).
   Ne sont pas des mots-clés : =#+TITLE=, =# commentaire= et =a#b=.
+  Les tirets (=#mon-tag=) sont acceptés en option ; décochée, seuls lettres, chiffres et =_= comptent, comme dans org-mode.
+- *Tags org-mode* : =#+FILETAGS: :projet:rust:= pour toute la page, =* Titre :urgent:= pour un titre.
+  Un titre hérite des tags de la page et de ses titres parents, comme dans Emacs.
+  Un tag est un lien : Ctrl+clic ouvre (ou crée) la page du même nom, dont les liens entrants listent ce qui porte le tag.
+  Complétion après =:= dans un titre et dans =#+FILETAGS:=. L'onglet /Tags/ du panneau de droite liste tous les tags
+  et permet une recherche à la syntaxe org (=projet+urgent-perso=, =a|b=).
 - *Liens entrants* : panneau de droite listant les pages qui pointent vers la page ouverte.
 - *Pages non créées* : liens qui ne mènent à rien, triés par nombre d'appels
   (=cible (3)=). Clic : aller là où le lien est utilisé. Clic droit : créer la page ou aller au lien.

@@ -15,6 +15,8 @@ pub struct Settings {
     pub case_insensitive_links: Option<bool>,
     /// Treat `#tags` as links to pages (default: true).
     pub hashtag_links: Option<bool>,
+    /// Allow `-` in `#tags` (`#mon-tag`); org-mode tags don't (default: true).
+    pub hashtag_dashes: Option<bool>,
     /// Emacs mark: Ctrl+Space starts a region that follows the cursor (default: true).
     pub emacs_mark: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it (default: true).
@@ -30,8 +32,12 @@ impl Settings {
         self.case_insensitive_links.unwrap_or(true)
     }
 
-    pub fn hashtag_links(&self) -> bool {
-        self.hashtag_links.unwrap_or(true)
+    /// How `#tags` are read when indexing and renaming.
+    pub fn hashtags(&self) -> crate::parser::Hashtags {
+        crate::parser::Hashtags::new(
+            self.hashtag_links.unwrap_or(true),
+            self.hashtag_dashes.unwrap_or(true),
+        )
     }
 
     pub fn update_links_on_rename(&self) -> bool {

@@ -19,6 +19,42 @@ pub struct BrokenLink {
     pub count: usize,
 }
 
+/// An org-mode tag of the project and how many pages and headlines carry it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TagCount {
+    pub name: String,
+    pub count: usize,
+}
+
+/// A page, or a headline of it, matching a tag search.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TagHit {
+    pub page: String,
+    pub path: String,
+    /// `None` when the whole page matches (`#+FILETAGS:`).
+    pub heading: Option<String>,
+    pub level: usize,
+    pub line: usize,
+    /// All its tags, inherited ones included.
+    pub tags: Vec<String>,
+}
+
+/// Where to put the cursor in a page being opened.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Goto {
+    /// Select the first link to this page.
+    Link(String),
+    /// Start of this line (0-based).
+    Line(usize),
+}
+
+/// What the right-hand panel shows.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PanelView {
+    Backlinks,
+    Tags,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub vault_path: Option<String>,
@@ -27,6 +63,7 @@ pub struct Settings {
     pub update_links_on_rename: Option<bool>,
     pub case_insensitive_links: Option<bool>,
     pub hashtag_links: Option<bool>,
+    pub hashtag_dashes: Option<bool>,
     pub emacs_mark: Option<bool>,
     pub electric_mode: Option<bool>,
     pub autosave: Option<bool>,
@@ -84,8 +121,13 @@ pub struct AppCtx {
     pub other_path: RwSignal<Option<String>>,
     /// Whether the focused pane is the second one (right / bottom).
     pub focus_second: RwSignal<bool>,
-    /// (page path, link target): the editor showing that page selects the link.
-    pub goto: RwSignal<Option<(String, String)>>,
+    /// (page path, target): the editor showing that page moves the cursor there.
+    pub goto: RwSignal<Option<(String, Goto)>>,
+    pub panel: RwSignal<PanelView>,
+    /// Org-mode tags of the project (refreshed when pages change).
+    pub tags: RwSignal<Vec<TagCount>>,
+    /// Tag search shown in the tags panel (`projet+urgent-perso`).
+    pub tag_query: RwSignal<String>,
     /// Pending confirmation (the webview's own `window.confirm` shows nothing here).
     pub confirm: RwSignal<Option<ConfirmReq>>,
     /// Bumped after every write to disk, so link-derived views can refresh.
@@ -95,6 +137,8 @@ pub struct AppCtx {
     pub electric_mode: RwSignal<bool>,
     pub case_insensitive_links: RwSignal<bool>,
     pub hashtag_links: RwSignal<bool>,
+    /// Allow `-` in `#tags` (not valid in org-mode tags).
+    pub hashtag_dashes: RwSignal<bool>,
     pub files: RwSignal<Vec<FileEntry>>,
     pub tabs: RwSignal<Vec<Tab>>,
     pub active_tab: RwSignal<Option<usize>>,
@@ -119,6 +163,9 @@ impl AppCtx {
             other_path: RwSignal::new(None),
             focus_second: RwSignal::new(false),
             goto: RwSignal::new(None),
+            panel: RwSignal::new(PanelView::Backlinks),
+            tags: RwSignal::new(vec![]),
+            tag_query: RwSignal::new(String::new()),
             confirm: RwSignal::new(None),
             links_version: RwSignal::new(0),
             autosave: RwSignal::new(true),
@@ -126,6 +173,7 @@ impl AppCtx {
             electric_mode: RwSignal::new(true),
             case_insensitive_links: RwSignal::new(true),
             hashtag_links: RwSignal::new(true),
+            hashtag_dashes: RwSignal::new(true),
             files: RwSignal::new(vec![]),
             tabs: RwSignal::new(vec![]),
             active_tab: RwSignal::new(None),
@@ -138,6 +186,21 @@ impl AppCtx {
             keybindings: RwSignal::new(Keybindings::defaults()),
             kill_ring: RwSignal::new(String::new()),
         }
+    }
+
+    /// Show the pages and headlines tagged `tag` in the right-hand panel.
+    pub fn show_tag(&self, tag: String) {
+        self.tag_query.set(tag);
+        self.panel.set(PanelView::Tags);
+    }
+
+    /// How `#tags` are read, from the settings (tracked: re-runs effects when they change).
+    pub fn hashtags(&self) -> crate::motion::Hashtags {
+        crate::motion::Hashtags::new(self.hashtag_links.get(), self.hashtag_dashes.get())
+    }
+
+    pub fn hashtags_untracked(&self) -> crate::motion::Hashtags {
+        crate::motion::Hashtags::new(self.hashtag_links.get_untracked(), self.hashtag_dashes.get_untracked())
     }
 
     /// Whether two page names designate the same page, per the case-sensitivity setting.

@@ -6,15 +6,16 @@ use crate::{
     keybindings,
     parser,
     settings,
+    tags,
     vault::{self, FileEntry},
 };
 
 type Cmd<T> = Result<T, String>;
 
-fn hashtags_enabled(app: &AppHandle) -> bool {
+fn hashtags(app: &AppHandle) -> parser::Hashtags {
     app.path().app_config_dir().ok()
-        .map(|d| settings::load(&d).hashtag_links())
-        .unwrap_or(true)
+        .map(|d| settings::load(&d).hashtags())
+        .unwrap_or(parser::Hashtags::Dashes)
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────
@@ -32,13 +33,13 @@ pub async fn set_settings(
     settings: settings::Settings,
 ) -> Cmd<()> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let hashtags_changed = settings::load(&dir).hashtag_links() != settings.hashtag_links();
+    let hashtags_changed = settings::load(&dir).hashtags() != settings.hashtags();
     settings::save(&dir, &settings).map_err(|e| e.to_string())?;
 
-    // `#tags` now count (or no longer) as links: rebuild the index
+    // `#tags` are read differently (as links or not, with or without `-`): rebuild the index
     let vault_path = state.vault_path.lock().unwrap().clone();
     if let (true, Some(vp)) = (hashtags_changed, vault_path) {
-        let hashtags = settings.hashtag_links();
+        let hashtags = settings.hashtags();
         let mut idx = BacklinkIndex::new();
         for f in vault::list_org_files(&vp).map_err(|e| e.to_string())? {
             let content = std::fs::read_to_string(&f.path).unwrap_or_default();
@@ -70,7 +71,7 @@ pub async fn open_vault(
     let files = vault::list_org_files(&path).map_err(|e| e.to_string())?;
 
     // Rebuild backlink index
-    let hashtags = s.hashtag_links();
+    let hashtags = s.hashtags();
     let mut idx = BacklinkIndex::new();
     for f in &files {
         let content = std::fs::read_to_string(&f.path).unwrap_or_default();
@@ -117,7 +118,7 @@ pub async fn write_file(
     // Re-index this file's links
     let name = vault::page_name(&path);
     state.backlinks.lock().unwrap()
-        .index_file(&name, &parser::extract_links(&content, hashtags_enabled(&app)));
+        .index_file(&name, &parser::extract_links(&content, hashtags(&app)));
     Ok(())
 }
 
@@ -227,6 +228,62 @@ pub async fn get_broken_links(
     Ok(links)
 }
 
+// ─── Tags ────────────────────────────────────────────────────────────────────
+
+/// An org-mode tag of the project and how many pages and headlines carry it.
+#[derive(serde::Serialize)]
+pub struct TagCount {
+    pub name: String,
+    pub count: usize,
+}
+
+/// A page, or a headline of it, matching a tag search.
+#[derive(serde::Serialize)]
+pub struct TagHit {
+    pub page: String,
+    pub path: String,
+    /// `None` when the whole page matches (`#+FILETAGS:`).
+    pub heading: Option<String>,
+    pub level: usize,
+    pub line: usize,
+    /// All its tags, inherited ones included.
+    pub tags: Vec<String>,
+}
+
+/// Every `:tag:` and `#+FILETAGS:` tag of the project, sorted by name.
+#[tauri::command]
+pub async fn list_tags(state: State<'_, AppState>) -> Cmd<Vec<TagCount>> {
+    let vault_path = state.vault_path.lock().unwrap().clone().ok_or("No vault open")?;
+    let mut counts = std::collections::HashMap::<String, usize>::new();
+    for f in vault::list_org_files(&vault_path).map_err(|e| e.to_string())? {
+        let content = std::fs::read_to_string(&f.path).unwrap_or_default();
+        for t in tags::written_tags(&content) { *counts.entry(t).or_default() += 1; }
+    }
+    let mut list: Vec<TagCount> = counts.into_iter().map(|(name, count)| TagCount { name, count }).collect();
+    list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then_with(|| a.name.cmp(&b.name)));
+    Ok(list)
+}
+
+/// Pages and headlines matching an org-mode tag search (`projet+urgent-perso|idée`).
+#[tauri::command]
+pub async fn search_tags(state: State<'_, AppState>, query: String) -> Cmd<Vec<TagHit>> {
+    let vault_path = state.vault_path.lock().unwrap().clone().ok_or("No vault open")?;
+    let Some(query) = tags::Query::parse(&query) else { return Ok(vec![]) };
+    let mut hits = Vec::new();
+    for f in vault::list_org_files(&vault_path).map_err(|e| e.to_string())? {
+        let content = std::fs::read_to_string(&f.path).unwrap_or_default();
+        hits.extend(tags::search(&content, &query).into_iter().map(|h| TagHit {
+            page: f.name.clone(),
+            path: f.path.clone(),
+            heading: h.heading,
+            level: h.level,
+            line: h.line,
+            tags: h.tags,
+        }));
+    }
+    Ok(hits)
+}
+
 // ─── Export ──────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -280,7 +337,7 @@ pub async fn rename_page(
     let cfg = app.path().app_config_dir().ok().map(|d| settings::load(&d));
     let update_links = cfg.as_ref().map(|s| s.update_links_on_rename()).unwrap_or(true);
     let ignore_case = cfg.as_ref().map(|s| s.case_insensitive_links()).unwrap_or(true);
-    let hashtags = cfg.as_ref().map(|s| s.hashtag_links()).unwrap_or(true);
+    let hashtags = cfg.as_ref().map(|s| s.hashtags()).unwrap_or(parser::Hashtags::Dashes);
     let vault_path = state.vault_path.lock().unwrap().clone();
     if let (true, Some(vp), true) = (update_links, vault_path, old_name != new_name) {
         for f in vault::list_org_files(&vp).map_err(|e| e.to_string())? {

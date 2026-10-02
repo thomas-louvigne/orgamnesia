@@ -4,6 +4,7 @@ pub mod index;
 pub mod keybindings;
 pub mod parser;
 pub mod settings;
+pub mod tags;
 pub mod vault;
 
 use std::sync::Mutex;

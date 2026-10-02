@@ -5,7 +5,7 @@ use crate::{
     components::sidebar::create_and_open_page,
     i18n::t,
     invoke,
-    state::{AppCtx, BrokenLink, Drag, Tab},
+    state::{AppCtx, BrokenLink, Drag, Goto, PanelView, Tab, TagHit},
 };
 
 #[component]
@@ -42,12 +42,57 @@ pub fn BacklinksPanel() -> impl IntoView {
         }
     });
 
-    // Open the page called `name`; with `link`, also select that link in it.
-    let open_page = move |name: String, link: Option<String>| {
+    // Org-mode tags of the project, for the tags view and the completion of `:tags:`.
+    // Refreshed (debounced) like the list above.
+    let tags_seq = StoredValue::new(0u32);
+    Effect::new(move |_| {
+        ctx.files.track();
+        ctx.links_version.track();
+        if ctx.vault_path.get().is_none() {
+            ctx.tags.set(vec![]);
+            return;
+        }
+        let seq = tags_seq.get_value() + 1;
+        tags_seq.set_value(seq);
+        crate::keybindings::after_ms(400, move || {
+            if tags_seq.get_value() != seq { return; }
+            spawn_local(async move {
+                if let Ok(list) = invoke::list_tags().await {
+                    if ctx.tags.get_untracked() != list { ctx.tags.set(list); }
+                }
+            });
+        });
+    });
+
+    // Pages and headlines matching the tag search
+    let hits = RwSignal::new(Vec::<TagHit>::new());
+    let hits_seq = StoredValue::new(0u32);
+    Effect::new(move |_| {
+        let query = ctx.tag_query.get();
+        ctx.links_version.track();
+        ctx.files.track();
+        let seq = hits_seq.get_value() + 1;
+        hits_seq.set_value(seq);
+        if query.trim().is_empty() || ctx.panel.get() != PanelView::Tags {
+            hits.set(vec![]);
+            return;
+        }
+        crate::keybindings::after_ms(150, move || {
+            if hits_seq.get_value() != seq { return; }
+            spawn_local(async move {
+                if let Ok(list) = invoke::search_tags(&query).await {
+                    if hits_seq.get_value() == seq { hits.set(list); }
+                }
+            });
+        });
+    });
+
+    // Open the page called `name`; with `target`, also move the cursor there.
+    let open_page = move |name: String, target: Option<Goto>| {
         let file = ctx.files.get().into_iter().find(|f| ctx.same_page(&f.name, &name));
         let Some(file) = file else { return };
         let goto = move |path: String| {
-            if let Some(l) = link.clone() { ctx.goto.set(Some((path, l))); }
+            if let Some(t) = target.clone() { ctx.goto.set(Some((path, t))); }
         };
         if let Some(idx) = ctx.tabs.get().iter().position(|t| t.path == file.path) {
             ctx.active_tab.set(Some(idx));
@@ -84,9 +129,72 @@ pub fn BacklinksPanel() -> impl IntoView {
 
     view! {
         <div class="backlinks-panel">
-            <div class="panel-header">{move || t("backlinks", ctx.lang.get())}</div>
+            <div class="panel-header panel-tabs">
+                <button
+                    class=move || if ctx.panel.get() == PanelView::Backlinks { "panel-tab active" } else { "panel-tab" }
+                    on:click=move |_| ctx.panel.set(PanelView::Backlinks)
+                >{move || t("backlinks", ctx.lang.get())}</button>
+                <button
+                    class=move || if ctx.panel.get() == PanelView::Tags { "panel-tab active" } else { "panel-tab" }
+                    on:click=move |_| ctx.panel.set(PanelView::Tags)
+                >{move || t("tags", ctx.lang.get())}</button>
+            </div>
+            {move || (ctx.panel.get() == PanelView::Tags).then(|| view! {
+                <div class="tag-search">
+                    <input
+                        class="search-input"
+                        type="text"
+                        placeholder=move || t("tag_search_ph", ctx.lang.get())
+                        title=move || t("tag_search_help", ctx.lang.get())
+                        prop:value=move || ctx.tag_query.get()
+                        on:input=move |e| ctx.tag_query.set(event_target_value(&e))
+                        on:keydown=move |e: web_sys::KeyboardEvent| {
+                            if e.key() == "Escape" { ctx.tag_query.set(String::new()); }
+                        }
+                    />
+                </div>
+            })}
             <div class="panel-body">
-                {move || {
+                {move || (ctx.panel.get() == PanelView::Tags).then(|| {
+                    let lang = ctx.lang.get();
+                    if ctx.tag_query.get().trim().is_empty() {
+                        // No search: every tag of the project
+                        let tags = ctx.tags.get();
+                        if tags.is_empty() {
+                            return view! { <p class="no-backlinks">{t("no_tags", lang)}</p> }.into_any();
+                        }
+                        let items = tags.into_iter().map(|tag| {
+                            let name = tag.name.clone();
+                            view! {
+                                <div class="backlink-item tag-item" on:click=move |_| ctx.show_tag(name.clone())>
+                                    <span class="tags">{format!(":{}:", tag.name)}</span>
+                                    <span class="tag-count">{tag.count}</span>
+                                </div>
+                            }
+                        }).collect_view();
+                        return view! { <div>{items}</div> }.into_any();
+                    }
+                    let list = hits.get();
+                    if list.is_empty() {
+                        return view! { <p class="no-backlinks">{t("no_tag_hits", lang)}</p> }.into_any();
+                    }
+                    let items = list.into_iter().map(|h| {
+                        let (page, line) = (h.page.clone(), h.line);
+                        let tip = format!(":{}:", h.tags.join(":"));
+                        view! {
+                            <div class="backlink-item tag-hit" title=tip
+                                on:click=move |_| open_page(page.clone(), Some(Goto::Line(line)))
+                            >
+                                <div class="tag-hit-page">{h.page.clone()}</div>
+                                {h.heading.clone().map(|heading| view! {
+                                    <div class="tag-hit-heading">{format!("{} {}", "*".repeat(h.level), heading)}</div>
+                                })}
+                            </div>
+                        }
+                    }).collect_view();
+                    view! { <div>{items}</div> }.into_any()
+                })}
+                {move || (ctx.panel.get() == PanelView::Backlinks).then(|| {
                     let bl = ctx.backlinks.get();
                     if bl.is_empty() {
                         let msg = t("no_backlinks", ctx.lang.get());
@@ -102,7 +210,7 @@ pub fn BacklinksPanel() -> impl IntoView {
                         }).collect_view();
                         view! { <div>{items}</div> }.into_any()
                     }
-                }}
+                })}
             </div>
             <div class="resizer-h" on:mousedown=move |e: web_sys::MouseEvent| {
                 e.prevent_default();
@@ -134,7 +242,7 @@ pub fn BacklinksPanel() -> impl IntoView {
                                                 if n == 0 { return; }
                                                 let i = next_source.with_value(|m| m.get(&b_click.target).copied().unwrap_or(0)) % n;
                                                 next_source.update_value(|m| { m.insert(b_click.target.clone(), i + 1); });
-                                                open_page(b_click.sources[i].clone(), Some(b_click.target.clone()));
+                                                open_page(b_click.sources[i].clone(), Some(Goto::Link(b_click.target.clone())));
                                             }
                                             on:contextmenu=move |e: web_sys::MouseEvent| {
                                                 e.prevent_default();
@@ -167,7 +275,7 @@ pub fn BacklinksPanel() -> impl IntoView {
                             view! {
                                 <button class="ctx-menu-item" on:click=move |_| {
                                     menu.set(None);
-                                    open_page(src_name.clone(), Some(target.clone()));
+                                    open_page(src_name.clone(), Some(Goto::Link(target.clone())));
                                 }>{label}</button>
                             }
                         }).collect_view()}

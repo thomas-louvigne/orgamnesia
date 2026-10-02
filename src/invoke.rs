@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings, TagCount, TagHit}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -71,6 +71,14 @@ pub async fn get_backlinks(page: &str) -> Result<Vec<String>, String> {
 
 pub async fn get_broken_links() -> Result<Vec<BrokenLink>, String> {
     call("get_broken_links", serde_json::json!({})).await
+}
+
+pub async fn list_tags() -> Result<Vec<TagCount>, String> {
+    call("list_tags", serde_json::json!({})).await
+}
+
+pub async fn search_tags(query: &str) -> Result<Vec<TagHit>, String> {
+    call("search_tags", serde_json::json!({ "query": query })).await
 }
 
 pub async fn export_vault() -> Result<String, String> {

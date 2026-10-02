@@ -9,24 +9,48 @@ pub fn parse_document(content: &str) -> Document {
     Document { blocks: parse_blocks(&lines, 0) }
 }
 
-fn is_tag_char(c: char) -> bool { c.is_alphanumeric() || c == '_' || c == '-' }
+/// How `#tags` in the text are read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hashtags {
+    /// `#tags` are plain text.
+    Off,
+    /// `#tags` are links to pages; letters, digits and `_` (like org-mode tags).
+    Org,
+    /// Same, also allowing `-` (`#mon-tag`), which org-mode tags don't.
+    Dashes,
+}
+
+impl Hashtags {
+    pub fn new(enabled: bool, dashes: bool) -> Self {
+        match (enabled, dashes) {
+            (false, _) => Self::Off,
+            (true, false) => Self::Org,
+            (true, true) => Self::Dashes,
+        }
+    }
+
+    fn is_tag_char(self, c: char) -> bool {
+        c.is_alphanumeric() || c == '_' || (c == '-' && self == Self::Dashes)
+    }
+}
 
 /// A `#hashtag` starting at `i` (preceded by a space or an opening bracket, followed by a
-/// letter or digit — so `#+TITLE`, `# comment` and `a#b` are not tags).
+/// letter or digit — so `#+TITLE`, `# comment` and `a#b` are not tags), unless `tags` is `Off`.
 /// Returns the tag name (without `#`) and the index just after it.
-pub fn hashtag_at(chars: &[char], i: usize) -> Option<(String, usize)> {
-    if chars.get(i) != Some(&'#') { return None; }
+pub fn hashtag_at(chars: &[char], i: usize, tags: Hashtags) -> Option<(String, usize)> {
+    if tags == Hashtags::Off || chars.get(i) != Some(&'#') { return None; }
     if i > 0 && !(chars[i - 1].is_whitespace() || "([{\"'".contains(chars[i - 1])) { return None; }
     let mut end = i + 1;
-    while end < chars.len() && is_tag_char(chars[end]) { end += 1; }
+    while end < chars.len() && tags.is_tag_char(chars[end]) { end += 1; }
     while end > i + 1 && chars[end - 1] == '-' { end -= 1; }
     if end == i + 1 || !chars[i + 1].is_alphanumeric() { return None; }
     Some((chars[i + 1..end].iter().collect(), end))
 }
 
 /// Extract all `[[target]]` link targets — used for backlink indexing.
-/// With `hashtags`, every `#tag` counts as a link to the page `tag`.
-pub fn extract_links(content: &str, hashtags: bool) -> Vec<String> {
+/// Unless `hashtags` is `Off`, every `#tag` counts as a link to the page `tag`.
+/// Org-mode tags (`#+FILETAGS:`, `* Title :tag:`) are links to their page too.
+pub fn extract_links(content: &str, hashtags: Hashtags) -> Vec<String> {
     let chars: Vec<char> = content.chars().collect();
     let mut links = Vec::new();
     let mut i = 0;
@@ -49,13 +73,14 @@ pub fn extract_links(content: &str, hashtags: bool) -> Vec<String> {
             }
             let t = target.trim().to_string();
             if !t.is_empty() { links.push(t); }
-        } else if let (true, Some((tag, end))) = (hashtags, hashtag_at(&chars, i)) {
+        } else if let Some((tag, end)) = hashtag_at(&chars, i, hashtags) {
             links.push(tag);
             i = end;
         } else {
             i += 1;
         }
     }
+    links.extend(crate::tags::written_tags(content));
     links
 }
 
@@ -74,11 +99,12 @@ pub fn is_page_link(target: &str) -> bool {
 
 /// Rewrite every `[[old]]` / `[[old][label]]` link so it targets `new`.
 /// With `ignore_case`, `[[pageMagique]]` also matches `PageMagique`.
+/// Org-mode tags naming `old` are renamed too, when `new` can be a tag.
 /// Returns `None` when nothing changed. The display label is left untouched.
-pub fn rewrite_links(content: &str, old: &str, new: &str, ignore_case: bool, hashtags: bool) -> Option<String> {
+pub fn rewrite_links(content: &str, old_name: &str, new: &str, ignore_case: bool, hashtags: Hashtags) -> Option<String> {
     let chars: Vec<char> = content.chars().collect();
     let norm = |s: &str| if ignore_case { s.to_lowercase() } else { s.to_string() };
-    let old = norm(old);
+    let old = norm(old_name);
     let mut out = String::with_capacity(content.len());
     let mut changed = false;
     let mut i = 0;
@@ -101,10 +127,10 @@ pub fn rewrite_links(content: &str, old: &str, new: &str, ignore_case: bool, has
             } else {
                 out.push_str(&target);
             }
-        } else if let (true, Some((tag, end))) = (hashtags, hashtag_at(&chars, i)) {
+        } else if let Some((tag, end)) = hashtag_at(&chars, i, hashtags) {
             if norm(&tag) == old {
                 // A name that is not a valid tag (spaces…) becomes a regular link
-                if new.chars().all(is_tag_char) { out.push('#'); out.push_str(new); }
+                if new.chars().all(|c| hashtags.is_tag_char(c)) { out.push('#'); out.push_str(new); }
                 else { out.push_str(&format!("[[{new}]]")); }
                 changed = true;
             } else {
@@ -116,7 +142,8 @@ pub fn rewrite_links(content: &str, old: &str, new: &str, ignore_case: bool, has
             i += 1;
         }
     }
-    changed.then_some(out)
+    let text = if changed { out } else { content.to_string() };
+    crate::tags::rename(&text, old_name, new, ignore_case).or(changed.then_some(text))
 }
 
 // ─── Block parsing ───────────────────────────────────────────────────────────
@@ -217,34 +244,7 @@ fn is_table_line(line: &str) -> bool {
 
 /// Split "Title :tag1:tag2:" → ("Title", vec!["tag1", "tag2"])
 fn split_title_tags(s: &str) -> (&str, Vec<String>) {
-    let s = s.trim_end();
-    if !s.ends_with(':') { return (s, vec![]); }
-    if let Some(tag_start) = find_tag_block_start(s) {
-        let title = s[..tag_start].trim_end();
-        let tags = s[tag_start..].split(':')
-            .filter(|t| !t.is_empty() && t.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '@')))
-            .map(str::to_string)
-            .collect();
-        return (title, tags);
-    }
-    (s, vec![])
-}
-
-fn find_tag_block_start(s: &str) -> Option<usize> {
-    // tags are ":word:word:" at end, preceded by whitespace
-    let bytes = s.as_bytes();
-    if bytes.last() != Some(&b':') { return None; }
-    let mut i = bytes.len();
-    // scan backwards over valid tag chars and colons
-    while i > 0 {
-        i -= 1;
-        let c = bytes[i];
-        if c == b':' { continue; }
-        if c == b' ' || c == b'\t' { return Some(i + 1); }
-        if c.is_ascii_alphanumeric() || c == b'_' || c == b'-' || c == b'@' { continue; }
-        return None;
-    }
-    None
+    crate::tags::split_headline_tags(s)
 }
 
 // ─── Inline parsing ──────────────────────────────────────────────────────────
@@ -449,19 +449,19 @@ mod tests {
 
     #[test]
     fn extract_links_finds_simple() {
-        let links = extract_links("See [[Page One]] done", false);
+        let links = extract_links("See [[Page One]] done", Hashtags::Off);
         assert_eq!(links, vec!["Page One"]);
     }
 
     #[test]
     fn extract_links_with_display() {
-        let links = extract_links("[[Target][label]]", false);
+        let links = extract_links("[[Target][label]]", Hashtags::Off);
         assert_eq!(links, vec!["Target"]);
     }
 
     #[test]
     fn extract_links_multiple() {
-        let links = extract_links("[[A]] and [[B]] and [[C][display]]", false);
+        let links = extract_links("[[A]] and [[B]] and [[C][display]]", Hashtags::Off);
         assert_eq!(links, vec!["A", "B", "C"]);
     }
 
@@ -475,45 +475,63 @@ mod tests {
 
     #[test]
     fn rewrite_links_simple_and_labeled() {
-        let out = rewrite_links("a [[Old]] b [[Old][lbl]] c [[Other]]", "Old", "New", false, false).unwrap();
+        let out = rewrite_links("a [[Old]] b [[Old][lbl]] c [[Other]]", "Old", "New", false, Hashtags::Off).unwrap();
         assert_eq!(out, "a [[New]] b [[New][lbl]] c [[Other]]");
     }
 
     #[test]
     fn rewrite_links_ignores_case() {
-        let out = rewrite_links("[[pageMagique]] [[PAGEMAGIQUE][x]]", "PageMagique", "PageMagique3", true, false).unwrap();
+        let out = rewrite_links("[[pageMagique]] [[PAGEMAGIQUE][x]]", "PageMagique", "PageMagique3", true, Hashtags::Off).unwrap();
         assert_eq!(out, "[[PageMagique3]] [[PageMagique3][x]]");
     }
 
     #[test]
     fn rewrite_links_case_sensitive_when_asked() {
-        assert!(rewrite_links("[[pageMagique]]", "PageMagique", "X", false, false).is_none());
+        assert!(rewrite_links("[[pageMagique]]", "PageMagique", "X", false, Hashtags::Off).is_none());
     }
 
     #[test]
     fn rewrite_links_no_match() {
-        assert!(rewrite_links("[[Other]] and Old", "Old", "New", false, false).is_none());
+        assert!(rewrite_links("[[Other]] and Old", "Old", "New", false, Hashtags::Off).is_none());
     }
 
     #[test]
     fn hashtags_are_links_only_when_enabled() {
         let t = "Voir #idée et (#Rust) #+TITLE: x # note a#b [[P]] #fin-";
-        assert_eq!(extract_links(t, true), vec!["idée", "Rust", "P", "fin"]);
-        assert_eq!(extract_links(t, false), vec!["P"]);
+        assert_eq!(extract_links(t, Hashtags::Dashes), vec!["idée", "Rust", "P", "fin"]);
+        assert_eq!(extract_links(t, Hashtags::Off), vec!["P"]);
+    }
+
+    #[test]
+    fn hashtag_dashes_only_when_allowed() {
+        let t = "#mon-tag et #mon_tag";
+        assert_eq!(extract_links(t, Hashtags::Dashes), vec!["mon-tag", "mon_tag"]);
+        assert_eq!(extract_links(t, Hashtags::Org), vec!["mon", "mon_tag"]);
     }
 
     #[test]
     fn rewrite_hashtags() {
-        let out = rewrite_links("a #Old b #Older", "old", "New", true, true).unwrap();
+        let out = rewrite_links("a #Old b #Older", "old", "New", true, Hashtags::Dashes).unwrap();
         assert_eq!(out, "a #New b #Older");
-        let out = rewrite_links("a #Old", "Old", "Deux mots", false, true).unwrap();
+        let out = rewrite_links("a #Old", "Old", "Deux mots", false, Hashtags::Dashes).unwrap();
         assert_eq!(out, "a [[Deux mots]]");
-        assert!(rewrite_links("a #Old", "Old", "New", false, false).is_none());
+        // A dash is not allowed in an org-mode style tag
+        let out = rewrite_links("a #Old", "Old", "New-name", false, Hashtags::Org).unwrap();
+        assert_eq!(out, "a [[New-name]]");
+        assert!(rewrite_links("a #Old", "Old", "New", false, Hashtags::Off).is_none());
+    }
+
+    #[test]
+    fn org_tags_are_links() {
+        let t = "#+FILETAGS: :projet:\n* T :urgent:projet:\n[[P]]";
+        assert_eq!(extract_links(t, Hashtags::Off), vec!["P", "projet", "urgent", "projet"]);
+        let out = rewrite_links(t, "projet", "Projet2", false, Hashtags::Off).unwrap();
+        assert_eq!(out, "#+FILETAGS: :Projet2:\n* T :urgent:Projet2:\n[[P]]");
     }
 
     #[test]
     fn extract_links_empty() {
-        assert!(extract_links("no links here", false).is_empty());
+        assert!(extract_links("no links here", Hashtags::Off).is_empty());
     }
 
     // ── split_title_tags ──
