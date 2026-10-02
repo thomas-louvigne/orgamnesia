@@ -67,6 +67,18 @@ cargo tauri dev      # development, hot reload
 cargo tauri build    # application bundle
 #+END_SRC
 
+** Arch Linux (and derivatives)
+
+A =PKGBUILD= is provided in =packaging/arch/=. It builds the latest =main= from
+GitHub and installs the binary, the menu entry and the icons:
+
+#+BEGIN_SRC sh
+cd packaging/arch
+makepkg -si          # build, then install with pacman
+#+END_SRC
+
+To uninstall: =sudo pacman -R orgamnesia-git=.
+
 ** Manual installation (Linux)
 
 Packaging (=.deb=, AppImage…) is not enabled yet: =cargo tauri build= produces a

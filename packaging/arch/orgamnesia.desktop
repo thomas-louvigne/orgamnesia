@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Orgamnesia
+Comment=Personal wiki in org-mode files
+Exec=orgamnesia
+Icon=orgamnesia
+Categories=Office;Utility;TextEditor;
+Keywords=wiki;org;org-mode;notes;
+Terminal=false

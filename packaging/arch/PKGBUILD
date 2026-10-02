@@ -1,0 +1,59 @@
+# Maintainer: Thomas L <zobi8225@gmail.com>
+pkgname=orgamnesia-git
+_pkgname=orgamnesia
+pkgver=0.1.0.r0.g0000000
+pkgrel=1
+pkgdesc="A lite Obsidian with an Emacs flavour: personal wiki in org-mode files"
+arch=('x86_64' 'aarch64')
+url="https://github.com/thomas-louvigne/orgamnesia"
+license=('unknown')
+depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
+makedepends=('git' 'rust' 'rust-wasm' 'trunk' 'cargo-tauri')
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+options=('!lto' '!debug')
+source=("$_pkgname::git+$url.git"
+        "$_pkgname.desktop")
+sha256sums=('SKIP'
+            'SKIP')
+
+pkgver() {
+  cd "$_pkgname"
+  printf "%s.r%s.g%s" \
+    "$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)" \
+    "$(git rev-list --count HEAD)" \
+    "$(git rev-parse --short=7 HEAD)"
+}
+
+prepare() {
+  cd "$_pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked
+  cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+}
+
+build() {
+  cd "$_pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  # Builds the Leptos frontend with Trunk (beforeBuildCommand), then the
+  # Tauri binary with the frontend embedded. No bundle: pacman packages it.
+  cargo tauri build --no-bundle
+}
+
+package() {
+  cd "$_pkgname"
+  install -Dm755 src-tauri/target/release/$_pkgname "$pkgdir/usr/bin/$_pkgname"
+  install -Dm644 "$srcdir/$_pkgname.desktop" "$pkgdir/usr/share/applications/$_pkgname.desktop"
+
+  local size
+  for size in 32 64 128; do
+    install -Dm644 src-tauri/icons/${size}x${size}.png \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/$_pkgname.png"
+  done
+  install -Dm644 src-tauri/icons/128x128@2x.png \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/$_pkgname.png"
+  install -Dm644 src-tauri/icons/icon.png \
+    "$pkgdir/usr/share/icons/hicolor/512x512/apps/$_pkgname.png"
+  install -Dm644 src-tauri/icons/app-icon.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/$_pkgname.svg"
+}
