@@ -30,6 +30,7 @@ fn main() {
             commands::delete_page,
             commands::export_vault,
             commands::pick_folder,
+            commands::quit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -245,6 +245,18 @@ pub fn App() -> impl IntoView {
             "close_split"      => ctx.close_window(),
             "single_window"    => ctx.single_window(),
             "other_window"     => ctx.other_window(),
+            "quit" => {
+                let quit = move || spawn_local(async move {
+                    if let Err(err) = invoke::quit_app().await {
+                        ctx.status.set(Some(format!("Quit error: {err}")));
+                    }
+                });
+                if ctx.tabs.get_untracked().iter().any(|t| t.dirty.get_untracked()) {
+                    ctx.ask_confirm(t("quit_unsaved_confirm", ctx.lang.get_untracked()).to_string(), quit);
+                } else {
+                    quit();
+                }
+            }
             "prev_tab" => {
                 let tabs = ctx.tabs.get();
                 if !tabs.is_empty() {
@@ -256,6 +268,16 @@ pub fn App() -> impl IntoView {
         }
     });
     on_cleanup(move || drop(_kb_handle));
+
+    // No webview context menu (Back / Forward / Stop / Reload) outside text
+    // fields; the editor and inputs keep theirs for cut / copy / paste.
+    let _ctx_menu_handle = window_event_listener(ev::contextmenu, move |e: web_sys::MouseEvent| {
+        let editable = e.target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .is_some_and(|el| el.closest("textarea, input").ok().flatten().is_some());
+        if !editable { e.prevent_default(); }
+    });
+    on_cleanup(move || drop(_ctx_menu_handle));
 
     let export = move |_| {
         spawn_local(async move {

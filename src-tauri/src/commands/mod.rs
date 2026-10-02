@@ -333,3 +333,10 @@ pub async fn pick_folder(app: AppHandle) -> Cmd<Option<String>> {
     });
     rx.await.map_err(|_| "dialog cancelled".to_string())
 }
+
+// ─── Application ─────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    app.exit(0);
+}

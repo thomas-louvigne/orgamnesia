@@ -88,3 +88,7 @@ pub async fn get_keybindings() -> Result<Keybindings, String> {
 pub async fn set_keybindings(kb: &Keybindings) -> Result<(), String> {
     call("set_keybindings", serde_json::json!({ "keybindings": kb })).await
 }
+
+pub async fn quit_app() -> Result<(), String> {
+    call("quit_app", serde_json::json!({})).await
+}

@@ -89,6 +89,7 @@ pub const APP_ACTIONS: &[ActionDef] = &[
     ActionDef { id: "close_split",      label_key: "shortcut_close_split" },
     ActionDef { id: "single_window",    label_key: "shortcut_single_window" },
     ActionDef { id: "other_window",     label_key: "shortcut_other_window" },
+    ActionDef { id: "quit",             label_key: "shortcut_quit" },
 ];
 
 /// Every editor action, whatever the profile: a profile simply leaves the ones
@@ -163,6 +164,7 @@ pub fn default_app() -> Bindings {
         ("close_split",      &["ctrl+alt+w"]),
         ("single_window",    &["ctrl+alt+o"]),
         ("other_window",     &["ctrl+o", "F6"]),
+        ("quit",             &["ctrl+q"]),
     ])
 }
 
@@ -192,6 +194,7 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("close_split",      &["ctrl+x 0", "ctrl+x shift+0"]),
             ("single_window",    &["ctrl+x 1", "ctrl+x shift+1"]),
             ("other_window",     &["ctrl+x o", "ctrl+o"]),
+            ("quit",             &["ctrl+x ctrl+c"]),
         ]),
         _ => default_app(),
     }
