@@ -3,6 +3,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 use crate::{
+    components::tabs::TabBar,
     highlight,
     i18n::t,
     invoke,
@@ -330,13 +331,7 @@ pub fn EditorArea(second: bool) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
 
     // The focused pane shows the active tab, the other one `other_path`
-    let path = Memo::new(move |_| -> Option<String> {
-        if ctx.focus_second.get() == second {
-            ctx.active_tab_data().map(|t| t.path)
-        } else {
-            ctx.other_path.get()
-        }
-    });
+    let path = Memo::new(move |_| ctx.pane_path(second));
     let focused = move || ctx.split.get().is_none() || ctx.focus_second.get() == second;
 
     // When this pane takes the focus (C-x o, C-o…), the keyboard must follow:
@@ -366,6 +361,13 @@ pub fn EditorArea(second: bool) -> impl IntoView {
                     .unwrap_or_default();
                 view! { <div class="pane-tab"><span class="pane-tab-name">{name}</span></div> }
             })}
+            // Side by side: under each pane's title, its own tabs to choose its page.
+            // One above the other: the bottom pane has its own tabs (the top bar is the top pane's).
+            {move || {
+                let split = ctx.split.get();
+                (split == Some(SplitKind::Vertical) || (second && split == Some(SplitKind::Horizontal)))
+                    .then(|| view! { <div class="pane-tabs"><TabBar pane=second /></div> })
+            }}
             <div class="editor-pane-body">
             {move || match path.get() {
                 None => view! {
@@ -893,6 +895,28 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
     };
 
+    // Brief pulse at the caret when the keyboard focus lands in this editor
+    // (C-x o, Tab from another panel…), so the eye finds the cursor.
+    // Not on a click: the cursor is then where the mouse is.
+    let ping = RwSignal::new(None::<(f64, f64, f64)>);
+    let ping_seq = StoredValue::new(0u32);
+    let mouse_focus = StoredValue::new(false);
+    let on_focus = move |_| {
+        if mouse_focus.get_value() { return; }
+        after_tick(move || {
+            let Some(el) = area_ref.get_untracked() else { return };
+            let chars: Vec<char> = el.value().chars().collect();
+            let pos = caret(&el).min(chars.len());
+            let Some(coords) = caret_coords(&el, &chars, pos) else { return };
+            let seq = ping_seq.get_value() + 1;
+            ping_seq.set_value(seq);
+            ping.set(Some(coords));
+            crate::keybindings::after_ms(800, move || {
+                if ping_seq.get_value() == seq { ping.set(None); }
+            });
+        });
+    };
+
     view! {
         <div class="editor-wrap">
             <div class="hl-layer" aria-hidden="true" inner_html=highlighted />
@@ -906,10 +930,22 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 on:keydown=on_keydown
                 on:click=on_click
                 on:mouseup=on_pointer
-                on:mousedown=move |_| completion.set(None)
+                on:mousedown=move |_| {
+                    completion.set(None);
+                    mouse_focus.set_value(true);
+                    after_tick(move || mouse_focus.set_value(false));
+                }
+                on:focus=on_focus
                 on:blur=move |_| completion.set(None)
                 on:scroll=move |_| completion.set(None)
             />
+            {move || ping.get().map(|(x, top, bottom)| view! {
+                <div
+                    class="caret-ping"
+                    aria-hidden="true"
+                    style=format!("left: {x}px; top: {top}px; height: {}px;", bottom - top)
+                />
+            })}
             {move || completion.get().map(|c| view! {
                 <ul
                     class="page-completion"

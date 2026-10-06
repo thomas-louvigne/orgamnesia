@@ -397,3 +397,18 @@ pub async fn pick_folder(app: AppHandle) -> Cmd<Option<String>> {
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
+
+/// When the application exits: delete the blank pages of the open project,
+/// as chosen in the settings.
+pub fn on_exit(app: &AppHandle) {
+    let Ok(dir) = app.path().app_config_dir() else { return };
+    let s = settings::load(&dir);
+    let vault_path = app.state::<AppState>().vault_path.lock().unwrap().clone();
+    if let Some(vp) = vault_path {
+        vault::delete_blank_pages(
+            &vp,
+            s.delete_empty_pages.unwrap_or(false),
+            s.delete_title_only_pages.unwrap_or(false),
+        );
+    }
+}

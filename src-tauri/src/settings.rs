@@ -23,6 +23,18 @@ pub struct Settings {
     pub electric_mode: Option<bool>,
     /// Save the active page on every change (default: true).
     pub autosave: Option<bool>,
+    /// On quit, delete pages with no text: only spaces, tabs or `*` (default: false).
+    pub delete_empty_pages: Option<bool>,
+    /// On quit, delete pages holding only their `* Title` heading (default: false).
+    pub delete_title_only_pages: Option<bool>,
+    /// Frames shown around the editor (default: true): pages menu, backlinks,
+    /// tags, pages not created.
+    pub show_pages: Option<bool>,
+    pub show_backlinks: Option<bool>,
+    pub show_tags: Option<bool>,
+    pub show_broken_links: Option<bool>,
+    /// Enable the logseq-site-builder extension (Export button) (default: false).
+    pub site_builder_enabled: Option<bool>,
     #[serde(default)]
     pub projects: Vec<String>,
 }

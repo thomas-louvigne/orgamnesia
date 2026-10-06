@@ -136,6 +136,11 @@ pub fn App() -> impl IntoView {
             ctx.electric_mode.set(settings.electric_mode.unwrap_or(true));
             ctx.emacs_mark.set(settings.emacs_mark.unwrap_or(true));
             ctx.autosave.set(settings.autosave.unwrap_or(true));
+            ctx.show_pages.set(settings.show_pages.unwrap_or(true));
+            ctx.show_backlinks.set(settings.show_backlinks.unwrap_or(true));
+            ctx.show_tags.set(settings.show_tags.unwrap_or(true));
+            ctx.show_broken_links.set(settings.show_broken_links.unwrap_or(true));
+            ctx.site_builder.set(settings.site_builder_enabled.unwrap_or(false));
             if let Some(path) = settings.vault_path {
                 match invoke::open_vault(&path).await {
                     Ok(files) => {
@@ -299,23 +304,39 @@ pub fn App() -> impl IntoView {
                     sidebar_w.get(), panel_w.get(), broken_h.get()
                 )
             >
-                <Sidebar />
-                <Resizer which=Drag::Sidebar />
+                {move || ctx.show_pages.get().then(|| view! {
+                    <Sidebar />
+                    <Resizer which=Drag::Sidebar />
+                })}
                 <div class="workspace">
-                    <div class="workspace-topbar">
-                        <TabBar />
-                        <button
-                            class="btn-export"
-                            title={move || t("export_title", ctx.lang.get())}
-                            on:click=export
-                        >
-                            {move || t("export", ctx.lang.get())}
-                        </button>
-                    </div>
+                    // Side by side, each pane has its own tabs under its title (see EditorArea)
+                    {move || {
+                        let split = ctx.split.get();
+                        (split != Some(SplitKind::Vertical) || ctx.site_builder.get()).then(|| view! {
+                            <div class="workspace-topbar">
+                                {match split {
+                                    None => view! { <TabBar /> }.into_any(),
+                                    Some(SplitKind::Horizontal) => view! { <TabBar pane=false /> }.into_any(),
+                                    Some(SplitKind::Vertical) => ().into_any(),
+                                }}
+                                {move || ctx.site_builder.get().then(|| view! {
+                                    <button
+                                        class="btn-export"
+                                        title={move || t("export_title", ctx.lang.get())}
+                                        on:click=export
+                                    >
+                                        {move || t("export", ctx.lang.get())}
+                                    </button>
+                                })}
+                            </div>
+                        })
+                    }}
                     <EditorSplit />
                 </div>
-                <Resizer which=Drag::Panel />
-                <BacklinksPanel />
+                {move || ctx.has_right_panel().then(|| view! {
+                    <Resizer which=Drag::Panel />
+                    <BacklinksPanel />
+                })}
             </div>
             {move || ctx.show_quick_open.get().then(|| view! { <QuickOpenModal /> })}
             {move || ctx.show_settings.get().then(|| view! { <SettingsModal /> })}

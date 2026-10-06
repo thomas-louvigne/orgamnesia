@@ -34,6 +34,11 @@ fn main() {
             commands::pick_folder,
             commands::quit_app,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                commands::on_exit(app);
+            }
+        });
 }

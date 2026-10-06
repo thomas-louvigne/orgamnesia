@@ -48,13 +48,6 @@ pub enum Goto {
     Line(usize),
 }
 
-/// What the right-hand panel shows.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PanelView {
-    Backlinks,
-    Tags,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub vault_path: Option<String>,
@@ -67,6 +60,13 @@ pub struct Settings {
     pub emacs_mark: Option<bool>,
     pub electric_mode: Option<bool>,
     pub autosave: Option<bool>,
+    pub delete_empty_pages: Option<bool>,
+    pub delete_title_only_pages: Option<bool>,
+    pub show_pages: Option<bool>,
+    pub show_backlinks: Option<bool>,
+    pub show_tags: Option<bool>,
+    pub show_broken_links: Option<bool>,
+    pub site_builder_enabled: Option<bool>,
     #[serde(default)]
     pub projects: Vec<String>,
 }
@@ -123,7 +123,13 @@ pub struct AppCtx {
     pub focus_second: RwSignal<bool>,
     /// (page path, target): the editor showing that page moves the cursor there.
     pub goto: RwSignal<Option<(String, Goto)>>,
-    pub panel: RwSignal<PanelView>,
+    /// Frames shown around the editor (Settings > Display).
+    pub show_pages: RwSignal<bool>,
+    pub show_backlinks: RwSignal<bool>,
+    pub show_tags: RwSignal<bool>,
+    pub show_broken_links: RwSignal<bool>,
+    /// logseq-site-builder extension enabled (shows the Export button).
+    pub site_builder: RwSignal<bool>,
     /// Org-mode tags of the project (refreshed when pages change).
     pub tags: RwSignal<Vec<TagCount>>,
     /// Tag search shown in the tags panel (`projet+urgent-perso`).
@@ -163,7 +169,11 @@ impl AppCtx {
             other_path: RwSignal::new(None),
             focus_second: RwSignal::new(false),
             goto: RwSignal::new(None),
-            panel: RwSignal::new(PanelView::Backlinks),
+            show_pages: RwSignal::new(true),
+            show_backlinks: RwSignal::new(true),
+            show_tags: RwSignal::new(true),
+            show_broken_links: RwSignal::new(true),
+            site_builder: RwSignal::new(false),
             tags: RwSignal::new(vec![]),
             tag_query: RwSignal::new(String::new()),
             confirm: RwSignal::new(None),
@@ -188,10 +198,14 @@ impl AppCtx {
         }
     }
 
-    /// Show the pages and headlines tagged `tag` in the right-hand panel.
+    /// Show the pages and headlines tagged `tag` in the tags frame.
     pub fn show_tag(&self, tag: String) {
         self.tag_query.set(tag);
-        self.panel.set(PanelView::Tags);
+    }
+
+    /// Whether the right-hand panel has any frame to show.
+    pub fn has_right_panel(&self) -> bool {
+        self.show_backlinks.get() || self.show_tags.get() || self.show_broken_links.get()
     }
 
     /// How `#tags` are read, from the settings (tracked: re-runs effects when they change).
@@ -241,6 +255,21 @@ impl AppCtx {
             self.other_path.set(current);
         }
         self.focus_second.set(second);
+    }
+
+    /// Path of the page shown in a pane (`second`: right / bottom one).
+    pub fn pane_path(&self, second: bool) -> Option<String> {
+        if self.focus_second.get() == second {
+            self.active_tab_data().map(|t| t.path)
+        } else {
+            self.other_path.get()
+        }
+    }
+
+    /// Show the tab `idx` in a pane, giving it the focus.
+    pub fn show_in_pane(&self, second: bool, idx: usize) {
+        self.focus_pane(second);
+        self.active_tab.set(Some(idx));
     }
 
     /// Emacs `C-x o`.

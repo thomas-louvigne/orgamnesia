@@ -16,6 +16,13 @@ struct Snapshot {
     lang: String,
     update_links: bool,
     autosave: bool,
+    delete_empty: bool,
+    delete_title_only: bool,
+    show_pages: bool,
+    show_backlinks: bool,
+    show_tags: bool,
+    show_broken: bool,
+    site_builder: bool,
     ci_links: bool,
     hashtags: bool,
     hashtag_dashes: bool,
@@ -138,7 +145,7 @@ pub fn SettingsModal() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     let lang = move || ctx.lang.get();
 
-    // Which tab is active: 0 = general, 1 = shortcuts
+    // Which tab is active: 0 = general, 1 = shortcuts, 2 = extensions, 3 = display
     let panel = RwSignal::new(0u8);
 
     let vault_input   = RwSignal::new(ctx.vault_path.get().unwrap_or_default());
@@ -146,7 +153,14 @@ pub fn SettingsModal() -> impl IntoView {
     let lang_input    = RwSignal::new(ctx.lang.get().as_str().to_string());
     let update_links  = RwSignal::new(true);
     let autosave      = RwSignal::new(ctx.autosave.get_untracked());
+    let delete_empty  = RwSignal::new(false);
+    let delete_title_only = RwSignal::new(false);
     let ci_links      = RwSignal::new(ctx.case_insensitive_links.get_untracked());
+    let show_pages     = RwSignal::new(ctx.show_pages.get_untracked());
+    let show_backlinks = RwSignal::new(ctx.show_backlinks.get_untracked());
+    let show_tags      = RwSignal::new(ctx.show_tags.get_untracked());
+    let show_broken    = RwSignal::new(ctx.show_broken_links.get_untracked());
+    let site_builder   = RwSignal::new(ctx.site_builder.get_untracked());
     let hashtags      = RwSignal::new(ctx.hashtag_links.get_untracked());
     let hashtag_dashes = RwSignal::new(ctx.hashtag_dashes.get_untracked());
     let emacs_mark    = RwSignal::new(ctx.emacs_mark.get_untracked());
@@ -259,6 +273,13 @@ pub fn SettingsModal() -> impl IntoView {
         lang: lang_input.get(),
         update_links: update_links.get(),
         autosave: autosave.get(),
+        delete_empty: delete_empty.get(),
+        delete_title_only: delete_title_only.get(),
+        show_pages: show_pages.get(),
+        show_backlinks: show_backlinks.get(),
+        show_tags: show_tags.get(),
+        show_broken: show_broken.get(),
+        site_builder: site_builder.get(),
         ci_links: ci_links.get(),
         hashtags: hashtags.get(),
         hashtag_dashes: hashtag_dashes.get(),
@@ -281,6 +302,13 @@ pub fn SettingsModal() -> impl IntoView {
             builder_input.set(s.logseq_site_builder_path.unwrap_or_default());
             update_links.set(s.update_links_on_rename.unwrap_or(true));
             autosave.set(s.autosave.unwrap_or(true));
+            delete_empty.set(s.delete_empty_pages.unwrap_or(false));
+            delete_title_only.set(s.delete_title_only_pages.unwrap_or(false));
+            show_pages.set(s.show_pages.unwrap_or(true));
+            show_backlinks.set(s.show_backlinks.unwrap_or(true));
+            show_tags.set(s.show_tags.unwrap_or(true));
+            show_broken.set(s.show_broken_links.unwrap_or(true));
+            site_builder.set(s.site_builder_enabled.unwrap_or(false));
             ci_links.set(s.case_insensitive_links.unwrap_or(true));
             hashtags.set(s.hashtag_links.unwrap_or(true));
             hashtag_dashes.set(s.hashtag_dashes.unwrap_or(true));
@@ -379,6 +407,10 @@ pub fn SettingsModal() -> impl IntoView {
         let applied = untrack(snapshot);
         let update_links_val = update_links.get();
         let autosave_val = autosave.get();
+        let delete_empty_val = delete_empty.get();
+        let delete_title_only_val = delete_title_only.get();
+        let shown = (show_pages.get(), show_backlinks.get(), show_tags.get(), show_broken.get());
+        let site_builder_val = site_builder.get();
         let ci_links_val = ci_links.get();
         let hashtags_val = hashtags.get();
         let hashtag_dashes_val = hashtag_dashes.get();
@@ -408,6 +440,13 @@ pub fn SettingsModal() -> impl IntoView {
                 language: Some(lang_str.clone()),
                 update_links_on_rename: Some(update_links_val),
                 autosave: Some(autosave_val),
+                delete_empty_pages: Some(delete_empty_val),
+                delete_title_only_pages: Some(delete_title_only_val),
+                show_pages: Some(shown.0),
+                show_backlinks: Some(shown.1),
+                show_tags: Some(shown.2),
+                show_broken_links: Some(shown.3),
+                site_builder_enabled: Some(site_builder_val),
                 case_insensitive_links: Some(ci_links_val),
                 hashtag_links: Some(hashtags_val),
                 hashtag_dashes: Some(hashtag_dashes_val),
@@ -420,6 +459,11 @@ pub fn SettingsModal() -> impl IntoView {
                     let new_lang = Lang::from_str(&lang_str);
                     ctx.lang.set(new_lang);
                     ctx.autosave.set(autosave_val);
+                    ctx.show_pages.set(shown.0);
+                    ctx.show_backlinks.set(shown.1);
+                    ctx.show_tags.set(shown.2);
+                    ctx.show_broken_links.set(shown.3);
+                    ctx.site_builder.set(site_builder_val);
                     ctx.case_insensitive_links.set(ci_links_val);
                     ctx.hashtag_links.set(hashtags_val);
                     ctx.hashtag_dashes.set(hashtag_dashes_val);
@@ -489,6 +533,11 @@ pub fn SettingsModal() -> impl IntoView {
                         on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
                     >{move || t("tab_general", lang())}</button>
                     <button
+                        class=move || if panel.get() == 3 { "modal-tab active" } else { "modal-tab" }
+                        on:click=move |_| panel.set(3)
+                        on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
+                    >{move || t("tab_display", lang())}</button>
+                    <button
                         class=move || if panel.get() == 1 { "modal-tab active" } else { "modal-tab" }
                         on:click=move |_| panel.set(1)
                         on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
@@ -527,6 +576,28 @@ pub fn SettingsModal() -> impl IntoView {
                                         on:change=move |e| autosave.set(event_target_checked(&e))
                                     />
                                     {move || t("autosave", lang())}
+                                </label>
+                            </div>
+
+                            <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || delete_empty.get()
+                                        on:change=move |e| delete_empty.set(event_target_checked(&e))
+                                    />
+                                    {move || t("delete_empty_pages", lang())}
+                                </label>
+                            </div>
+
+                            <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || delete_title_only.get()
+                                        on:change=move |e| delete_title_only.set(event_target_checked(&e))
+                                    />
+                                    {move || t("delete_title_only_pages", lang())}
                                 </label>
                             </div>
 
@@ -600,19 +671,79 @@ pub fn SettingsModal() -> impl IntoView {
                         </div>
                     })}
 
+                    {move || (panel.get() == 3).then(|| view! {
+                        <div class="tab-content">
+                            <div class="setting-section-title">
+                                {move || t("display_frames", lang())}
+                            </div>
+                            <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || show_pages.get()
+                                        on:change=move |e| show_pages.set(event_target_checked(&e))
+                                    />
+                                    {move || t("show_pages", lang())}
+                                </label>
+                                <span class="setting-hint">{move || t("show_pages_hint", lang())}</span>
+                            </div>
+                            <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || show_backlinks.get()
+                                        on:change=move |e| show_backlinks.set(event_target_checked(&e))
+                                    />
+                                    {move || t("show_backlinks", lang())}
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || show_tags.get()
+                                        on:change=move |e| show_tags.set(event_target_checked(&e))
+                                    />
+                                    {move || t("show_tags", lang())}
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || show_broken.get()
+                                        on:change=move |e| show_broken.set(event_target_checked(&e))
+                                    />
+                                    {move || t("show_broken_links", lang())}
+                                </label>
+                            </div>
+                        </div>
+                    })}
+
                     {move || (panel.get() == 2).then(|| view! {
                         <div class="tab-content">
                             <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || site_builder.get()
+                                        on:change=move |e| site_builder.set(event_target_checked(&e))
+                                    />
+                                    {move || t("site_builder_enabled", lang())}
+                                </label>
+                            </div>
+                            <div class="setting-row setting-sub">
                                 <label>{move || t("builder_path", lang())}</label>
                                 <div class="setting-input-row">
                                     <input
                                         type="text"
                                         class="setting-input"
+                                        prop:disabled=move || !site_builder.get()
                                         placeholder="logseq-site-builder"
                                         prop:value=move || builder_input.get()
                                         on:input=move |e| builder_input.set(event_target_value(&e))
                                     />
-                                    <button class="btn-pick" on:click=pick_builder>
+                                    <button class="btn-pick" prop:disabled=move || !site_builder.get() on:click=pick_builder>
                                         {move || t("browse", lang())}
                                     </button>
                                 </div>

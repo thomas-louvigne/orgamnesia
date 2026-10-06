@@ -3,8 +3,11 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::{invoke, state::AppCtx};
 
+/// The open pages. With `pane` (false: left / top, true: right / bottom), the bar
+/// belongs to one pane of a split: it shows that pane's page and clicking a tab
+/// opens the page there. Without, it follows the focused pane.
 #[component]
-pub fn TabBar() -> impl IntoView {
+pub fn TabBar(#[prop(optional)] pane: Option<bool>) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
 
     view! {
@@ -16,7 +19,13 @@ pub fn TabBar() -> impl IntoView {
             >
                 {
                     let (idx, tab) = item;
-                    let is_active = move || ctx.active_tab.get() == Some(idx);
+                    let is_active = move || match pane {
+                        Some(second) => {
+                            let path = ctx.tabs.with(|tabs| tabs.get(idx).map(|t| t.path.clone()));
+                            path.is_some() && ctx.pane_path(second) == path
+                        }
+                        None => ctx.active_tab.get() == Some(idx),
+                    };
                     let tab_name = tab.name.clone();
                     let dirty = tab.dirty;
 
@@ -139,7 +148,11 @@ pub fn TabBar() -> impl IntoView {
                                 (false, false) => "tab",
                             }
                             on:click=move |_| {
-                                if !editing.get() { ctx.active_tab.set(Some(idx)) }
+                                if editing.get() { return; }
+                                match pane {
+                                    Some(second) => ctx.show_in_pane(second, idx),
+                                    None => ctx.active_tab.set(Some(idx)),
+                                }
                             }
                             on:dblclick=on_dblclick
                             on:contextmenu=on_ctx_menu

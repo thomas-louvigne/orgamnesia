@@ -323,9 +323,52 @@ pub fn find_link(chars: &[char], target: &str, ignore_case: bool, hashtags: Hash
     None
 }
 
+/// `content` with the file tag `tag` added to its `#+filetags:` line, which is
+/// created after the leading `#+` keywords (the top of the page) when missing.
+/// `None` when the page already has that file tag.
+pub fn add_filetag(content: &str, tag: &str) -> Option<String> {
+    let mut lines: Vec<String> = content.split('\n').map(String::from).collect();
+    let found = lines.iter().position(|l| filetags_value_start(&l.chars().collect::<Vec<_>>()).is_some());
+    match found {
+        Some(i) => {
+            let chars: Vec<char> = lines[i].chars().collect();
+            let v = filetags_value_start(&chars)?;
+            let head: String = chars[..v].iter().collect();
+            let value: String = chars[v..].iter().collect();
+            if value.split(':').any(|t| t.trim().eq_ignore_ascii_case(tag)) {
+                return None;
+            }
+            let value = value.trim_end();
+            lines[i] = if value.trim().is_empty() {
+                format!("{head} :{tag}:")
+            } else if value.ends_with(':') {
+                format!("{head}{value}{tag}:")
+            } else {
+                format!("{head}{value} :{tag}:")
+            };
+        }
+        None => {
+            let at = lines.iter().take_while(|l| l.trim_start().starts_with("#+")).count();
+            lines.insert(at, format!("#+filetags: :{tag}:"));
+        }
+    }
+    Some(lines.join("\n"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filetag_added() {
+        assert_eq!(add_filetag("* Page\n", "pro").as_deref(), Some("#+filetags: :pro:\n* Page\n"));
+        assert_eq!(add_filetag("", "pro").as_deref(), Some("#+filetags: :pro:\n"));
+        assert_eq!(add_filetag("#+title: P\n* P", "pro").as_deref(), Some("#+title: P\n#+filetags: :pro:\n* P"));
+        assert_eq!(add_filetag("#+FILETAGS: :a:\nx", "b").as_deref(), Some("#+FILETAGS: :a:b:\nx"));
+        assert_eq!(add_filetag("#+filetags:\nx", "b").as_deref(), Some("#+filetags: :b:\nx"));
+        assert_eq!(add_filetag("#+filetags: :a:  \nx", "b").as_deref(), Some("#+filetags: :a:b:\nx"));
+        assert_eq!(add_filetag("x\n#+filetags: :A:\n", "a"), None);
+    }
 
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
 
