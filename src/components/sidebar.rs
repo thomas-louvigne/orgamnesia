@@ -4,7 +4,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     i18n::t,
     invoke,
-    state::{AppCtx, FileEntry, Tab},
+    state::{AppCtx, FileEntry, Tab, VaultChanges},
 };
 
 
@@ -62,6 +62,66 @@ pub async fn reload_clean_tabs(ctx: AppCtx) {
             }
         }
     }
+}
+
+/// Apply changes made to the project's pages by another program: refresh the
+/// page list, reload the open tabs without unsaved changes, warn about the others.
+pub async fn apply_disk_changes(ctx: AppCtx, changes: VaultChanges) {
+    if ctx.files.get_untracked() != changes.files {
+        ctx.files.set(changes.files);
+    }
+    let lang = ctx.lang.get_untracked();
+    for tab in ctx.tabs.get_untracked() {
+        // The tab may be closed while a file is read: its signals are then gone
+        let dirty = || tab.dirty.try_get_untracked().unwrap_or(true);
+        if changes.removed.contains(&tab.path) {
+            ctx.status.set(Some(format!("{} : {}", tab.name, t("deleted_on_disk", lang))));
+        } else if changes.changed.contains(&tab.path) {
+            if dirty() {
+                ctx.status.set(Some(format!("{} : {}", tab.name, t("changed_on_disk", lang))));
+                continue;
+            }
+            if let Ok(content) = invoke::read_file(&tab.path).await {
+                if !dirty() && tab.content.try_get_untracked().is_some_and(|c| c != content) {
+                    tab.content.try_set(content);
+                }
+            }
+        }
+    }
+    ctx.links_version.update(|v| *v += 1);
+}
+
+/// Delete a page after confirmation, and close its tab if open.
+pub fn delete_page(ctx: AppCtx, file: FileEntry) {
+    let lang = ctx.lang.get_untracked();
+    let msg = format!("{} « {} » ?", t("delete_confirm", lang), file.name);
+    ctx.ask_confirm(msg, move || {
+        let file = file.clone();
+        spawn_local(async move {
+            match invoke::delete_page(&file.path).await {
+                Ok(()) => {
+                    ctx.files.update(|fs| fs.retain(|f| f.path != file.path));
+                    if let Some(i) = ctx.tabs.get_untracked().iter().position(|t| t.path == file.path) {
+                        ctx.tabs.update(|tabs| { tabs.remove(i); });
+                        let len = ctx.tabs.get_untracked().len();
+                        ctx.active_tab.update(|a| {
+                            *a = match *a {
+                                Some(x) if x == i => if len == 0 { None } else { Some(i.min(len - 1)) },
+                                Some(x) if x > i => Some(x - 1),
+                                other => other,
+                            };
+                        });
+                        if ctx.active_tab.get_untracked().is_none() {
+                            ctx.backlinks.set(vec![]);
+                        }
+                    }
+                    ctx.links_version.update(|v| *v += 1);
+                    ctx.status.set(Some(format!("{} {}", t("deleted", lang), file.name)));
+                }
+                Err(e) => ctx.status.set(Some(format!("Delete error: {e}"))),
+            }
+        });
+    });
 }
 
 /// Create the page `name`, add it to the list and open it in a new tab.
@@ -218,39 +278,6 @@ pub fn Sidebar() -> impl IntoView {
             }
         }
     });
-
-    // Delete a page after confirmation, and close its tab if open
-    let delete_file = move |file: FileEntry| {
-        let lang = ctx.lang.get_untracked();
-        let msg = format!("{} « {} » ?", t("delete_confirm", lang), file.name);
-        ctx.ask_confirm(msg, move || {
-            let file = file.clone();
-            spawn_local(async move {
-            match invoke::delete_page(&file.path).await {
-                Ok(()) => {
-                    ctx.files.update(|fs| fs.retain(|f| f.path != file.path));
-                    if let Some(i) = ctx.tabs.get_untracked().iter().position(|t| t.path == file.path) {
-                        ctx.tabs.update(|tabs| { tabs.remove(i); });
-                        let len = ctx.tabs.get_untracked().len();
-                        ctx.active_tab.update(|a| {
-                            *a = match *a {
-                                Some(x) if x == i => if len == 0 { None } else { Some(i.min(len - 1)) },
-                                Some(x) if x > i => Some(x - 1),
-                                other => other,
-                            };
-                        });
-                        if ctx.active_tab.get_untracked().is_none() {
-                            ctx.backlinks.set(vec![]);
-                        }
-                    }
-                    ctx.links_version.update(|v| *v += 1);
-                    ctx.status.set(Some(format!("{} {}", t("deleted", lang), file.name)));
-                }
-                Err(e) => ctx.status.set(Some(format!("Delete error: {e}"))),
-            }
-            });
-        });
-    };
 
     let do_rename = move || {
         let Some(old_path) = renaming.get_untracked() else { return };
@@ -521,7 +548,7 @@ pub fn Sidebar() -> impl IntoView {
                                 </button>
                                 <button class="ctx-menu-item ctx-menu-danger" on:click=move |_| {
                                     show_ctx_menu.set(false);
-                                    delete_file(f_del.clone());
+                                    delete_page(ctx, f_del.clone());
                                 }>
                                     {move || t("delete_page", ctx.lang.get())}
                                 </button>

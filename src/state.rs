@@ -39,6 +39,17 @@ pub struct TagHit {
     pub tags: Vec<String>,
 }
 
+/// Pages changed on disk by another program since the last look.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VaultChanges {
+    /// All the pages of the project, as now on disk.
+    pub files: Vec<FileEntry>,
+    /// Paths of the pages created or modified.
+    pub changed: Vec<String>,
+    /// Paths of the pages deleted.
+    pub removed: Vec<String>,
+}
+
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Goto {

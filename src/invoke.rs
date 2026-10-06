@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings, TagCount, TagHit}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings, TagCount, TagHit, VaultChanges}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -43,6 +43,10 @@ pub async fn remove_project(path: &str) -> Result<Vec<String>, String> {
 
 pub async fn list_files() -> Result<Vec<FileEntry>, String> {
     call("list_files", serde_json::json!({})).await
+}
+
+pub async fn poll_vault() -> Result<Option<VaultChanges>, String> {
+    call("poll_vault", serde_json::json!({})).await
 }
 
 pub async fn read_file(path: &str) -> Result<String, String> {

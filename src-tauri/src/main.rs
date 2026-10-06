@@ -21,6 +21,7 @@ fn main() {
             commands::open_vault,
             commands::remove_project,
             commands::list_files,
+            commands::poll_vault,
             commands::read_file,
             commands::write_file,
             commands::create_page,

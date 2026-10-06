@@ -1,7 +1,7 @@
 use leptos::{html, prelude::*};
 use wasm_bindgen_futures::spawn_local;
 
-use crate::{invoke, state::AppCtx};
+use crate::{invoke, state::{AppCtx, FileEntry}};
 
 /// The open pages. With `pane` (false: left / top, true: right / bottom), the bar
 /// belongs to one pane of a split: it shows that pane's page and clicking a tab
@@ -212,6 +212,19 @@ pub fn TabBar(#[prop(optional)] pane: Option<bool>) -> impl IntoView {
                                             }
                                         >
                                             {move || crate::i18n::t("rename", ctx.lang.get())}
+                                        </button>
+                                        <button
+                                            class="ctx-menu-item ctx-menu-danger"
+                                            on:click=move |_| {
+                                                ctx_open.set(false);
+                                                let file = ctx.tabs.get_untracked().get(idx)
+                                                    .map(|t| FileEntry { name: t.name.clone(), path: t.path.clone() });
+                                                if let Some(file) = file {
+                                                    crate::components::sidebar::delete_page(ctx, file);
+                                                }
+                                            }
+                                        >
+                                            {move || crate::i18n::t("delete_page", ctx.lang.get())}
                                         </button>
                                     </div>
                                 </div>

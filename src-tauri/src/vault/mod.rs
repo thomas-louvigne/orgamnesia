@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
 use crate::error::AppError;
 
@@ -41,6 +43,30 @@ pub fn list_org_files(vault_path: &str) -> Result<Vec<FileEntry>, AppError> {
         .collect();
     files.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(files)
+}
+
+/// Modification time and size of a file, to notice when it changes on disk.
+pub type Stamp = (Option<SystemTime>, u64);
+
+/// Stamp of every page, by path.
+pub type Snapshot = HashMap<String, Stamp>;
+
+pub fn stamp(path: &str) -> Option<Stamp> {
+    let m = std::fs::metadata(path).ok()?;
+    Some((m.modified().ok(), m.len()))
+}
+
+pub fn snapshot(files: &[FileEntry]) -> Snapshot {
+    files.iter()
+        .filter_map(|f| Some((f.path.clone(), stamp(&f.path)?)))
+        .collect()
+}
+
+/// Paths whose stamp differs between two snapshots (new or modified), and paths gone.
+pub fn diff(old: &Snapshot, new: &Snapshot) -> (Vec<String>, Vec<String>) {
+    let changed = new.iter().filter(|(p, s)| old.get(*p) != Some(*s)).map(|(p, _)| p.clone()).collect();
+    let removed = old.keys().filter(|p| !new.contains_key(*p)).cloned().collect();
+    (changed, removed)
 }
 
 /// Ensure `<vault>/pages/` and `<vault>/assets/` exist, unless the folder is a
@@ -131,6 +157,18 @@ mod tests {
         assert!(!is_title_only("* Ma page\n** Sous-titre\n"));
         assert!(!is_title_only("du texte\n"));
         assert!(!is_title_only("*gras* du texte\n"));
+    }
+
+    #[test]
+    fn snapshot_diff() {
+        let t = Some(SystemTime::UNIX_EPOCH);
+        let old: Snapshot = [("a".to_string(), (t, 1)), ("b".to_string(), (t, 2)), ("c".to_string(), (t, 3))].into();
+        let new: Snapshot = [("a".to_string(), (t, 1)), ("b".to_string(), (t, 5)), ("d".to_string(), (t, 4))].into();
+        let (mut changed, removed) = diff(&old, &new);
+        changed.sort();
+        assert_eq!(changed, vec!["b", "d"]);
+        assert_eq!(removed, vec!["c"]);
+        assert_eq!(diff(&new, &new), (vec![], vec![]));
     }
 
     #[test]

@@ -75,6 +75,10 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("remove_project",   Lang::Fr) => "Retirer de la liste",
         ("discard_confirm",  Lang::En) => "Some tabs have unsaved changes. Switch project and discard them?",
         ("discard_confirm",  Lang::Fr) => "Des onglets ont des modifications non sauvegardées. Changer de projet et les perdre ?",
+        ("changed_on_disk",  Lang::En) => "modified by another program; your unsaved changes are kept",
+        ("changed_on_disk",  Lang::Fr) => "modifiée par un autre programme ; vos modifications non sauvegardées sont conservées",
+        ("deleted_on_disk",  Lang::En) => "deleted by another program",
+        ("deleted_on_disk",  Lang::Fr) => "supprimée par un autre programme",
         ("settings_btn",     Lang::En) => "⚙ Settings",
         ("settings_btn",     Lang::Fr) => "⚙ Paramètres",
         // Editor

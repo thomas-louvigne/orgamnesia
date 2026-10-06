@@ -80,8 +80,61 @@ pub async fn open_vault(
 
     *state.vault_path.lock().unwrap() = Some(path);
     *state.backlinks.lock().unwrap() = idx;
+    *state.snapshot.lock().unwrap() = vault::snapshot(&files);
 
     Ok(files)
+}
+
+/// Pages changed on disk since the last look (by another program).
+#[derive(serde::Serialize)]
+pub struct VaultChanges {
+    /// All the pages of the project, as now on disk.
+    pub files: Vec<FileEntry>,
+    /// Paths of the pages created or modified.
+    pub changed: Vec<String>,
+    /// Paths of the pages deleted.
+    pub removed: Vec<String>,
+}
+
+/// Look for pages created, modified or deleted outside the app since the last
+/// call, and update the link index. `None` when nothing changed.
+#[tauri::command]
+pub async fn poll_vault(state: State<'_, AppState>, app: AppHandle) -> Cmd<Option<VaultChanges>> {
+    let Some(vp) = state.vault_path.lock().unwrap().clone() else { return Ok(None) };
+    let files = vault::list_org_files(&vp).map_err(|e| e.to_string())?;
+    let now = vault::snapshot(&files);
+    let (changed, removed) = {
+        let mut snap = state.snapshot.lock().unwrap();
+        // Another project was opened meanwhile: its snapshot is not ours to replace
+        if state.vault_path.lock().unwrap().as_deref() != Some(vp.as_str()) {
+            return Ok(None);
+        }
+        let (changed, removed) = vault::diff(&snap, &now);
+        if changed.is_empty() && removed.is_empty() {
+            return Ok(None);
+        }
+        *snap = now;
+        (changed, removed)
+    };
+
+    let hashtags = hashtags(&app);
+    let mut idx = state.backlinks.lock().unwrap();
+    for path in &removed {
+        idx.remove_source(&vault::page_name(path));
+    }
+    for path in &changed {
+        let content = std::fs::read_to_string(path).unwrap_or_default();
+        idx.index_file(&vault::page_name(path), &parser::extract_links(&content, hashtags));
+    }
+    Ok(Some(VaultChanges { files, changed, removed }))
+}
+
+/// Record the current stamp of a page written by the app, so `poll_vault`
+/// does not report it as changed outside.
+fn remember(state: &AppState, path: &str) {
+    if let Some(s) = vault::stamp(path) {
+        state.snapshot.lock().unwrap().insert(path.to_string(), s);
+    }
 }
 
 /// Forget a project (the folder itself is left untouched); returns the remaining list.
@@ -115,6 +168,9 @@ pub async fn write_file(
     content: String,
 ) -> Cmd<()> {
     std::fs::write(&path, &content).map_err(|e| e.to_string())?;
+    if state.snapshot.lock().unwrap().contains_key(&path) {
+        remember(&state, &path);
+    }
     // Re-index this file's links
     let name = vault::page_name(&path);
     state.backlinks.lock().unwrap()
@@ -134,10 +190,9 @@ pub async fn create_page(
     }
     std::fs::write(&file_path, format!("* {page_name}\n"))
         .map_err(|e| e.to_string())?;
-    Ok(FileEntry {
-        name: page_name,
-        path: file_path.to_string_lossy().to_string(),
-    })
+    let path = file_path.to_string_lossy().to_string();
+    remember(&state, &path);
+    Ok(FileEntry { name: page_name, path })
 }
 
 /// Delete a page file of the open vault (irreversible).
@@ -153,6 +208,7 @@ pub async fn delete_page(state: State<'_, AppState>, path: String) -> Cmd<()> {
         return Err("Not a page of the open project".to_string());
     }
     std::fs::remove_file(file).map_err(|e| e.to_string())?;
+    state.snapshot.lock().unwrap().remove(&path);
     state.backlinks.lock().unwrap().remove_source(&vault::page_name(&path));
     Ok(())
 }
@@ -344,6 +400,7 @@ pub async fn rename_page(
             let Ok(text) = std::fs::read_to_string(&f.path) else { continue };
             if let Some(updated) = parser::rewrite_links(&text, &old_name, &new_name, ignore_case, hashtags) {
                 std::fs::write(&f.path, &updated).map_err(|e| e.to_string())?;
+                remember(&state, &f.path);
                 state.backlinks.lock().unwrap()
                     .index_file(&f.name, &parser::extract_links(&updated, hashtags));
             }
@@ -358,6 +415,8 @@ pub async fn rename_page(
         idx.remove_source(&old_name);
         idx.index_file(&new_name, &links);
     }
+    state.snapshot.lock().unwrap().remove(&old_path);
+    remember(&state, &new_path.to_string_lossy());
 
     Ok(FileEntry {
         name: new_name,

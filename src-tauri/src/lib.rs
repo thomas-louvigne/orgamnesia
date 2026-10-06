@@ -13,6 +13,8 @@ use index::backlinks::BacklinkIndex;
 pub struct AppState {
     pub vault_path: Mutex<Option<String>>,
     pub backlinks: Mutex<BacklinkIndex>,
+    /// Pages as last seen on disk, to notice changes made outside the app.
+    pub snapshot: Mutex<vault::Snapshot>,
 }
 
 impl AppState {
@@ -20,6 +22,7 @@ impl AppState {
         Self {
             vault_path: Mutex::new(None),
             backlinks: Mutex::new(BacklinkIndex::new()),
+            snapshot: Mutex::new(vault::Snapshot::new()),
         }
     }
 }

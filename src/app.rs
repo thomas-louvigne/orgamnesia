@@ -178,6 +178,21 @@ pub fn App() -> impl IntoView {
         }
     });
 
+    // Every second, pick up the pages changed on disk by another program
+    // (another editor, a sync tool…). One check at a time.
+    let polling = StoredValue::new(false);
+    let poll = set_interval_with_handle(move || {
+        if ctx.vault_path.get_untracked().is_none() || polling.get_value() { return; }
+        polling.set_value(true);
+        spawn_local(async move {
+            if let Ok(Some(changes)) = invoke::poll_vault().await {
+                crate::components::sidebar::apply_disk_changes(ctx, changes).await;
+            }
+            polling.set_value(false);
+        });
+    }, std::time::Duration::from_secs(1));
+    on_cleanup(move || if let Ok(h) = poll { h.clear() });
+
     // Drop the split when the page shown in the other pane is closed
     Effect::new(move |_| {
         let tabs = ctx.tabs.get();
