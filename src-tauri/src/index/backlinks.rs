@@ -74,7 +74,7 @@ impl BacklinkIndex {
                 (t.clone(), s, count)
             })
             .collect();
-        v.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+        v.sort_by_key(|a| a.0.to_lowercase());
         v
     }
 
