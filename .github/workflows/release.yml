@@ -1,0 +1,57 @@
+name: Release
+
+# Pushing a tag `vX.Y.Z` builds the Linux packages and publishes them in a
+# GitHub release of the same name.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    name: Linux packages (.deb, AppImage)
+    # The oldest supported runner: the packages then run on older distributions too
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches the app version
+        run: |
+          version=$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"([^"]+)",?/\1/')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME but tauri.conf.json says $version"
+            exit 1
+          fi
+
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev file
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            src-tauri
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli
+
+      - run: cargo tauri build --bundles deb,appimage
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Orgamnesia ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage

@@ -83,8 +83,19 @@ Shortcuts are configurable in *Settings → Shortcuts*: two presets (*Classic* a
 
 * Installation
 
-Orgamnesia runs on Linux. There are no prebuilt downloads yet: the app is
-compiled on your machine, which takes a few minutes the first time.
+Orgamnesia runs on Linux.
+
+** Download
+
+Each version is published on the [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Releases page]]:
+
+- =Orgamnesia_*_amd64.deb= for Debian, Ubuntu, Linux Mint, Pop!_OS…:
+  =sudo apt install ./Orgamnesia_*_amd64.deb=, then uninstall with =sudo apt remove orgamnesia=.
+- =Orgamnesia_*_amd64.AppImage= for the other distributions: make it executable
+  (=chmod +x Orgamnesia_*.AppImage=) and run it.
+
+To build from the sources instead, follow one of the sections below; compiling
+takes a few minutes the first time.
 
 ** Debian, Ubuntu, Linux Mint, Pop!_OS…
 

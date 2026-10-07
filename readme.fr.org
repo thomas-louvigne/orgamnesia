@@ -85,9 +85,19 @@ détection des conflits.
 
 * Installation
 
-Orgamnesia fonctionne sous Linux. Il n'y a pas encore de version précompilée à
-télécharger : l'application est compilée sur votre machine, ce qui prend quelques
-minutes la première fois.
+Orgamnesia fonctionne sous Linux.
+
+** Téléchargement
+
+Chaque version est publiée sur la [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des Releases]] :
+
+- =Orgamnesia_*_amd64.deb= pour Debian, Ubuntu, Linux Mint, Pop!_OS… :
+  =sudo apt install ./Orgamnesia_*_amd64.deb=, puis désinstaller avec =sudo apt remove orgamnesia=.
+- =Orgamnesia_*_amd64.AppImage= pour les autres distributions : le rendre exécutable
+  (=chmod +x Orgamnesia_*.AppImage=) puis le lancer.
+
+Pour compiler depuis les sources, suivre plutôt l'une des sections ci-dessous ;
+la compilation prend quelques minutes la première fois.
 
 ** Debian, Ubuntu, Linux Mint, Pop!_OS…
 
