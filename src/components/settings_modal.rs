@@ -2,34 +2,18 @@ use leptos::{ev, html, prelude::*};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::{
+    actions,
     i18n::{t, Lang},
     invoke,
-    keybindings::{self, ActionDef, Bindings, Keybindings, Profile},
-    state::AppCtx,
+    keybindings::{self, AppAction, Bindings, EditorAction, Keybindings, Profile},
+    state::{AppCtx, Prefs},
+    storage,
 };
 
 /// Everything the settings window edits, to tell whether there is anything to apply.
 #[derive(Clone, PartialEq)]
 struct Snapshot {
-    vault: String,
-    builder: String,
-    lang: String,
-    update_links: bool,
-    autosave: bool,
-    delete_empty: bool,
-    delete_title_only: bool,
-    show_brand: bool,
-    show_pages: bool,
-    show_backlinks: bool,
-    show_tags: bool,
-    show_broken: bool,
-    site_builder: bool,
-    git_ext: bool,
-    ci_links: bool,
-    hashtags: bool,
-    hashtag_dashes: bool,
-    emacs_mark: bool,
-    electric: bool,
+    prefs: Prefs,
     active: String,
     profiles: Vec<Profile>,
     app: Bindings,
@@ -40,24 +24,90 @@ const SIZE_KEY: &str = "settings_modal_size";
 
 /// Size (width, height in px) the settings window had last time, if remembered.
 fn load_size() -> Option<(i32, i32)> {
-    let s = web_sys::window()?.local_storage().ok()??.get_item(SIZE_KEY).ok()??;
+    let s = storage::load(SIZE_KEY)?;
     let (w, h) = s.split_once(',')?;
     Some((w.parse().ok()?, h.parse().ok()?))
 }
 
 fn store_size(w: i32, h: i32) {
-    if let Some(st) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
-        let _ = st.set_item(SIZE_KEY, &format!("{w},{h}"));
+    storage::store(SIZE_KEY, &format!("{w},{h}"));
+}
+
+/// A checkbox bound to one setting of the window's draft.
+#[component]
+fn Check(
+    draft: RwSignal<Prefs>,
+    get: fn(&Prefs) -> bool,
+    set: fn(&mut Prefs, bool),
+    label: &'static str,
+    #[prop(optional)] hint: Option<&'static str>,
+    /// Indented under the setting it depends on.
+    #[prop(optional)] sub: bool,
+    /// Greyed out while this is true (the setting it depends on is off).
+    #[prop(optional)] disabled: Option<fn(&Prefs) -> bool>,
+) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    view! {
+        <div class=if sub { "setting-row setting-sub" } else { "setting-row" }>
+            <label class="setting-check">
+                <input
+                    type="checkbox"
+                    prop:disabled=move || disabled.is_some_and(|d| draft.with(d))
+                    prop:checked=move || draft.with(get)
+                    on:change=move |e| draft.update(|p| set(p, event_target_checked(&e)))
+                />
+                {move || t(label, lang())}
+            </label>
+            {hint.map(|h| view! { <span class="setting-hint">{move || t(h, lang())}</span> })}
+        </div>
+    }
+}
+
+/// A folder path field with its "Browse…" button.
+#[component]
+fn PathField(
+    value: Signal<String>,
+    on_change: Callback<String>,
+    #[prop(optional)] placeholder: Option<Signal<String>>,
+    #[prop(optional, into)] disabled: Option<Signal<bool>>,
+) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let disabled = move || disabled.is_some_and(|d| d.get());
+    let pick = move |_| {
+        spawn_local(async move {
+            match invoke::pick_folder().await {
+                Ok(Some(path)) => on_change.run(path),
+                Ok(None) => {}
+                Err(e) => ctx.error("error", &e),
+            }
+        });
+    };
+    view! {
+        <div class="setting-input-row">
+            <input
+                type="text"
+                class="setting-input"
+                prop:disabled=disabled
+                placeholder=move || placeholder.map(|p| p.get()).unwrap_or_default()
+                prop:value=move || value.get()
+                on:input=move |e| on_change.run(event_target_value(&e))
+            />
+            <button class="btn-pick" prop:disabled=disabled on:click=pick>
+                {move || t("browse", ctx.lang.get())}
+            </button>
+        </div>
     }
 }
 
 /// Application actions about the editor panes; shown in their own section.
-const SPLIT_ACTIONS: &[&str] = &[
-    "split_vertical", "split_horizontal", "close_split", "single_window", "other_window",
+const SPLIT_ACTIONS: &[AppAction] = &[
+    AppAction::SplitVertical, AppAction::SplitHorizontal, AppAction::CloseSplit,
+    AppAction::SingleWindow, AppAction::OtherWindow,
 ];
 
 /// Editor actions of the selection marker; shown in their own section.
-const MARK_ACTIONS: &[&str] = &["set_mark", "keyboard_quit"];
+const MARK_ACTIONS: &[EditorAction] = &[EditorAction::SetMark, EditorAction::KeyboardQuit];
 
 /// Combinations bound to more than one action, with the label keys of those actions.
 type Conflicts = Vec<(String, Vec<&'static str>)>;
@@ -70,13 +120,13 @@ type Conflicts = Vec<(String, Vec<&'static str>)>;
 fn find_conflicts(app: &Bindings, editor: &Bindings) -> Conflicts {
     // (binding, action label), one entry per distinct binding of each action
     let mut entries: Vec<(String, &'static str)> = Vec::new();
-    for (map, defs) in [(app, keybindings::APP_ACTIONS), (editor, keybindings::EDITOR_ACTIONS)] {
-        for a in defs {
-            let mut seen = std::collections::HashSet::new();
-            for b in map.get(a.id).into_iter().flatten().filter(|b| !b.is_empty()) {
-                if seen.insert(b.clone()) {
-                    entries.push((b.clone(), a.label_key));
-                }
+    let app_ids = keybindings::APP_ACTIONS.iter().map(|a| (app, a.id, a.label_key));
+    let editor_ids = keybindings::EDITOR_ACTIONS.iter().map(|a| (editor, a.id, a.label_key));
+    for (map, id, label_key) in app_ids.chain(editor_ids) {
+        let mut seen = std::collections::HashSet::new();
+        for b in map.get(id).into_iter().flatten().filter(|b| !b.is_empty()) {
+            if seen.insert(b.clone()) {
+                entries.push((b.clone(), label_key));
             }
         }
     }
@@ -150,25 +200,8 @@ pub fn SettingsModal() -> impl IntoView {
     // Which tab is active: 0 = general, 1 = shortcuts, 2 = extensions, 3 = display
     let panel = RwSignal::new(0u8);
 
-    let vault_input   = RwSignal::new(ctx.vault_path.get().unwrap_or_default());
-    let builder_input = RwSignal::new(String::new());
-    let lang_input    = RwSignal::new(ctx.lang.get().as_str().to_string());
-    let update_links  = RwSignal::new(true);
-    let autosave      = RwSignal::new(ctx.autosave.get_untracked());
-    let delete_empty  = RwSignal::new(false);
-    let delete_title_only = RwSignal::new(false);
-    let ci_links      = RwSignal::new(ctx.case_insensitive_links.get_untracked());
-    let show_brand     = RwSignal::new(ctx.show_brand.get_untracked());
-    let show_pages     = RwSignal::new(ctx.show_pages.get_untracked());
-    let show_backlinks = RwSignal::new(ctx.show_backlinks.get_untracked());
-    let show_tags      = RwSignal::new(ctx.show_tags.get_untracked());
-    let show_broken    = RwSignal::new(ctx.show_broken_links.get_untracked());
-    let site_builder   = RwSignal::new(ctx.site_builder.get_untracked());
-    let git_ext        = RwSignal::new(ctx.git_ext.get_untracked());
-    let hashtags      = RwSignal::new(ctx.hashtag_links.get_untracked());
-    let hashtag_dashes = RwSignal::new(ctx.hashtag_dashes.get_untracked());
-    let emacs_mark    = RwSignal::new(ctx.emacs_mark.get_untracked());
-    let electric      = RwSignal::new(ctx.electric_mode.get_untracked());
+    // The settings being edited (the saved ones replace these once read)
+    let draft = RwSignal::new(ctx.prefs_untracked());
 
     // Working copy of the keybindings (action id -> up to 2 bindings).
     let kb = ctx.keybindings.get();
@@ -192,7 +225,7 @@ pub fn SettingsModal() -> impl IntoView {
             }
         } else {
             let unchanged = profiles.with_untracked(|ps| {
-                ps.iter().find(|p| p.id == id).map_or(true, |p| p.app == app && p.editor == editor)
+                ps.iter().find(|p| p.id == id).is_none_or(|p| p.app == app && p.editor == editor)
             });
             if !unchanged {
                 profiles.update(|ps| {
@@ -263,7 +296,7 @@ pub fn SettingsModal() -> impl IntoView {
             if conflict_popup.get_untracked().is_some() {
                 conflict_popup.set(None);
             } else {
-                ctx.show_settings.set(false);
+                ctx.ui.show_settings.set(false);
             }
         }
     });
@@ -272,25 +305,7 @@ pub fn SettingsModal() -> impl IntoView {
     // What was last loaded/applied; the window differs from it when there is
     // something to apply. `None` until the saved settings have been read.
     let snapshot = move || Snapshot {
-        vault: vault_input.get(),
-        builder: builder_input.get(),
-        lang: lang_input.get(),
-        update_links: update_links.get(),
-        autosave: autosave.get(),
-        delete_empty: delete_empty.get(),
-        delete_title_only: delete_title_only.get(),
-        show_brand: show_brand.get(),
-        show_pages: show_pages.get(),
-        show_backlinks: show_backlinks.get(),
-        show_tags: show_tags.get(),
-        show_broken: show_broken.get(),
-        site_builder: site_builder.get(),
-        git_ext: git_ext.get(),
-        ci_links: ci_links.get(),
-        hashtags: hashtags.get(),
-        hashtag_dashes: hashtag_dashes.get(),
-        emacs_mark: emacs_mark.get(),
-        electric: electric.get(),
+        prefs: draft.get(),
         active: active_id.get(),
         profiles: profiles.get(),
         app: app_work.get(),
@@ -298,33 +313,13 @@ pub fn SettingsModal() -> impl IntoView {
     };
     let baseline = RwSignal::new(None::<Snapshot>);
     let has_changes = move || {
-        baseline.with(|b| b.as_ref().map_or(false, |b| *b != snapshot()))
+        baseline.with(|b| b.as_ref().is_some_and(|b| *b != snapshot()))
     };
 
     // Load current settings
     spawn_local(async move {
         if let Ok(s) = invoke::get_settings().await {
-            vault_input.set(s.vault_path.unwrap_or_default());
-            builder_input.set(s.logseq_site_builder_path.unwrap_or_default());
-            update_links.set(s.update_links_on_rename.unwrap_or(true));
-            autosave.set(s.autosave.unwrap_or(true));
-            delete_empty.set(s.delete_empty_pages.unwrap_or(false));
-            delete_title_only.set(s.delete_title_only_pages.unwrap_or(false));
-            show_brand.set(s.show_brand.unwrap_or(true));
-            show_pages.set(s.show_pages.unwrap_or(true));
-            show_backlinks.set(s.show_backlinks.unwrap_or(true));
-            show_tags.set(s.show_tags.unwrap_or(true));
-            show_broken.set(s.show_broken_links.unwrap_or(true));
-            site_builder.set(s.site_builder_enabled.unwrap_or(false));
-            git_ext.set(s.git_status_enabled.unwrap_or(true));
-            ci_links.set(s.case_insensitive_links.unwrap_or(true));
-            hashtags.set(s.hashtag_links.unwrap_or(true));
-            hashtag_dashes.set(s.hashtag_dashes.unwrap_or(true));
-            emacs_mark.set(s.emacs_mark.unwrap_or(true));
-            electric.set(s.electric_mode.unwrap_or(true));
-            if let Some(l) = s.language {
-                lang_input.set(l);
-            }
+            draft.set(Prefs::from_settings(&s));
         }
         baseline.set(Some(untrack(snapshot)));
     });
@@ -350,26 +345,6 @@ pub fn SettingsModal() -> impl IntoView {
             style.push_str(&format!("position: fixed; left: {}px; top: {}px; margin: 0;", x, modal_y.get()));
         }
         style
-    };
-
-    let pick_vault = move |_| {
-        spawn_local(async move {
-            match invoke::pick_folder().await {
-                Ok(Some(path)) => vault_input.set(path),
-                Ok(None) => {}
-                Err(e) => ctx.status.set(Some(format!("Error: {e}"))),
-            }
-        });
-    };
-
-    let pick_builder = move |_| {
-        spawn_local(async move {
-            match invoke::pick_folder().await {
-                Ok(Some(path)) => builder_input.set(path),
-                Ok(None) => {}
-                Err(e) => ctx.status.set(Some(format!("Error: {e}"))),
-            }
-        });
     };
 
     // Load a profile (built-in or custom) into the working copies.
@@ -413,22 +388,7 @@ pub fn SettingsModal() -> impl IntoView {
     let do_save = move |close: bool| {
         if !conflicts.get_untracked().is_empty() { return; }
         let applied = untrack(snapshot);
-        let update_links_val = update_links.get();
-        let autosave_val = autosave.get();
-        let delete_empty_val = delete_empty.get();
-        let delete_title_only_val = delete_title_only.get();
-        let show_brand_val = show_brand.get();
-        let shown = (show_pages.get(), show_backlinks.get(), show_tags.get(), show_broken.get());
-        let site_builder_val = site_builder.get();
-        let git_ext_val = git_ext.get();
-        let ci_links_val = ci_links.get();
-        let hashtags_val = hashtags.get();
-        let hashtag_dashes_val = hashtag_dashes.get();
-        let emacs_mark_val = emacs_mark.get();
-        let electric_val = electric.get();
-        let vault    = vault_input.get();
-        let builder  = builder_input.get();
-        let lang_str = lang_input.get();
+        let prefs = applied.prefs.clone();
         let default_name = t("profile_custom", ctx.lang.get_untracked());
         let kb = Keybindings {
             editor_preset: preset.get(),
@@ -444,60 +404,23 @@ pub fn SettingsModal() -> impl IntoView {
         };
 
         spawn_local(async move {
-            let settings = crate::state::Settings {
-                vault_path: if vault.is_empty() { None } else { Some(vault.clone()) },
-                logseq_site_builder_path: if builder.is_empty() { None } else { Some(builder) },
-                language: Some(lang_str.clone()),
-                update_links_on_rename: Some(update_links_val),
-                autosave: Some(autosave_val),
-                delete_empty_pages: Some(delete_empty_val),
-                delete_title_only_pages: Some(delete_title_only_val),
-                show_brand: Some(show_brand_val),
-                show_pages: Some(shown.0),
-                show_backlinks: Some(shown.1),
-                show_tags: Some(shown.2),
-                show_broken_links: Some(shown.3),
-                site_builder_enabled: Some(site_builder_val),
-                git_status_enabled: Some(git_ext_val),
-                case_insensitive_links: Some(ci_links_val),
-                hashtag_links: Some(hashtags_val),
-                hashtag_dashes: Some(hashtag_dashes_val),
-                emacs_mark: Some(emacs_mark_val),
-                electric_mode: Some(electric_val),
-                projects: ctx.projects.get_untracked(),
-            };
+            let settings = prefs.to_settings(ctx.project.projects.get_untracked());
             match invoke::save_settings(&settings).await {
                 Ok(_) => {
-                    let new_lang = Lang::from_str(&lang_str);
-                    ctx.lang.set(new_lang);
-                    ctx.autosave.set(autosave_val);
-                    ctx.show_brand.set(show_brand_val);
-                    ctx.show_pages.set(shown.0);
-                    ctx.show_backlinks.set(shown.1);
-                    ctx.show_tags.set(shown.2);
-                    ctx.show_broken_links.set(shown.3);
-                    ctx.site_builder.set(site_builder_val);
-                    ctx.git_ext.set(git_ext_val);
-                    ctx.case_insensitive_links.set(ci_links_val);
-                    ctx.hashtag_links.set(hashtags_val);
-                    ctx.hashtag_dashes.set(hashtag_dashes_val);
-                    ctx.links_version.update(|v| *v += 1);
-                    ctx.emacs_mark.set(emacs_mark_val);
-                    ctx.electric_mode.set(electric_val);
-                    if let Some(ref path) = settings.vault_path {
-                        if ctx.vault_path.get().as_deref() != Some(path.as_str()) {
-                            crate::components::sidebar::open_project(ctx, path.clone()).await;
-                        }
+                    ctx.prefs.set(prefs.clone());
+                    ctx.bump_links();
+                    if let Some(path) = settings.vault_path {
+                        actions::open_project(ctx, path).await;
                     }
                     baseline.set(Some(applied));
-                    ctx.status.set(Some(t("settings_saved", new_lang).to_string()));
-                    if close { ctx.show_settings.set(false); }
+                    ctx.ui.status.set(Some(t("settings_saved", Lang::from_code(&prefs.lang)).to_string()));
+                    if close { ctx.ui.show_settings.set(false); }
                 }
-                Err(e) => ctx.status.set(Some(format!("Error: {e}"))),
+                Err(e) => ctx.error("error", &e),
             }
             match invoke::set_keybindings(&kb).await {
                 Ok(_) => ctx.keybindings.set(kb),
-                Err(e) => ctx.status.set(Some(format!("Keybindings error: {e}"))),
+                Err(e) => ctx.error("keybindings_error", &e),
             }
         });
     };
@@ -514,7 +437,7 @@ pub fn SettingsModal() -> impl IntoView {
             on:click=move |_| {
                 // Ignore clicks that started inside the modal (e.g. a resize drag
                 // released outside of it)
-                if overlay_down.get_untracked() { ctx.show_settings.set(false) }
+                if overlay_down.get_untracked() { ctx.ui.show_settings.set(false) }
             }
         >
             <div
@@ -535,7 +458,7 @@ pub fn SettingsModal() -> impl IntoView {
                     <h2>{move || t("settings", lang())}</h2>
                     <button
                         class="btn-close"
-                        on:click=move |_| ctx.show_settings.set(false)
+                        on:click=move |_| ctx.ui.show_settings.set(false)
                         on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
                     >"×"</button>
                 </div>
@@ -568,115 +491,28 @@ pub fn SettingsModal() -> impl IntoView {
                         <div class="tab-content">
                             <div class="setting-row">
                                 <label>{move || t("vault_folder", lang())}</label>
-                                <div class="setting-input-row">
-                                    <input
-                                        type="text"
-                                        class="setting-input"
-                                        placeholder={move || t("vault_hint", lang())}
-                                        prop:value=move || vault_input.get()
-                                        on:input=move |e| vault_input.set(event_target_value(&e))
-                                    />
-                                    <button class="btn-pick" on:click=pick_vault>
-                                        {move || t("browse", lang())}
-                                    </button>
-                                </div>
+                                <PathField
+                                    value=Signal::derive(move || draft.with(|p| p.vault.clone()))
+                                    on_change=Callback::new(move |v| draft.update(|p| p.vault = v))
+                                    placeholder=Signal::derive(move || t("vault_hint", lang()).to_string())
+                                />
                             </div>
-
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || autosave.get()
-                                        on:change=move |e| autosave.set(event_target_checked(&e))
-                                    />
-                                    {move || t("autosave", lang())}
-                                </label>
-                            </div>
-
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || delete_empty.get()
-                                        on:change=move |e| delete_empty.set(event_target_checked(&e))
-                                    />
-                                    {move || t("delete_empty_pages", lang())}
-                                </label>
-                            </div>
-
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || delete_title_only.get()
-                                        on:change=move |e| delete_title_only.set(event_target_checked(&e))
-                                    />
-                                    {move || t("delete_title_only_pages", lang())}
-                                </label>
-                            </div>
-
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || electric.get()
-                                        on:change=move |e| electric.set(event_target_checked(&e))
-                                    />
-                                    {move || t("electric_mode", lang())}
-                                </label>
-                            </div>
-
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || ci_links.get()
-                                        on:change=move |e| ci_links.set(event_target_checked(&e))
-                                    />
-                                    {move || t("ci_links", lang())}
-                                </label>
-                            </div>
-
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || hashtags.get()
-                                        on:change=move |e| hashtags.set(event_target_checked(&e))
-                                    />
-                                    {move || t("hashtag_links", lang())}
-                                </label>
-                            </div>
-
-                            <div class="setting-row setting-sub">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:disabled=move || !hashtags.get()
-                                        prop:checked=move || hashtag_dashes.get()
-                                        on:change=move |e| hashtag_dashes.set(event_target_checked(&e))
-                                    />
-                                    {move || t("hashtag_dashes", lang())}
-                                </label>
-                                <span class="setting-hint">{move || t("hashtag_dashes_hint", lang())}</span>
-                            </div>
-
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || update_links.get()
-                                        on:change=move |e| update_links.set(event_target_checked(&e))
-                                    />
-                                    {move || t("update_links", lang())}
-                                </label>
-                            </div>
+                            <Check draft get=|p| p.autosave set=|p, v| p.autosave = v label="autosave" />
+                            <Check draft get=|p| p.delete_empty set=|p, v| p.delete_empty = v label="delete_empty_pages" />
+                            <Check draft get=|p| p.delete_title_only set=|p, v| p.delete_title_only = v label="delete_title_only_pages" />
+                            <Check draft get=|p| p.electric_mode set=|p, v| p.electric_mode = v label="electric_mode" />
+                            <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
+                            <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />
+                            <Check draft get=|p| p.hashtag_dashes set=|p, v| p.hashtag_dashes = v
+                                label="hashtag_dashes" hint="hashtag_dashes_hint" sub=true
+                                disabled=|p| !p.hashtag_links />
+                            <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />
 
                             <div class="setting-row">
                                 <label>{move || t("language", lang())}</label>
                                 <select
-                                    prop:value=move || lang_input.get()
-                                    on:change=move |e| lang_input.set(event_target_value(&e))
+                                    prop:value=move || draft.with(|p| p.lang.clone())
+                                    on:change=move |e| draft.update(|p| p.lang = event_target_value(&e))
                                 >
                                     <option value="fr">{move || t("lang_fr", lang())}</option>
                                     <option value="en">{move || t("lang_en", lang())}</option>
@@ -690,102 +526,32 @@ pub fn SettingsModal() -> impl IntoView {
                             <div class="setting-section-title">
                                 {move || t("display_appearance", lang())}
                             </div>
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || show_brand.get()
-                                        on:change=move |e| show_brand.set(event_target_checked(&e))
-                                    />
-                                    {move || t("show_brand", lang())}
-                                </label>
-                            </div>
+                            <Check draft get=|p| p.show_brand set=|p, v| p.show_brand = v label="show_brand" />
                             <div class="setting-section-title">
                                 {move || t("display_frames", lang())}
                             </div>
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || show_pages.get()
-                                        on:change=move |e| show_pages.set(event_target_checked(&e))
-                                    />
-                                    {move || t("show_pages", lang())}
-                                </label>
-                                <span class="setting-hint">{move || t("show_pages_hint", lang())}</span>
-                            </div>
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || show_backlinks.get()
-                                        on:change=move |e| show_backlinks.set(event_target_checked(&e))
-                                    />
-                                    {move || t("show_backlinks", lang())}
-                                </label>
-                            </div>
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || show_tags.get()
-                                        on:change=move |e| show_tags.set(event_target_checked(&e))
-                                    />
-                                    {move || t("show_tags", lang())}
-                                </label>
-                            </div>
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || show_broken.get()
-                                        on:change=move |e| show_broken.set(event_target_checked(&e))
-                                    />
-                                    {move || t("show_broken_links", lang())}
-                                </label>
-                            </div>
+                            <Check draft get=|p| p.show_pages set=|p, v| p.show_pages = v
+                                label="show_pages" hint="show_pages_hint" />
+                            <Check draft get=|p| p.show_backlinks set=|p, v| p.show_backlinks = v label="show_backlinks" />
+                            <Check draft get=|p| p.show_tags set=|p, v| p.show_tags = v label="show_tags" />
+                            <Check draft get=|p| p.show_broken_links set=|p, v| p.show_broken_links = v label="show_broken_links" />
                         </div>
                     })}
 
                     {move || (panel.get() == 2).then(|| view! {
                         <div class="tab-content">
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || site_builder.get()
-                                        on:change=move |e| site_builder.set(event_target_checked(&e))
-                                    />
-                                    {move || t("site_builder_enabled", lang())}
-                                </label>
-                            </div>
+                            <Check draft get=|p| p.site_builder set=|p, v| p.site_builder = v label="site_builder_enabled" />
                             <div class="setting-row setting-sub">
                                 <label>{move || t("builder_path", lang())}</label>
-                                <div class="setting-input-row">
-                                    <input
-                                        type="text"
-                                        class="setting-input"
-                                        prop:disabled=move || !site_builder.get()
-                                        placeholder="logseq-site-builder"
-                                        prop:value=move || builder_input.get()
-                                        on:input=move |e| builder_input.set(event_target_value(&e))
-                                    />
-                                    <button class="btn-pick" prop:disabled=move || !site_builder.get() on:click=pick_builder>
-                                        {move || t("browse", lang())}
-                                    </button>
-                                </div>
+                                <PathField
+                                    value=Signal::derive(move || draft.with(|p| p.builder.clone()))
+                                    on_change=Callback::new(move |v| draft.update(|p| p.builder = v))
+                                    placeholder=Signal::derive(|| "logseq-site-builder".to_string())
+                                    disabled=Signal::derive(move || !draft.with(|p| p.site_builder))
+                                />
                             </div>
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || git_ext.get()
-                                        on:change=move |e| git_ext.set(event_target_checked(&e))
-                                    />
-                                    {move || t("git_ext_enabled", lang())}
-                                </label>
-                                <span class="setting-hint">{move || t("git_ext_hint", lang())}</span>
-                            </div>
+                            <Check draft get=|p| p.git_ext set=|p, v| p.git_ext = v
+                                label="git_ext_enabled" hint="git_ext_hint" />
                         </div>
                     })}
 
@@ -853,9 +619,9 @@ pub fn SettingsModal() -> impl IntoView {
                             </div>
                             <KeybindingHeader lang=ctx.lang />
                             {keybindings::APP_ACTIONS.iter()
-                                .filter(|a| !SPLIT_ACTIONS.contains(&a.id))
+                                .filter(|a| !SPLIT_ACTIONS.contains(&a.action))
                                 .map(|a| view! {
-                                    <KeybindingRow map=app_work action=a lang=ctx.lang />
+                                    <KeybindingRow map=app_work id=a.id label_key=a.label_key lang=ctx.lang />
                                 }).collect_view()}
 
                             <div class="setting-section-title">
@@ -863,9 +629,9 @@ pub fn SettingsModal() -> impl IntoView {
                             </div>
                             <KeybindingHeader lang=ctx.lang />
                             {keybindings::APP_ACTIONS.iter()
-                                .filter(|a| SPLIT_ACTIONS.contains(&a.id))
+                                .filter(|a| SPLIT_ACTIONS.contains(&a.action))
                                 .map(|a| view! {
-                                    <KeybindingRow map=app_work action=a lang=ctx.lang />
+                                    <KeybindingRow map=app_work id=a.id label_key=a.label_key lang=ctx.lang />
                                 }).collect_view()}
 
                             <div class="setting-section-title">
@@ -873,29 +639,20 @@ pub fn SettingsModal() -> impl IntoView {
                             </div>
                             <KeybindingHeader lang=ctx.lang />
                             {keybindings::EDITOR_ACTIONS.iter()
-                                .filter(|a| !MARK_ACTIONS.contains(&a.id))
+                                .filter(|a| !MARK_ACTIONS.contains(&a.action))
                                 .map(|a| view! {
-                                    <KeybindingRow map=editor_work action=a lang=ctx.lang />
+                                    <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
                                 }).collect_view()}
 
                             <div class="setting-section-title">
                                 {move || t("mark_section", lang())}
                             </div>
-                            <div class="setting-row">
-                                <label class="setting-check">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || emacs_mark.get()
-                                        on:change=move |e| emacs_mark.set(event_target_checked(&e))
-                                    />
-                                    {move || t("emacs_mark", lang())}
-                                </label>
-                            </div>
+                            <Check draft get=|p| p.emacs_mark set=|p, v| p.emacs_mark = v label="emacs_mark" />
                             <KeybindingHeader lang=ctx.lang />
                             {keybindings::EDITOR_ACTIONS.iter()
-                                .filter(|a| MARK_ACTIONS.contains(&a.id))
+                                .filter(|a| MARK_ACTIONS.contains(&a.action))
                                 .map(|a| view! {
-                                    <KeybindingRow map=editor_work action=a lang=ctx.lang />
+                                    <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
                                 }).collect_view()}
                         </div>
                     })}
@@ -904,7 +661,7 @@ pub fn SettingsModal() -> impl IntoView {
                 <div class="modal-footer">
                     <button
                         class="btn-secondary"
-                        on:click=move |_| ctx.show_settings.set(false)
+                        on:click=move |_| ctx.ui.show_settings.set(false)
                         on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
                     >{move || t("cancel", lang())}</button>
                     <button
@@ -932,7 +689,7 @@ pub fn SettingsModal() -> impl IntoView {
 
 /// Titles of the two shortcut columns.
 #[component]
-fn KeybindingHeader(lang: RwSignal<Lang>) -> impl IntoView {
+fn KeybindingHeader(lang: Memo<Lang>) -> impl IntoView {
     view! {
         <div class="keybinding-row keybinding-header">
             <label></label>
@@ -948,15 +705,16 @@ fn KeybindingHeader(lang: RwSignal<Lang>) -> impl IntoView {
 #[component]
 fn KeybindingRow(
     map: RwSignal<Bindings>,
-    action: &'static ActionDef,
-    lang: RwSignal<Lang>,
+    id: &'static str,
+    label_key: &'static str,
+    lang: Memo<Lang>,
 ) -> impl IntoView {
     view! {
         <div class="keybinding-row">
-            <label>{move || t(action.label_key, lang.get())}</label>
+            <label>{move || t(label_key, lang.get())}</label>
             <div class="keybinding-slots">
-                <KeybindingSlot map=map id=action.id index=0 lang=lang />
-                <KeybindingSlot map=map id=action.id index=1 lang=lang />
+                <KeybindingSlot map=map id=id index=0 lang=lang />
+                <KeybindingSlot map=map id=id index=1 lang=lang />
             </div>
         </div>
     }
@@ -968,7 +726,7 @@ fn KeybindingSlot(
     map: RwSignal<Bindings>,
     id: &'static str,
     index: usize,
-    lang: RwSignal<Lang>,
+    lang: Memo<Lang>,
 ) -> impl IntoView {
     let recording = RwSignal::new(false);
     let input_ref = NodeRef::<html::Input>::new();
@@ -987,7 +745,7 @@ fn KeybindingSlot(
     let conflicts = use_context::<Memo<Conflicts>>();
     let in_conflict = move || {
         let c = current();
-        !c.is_empty() && conflicts.map_or(false, |cf| cf.with(|l| {
+        !c.is_empty() && conflicts.is_some_and(|cf| cf.with(|l| {
             l.iter().any(|(k, _)| *k == c || c.starts_with(&format!("{k} ")))
         }))
     };

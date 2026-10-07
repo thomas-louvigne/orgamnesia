@@ -1,11 +1,14 @@
+mod actions;
 mod app;
 mod components;
+mod edit;
 mod highlight;
 pub mod i18n;
 mod invoke;
 pub mod keybindings;
 pub mod motion;
 mod state;
+mod storage;
 
 use app::App;
 use leptos::prelude::*;

@@ -3,12 +3,34 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings, GitStatus, TagCount, TagHit, VaultChanges}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings, GitStatus, TagCount, TagHit}};
 
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = "invoke")]
     fn tauri_invoke_raw(cmd: &str, args: JsValue) -> Promise;
+
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"], js_name = "listen")]
+    fn tauri_listen(event: &str, handler: &Closure<dyn FnMut(JsValue)>) -> Promise;
+}
+
+/// Event sent by the backend with the pages changed on disk outside the app
+/// (`src-tauri/src/watch.rs`).
+pub const VAULT_CHANGED: &str = "vault-changed";
+/// Event sent by the backend when the git state of the project may have changed.
+pub const GIT_CHANGED: &str = "git-changed";
+
+/// Run `f` with the payload of every `event` the backend emits, for the whole
+/// life of the app.
+pub fn listen<T: for<'de> Deserialize<'de> + 'static>(event: &str, mut f: impl FnMut(T) + 'static) {
+    let handler = Closure::<dyn FnMut(JsValue)>::new(move |e: JsValue| {
+        let payload = js_sys::Reflect::get(&e, &JsValue::from_str("payload")).unwrap_or(JsValue::NULL);
+        if let Ok(value) = serde_wasm_bindgen::from_value(payload) {
+            f(value);
+        }
+    });
+    let _ = tauri_listen(event, &handler);
+    handler.forget();
 }
 
 async fn call<A, R>(cmd: &str, args: A) -> Result<R, String>
@@ -20,7 +42,8 @@ where
         .map_err(|e| format!("serialize: {e}"))?;
     let promise = tauri_invoke_raw(cmd, js_args);
     let value = JsFuture::from(promise).await
-        .map_err(|e| format!("invoke '{cmd}': {:?}", e.as_string()))?;
+        // The backend's errors arrive as their message
+        .map_err(|e| e.as_string().unwrap_or_else(|| format!("{cmd}: {e:?}")))?;
     serde_wasm_bindgen::from_value(value)
         .map_err(|e| format!("deserialize: {e}"))
 }
@@ -39,14 +62,6 @@ pub async fn open_vault(path: &str) -> Result<Vec<FileEntry>, String> {
 
 pub async fn remove_project(path: &str) -> Result<Vec<String>, String> {
     call("remove_project", serde_json::json!({ "path": path })).await
-}
-
-pub async fn list_files() -> Result<Vec<FileEntry>, String> {
-    call("list_files", serde_json::json!({})).await
-}
-
-pub async fn poll_vault() -> Result<Option<VaultChanges>, String> {
-    call("poll_vault", serde_json::json!({})).await
 }
 
 pub async fn read_file(path: &str) -> Result<String, String> {

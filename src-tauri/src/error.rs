@@ -1,28 +1,57 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Serializer};
 
-#[derive(Debug, Serialize, Deserialize)]
+/// Why a backend operation failed. Commands return it as is: the interface
+/// receives its message.
+#[derive(Debug)]
 pub enum AppError {
-    Io(String),
+    Io(std::io::Error),
+    /// No project is open.
+    NoProject,
+    /// The folder chosen as a project does not exist (or is not a folder).
     VaultNotFound(String),
-    ExportError(String),
-    SettingsError(String),
+    /// The path is not a page of the open project.
+    NotAPage(String),
+    /// A page with this name already exists.
+    PageExists(String),
+    /// A page name must be non-empty and hold no `/` or `\`.
+    InvalidName(String),
+    /// The export tool failed or could not be run.
+    Export(String),
+    /// `settings.json` / `keybindings.json` could not be written.
+    Settings(String),
+    /// The folder picker could not be shown.
+    Dialog,
 }
 
 impl std::fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AppError::Io(e)           => write!(f, "IO error: {e}"),
-            AppError::VaultNotFound(e) => write!(f, "Vault not found: {e}"),
-            AppError::ExportError(e)  => write!(f, "Export error: {e}"),
-            AppError::SettingsError(e) => write!(f, "Settings error: {e}"),
+            Self::Io(e)            => write!(f, "{e}"),
+            Self::NoProject        => write!(f, "No project open"),
+            Self::VaultNotFound(p) => write!(f, "Project folder not found: {p}"),
+            Self::NotAPage(p)      => write!(f, "Not a page of the open project: {p}"),
+            Self::PageExists(n)    => write!(f, "Page '{n}' already exists"),
+            Self::InvalidName(n)   => write!(f, "Invalid page name: '{n}'"),
+            Self::Export(e)        => write!(f, "Export failed: {e}"),
+            Self::Settings(e)      => write!(f, "Settings error: {e}"),
+            Self::Dialog           => write!(f, "The folder picker could not be shown"),
         }
     }
 }
 
 impl std::error::Error for AppError {}
 
-impl From<AppError> for String {
-    fn from(e: AppError) -> Self {
-        e.to_string()
+impl From<std::io::Error> for AppError {
+    fn from(e: std::io::Error) -> Self { Self::Io(e) }
+}
+
+impl From<serde_json::Error> for AppError {
+    fn from(e: serde_json::Error) -> Self { Self::Settings(e.to_string()) }
+}
+
+/// Sent to the interface as its message.
+impl Serialize for AppError {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.to_string())
     }
 }

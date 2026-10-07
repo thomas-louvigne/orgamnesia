@@ -6,7 +6,7 @@ pub enum Lang {
 }
 
 impl Lang {
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_code(s: &str) -> Self {
         match s {
             "en" => Self::En,
             _ => Self::Fr,
@@ -356,6 +356,73 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         // Tab context menu
         ("rename",                 Lang::En) => "Rename",
         ("rename",                 Lang::Fr) => "Renommer",
+        // Status bar
+        ("error",              Lang::En) => "Error",
+        ("error",              Lang::Fr) => "Erreur",
+        ("open_project_error", Lang::En) => "Could not open the project",
+        ("open_project_error", Lang::Fr) => "Impossible d'ouvrir le projet",
+        ("saved",              Lang::En) => "Saved:",
+        ("saved",              Lang::Fr) => "Enregistré :",
+        ("save_error",         Lang::En) => "Could not save",
+        ("save_error",         Lang::Fr) => "Échec de l'enregistrement",
+        ("renamed",            Lang::En) => "Renamed to",
+        ("renamed",            Lang::Fr) => "Renommée en",
+        ("rename_error",       Lang::En) => "Could not rename",
+        ("rename_error",       Lang::Fr) => "Échec du renommage",
+        ("delete_error",       Lang::En) => "Could not delete",
+        ("delete_error",       Lang::Fr) => "Échec de la suppression",
+        ("export_running",     Lang::En) => "Exporting…",
+        ("export_running",     Lang::Fr) => "Export en cours…",
+        ("export_done",        Lang::En) => "Export done",
+        ("export_done",        Lang::Fr) => "Export terminé",
+        ("export_error",       Lang::En) => "Export failed",
+        ("export_error",       Lang::Fr) => "Échec de l'export",
+        ("keybindings_error",  Lang::En) => "Could not save the shortcuts",
+        ("keybindings_error",  Lang::Fr) => "Échec de l'enregistrement des raccourcis",
+        ("split_needs_page",   Lang::En) => "Open a page before splitting the editor",
+        ("split_needs_page",   Lang::Fr) => "Ouvrez une page avant de diviser l'éditeur",
+        ("quit_error",         Lang::En) => "Could not quit",
+        ("quit_error",         Lang::Fr) => "Échec de la fermeture",
         _ => key,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every key the sources use has a text in both languages.
+    #[test]
+    fn every_key_is_translated() {
+        let sources = [
+            include_str!("app.rs"), include_str!("actions.rs"), include_str!("state.rs"),
+            include_str!("components/backlinks_panel.rs"), include_str!("components/editor.rs"),
+            include_str!("components/quick_open.rs"), include_str!("components/settings_modal.rs"),
+            include_str!("components/sidebar.rs"), include_str!("components/tabs.rs"),
+        ];
+        let mut keys: Vec<String> = Vec::new();
+        for src in sources {
+            for pat in ["t(\"", "label=\"", "hint=\"", "error(\"", "notify_t(\""] {
+                for (at, _) in src.match_indices(pat) {
+                    // `pat` must start a word: not `expect("…")`
+                    let before = src[..at].chars().next_back();
+                    if before.is_some_and(|c| c.is_alphanumeric() || c == '_') { continue; }
+                    let part = &src[at + pat.len()..];
+                    let key: String = part.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+                    if !key.is_empty() && part[key.len()..].starts_with('"') { keys.push(key); }
+                }
+            }
+        }
+        let registry = crate::keybindings::APP_ACTIONS.iter().map(|a| a.label_key)
+            .chain(crate::keybindings::EDITOR_ACTIONS.iter().map(|a| a.label_key));
+        keys.extend(registry.map(String::from));
+        assert!(keys.len() > 100);
+        let missing: Vec<&String> = keys.iter()
+            .filter(|k| [Lang::En, Lang::Fr].iter().any(|&l| {
+                let k: &'static str = Box::leak(k.to_string().into_boxed_str());
+                t(k, l) == k
+            }))
+            .collect();
+        assert!(missing.is_empty(), "untranslated: {missing:?}");
     }
 }

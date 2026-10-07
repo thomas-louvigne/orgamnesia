@@ -1,0 +1,163 @@
+//! The settings: `Settings` as stored in `settings.json`, `Prefs` as used.
+
+use serde::{Deserialize, Serialize};
+
+use crate::Hashtags;
+
+/// `settings.json`. A missing value (older file, or never set) means the
+/// default: see `Prefs`, the only place defaults are decided.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct Settings {
+    pub vault_path: Option<String>,
+    pub logseq_site_builder_path: Option<String>,
+    pub language: Option<String>,
+    /// Rewrite `[[links]]` in other pages when a page is renamed.
+    pub update_links_on_rename: Option<bool>,
+    /// Match `[[links]]` to pages ignoring case.
+    pub case_insensitive_links: Option<bool>,
+    /// Treat `#tags` as links to pages.
+    pub hashtag_links: Option<bool>,
+    /// Allow `-` in `#tags` (`#mon-tag`); org-mode tags don't.
+    pub hashtag_dashes: Option<bool>,
+    /// Emacs mark: Ctrl+Space starts a region that follows the cursor.
+    pub emacs_mark: Option<bool>,
+    /// Electric mode: typing a bracket or quote around a selection wraps it.
+    pub electric_mode: Option<bool>,
+    /// Save the active page on every change.
+    pub autosave: Option<bool>,
+    /// On quit, delete pages with no text: only spaces, tabs or `*`.
+    pub delete_empty_pages: Option<bool>,
+    /// On quit, delete pages holding only their `* Title` heading.
+    pub delete_title_only_pages: Option<bool>,
+    /// App name and logo at the top left of the window.
+    pub show_brand: Option<bool>,
+    /// Frames shown around the editor: pages menu, backlinks, tags, pages not created.
+    pub show_pages: Option<bool>,
+    pub show_backlinks: Option<bool>,
+    pub show_tags: Option<bool>,
+    pub show_broken_links: Option<bool>,
+    /// Enable the logseq-site-builder extension (Export button).
+    pub site_builder_enabled: Option<bool>,
+    /// Git extension: show the git state of the project under its name.
+    pub git_status_enabled: Option<bool>,
+    /// Every project (folder) the user has opened, most recent first.
+    #[serde(default)]
+    pub projects: Vec<String>,
+}
+
+impl Settings {
+    /// The settings with their defaults applied.
+    pub fn prefs(&self) -> Prefs {
+        Prefs::from_settings(self)
+    }
+}
+
+/// The settings as the app uses them, defaults applied.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Prefs {
+    pub vault: String,
+    pub builder: String,
+    /// Interface language code (`fr`, `en`).
+    pub lang: String,
+    pub update_links: bool,
+    pub autosave: bool,
+    pub delete_empty: bool,
+    pub delete_title_only: bool,
+    pub show_brand: bool,
+    pub show_pages: bool,
+    pub show_backlinks: bool,
+    pub show_tags: bool,
+    pub show_broken_links: bool,
+    pub site_builder: bool,
+    pub git_ext: bool,
+    pub case_insensitive_links: bool,
+    pub hashtag_links: bool,
+    pub hashtag_dashes: bool,
+    pub emacs_mark: bool,
+    pub electric_mode: bool,
+}
+
+impl Default for Prefs {
+    fn default() -> Self {
+        Self::from_settings(&Settings::default())
+    }
+}
+
+impl Prefs {
+    pub fn from_settings(s: &Settings) -> Self {
+        Self {
+            vault: s.vault_path.clone().unwrap_or_default(),
+            builder: s.logseq_site_builder_path.clone().unwrap_or_default(),
+            lang: s.language.clone().unwrap_or_else(|| "fr".to_string()),
+            update_links: s.update_links_on_rename.unwrap_or(true),
+            autosave: s.autosave.unwrap_or(true),
+            delete_empty: s.delete_empty_pages.unwrap_or(false),
+            delete_title_only: s.delete_title_only_pages.unwrap_or(false),
+            show_brand: s.show_brand.unwrap_or(true),
+            show_pages: s.show_pages.unwrap_or(true),
+            show_backlinks: s.show_backlinks.unwrap_or(true),
+            show_tags: s.show_tags.unwrap_or(true),
+            show_broken_links: s.show_broken_links.unwrap_or(true),
+            site_builder: s.site_builder_enabled.unwrap_or(false),
+            git_ext: s.git_status_enabled.unwrap_or(true),
+            case_insensitive_links: s.case_insensitive_links.unwrap_or(true),
+            hashtag_links: s.hashtag_links.unwrap_or(true),
+            hashtag_dashes: s.hashtag_dashes.unwrap_or(true),
+            emacs_mark: s.emacs_mark.unwrap_or(true),
+            electric_mode: s.electric_mode.unwrap_or(true),
+        }
+    }
+
+    pub fn to_settings(&self, projects: Vec<String>) -> Settings {
+        let some = |s: &str| (!s.is_empty()).then(|| s.to_string());
+        Settings {
+            vault_path: some(&self.vault),
+            logseq_site_builder_path: some(&self.builder),
+            language: Some(self.lang.clone()),
+            update_links_on_rename: Some(self.update_links),
+            case_insensitive_links: Some(self.case_insensitive_links),
+            hashtag_links: Some(self.hashtag_links),
+            hashtag_dashes: Some(self.hashtag_dashes),
+            emacs_mark: Some(self.emacs_mark),
+            electric_mode: Some(self.electric_mode),
+            autosave: Some(self.autosave),
+            delete_empty_pages: Some(self.delete_empty),
+            delete_title_only_pages: Some(self.delete_title_only),
+            show_brand: Some(self.show_brand),
+            show_pages: Some(self.show_pages),
+            show_backlinks: Some(self.show_backlinks),
+            show_tags: Some(self.show_tags),
+            show_broken_links: Some(self.show_broken_links),
+            site_builder_enabled: Some(self.site_builder),
+            git_status_enabled: Some(self.git_ext),
+            projects,
+        }
+    }
+
+    /// How `#tags` are read.
+    pub fn hashtags(&self) -> Hashtags {
+        Hashtags::new(self.hashtag_links, self.hashtag_dashes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_values_take_their_default() {
+        let p = Settings::default().prefs();
+        assert!(p.autosave && p.git_ext && !p.site_builder && !p.delete_empty);
+        assert_eq!(p.lang, "fr");
+        assert_eq!(p.hashtags(), Hashtags::Dashes);
+    }
+
+    #[test]
+    fn prefs_round_trip_through_settings() {
+        let p = Prefs { vault: "/x".into(), autosave: false, git_ext: false, ..Prefs::default() };
+        let s = p.to_settings(vec!["/x".into()]);
+        assert_eq!(s.prefs(), p);
+        assert_eq!(s.projects, vec!["/x".to_string()]);
+        assert_eq!(Prefs::default().to_settings(vec![]).vault_path, None);
+    }
+}

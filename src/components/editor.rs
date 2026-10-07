@@ -3,116 +3,15 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 use crate::{
+    actions::follow_link,
     components::tabs::TabBar,
+    edit,
     highlight,
     i18n::t,
     invoke,
-    keybindings::{Resolution, Scope},
+    keybindings::{after_ms, EditorAction, Resolution, Scope},
     state::{AppCtx, Goto, SplitKind, Tab},
-}; // FileEntry inferred
-
-/// Returns the wiki-link target at char position `pos`, scanning the full text.
-/// Handles both `[[target]]` and `[[target][display]]` forms.
-fn find_link_at_pos(text: &str, pos: usize, hashtags: crate::motion::Hashtags) -> Option<String> {
-    let chars: Vec<char> = text.chars().collect();
-    let n = chars.len();
-    let mut i = 0;
-
-    while i < n {
-        if let Some((tag, end)) = crate::motion::hashtag_at(&chars, i, hashtags) {
-            if pos >= i && pos < end { return Some(tag); }
-            i = end;
-            continue;
-        }
-        if i + 1 >= n { break; }
-        if chars[i] != '[' || chars[i + 1] != '[' {
-            i += 1;
-            continue;
-        }
-        let link_start = i;
-        let content_start = i + 2;
-        // Find end of target (]] or ][)
-        let mut j = content_start;
-        while j < n && !(chars[j] == ']' && j + 1 < n && (chars[j + 1] == ']' || chars[j + 1] == '[')) {
-            j += 1;
-        }
-        if j + 1 >= n { break; }
-        let target: String = chars[content_start..j].iter().collect();
-        if chars[j + 1] == ']' {
-            // [[target]]
-            let link_end = j + 2;
-            if pos >= link_start && pos < link_end {
-                return Some(target.trim().to_string());
-            }
-            i = link_end;
-        } else {
-            // [[target][display]]
-            let mut k = j + 2;
-            while k + 1 < n && !(chars[k] == ']' && chars[k + 1] == ']') {
-                k += 1;
-            }
-            if k + 1 < n {
-                let link_end = k + 2;
-                if pos >= link_start && pos < link_end {
-                    return Some(target.trim().to_string());
-                }
-                i = link_end;
-            } else {
-                i += 1;
-            }
-        }
-    }
-    None
-}
-
-/// Open the page named `link_name` in a tab, creating it when it doesn't exist yet.
-fn follow_link(ctx: AppCtx, link_name: String) {
-    // Pre-allocate signals before async boundary
-    let content_sig = RwSignal::new(String::new());
-    let dirty_sig   = RwSignal::new(false);
-
-    spawn_local(async move {
-        // Already open?
-        if let Some(idx) = ctx.tabs.get().iter().position(|t| ctx.same_page(&t.name, &link_name)) {
-            ctx.active_tab.set(Some(idx));
-            return;
-        }
-        // Resolve: existing file or create new one?
-        let (file, init_content, is_dirty) = {
-            let files = ctx.files.get();
-            if let Some(f) = files.iter().find(|f| ctx.same_page(&f.name, &link_name)).cloned() {
-                match invoke::read_file(&f.path).await {
-                    Ok(c)    => (f, c, false),
-                    Err(err) => { ctx.status.set(Some(format!("Error: {err}"))); return; }
-                }
-            } else {
-                match invoke::create_page(&link_name).await {
-                    Ok(f) => {
-                        let init = format!("* {}\n", f.name);
-                        ctx.files.update(|fs| {
-                            fs.push(f.clone());
-                            fs.sort_by(|a, b| a.name.cmp(&b.name));
-                        });
-                        (f, init, true)
-                    }
-                    Err(err) => { ctx.status.set(Some(format!("Error: {err}"))); return; }
-                }
-            }
-        };
-        content_sig.set(init_content);
-        dirty_sig.set(is_dirty);
-        ctx.tabs.update(|tabs| {
-            tabs.push(Tab {
-                path: file.path.clone(),
-                name: file.name.clone(),
-                content: content_sig,
-                dirty: dirty_sig,
-            });
-        });
-        let idx = ctx.tabs.get().len() - 1;
-        ctx.active_tab.set(Some(idx));
-    });
-}
+};
 
 fn exec_insert(text: &str) {
     if let Ok(encoded) = serde_json::to_string(text) {
@@ -140,7 +39,7 @@ fn clipboard_write(text: &str) {
     }
 }
 
-// ─── Emacs editing helpers ────────────────────────────────────────────────────
+// ─── Textarea helpers ────────────────────────────────────────────────────
 
 type Textarea = web_sys::HtmlTextAreaElement;
 
@@ -167,10 +66,7 @@ fn caret(el: &Textarea) -> usize {
 
 /// Run `f` once the browser has applied the default action of the current event.
 fn after_tick(f: impl FnOnce() + 'static) {
-    if let Some(w) = web_sys::window() {
-        let cb = wasm_bindgen::closure::Closure::once_into_js(f);
-        let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 0);
-    }
+    after_ms(0, f);
 }
 
 fn set_cursor(el: &Textarea, pos: usize) {
@@ -191,68 +87,6 @@ fn splice(el: &Textarea, del_start: usize, del_end: usize, insert: &str) -> usiz
     el.set_selection_end(Some(del_end as u32)).ok();
     exec_insert(insert);
     del_start + insert.chars().count()
-}
-
-fn line_bounds(chars: &[char], pos: usize) -> (usize, usize) {
-    let start = chars[..pos].iter().rposition(|&c| c == '\n').map(|i| i + 1).unwrap_or(0);
-    let end   = chars[pos..].iter().position(|&c| c == '\n').map(|i| pos + i).unwrap_or(chars.len());
-    (start, end)
-}
-
-/// Position `delta` lines down (negative: up) keeping the column when possible.
-fn move_lines(chars: &[char], pos: usize, delta: i32) -> usize {
-    let (mut start, _) = line_bounds(chars, pos);
-    let col = pos - start;
-    for _ in 0..delta.unsigned_abs() {
-        if delta > 0 {
-            let (_, end) = line_bounds(chars, start);
-            if end >= chars.len() { return chars.len(); }
-            start = end + 1;
-        } else {
-            if start == 0 { return pos; }
-            start = line_bounds(chars, start - 1).0;
-        }
-    }
-    let (s, e) = line_bounds(chars, start);
-    (s + col).min(e)
-}
-
-/// Lines moved by the page-up / page-down actions.
-const PAGE_LINES: i32 = 20;
-
-fn word_end_forward(chars: &[char], pos: usize) -> usize {
-    let mut i = pos;
-    while i < chars.len() && !chars[i].is_alphanumeric() { i += 1; }
-    while i < chars.len() &&  chars[i].is_alphanumeric() { i += 1; }
-    i
-}
-
-fn word_start_backward(chars: &[char], pos: usize) -> usize {
-    let mut i = pos;
-    while i > 0 && !chars[i - 1].is_alphanumeric() { i -= 1; }
-    while i > 0 &&  chars[i - 1].is_alphanumeric() { i -= 1; }
-    i
-}
-
-/// If the line `[start..end)` is an org heading (`*`… followed by a space or EOL),
-/// return its level (number of leading `*`).
-fn heading_level(chars: &[char], start: usize, end: usize) -> Option<usize> {
-    let mut i = start;
-    while i < end && chars[i] == '*' { i += 1; }
-    let level = i - start;
-    if level > 0 && (i >= end || chars[i] == ' ') { Some(level) } else { None }
-}
-
-/// Heading level in effect at `caret`: the current line if it is a heading,
-/// otherwise the nearest heading above it. Defaults to 1 when none is found.
-fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
-    let mut line_start = chars[..caret].iter().rposition(|&c| c == '\n').map(|i| i + 1).unwrap_or(0);
-    loop {
-        let line_end = chars[line_start..].iter().position(|&c| c == '\n').map(|i| line_start + i).unwrap_or(chars.len());
-        if let Some(l) = heading_level(chars, line_start, line_end) { return l; }
-        if line_start == 0 { return 1; }
-        line_start = chars[..line_start - 1].iter().rposition(|&c| c == '\n').map(|i| i + 1).unwrap_or(0);
-    }
 }
 
 // ─── Completion of page names (#tag and [[link]]) and org-mode :tags: ─────────
@@ -315,13 +149,13 @@ fn caret_coords(el: &Textarea, chars: &[char], pos: usize) -> Option<(f64, f64, 
 pub fn EditorSplit() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     view! {
-        <div class=move || match ctx.split.get() {
+        <div class=move || match ctx.work.split.get() {
             None => "editor-split",
             Some(SplitKind::Vertical) => "editor-split vertical",
             Some(SplitKind::Horizontal) => "editor-split horizontal",
         }>
             <EditorArea second=false />
-            {move || ctx.split.get().is_some().then(|| view! { <EditorArea second=true /> })}
+            {move || ctx.work.split.get().is_some().then(|| view! { <EditorArea second=true /> })}
         </div>
     }
 }
@@ -331,15 +165,15 @@ pub fn EditorArea(second: bool) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
 
     // The focused pane shows the active tab, the other one `other_path`
-    let path = Memo::new(move |_| ctx.pane_path(second));
-    let focused = move || ctx.split.get().is_none() || ctx.focus_second.get() == second;
+    let path = Memo::new(move |_| ctx.work.pane_path(second));
+    let focused = move || ctx.work.split.get().is_none() || ctx.work.focus_second.get() == second;
 
     // When this pane takes the focus (C-x o, C-o…), the keyboard must follow:
     // put the text cursor in its editor.
     let area_ref = NodeRef::<leptos::html::Div>::new();
     Effect::new(move |_| {
-        let has_focus = ctx.focus_second.get() == second;
-        if ctx.split.get().is_none() || !has_focus { return; }
+        let has_focus = ctx.work.focus_second.get() == second;
+        if ctx.work.split.get().is_none() || !has_focus { return; }
         crate::keybindings::after_ms(0, move || {
             let textarea = area_ref.get_untracked()
                 .and_then(|div| div.query_selector("textarea").ok().flatten())
@@ -352,11 +186,11 @@ pub fn EditorArea(second: bool) -> impl IntoView {
         <div
             node_ref=area_ref
             class=move || if focused() { "editor-area focused" } else { "editor-area" }
-            on:mousedown=move |_| ctx.focus_pane(second)
+            on:mousedown=move |_| ctx.work.focus_pane(second)
         >
-            {move || (ctx.split.get() == Some(SplitKind::Vertical)).then(|| {
+            {move || (ctx.work.split.get() == Some(SplitKind::Vertical)).then(|| {
                 let name = path.get()
-                    .and_then(|p| ctx.tabs.get().into_iter().find(|t| t.path == p))
+                    .and_then(|p| ctx.work.tabs.get().into_iter().find(|t| t.path == p))
                     .map(|t| t.name)
                     .unwrap_or_default();
                 view! { <div class="pane-tab"><span class="pane-tab-name">{name}</span></div> }
@@ -364,7 +198,7 @@ pub fn EditorArea(second: bool) -> impl IntoView {
             // Side by side: under each pane's title, its own tabs to choose its page.
             // One above the other: the bottom pane has its own tabs (the top bar is the top pane's).
             {move || {
-                let split = ctx.split.get();
+                let split = ctx.work.split.get();
                 (split == Some(SplitKind::Vertical) || (second && split == Some(SplitKind::Horizontal)))
                     .then(|| view! { <div class="pane-tabs"><TabBar pane=second /></div> })
             }}
@@ -372,7 +206,7 @@ pub fn EditorArea(second: bool) -> impl IntoView {
             {move || match path.get() {
                 None => view! {
                     <div class="editor-empty">
-                        {move || ctx.vault_path.get().is_none().then(|| view! {
+                        {move || ctx.project.vault_path.get().is_none().then(|| view! {
                             <img class="empty-logo" src="app-icon.svg" alt="" />
                         })}
                         <p>{t("no_file", ctx.lang.get())}</p>
@@ -380,7 +214,7 @@ pub fn EditorArea(second: bool) -> impl IntoView {
                     </div>
                 }.into_any(),
                 Some(p) => {
-                    let tab = ctx.tabs.get_untracked().into_iter().find(|t| t.path == p);
+                    let tab = ctx.work.tabs.get_untracked().into_iter().find(|t| t.path == p);
                     match tab {
                         Some(tab) => view! { <Editor tab=tab second=second /> }.into_any(),
                         None => ().into_any(),
@@ -407,7 +241,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let tab_auto = tab.clone();
     Effect::new(move |_| {
         tab_auto.content.track();
-        if !ctx.autosave.get() || !tab_auto.dirty.get_untracked() || saving.get_untracked() {
+        if !ctx.pref(|p| p.autosave) || !tab_auto.dirty.get_untracked() || saving.get_untracked() {
             return;
         }
         saving.set(true);
@@ -416,10 +250,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             loop {
                 let content = tab.content.get_untracked();
                 if let Err(e) = invoke::write_file(&tab.path, &content).await {
-                    ctx.status.set(Some(format!("Save error: {e}")));
+                    ctx.error("save_error", &e);
                     break;
                 }
-                ctx.links_version.update(|v| *v += 1);
+                ctx.bump_links();
                 if tab.content.get_untracked() == content {
                     tab.dirty.set(false);
                     break;
@@ -435,7 +269,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
 
     // Region to act on: mark..point when a mark is set (and enabled), else the native selection.
     let region_of = move |el: &Textarea| -> (usize, usize) {
-        if ctx.emacs_mark.get_untracked() {
+        if ctx.pref_untracked(|p| p.emacs_mark) {
             if let Some(m) = mark.get_untracked() {
                 let p = caret(el);
                 return (m.min(p), m.max(p));
@@ -462,11 +296,11 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let Some((start, prefix, kind)) = found else { completion.set(None); return };
         let items = match kind {
             CompletionKind::OrgTag => {
-                let names: Vec<String> = ctx.tags.get_untracked().into_iter().map(|t| t.name).collect();
+                let names: Vec<String> = ctx.project.tags.get_untracked().into_iter().map(|t| t.name).collect();
                 crate::motion::complete_page(&names, &prefix, None, MAX_SUGGESTIONS)
             }
             _ => {
-                let names: Vec<String> = ctx.files.get_untracked().into_iter().map(|f| f.name).collect();
+                let names: Vec<String> = ctx.project.files.get_untracked().into_iter().map(|f| f.name).collect();
                 let tag = (kind == CompletionKind::Hashtag).then(|| ctx.hashtags_untracked());
                 crate::motion::complete_page(&names, &prefix, tag, MAX_SUGGESTIONS)
             }
@@ -580,26 +414,17 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         // With a selection, electric mode wraps it in the typed pair.
         let key = e.key();
         let (start, end) = get_pos(&el);
-        let pair = match key.as_str() {
-            "(" | ")" => Some(("(", ")")),
-            "[" | "]" => Some(("[", "]")),
-            "{" | "}" => Some(("{", "}")),
-            "\"" => Some(("\"", "\"")),
-            "'" => Some(("'", "'")),
-            _ => None,
-        };
-        if let Some((open, close)) = pair {
+        if let Some((open, close)) = edit::pair_of(&key) {
             if start != end {
-                if ctx.electric_mode.get_untracked() {
+                if ctx.pref_untracked(|p| p.electric_mode) {
                     e.prevent_default();
-                    let chars: Vec<char> = el.value().chars().collect();
-                    let selected: String = chars[start..end].iter().collect();
+                    let selected: String = el.value().chars().skip(start).take(end - start).collect();
                     let new_end = splice(&el, start, end, &format!("{open}{selected}{close}"));
                     set_selection(&el, start + 1, new_end - 1);
                     sync(el.value());
                     return;
                 }
-            } else if matches!(key.as_str(), "(" | "[" | "{" | "\"") {
+            } else if edit::auto_closes(&key) {
                 e.prevent_default();
                 let cursor = splice(&el, start, start, &format!("{open}{close}"));
                 set_cursor(&el, cursor - 1);
@@ -610,7 +435,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
 
         // ── Configured editor action (classic or emacs preset) ────────────────
         let action = match resolution {
-            Resolution::Action(Scope::Editor, id) => id,
+            Resolution::Action(Scope::Editor, id) => EditorAction::from_id(&id),
             other => {
                 // Not an editor shortcut of this profile: the browser's built-in
                 // clipboard/undo shortcuts must not work either (unless the
@@ -623,110 +448,104 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 return;
             }
         };
+        let Some(action) = action else { return };
         e.prevent_default();
         e.stop_propagation();
 
-        match action.as_str() {
+        let chars: Vec<char> = el.value().chars().collect();
+        let text = |a: usize, b: usize| -> String { chars[a..b].iter().collect() };
+        // Replace a..b with `with`, caret after it; the page has changed
+        let replace = |a: usize, b: usize, with: &str| {
+            let cursor = splice(&el, a, b, with);
+            set_cursor(&el, cursor);
+            sync(el.value());
+        };
+
+        if let Some(target) = edit::motion_target(action, &chars, caret(&el)) {
+            set_cursor(&el, target);
+            return;
+        }
+        let (start, end) = get_pos(&el);
+        match action {
             // ── Classic clipboard / editing ───────────────────────────────────
-            "copy" => {
-                let (start, end) = get_pos(&el);
-                if start < end {
-                    let chars: Vec<char> = el.value().chars().collect();
-                    let selected: String = chars[start..end].iter().collect();
-                    clipboard_write(&selected);
-                    set_selection(&el, start, end); // preserve selection
-                }
+            EditorAction::Copy if start < end => {
+                clipboard_write(&text(start, end));
+                set_selection(&el, start, end); // keep the selection
             }
-            "cut" => {
-                let (start, end) = get_pos(&el);
-                if start < end {
-                    let chars: Vec<char> = el.value().chars().collect();
-                    let selected: String = chars[start..end].iter().collect();
-                    clipboard_write(&selected);
-                    let cursor = splice(&el, start, end, "");
-                    set_cursor(&el, cursor);
-                    sync(el.value());
-                }
+            EditorAction::Cut if start < end => {
+                clipboard_write(&text(start, end));
+                replace(start, end, "");
             }
-            "paste" => {
-                let content_sig = tab_key.content;
-                let dirty_sig   = tab_key.dirty;
-                let el2 = el.clone();
+            EditorAction::Paste => {
+                let (content, dirty) = (tab_key.content, tab_key.dirty);
+                let el = el.clone();
                 if let Some(cb) = clipboard() {
                     let promise = cb.read_text();
                     spawn_local(async move {
-                        if let Ok(v) = JsFuture::from(promise).await {
-                            if let Some(text) = v.as_string() {
-                                if !text.is_empty() {
-                                    let (start, end) = get_pos(&el2);
-                                    let cursor = splice(&el2, start, end, &text);
-                                    set_cursor(&el2, cursor);
-                                    content_sig.set(el2.value());
-                                    dirty_sig.set(true);
-                                }
-                            }
+                        let pasted = JsFuture::from(promise).await.ok().and_then(|v| v.as_string());
+                        if let Some(pasted) = pasted.filter(|p| !p.is_empty()) {
+                            let (start, end) = get_pos(&el);
+                            let cursor = splice(&el, start, end, &pasted);
+                            set_cursor(&el, cursor);
+                            content.set(el.value());
+                            dirty.set(true);
                         }
                     });
                 }
             }
-            "select_all" => {
-                el.select();
-            }
-            "undo" => exec_undo(),
-            "redo" => exec_redo(),
+            EditorAction::SelectAll => el.select(),
+            EditorAction::Undo => exec_undo(),
+            EditorAction::Redo => exec_redo(),
 
             // ── Org: new heading at the same level as the current one ─────────
-            "new_heading" => {
-                let (_, caret) = get_pos(&el);
-                let chars: Vec<char> = el.value().chars().collect();
-                let level = nearest_heading_level(&chars, caret);
-                let (_, line_end) = line_bounds(&chars, caret);
-                let insert = format!("\n{} ", "*".repeat(level));
-                let cursor = splice(&el, line_end, line_end, &insert);
-                set_cursor(&el, cursor);
-                sync(el.value());
+            EditorAction::NewHeading => {
+                let (at, heading) = edit::new_heading(&chars, end);
+                replace(at, at, &heading);
+            }
+            EditorAction::OpenLink => {
+                if let Some(name) = edit::link_at(&chars, start, ctx.hashtags_untracked()) {
+                    follow_link(ctx, name);
+                }
             }
 
             // ── Emacs editing ─────────────────────────────────────────────────
-            "kill_line" => {
-                let (pos, _) = get_pos(&el);
-                let chars: Vec<char> = el.value().chars().collect();
-                let (_, line_end) = line_bounds(&chars, pos);
-                let (del_start, del_end) = if pos == line_end && pos < chars.len() {
-                    (pos, pos + 1) // kill the newline itself when at EOL
-                } else {
-                    (pos, line_end)
-                };
-                let killed: String = chars[del_start..del_end].iter().collect();
-                ctx.kill_ring.set(killed);
-                let cursor = splice(&el, del_start, del_end, "");
-                set_cursor(&el, cursor);
-                sync(el.value());
+            EditorAction::KillLine => {
+                let (a, b) = edit::kill_line_range(&chars, start);
+                ctx.work.kill_ring.set(text(a, b));
+                replace(a, b, "");
             }
-            "kill_region" => {
-                let (start, end) = region_of(&el);
-                if start < end {
-                    let chars: Vec<char> = el.value().chars().collect();
-                    ctx.kill_ring.set(chars[start..end].iter().collect());
-                    let cursor = splice(&el, start, end, "");
-                    set_cursor(&el, cursor);
-                    sync(el.value());
-                }
-                mark.set(None);
+            EditorAction::KillWordForward => {
+                let b = edit::word_end_forward(&chars, start);
+                ctx.work.kill_ring.set(text(start, b));
+                replace(start, b, "");
             }
-            "copy_region" => {
-                let (start, end) = region_of(&el);
-                if start < end {
-                    let chars: Vec<char> = el.value().chars().collect();
-                    ctx.kill_ring.set(chars[start..end].iter().collect());
-                    if mark.get_untracked().is_none() {
-                        set_selection(&el, start, end); // preserve native selection
+            EditorAction::KillWordBackward => {
+                let a = edit::word_start_backward(&chars, start);
+                ctx.work.kill_ring.set(text(a, start));
+                replace(a, start, "");
+            }
+            EditorAction::KillRegion | EditorAction::CopyRegion => {
+                let (a, b) = region_of(&el);
+                if a < b {
+                    ctx.work.kill_ring.set(text(a, b));
+                    if action == EditorAction::KillRegion {
+                        replace(a, b, "");
+                    } else if mark.get_untracked().is_none() {
+                        set_selection(&el, a, b); // keep the native selection
                     }
                 }
                 mark.set(None);
             }
-            "set_mark" => {
-                if ctx.emacs_mark.get_untracked() {
+            EditorAction::Yank => {
+                let killed = ctx.work.kill_ring.get_untracked();
+                if !killed.is_empty() { replace(start, end, &killed); }
+            }
+            EditorAction::DeleteCharForward => {
+                let (a, b) = edit::delete_forward_range(&chars, start, end);
+                replace(a, b, "");
+            }
+            EditorAction::SetMark => {
+                if ctx.pref_untracked(|p| p.emacs_mark) {
                     let c = caret(&el);
                     if mark.get_untracked() == Some(c) {
                         mark.set(None); // Ctrl+Space twice at the same spot cancels
@@ -736,92 +555,8 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                     }
                 }
             }
-            "keyboard_quit" => mark.set(None),
-            "open_link" => {
-                let content = tab_key.content.get_untracked();
-                let pos = el.selection_start().ok().flatten().unwrap_or(0) as usize;
-                if let Some(name) = find_link_at_pos(&content, pos, ctx.hashtags_untracked()) {
-                    follow_link(ctx, name);
-                } else if let Some(tag) = crate::motion::org_tag_at(&content.chars().collect::<Vec<_>>(), pos) {
-                    follow_link(ctx, tag);
-                }
-            }
-            "yank" => {
-                let text = ctx.kill_ring.get();
-                if !text.is_empty() {
-                    let (start, end) = get_pos(&el);
-                    let cursor = splice(&el, start, end, &text);
-                    set_cursor(&el, cursor);
-                    sync(el.value());
-                }
-            }
-            "kill_word_forward" => {
-                let (pos, _) = get_pos(&el);
-                let chars: Vec<char> = el.value().chars().collect();
-                let word_end = word_end_forward(&chars, pos);
-                ctx.kill_ring.set(chars[pos..word_end].iter().collect());
-                let cursor = splice(&el, pos, word_end, "");
-                set_cursor(&el, cursor);
-                sync(el.value());
-            }
-            "kill_word_backward" => {
-                let (pos, _) = get_pos(&el);
-                let chars: Vec<char> = el.value().chars().collect();
-                let word_start = word_start_backward(&chars, pos);
-                ctx.kill_ring.set(chars[word_start..pos].iter().collect());
-                let cursor = splice(&el, word_start, pos, "");
-                set_cursor(&el, cursor);
-                sync(el.value());
-            }
-            // ── Emacs cursor movement ─────────────────────────────────────────
-            "forward_char" | "backward_char" | "next_line" | "previous_line"
-            | "forward_word" | "backward_word" | "beginning_of_buffer" | "end_of_buffer"
-            | "scroll_down" | "scroll_up" | "forward_sentence" | "backward_sentence"
-            | "forward_paragraph" | "backward_paragraph" | "back_to_indentation"
-            | "next_heading" | "previous_heading" => {
-                let pos = caret(&el);
-                let chars: Vec<char> = el.value().chars().collect();
-                let target = match action.as_str() {
-                    "forward_char" => (pos + 1).min(chars.len()),
-                    "backward_char" => pos.saturating_sub(1),
-                    "next_line" => move_lines(&chars, pos, 1),
-                    "previous_line" => move_lines(&chars, pos, -1),
-                    "forward_word" => word_end_forward(&chars, pos),
-                    "backward_word" => word_start_backward(&chars, pos),
-                    "beginning_of_buffer" => 0,
-                    "end_of_buffer" => chars.len(),
-                    "forward_sentence" => crate::motion::forward_sentence(&chars, pos),
-                    "backward_sentence" => crate::motion::backward_sentence(&chars, pos),
-                    "forward_paragraph" => crate::motion::forward_paragraph(&chars, pos),
-                    "backward_paragraph" => crate::motion::backward_paragraph(&chars, pos),
-                    "back_to_indentation" => crate::motion::back_to_indentation(&chars, pos),
-                    "next_heading" => crate::motion::next_heading(&chars, pos),
-                    "previous_heading" => crate::motion::previous_heading(&chars, pos),
-                    "scroll_down" => move_lines(&chars, pos, PAGE_LINES),
-                    _ => move_lines(&chars, pos, -PAGE_LINES),
-                };
-                set_cursor(&el, target);
-            }
-            "beginning_of_line" => {
-                let (pos, _) = get_pos(&el);
-                let chars: Vec<char> = el.value().chars().collect();
-                let (line_start, _) = line_bounds(&chars, pos);
-                set_cursor(&el, line_start);
-            }
-            "end_of_line" => {
-                let (pos, _) = get_pos(&el);
-                let chars: Vec<char> = el.value().chars().collect();
-                let (_, line_end) = line_bounds(&chars, pos);
-                set_cursor(&el, line_end);
-            }
-            "delete_char_forward" => {
-                let (start, end) = get_pos(&el);
-                let chars: Vec<char> = el.value().chars().collect();
-                let del_end = if start != end { end } else { (start + 1).min(chars.len()) };
-                let cursor = splice(&el, start, del_end, "");
-                set_cursor(&el, cursor);
-                sync(el.value());
-            }
+            EditorAction::KeyboardQuit => mark.set(None),
+            // Movements are handled above; copy / cut without a selection do nothing
             _ => {}
         }
     };
@@ -830,18 +565,12 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     // org-mode :tag: under the cursor
     let on_click = move |e: web_sys::MouseEvent| {
         if !e.ctrl_key() { return; }
-        let el: Textarea = match e.target().and_then(|t| t.dyn_into().ok()) {
-            Some(el) => el,
-            None => return,
-        };
+        let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
         let pos = el.selection_start().ok().flatten().unwrap_or(0) as usize;
-        let content = tab_click.content.get();
-        if let Some(link_name) = find_link_at_pos(&content, pos, ctx.hashtags_untracked()) {
+        let chars: Vec<char> = tab_click.content.get_untracked().chars().collect();
+        if let Some(name) = edit::link_at(&chars, pos, ctx.hashtags_untracked()) {
             e.prevent_default();
-            follow_link(ctx, link_name);
-        } else if let Some(tag) = crate::motion::org_tag_at(&content.chars().collect::<Vec<_>>(), pos) {
-            e.prevent_default();
-            follow_link(ctx, tag);
+            follow_link(ctx, name);
         }
     };
 
@@ -849,21 +578,18 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let area_ref = NodeRef::<leptos::html::Textarea>::new();
     let tab_goto = tab.clone();
     Effect::new(move |_| {
-        let Some((path, goto)) = ctx.goto.get() else { return };
-        if path != tab_goto.path || ctx.focus_second.get_untracked() != second { return; }
+        let Some((path, goto)) = ctx.work.goto.get() else { return };
+        if path != tab_goto.path || ctx.work.focus_second.get_untracked() != second { return; }
         let Some(el) = area_ref.get() else { return };
-        ctx.goto.set(None);
+        ctx.work.goto.set(None);
         let chars: Vec<char> = tab_goto.content.get_untracked().chars().collect();
         let range = match goto {
             Goto::Link(target) => {
-                let ci = ctx.case_insensitive_links.get_untracked();
+                let ci = ctx.pref_untracked(|p| p.case_insensitive_links);
                 crate::motion::find_link(&chars, &target, ci, ctx.hashtags_untracked())
             }
             Goto::Line(n) => {
-                let start = if n == 0 { 0 } else {
-                    chars.iter().enumerate().filter(|(_, &c)| c == '\n').nth(n - 1)
-                        .map_or(chars.len(), |(i, _)| i + 1)
-                };
+                let start = edit::line_start(&chars, n);
                 Some((start, start))
             }
         };
@@ -880,7 +606,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let highlighted = move || highlight::render(&tab_hl.content.get(), ctx.hashtags());
     let tab_region = tab.clone();
     let region_html = move || {
-        if !ctx.emacs_mark.get() { return String::new(); }
+        if !ctx.pref(|p| p.emacs_mark) { return String::new(); }
         mark.get().map(|m| {
             let p = point.get();
             highlight::render_region(&tab_region.content.get(), m.min(p), m.max(p))

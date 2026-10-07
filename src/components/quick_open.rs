@@ -1,70 +1,29 @@
 use leptos::{html, prelude::*};
-use wasm_bindgen_futures::spawn_local;
 
-use crate::{i18n::t, invoke, state::{AppCtx, Tab}};
+use crate::{actions, i18n::t, state::{AppCtx, FileEntry}};
 
 #[derive(Clone, Debug)]
 enum QuickItem {
     Tab { idx: usize, name: String, is_active: bool },
-    File { name: String, path: String },
+    File(FileEntry),
     Create { name: String },
 }
 
 impl QuickItem {
     fn display_name(&self) -> String {
         match self {
-            Self::Tab { name, .. } | Self::File { name, .. } | Self::Create { name } => name.clone(),
+            Self::Tab { name, .. } | Self::Create { name } => name.clone(),
+            Self::File(f) => f.name.clone(),
         }
     }
 }
 
 fn do_open(ctx: AppCtx, item: QuickItem) {
-    ctx.show_quick_open.set(false);
+    ctx.ui.show_quick_open.set(false);
     match item {
-        QuickItem::Tab { idx, .. } => {
-            ctx.active_tab.set(Some(idx));
-        }
-        QuickItem::File { name, path } => {
-            let content_sig = RwSignal::new(String::new());
-            let dirty_sig   = RwSignal::new(false);
-            spawn_local(async move {
-                match invoke::read_file(&path).await {
-                    Ok(content) => {
-                        content_sig.set(content);
-                        ctx.tabs.update(|tabs| tabs.push(Tab {
-                            path: path.clone(),
-                            name,
-                            content: content_sig,
-                            dirty: dirty_sig,
-                        }));
-                        ctx.active_tab.set(Some(ctx.tabs.get().len() - 1));
-                    }
-                    Err(e) => ctx.status.set(Some(format!("Error: {e}"))),
-                }
-            });
-        }
-        QuickItem::Create { name } => {
-            spawn_local(async move {
-                match invoke::create_page(&name).await {
-                    Ok(f) => {
-                        let content_sig = RwSignal::new(format!("* {}\n", f.name));
-                        let dirty_sig   = RwSignal::new(true);
-                        ctx.files.update(|fs| {
-                            fs.push(f.clone());
-                            fs.sort_by(|a, b| a.name.cmp(&b.name));
-                        });
-                        ctx.tabs.update(|tabs| tabs.push(Tab {
-                            path: f.path,
-                            name: f.name,
-                            content: content_sig,
-                            dirty: dirty_sig,
-                        }));
-                        ctx.active_tab.set(Some(ctx.tabs.get().len() - 1));
-                    }
-                    Err(e) => ctx.status.set(Some(format!("Error: {e}"))),
-                }
-            });
-        }
+        QuickItem::Tab { idx, .. } => ctx.work.active_tab.set(Some(idx)),
+        QuickItem::File(file) => actions::open_file(ctx, file, None),
+        QuickItem::Create { name } => actions::create_and_open_page(ctx, name),
     }
 }
 
@@ -81,13 +40,13 @@ pub fn QuickOpenModal() -> impl IntoView {
 
     let items = move || -> Vec<QuickItem> {
         let q     = query.get().to_lowercase();
-        let tabs  = ctx.tabs.get();
-        let files = ctx.files.get();
-        let active = ctx.active_tab.get();
+        let tabs  = ctx.work.tabs.get();
+        let active = ctx.work.active_tab.get();
+        let matches = |name: &str| q.is_empty() || name.to_lowercase().contains(&q);
         let mut list = Vec::new();
 
         for (i, tab) in tabs.iter().enumerate() {
-            if q.is_empty() || tab.name.to_lowercase().contains(&q) {
+            if matches(&tab.name) {
                 list.push(QuickItem::Tab {
                     idx: i,
                     name: tab.name.clone(),
@@ -96,16 +55,14 @@ pub fn QuickOpenModal() -> impl IntoView {
             }
         }
 
-        let open_paths: Vec<&str> = tabs.iter().map(|t| t.path.as_str()).collect();
-        for file in files.iter() {
-            if open_paths.contains(&file.path.as_str()) { continue; }
-            if q.is_empty() || file.name.to_lowercase().contains(&q) {
-                list.push(QuickItem::File {
-                    name: file.name.clone(),
-                    path: file.path.clone(),
-                });
+        ctx.project.files.with(|files| {
+            for file in files {
+                let open = tabs.iter().any(|t| t.path == file.path);
+                if !open && matches(&file.name) {
+                    list.push(QuickItem::File(file.clone()));
+                }
             }
-        }
+        });
 
         if !q.is_empty() {
             list.push(QuickItem::Create { name: query.get() });
@@ -120,7 +77,7 @@ pub fn QuickOpenModal() -> impl IntoView {
         match e.key().as_str() {
             "Escape" => {
                 e.prevent_default();
-                ctx.show_quick_open.set(false);
+                ctx.ui.show_quick_open.set(false);
             }
             "ArrowDown" => {
                 e.prevent_default();
@@ -142,7 +99,7 @@ pub fn QuickOpenModal() -> impl IntoView {
     };
 
     view! {
-        <div class="quick-open-overlay" on:click=move |_| ctx.show_quick_open.set(false)>
+        <div class="quick-open-overlay" on:click=move |_| ctx.ui.show_quick_open.set(false)>
             <div class="quick-open-modal" on:click=|e: web_sys::MouseEvent| e.stop_propagation()>
                 <input
                     node_ref=input_ref
@@ -175,7 +132,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                                     let (icon, cls, hint): (&str, &str, Option<&str>) = match &item {
                                         QuickItem::Tab { is_active: true,  .. } => ("●", "qo-tab",    None),
                                         QuickItem::Tab { is_active: false, .. } => ("○", "qo-tab",    None),
-                                        QuickItem::File { .. }                  => ("▫", "qo-file",   None),
+                                        QuickItem::File(_)                      => ("▫", "qo-file",   None),
                                         QuickItem::Create { .. }                => ("+", "qo-create", Some(t("quick_open_new", lang))),
                                     };
                                     view! {

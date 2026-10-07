@@ -9,43 +9,7 @@ pub fn parse_document(content: &str) -> Document {
     Document { blocks: parse_blocks(&lines, 0) }
 }
 
-/// How `#tags` in the text are read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Hashtags {
-    /// `#tags` are plain text.
-    Off,
-    /// `#tags` are links to pages; letters, digits and `_` (like org-mode tags).
-    Org,
-    /// Same, also allowing `-` (`#mon-tag`), which org-mode tags don't.
-    Dashes,
-}
-
-impl Hashtags {
-    pub fn new(enabled: bool, dashes: bool) -> Self {
-        match (enabled, dashes) {
-            (false, _) => Self::Off,
-            (true, false) => Self::Org,
-            (true, true) => Self::Dashes,
-        }
-    }
-
-    fn is_tag_char(self, c: char) -> bool {
-        c.is_alphanumeric() || c == '_' || (c == '-' && self == Self::Dashes)
-    }
-}
-
-/// A `#hashtag` starting at `i` (preceded by a space or an opening bracket, followed by a
-/// letter or digit — so `#+TITLE`, `# comment` and `a#b` are not tags), unless `tags` is `Off`.
-/// Returns the tag name (without `#`) and the index just after it.
-pub fn hashtag_at(chars: &[char], i: usize, tags: Hashtags) -> Option<(String, usize)> {
-    if tags == Hashtags::Off || chars.get(i) != Some(&'#') { return None; }
-    if i > 0 && !(chars[i - 1].is_whitespace() || "([{\"'".contains(chars[i - 1])) { return None; }
-    let mut end = i + 1;
-    while end < chars.len() && tags.is_tag_char(chars[end]) { end += 1; }
-    while end > i + 1 && chars[end - 1] == '-' { end -= 1; }
-    if end == i + 1 || !chars[i + 1].is_alphanumeric() { return None; }
-    Some((chars[i + 1..end].iter().collect(), end))
-}
+pub use orgamnesia_core::hashtags::{hashtag_at, Hashtags};
 
 /// Extract all `[[target]]` link targets — used for backlink indexing.
 /// Unless `hashtags` is `Off`, every `#tag` counts as a link to the page `tag`.

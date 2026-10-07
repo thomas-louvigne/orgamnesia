@@ -1,22 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::process::Command;
 
-/// Git state of a project folder, as shown under the project name.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct GitStatus {
-    /// The folder is inside a git work tree.
-    pub repo: bool,
-    /// Current branch, `None` when detached.
-    pub branch: Option<String>,
-    /// The branch tracks a remote branch.
-    pub upstream: bool,
-    /// Files changed, staged or untracked (to commit).
-    pub changes: u32,
-    /// Commits not pushed yet.
-    pub ahead: u32,
-    /// Commits of the remote not pulled yet (as of the last fetch).
-    pub behind: u32,
-}
+pub use orgamnesia_core::GitStatus;
 
 /// Git state of `path`; `None` when git itself can't be run.
 pub fn status(path: &str) -> Option<GitStatus> {

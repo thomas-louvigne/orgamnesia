@@ -1,6 +1,8 @@
 # Rust / build artifacts
 /target
 /src-tauri/target
+/core/target
+/core/Cargo.lock
 
 # Frontend build output (Trunk)
 /dist

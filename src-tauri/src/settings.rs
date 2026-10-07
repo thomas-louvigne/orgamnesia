@@ -1,65 +1,8 @@
-use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::error::AppError;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Settings {
-    pub vault_path: Option<String>,
-    pub logseq_site_builder_path: Option<String>,
-    pub language: Option<String>,
-    /// Every project (folder) the user has opened, most recent first.
-    /// Rewrite `[[links]]` in other pages when a page is renamed (default: true).
-    pub update_links_on_rename: Option<bool>,
-    /// Match `[[links]]` to pages ignoring case (default: true).
-    pub case_insensitive_links: Option<bool>,
-    /// Treat `#tags` as links to pages (default: true).
-    pub hashtag_links: Option<bool>,
-    /// Allow `-` in `#tags` (`#mon-tag`); org-mode tags don't (default: true).
-    pub hashtag_dashes: Option<bool>,
-    /// Emacs mark: Ctrl+Space starts a region that follows the cursor (default: true).
-    pub emacs_mark: Option<bool>,
-    /// Electric mode: typing a bracket or quote around a selection wraps it (default: true).
-    pub electric_mode: Option<bool>,
-    /// Save the active page on every change (default: true).
-    pub autosave: Option<bool>,
-    /// On quit, delete pages with no text: only spaces, tabs or `*` (default: false).
-    pub delete_empty_pages: Option<bool>,
-    /// On quit, delete pages holding only their `* Title` heading (default: false).
-    pub delete_title_only_pages: Option<bool>,
-    /// App name and logo at the top left of the window (default: true).
-    pub show_brand: Option<bool>,
-    /// Frames shown around the editor (default: true): pages menu, backlinks,
-    /// tags, pages not created.
-    pub show_pages: Option<bool>,
-    pub show_backlinks: Option<bool>,
-    pub show_tags: Option<bool>,
-    pub show_broken_links: Option<bool>,
-    /// Enable the logseq-site-builder extension (Export button) (default: false).
-    pub site_builder_enabled: Option<bool>,
-    /// Git extension: show the git state of the project under its name (default: true).
-    pub git_status_enabled: Option<bool>,
-    #[serde(default)]
-    pub projects: Vec<String>,
-}
-
-impl Settings {
-    pub fn case_insensitive_links(&self) -> bool {
-        self.case_insensitive_links.unwrap_or(true)
-    }
-
-    /// How `#tags` are read when indexing and renaming.
-    pub fn hashtags(&self) -> crate::parser::Hashtags {
-        crate::parser::Hashtags::new(
-            self.hashtag_links.unwrap_or(true),
-            self.hashtag_dashes.unwrap_or(true),
-        )
-    }
-
-    pub fn update_links_on_rename(&self) -> bool {
-        self.update_links_on_rename.unwrap_or(true)
-    }
-}
+pub use orgamnesia_core::{Prefs, Settings};
 
 /// The app used to be called "Org Wiki Flow" (config folder `com.org-wiki-flow.app`).
 /// On the first run under the new name, carry the old settings and keybindings over.
@@ -75,6 +18,25 @@ pub fn migrate_legacy_config(config_dir: &Path) {
     for file in ["settings.json", "keybindings.json"] {
         let _ = std::fs::copy(old.join(file), config_dir.join(file));
     }
+}
+
+pub fn load(config_dir: &Path) -> Settings {
+    let path = config_dir.join("settings.json");
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn save(config_dir: &Path, settings: &Settings) -> Result<(), AppError> {
+    write_json(config_dir, "settings.json", settings)
+}
+
+/// Write `value` as `<config_dir>/<file>`, creating the folder if needed.
+pub fn write_json(config_dir: &Path, file: &str, value: &impl serde::Serialize) -> Result<(), AppError> {
+    std::fs::create_dir_all(config_dir)?;
+    std::fs::write(config_dir.join(file), serde_json::to_string_pretty(value)?)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -93,21 +55,4 @@ mod tests {
         let old: Settings = serde_json::from_str(r#"{"vault_path":null}"#).unwrap();
         assert_eq!(old.electric_mode, None);
     }
-}
-
-pub fn load(config_dir: &Path) -> Settings {
-    let path = config_dir.join("settings.json");
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
-}
-
-pub fn save(config_dir: &Path, settings: &Settings) -> Result<(), AppError> {
-    std::fs::create_dir_all(config_dir)
-        .map_err(|e| AppError::SettingsError(e.to_string()))?;
-    let json = serde_json::to_string_pretty(settings)
-        .map_err(|e| AppError::SettingsError(e.to_string()))?;
-    std::fs::write(config_dir.join("settings.json"), json)
-        .map_err(|e| AppError::SettingsError(e.to_string()))
 }

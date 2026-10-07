@@ -1,7 +1,6 @@
 use leptos::{html, prelude::*};
-use wasm_bindgen_futures::spawn_local;
 
-use crate::{invoke, state::{AppCtx, FileEntry}};
+use crate::{actions, i18n::t, state::{AppCtx, FileEntry}};
 
 /// The open pages. With `pane` (false: left / top, true: right / bottom), the bar
 /// belongs to one pane of a split: it shows that pane's page and clicking a tab
@@ -13,226 +12,163 @@ pub fn TabBar(#[prop(optional)] pane: Option<bool>) -> impl IntoView {
     view! {
         <div class="tab-bar">
             <For
-                each={move || ctx.tabs.get().into_iter().enumerate().collect::<Vec<_>>()}
-                key={|(_, t)| t.path.clone()}
-                let:item
+                each=move || ctx.work.tabs.get()
+                key=|t| t.path.clone()
+                let:tab
             >
-                {
-                    let (idx, tab) = item;
-                    let is_active = move || match pane {
-                        Some(second) => {
-                            let path = ctx.tabs.with(|tabs| tabs.get(idx).map(|t| t.path.clone()));
-                            path.is_some() && ctx.pane_path(second) == path
-                        }
-                        None => ctx.active_tab.get() == Some(idx),
-                    };
-                    let tab_name = tab.name.clone();
-                    let dirty = tab.dirty;
+                <TabItem tab_path=tab.path name=tab.name dirty=tab.dirty pane=pane />
+            </For>
+        </div>
+    }
+}
 
-                    let editing   = RwSignal::new(false);
-                    let edit_value = RwSignal::new(String::new());
-                    let input_ref = NodeRef::<html::Input>::new();
+/// One tab. Rows are keyed by path, so the tab's position is looked up when
+/// needed: tabs closed before it shift it.
+#[component]
+fn TabItem(
+    tab_path: String,
+    name: String,
+    dirty: RwSignal<bool>,
+    pane: Option<bool>,
+) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let path = StoredValue::new(tab_path);
+    let index = move || path.with_value(|p| ctx.work.tab_index(p));
 
-                    let ctx_open = RwSignal::new(false);
-                    let ctx_x    = RwSignal::new(0i32);
-                    let ctx_y    = RwSignal::new(0i32);
+    let is_active = move || {
+        let shown = match pane {
+            Some(second) => ctx.work.pane_path(second),
+            None => ctx.work.active_tab_data().map(|t| t.path),
+        };
+        path.with_value(|p| shown.as_ref() == Some(p))
+    };
 
-                    // Auto-focus + select-all when edit mode starts
-                    Effect::new(move |_| {
-                        if editing.get() {
-                            if let Some(el) = input_ref.get() {
-                                let _ = el.focus();
-                                let _ = el.select();
-                            }
-                        }
-                    });
+    let editing    = RwSignal::new(false);
+    let edit_value = RwSignal::new(String::new());
+    let input_ref  = NodeRef::<html::Input>::new();
+    let menu       = RwSignal::new(None::<(i32, i32)>);
 
-                    let close = move |e: web_sys::MouseEvent| {
-                        e.stop_propagation();
-                        ctx.tabs.update(|tabs| { tabs.remove(idx); });
-                        ctx.active_tab.update(|active| {
-                            *active = match *active {
-                                None => None,
-                                Some(i) if i == idx => {
-                                    let len = ctx.tabs.get().len();
-                                    if len == 0 { None }
-                                    else if idx > 0 { Some(idx - 1) }
-                                    else { Some(0) }
-                                }
-                                Some(i) if i > idx => Some(i - 1),
-                                Some(i) => Some(i),
-                            };
-                        });
-                        if ctx.active_tab.get().is_none() {
-                            ctx.backlinks.set(vec![]);
-                        }
-                    };
+    // Auto-focus + select-all when edit mode starts
+    Effect::new(move |_| {
+        if editing.get() {
+            if let Some(el) = input_ref.get() {
+                let _ = el.focus();
+                el.select();
+            }
+        }
+    });
 
-                    // Rename helpers — inlined in two separate handlers to avoid clone()
-                    // Both closures capture only Copy values so this is fine.
+    let name_for_edit = name.clone();
+    let start_rename = move || {
+        edit_value.set(name_for_edit.clone());
+        editing.set(true);
+    };
+    let do_rename = move || {
+        if !editing.get_untracked() { return; }
+        editing.set(false);
+        actions::rename_page(ctx, path.get_value(), edit_value.get_untracked());
+    };
 
-                    let do_rename = move || {
-                        if !editing.get() { return; }
-                        let new_name = edit_value.get().trim().to_string();
-                        let current_path = ctx.tabs.get().get(idx)
-                            .map(|t| t.path.clone()).unwrap_or_default();
-                        let current_name = ctx.tabs.get().get(idx)
-                            .map(|t| t.name.clone()).unwrap_or_default();
-                        if new_name.is_empty() || new_name == current_name {
-                            editing.set(false);
-                            return;
-                        }
-                        editing.set(false);
-                        spawn_local(async move {
-                            match invoke::rename_page(&current_path, &new_name).await {
-                                Ok(nf) => {
-                                    ctx.tabs.update(|tabs| {
-                                        if let Some(t) = tabs.get_mut(idx) {
-                                            t.name = nf.name.clone();
-                                            t.path = nf.path.clone();
-                                        }
-                                    });
-                                    ctx.files.update(|files| {
-                                        if let Some(f) = files.iter_mut()
-                                            .find(|f| f.path == current_path)
-                                        {
-                                            f.name = nf.name.clone();
-                                            f.path = nf.path.clone();
-                                        }
-                                    });
-                                    crate::components::sidebar::reload_clean_tabs(ctx).await;
-                                    ctx.status.set(Some(format!("Renamed to {}", nf.name)));
-                                }
-                                Err(e) => ctx.status.set(Some(format!("Rename error: {e}"))),
-                            }
-                        });
-                    };
+    let close = move |e: web_sys::MouseEvent| {
+        e.stop_propagation();
+        if let Some(idx) = index() { actions::close_tab(ctx, idx); }
+    };
 
-                    // Enter/Escape in the rename input
-                    let on_rename_keydown = move |e: web_sys::KeyboardEvent| {
-                        e.stop_propagation();
-                        match e.key().as_str() {
-                            "Escape" => editing.set(false),
-                            "Enter"  => do_rename(),
-                            _        => {}
-                        }
-                    };
+    let select = move |_| {
+        if editing.get_untracked() { return; }
+        let Some(idx) = index() else { return };
+        match pane {
+            Some(second) => ctx.work.show_in_pane(second, idx),
+            None => ctx.work.active_tab.set(Some(idx)),
+        }
+    };
 
-                    // Blur confirms rename (same as Enter)
-                    let on_rename_blur = move |_| do_rename();
+    let hidden_while_editing = move || if editing.get() { "display:none;" } else { "" };
+    let start_rename_dbl = start_rename.clone();
+    let name_for_delete = name.clone();
 
-                    // Double-click on tab name → enter edit mode
-                    let on_dblclick = move |e: web_sys::MouseEvent| {
-                        e.prevent_default();
-                        e.stop_propagation();
-                        let name = ctx.tabs.get().get(idx)
-                            .map(|t| t.name.clone()).unwrap_or_default();
-                        edit_value.set(name);
-                        editing.set(true);
-                    };
-
-                    // Right-click → context menu
-                    let on_ctx_menu = move |e: web_sys::MouseEvent| {
-                        e.prevent_default();
-                        e.stop_propagation();
-                        ctx_x.set(e.client_x());
-                        ctx_y.set(e.client_y());
-                        ctx_open.set(true);
-                    };
-
-                    view! {
-                        <div
-                            class=move || match (is_active(), editing.get()) {
-                                (_, true)      => "tab active editing",
-                                (true, false)  => "tab active",
-                                (false, false) => "tab",
-                            }
-                            on:click=move |_| {
-                                if editing.get() { return; }
-                                match pane {
-                                    Some(second) => ctx.show_in_pane(second, idx),
-                                    None => ctx.active_tab.set(Some(idx)),
-                                }
-                            }
-                            on:dblclick=on_dblclick
-                            on:contextmenu=on_ctx_menu
-                        >
-                            <input
-                                node_ref=input_ref
-                                class="tab-rename-input"
-                                type="text"
-                                style=move || if editing.get() { "" } else { "display:none;" }
-                                prop:value=move || edit_value.get()
-                                on:input=move |e| edit_value.set(event_target_value(&e))
-                                on:keydown=on_rename_keydown
-                                on:blur=on_rename_blur
-                                on:click=|e: web_sys::MouseEvent| e.stop_propagation()
-                                on:dblclick=|e: web_sys::MouseEvent| e.stop_propagation()
-                            />
-                            <span
-                                class="tab-name"
-                                style=move || if editing.get() { "display:none;" } else { "" }
-                            >{tab_name}</span>
-                            {move || dirty.get().then(|| view! {
-                                <span
-                                    class="tab-dot"
-                                    style=move || if editing.get() { "display:none;" } else { "" }
-                                    title={move || crate::i18n::t("unsaved", ctx.lang.get())}
-                                >"•"</span>
-                            })}
-                            <button
-                                class="tab-close"
-                                style=move || if editing.get() { "display:none;" } else { "" }
-                                on:click=close
-                                on:dblclick=|e: web_sys::MouseEvent| e.stop_propagation()
-                            >"×"</button>
-
-                            {move || ctx_open.get().then(|| view! {
-                                <div>
-                                    <div
-                                        class="ctx-overlay"
-                                        on:click=move |_| ctx_open.set(false)
-                                    />
-                                    <div
-                                        class="ctx-menu"
-                                        style=move || format!(
-                                            "left:{}px;top:{}px;",
-                                            ctx_x.get(), ctx_y.get()
-                                        )
-                                    >
-                                        <button
-                                            class="ctx-menu-item"
-                                            on:click=move |_| {
-                                                ctx_open.set(false);
-                                                let name = ctx.tabs.get().get(idx)
-                                                    .map(|t| t.name.clone())
-                                                    .unwrap_or_default();
-                                                edit_value.set(name);
-                                                editing.set(true);
-                                            }
-                                        >
-                                            {move || crate::i18n::t("rename", ctx.lang.get())}
-                                        </button>
-                                        <button
-                                            class="ctx-menu-item ctx-menu-danger"
-                                            on:click=move |_| {
-                                                ctx_open.set(false);
-                                                let file = ctx.tabs.get_untracked().get(idx)
-                                                    .map(|t| FileEntry { name: t.name.clone(), path: t.path.clone() });
-                                                if let Some(file) = file {
-                                                    crate::components::sidebar::delete_page(ctx, file);
-                                                }
-                                            }
-                                        >
-                                            {move || crate::i18n::t("delete_page", ctx.lang.get())}
-                                        </button>
-                                    </div>
-                                </div>
-                            })}
-                        </div>
+    view! {
+        <div
+            class=move || match (is_active(), editing.get()) {
+                (_, true)      => "tab active editing",
+                (true, false)  => "tab active",
+                (false, false) => "tab",
+            }
+            on:click=select
+            on:dblclick=move |e: web_sys::MouseEvent| {
+                e.prevent_default();
+                e.stop_propagation();
+                start_rename_dbl();
+            }
+            on:contextmenu=move |e: web_sys::MouseEvent| {
+                e.prevent_default();
+                e.stop_propagation();
+                menu.set(Some((e.client_x(), e.client_y())));
+            }
+        >
+            <input
+                node_ref=input_ref
+                class="tab-rename-input"
+                type="text"
+                style=move || if editing.get() { "" } else { "display:none;" }
+                prop:value=move || edit_value.get()
+                on:input=move |e| edit_value.set(event_target_value(&e))
+                on:keydown=move |e: web_sys::KeyboardEvent| {
+                    e.stop_propagation();
+                    match e.key().as_str() {
+                        "Escape" => editing.set(false),
+                        "Enter"  => do_rename(),
+                        _        => {}
                     }
                 }
-            </For>
+                on:blur=move |_| do_rename()
+                on:click=|e: web_sys::MouseEvent| e.stop_propagation()
+                on:dblclick=|e: web_sys::MouseEvent| e.stop_propagation()
+            />
+            <span class="tab-name" style=hidden_while_editing>{name}</span>
+            {move || dirty.get().then(|| view! {
+                <span
+                    class="tab-dot"
+                    style=hidden_while_editing
+                    title={move || t("unsaved", ctx.lang.get())}
+                >"•"</span>
+            })}
+            <button
+                class="tab-close"
+                style=hidden_while_editing
+                on:click=close
+                on:dblclick=|e: web_sys::MouseEvent| e.stop_propagation()
+            >"×"</button>
+
+            {move || menu.get().map(|(x, y)| {
+                let start_rename = start_rename.clone();
+                let name = name_for_delete.clone();
+                view! {
+                    <div>
+                        <div class="ctx-overlay" on:click=move |_| menu.set(None) />
+                        <div class="ctx-menu" style=format!("left:{x}px;top:{y}px;")>
+                            <button
+                                class="ctx-menu-item"
+                                on:click=move |_| {
+                                    menu.set(None);
+                                    start_rename();
+                                }
+                            >
+                                {move || t("rename", ctx.lang.get())}
+                            </button>
+                            <button
+                                class="ctx-menu-item ctx-menu-danger"
+                                on:click=move |_| {
+                                    menu.set(None);
+                                    actions::delete_page(ctx, FileEntry { name: name.clone(), path: path.get_value() });
+                                }
+                            >
+                                {move || t("delete_page", ctx.lang.get())}
+                            </button>
+                        </div>
+                    </div>
+                }
+            })}
         </div>
     }
 }

@@ -138,9 +138,19 @@ are never touched by uninstalling. Settings live in =~/.config/com.orgamnesia.ap
 #+BEGIN_SRC sh
 cargo tauri dev            # run with hot reload
 cargo tauri build          # release build (+ .deb)
-cargo test --lib           # frontend tests (pure functions)
-cd src-tauri && cargo test # backend tests (parser, link index, settings)
+cargo test --lib           # interface tests (editing, tabs, translations)
+cd src-tauri && cargo test # backend tests (project, parser, link index, settings)
+cd core && cargo test      # shared core tests (settings, shortcuts, #tags)
+cargo clippy --target wasm32-unknown-unknown   # lints (also in src-tauri/ and core/)
 #+END_SRC
+
+The code is split in three crates:
+- =src/= :: the interface (Leptos, compiled to WebAssembly). =actions.rs= holds the
+  operations on pages and tabs, =edit.rs= what the editor commands do to the text.
+- =src-tauri/= :: the backend. =project.rs= owns the open project (pages, links,
+  tags), =watch.rs= watches its folder, =commands/= exposes both to the interface.
+- =core/= :: what both sides share: exchanged data, settings and their defaults,
+  shortcut registry, reading of =#tags=.
 
 * License
 

@@ -141,9 +141,20 @@ une désinstallation n'y touche jamais. Les réglages sont dans =~/.config/com.o
 #+BEGIN_SRC sh
 cargo tauri dev            # lancement avec rechargement à chaud
 cargo tauri build          # build de production (+ .deb)
-cargo test --lib           # tests frontend (fonctions pures)
-cd src-tauri && cargo test # tests backend (parseur, index des liens, réglages)
+cargo test --lib           # tests de l'interface (édition, onglets, traductions)
+cd src-tauri && cargo test # tests du backend (projet, parseur, index des liens, réglages)
+cd core && cargo test      # tests du socle commun (réglages, raccourcis, #tags)
+cargo clippy --target wasm32-unknown-unknown   # lints (aussi dans src-tauri/ et core/)
 #+END_SRC
+
+Le code est réparti en trois crates :
+- =src/= :: l'interface (Leptos, compilée en WebAssembly). =actions.rs= regroupe les
+  opérations sur les pages et les onglets, =edit.rs= ce que font les commandes de
+  l'éditeur sur le texte.
+- =src-tauri/= :: le backend. =project.rs= gère le projet ouvert (pages, liens,
+  tags), =watch.rs= surveille son dossier, =commands/= expose le tout à l'interface.
+- =core/= :: ce que les deux partagent : données échangées, réglages et leurs
+  valeurs par défaut, registre des raccourcis, lecture des =#tags=.
 
 * Licence
 

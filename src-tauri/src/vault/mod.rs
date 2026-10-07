@@ -1,14 +1,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use serde::{Deserialize, Serialize};
 use crate::error::AppError;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileEntry {
-    pub name: String,
-    pub path: String,
-}
+pub use orgamnesia_core::FileEntry;
 
 /// Directory holding the pages: `<vault>/pages/` when it exists, else the folder itself.
 pub fn pages_dir(vault_path: &str) -> PathBuf {
@@ -31,8 +26,7 @@ pub fn list_org_files(vault_path: &str) -> Result<Vec<FileEntry>, AppError> {
             "{vault_path} not found"
         )));
     }
-    let mut files: Vec<FileEntry> = std::fs::read_dir(&pages)
-        .map_err(|e| AppError::Io(e.to_string()))?
+    let mut files: Vec<FileEntry> = std::fs::read_dir(&pages)?
         .filter_map(|entry| entry.ok())
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("org"))
         .map(|e| {
@@ -80,8 +74,7 @@ pub fn ensure_structure(vault_path: &str) -> Result<(), AppError> {
         return Ok(());
     }
     for dir in ["pages", "assets"] {
-        std::fs::create_dir_all(base.join(dir))
-            .map_err(|e| AppError::Io(e.to_string()))?;
+        std::fs::create_dir_all(base.join(dir))?;
     }
     Ok(())
 }

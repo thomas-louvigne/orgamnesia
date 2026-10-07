@@ -10,6 +10,7 @@ fn main() {
             use tauri::Manager;
             if let Ok(dir) = app.path().app_config_dir() {
                 orgamnesia_lib::settings::migrate_legacy_config(&dir);
+                *app.state::<AppState>().settings.lock().unwrap() = orgamnesia_lib::settings::load(&dir);
             }
             Ok(())
         })
@@ -20,8 +21,6 @@ fn main() {
             commands::set_keybindings,
             commands::open_vault,
             commands::remove_project,
-            commands::list_files,
-            commands::poll_vault,
             commands::read_file,
             commands::write_file,
             commands::create_page,

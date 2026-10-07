@@ -2,16 +2,39 @@ use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::{
-    components::sidebar::create_and_open_page,
+    actions,
     i18n::t,
     invoke,
-    state::{AppCtx, BrokenLink, Drag, Goto, Tab, TagHit},
+    keybindings::after_ms,
+    state::{AppCtx, BrokenLink, Drag, Goto, TagHit},
 };
 
 #[component]
 pub fn BacklinksPanel() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
 
+    // Pages linking to the active page. Refreshed (debounced) when another
+    // page becomes active or the links of the project change.
+    let backlinks = RwSignal::new(Vec::<String>::new());
+    let backlinks_seq = StoredValue::new(0u32);
+    Effect::new(move |_| {
+        ctx.project.links_version.track();
+        ctx.pref(|p| p.case_insensitive_links);
+        let page = ctx.work.active_tab_data().map(|t| t.name).filter(|_| ctx.pref(|p| p.show_backlinks));
+        let seq = backlinks_seq.get_value() + 1;
+        backlinks_seq.set_value(seq);
+        let Some(page) = page else { backlinks.set(vec![]); return };
+        after_ms(150, move || {
+            if backlinks_seq.get_value() != seq { return; }
+            spawn_local(async move {
+                if let Ok(list) = invoke::get_backlinks(&page).await {
+                    if backlinks_seq.get_value() == seq && backlinks.get_untracked() != list {
+                        backlinks.set(list);
+                    }
+                }
+            });
+        });
+    });
 
     // Links pointing to pages that don't exist. Refreshed (debounced) when the
     // project, its pages or its content change.
@@ -19,37 +42,33 @@ pub fn BacklinksPanel() -> impl IntoView {
     let broken_open = RwSignal::new(true);
     let refresh_seq = StoredValue::new(0u32);
     Effect::new(move |_| {
-        ctx.files.track();
-        ctx.links_version.track();
-        ctx.case_insensitive_links.track();
-        if ctx.vault_path.get().is_none() {
+        ctx.project.files.track();
+        ctx.project.links_version.track();
+        ctx.pref(|p| p.case_insensitive_links);
+        if ctx.project.vault_path.get().is_none() {
             broken.set(vec![]);
             return;
         }
         let seq = refresh_seq.get_value() + 1;
         refresh_seq.set_value(seq);
-        if let Some(w) = web_sys::window() {
-            let cb = wasm_bindgen::closure::Closure::once_into_js(move || {
-                if refresh_seq.get_value() != seq { return; }
-                spawn_local(async move {
-                    if let Ok(list) = invoke::get_broken_links().await {
-                        if broken.get_untracked() != list { broken.set(list); }
-                    }
-                });
+        after_ms(400, move || {
+            if refresh_seq.get_value() != seq { return; }
+            spawn_local(async move {
+                if let Ok(list) = invoke::get_broken_links().await {
+                    if broken.get_untracked() != list { broken.set(list); }
+                }
             });
-            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(
-                wasm_bindgen::JsCast::unchecked_ref(&cb), 400);
-        }
+        });
     });
 
     // Org-mode tags of the project, for the tags view and the completion of `:tags:`.
     // Refreshed (debounced) like the list above.
     let tags_seq = StoredValue::new(0u32);
     Effect::new(move |_| {
-        ctx.files.track();
-        ctx.links_version.track();
-        if ctx.vault_path.get().is_none() {
-            ctx.tags.set(vec![]);
+        ctx.project.files.track();
+        ctx.project.links_version.track();
+        if ctx.project.vault_path.get().is_none() {
+            ctx.project.tags.set(vec![]);
             return;
         }
         let seq = tags_seq.get_value() + 1;
@@ -58,7 +77,7 @@ pub fn BacklinksPanel() -> impl IntoView {
             if tags_seq.get_value() != seq { return; }
             spawn_local(async move {
                 if let Ok(list) = invoke::list_tags().await {
-                    if ctx.tags.get_untracked() != list { ctx.tags.set(list); }
+                    if ctx.project.tags.get_untracked() != list { ctx.project.tags.set(list); }
                 }
             });
         });
@@ -68,12 +87,12 @@ pub fn BacklinksPanel() -> impl IntoView {
     let hits = RwSignal::new(Vec::<TagHit>::new());
     let hits_seq = StoredValue::new(0u32);
     Effect::new(move |_| {
-        let query = ctx.tag_query.get();
-        ctx.links_version.track();
-        ctx.files.track();
+        let query = ctx.project.tag_query.get();
+        ctx.project.links_version.track();
+        ctx.project.files.track();
         let seq = hits_seq.get_value() + 1;
         hits_seq.set_value(seq);
-        if query.trim().is_empty() || !ctx.show_tags.get() {
+        if query.trim().is_empty() || !ctx.pref(|p| p.show_tags) {
             hits.set(vec![]);
             return;
         }
@@ -88,39 +107,7 @@ pub fn BacklinksPanel() -> impl IntoView {
     });
 
     // Open the page called `name`; with `target`, also move the cursor there.
-    let open_page = move |name: String, target: Option<Goto>| {
-        let file = ctx.files.get().into_iter().find(|f| ctx.same_page(&f.name, &name));
-        let Some(file) = file else { return };
-        let goto = move |path: String| {
-            if let Some(t) = target.clone() { ctx.goto.set(Some((path, t))); }
-        };
-        if let Some(idx) = ctx.tabs.get().iter().position(|t| t.path == file.path) {
-            ctx.active_tab.set(Some(idx));
-            goto(file.path.clone());
-            return;
-        }
-        spawn_local(async move {
-            match invoke::read_file(&file.path).await {
-                Ok(content) => {
-                    ctx.tabs.update(|tabs| {
-                        tabs.push(Tab {
-                            path: file.path.clone(),
-                            name: file.name.clone(),
-                            content: RwSignal::new(content),
-                            dirty: RwSignal::new(false),
-                        });
-                    });
-                    let idx = ctx.tabs.get().len() - 1;
-                    ctx.active_tab.set(Some(idx));
-                    goto(file.path.clone());
-                    if let Ok(bl) = invoke::get_backlinks(&file.name).await {
-                        ctx.backlinks.set(bl);
-                    }
-                }
-                Err(e) => ctx.status.set(Some(format!("Error: {e}"))),
-            }
-        });
-    };
+    let open_page = move |name: String, target: Option<Goto>| actions::open_page_named(ctx, &name, target);
     let open_backlink = move |name: String| open_page(name, None);
 
     // `+` of the tags frame: a field to add a file tag to the active page
@@ -139,11 +126,11 @@ pub fn BacklinksPanel() -> impl IntoView {
         let tag = new_tag.get_untracked().trim().trim_matches(':').trim_start_matches('#').to_string();
         if tag.is_empty() { adding.set(false); return; }
         if !tag.chars().all(crate::motion::is_org_tag_char) {
-            ctx.status.set(Some(t("tag_invalid", lang).to_string()));
+            ctx.ui.status.set(Some(t("tag_invalid", lang).to_string()));
             return;
         }
-        let Some(tab) = ctx.active_tab_data() else {
-            ctx.status.set(Some(t("tag_add_no_page", lang).to_string()));
+        let Some(tab) = ctx.work.active_tab_data() else {
+            ctx.ui.status.set(Some(t("tag_add_no_page", lang).to_string()));
             return;
         };
         match crate::motion::add_filetag(&tab.content.get_untracked(), &tag) {
@@ -151,9 +138,9 @@ pub fn BacklinksPanel() -> impl IntoView {
                 // Like typing in the page: marked unsaved, then auto-saved if enabled
                 tab.dirty.set(true);
                 tab.content.set(content);
-                ctx.status.set(Some(format!("{} :{tag}: → {}", t("tag_added", lang), tab.name)));
+                ctx.ui.status.set(Some(format!("{} :{tag}: → {}", t("tag_added", lang), tab.name)));
             }
-            None => ctx.status.set(Some(format!("{} :{tag}:", t("tag_exists", lang)))),
+            None => ctx.ui.status.set(Some(format!("{} :{tag}:", t("tag_exists", lang)))),
         }
         new_tag.set(String::new());
         adding.set(false);
@@ -165,12 +152,12 @@ pub fn BacklinksPanel() -> impl IntoView {
 
     view! {
         <div class="backlinks-panel">
-            {move || ctx.show_backlinks.get().then(|| view! {
+            {move || ctx.pref(|p| p.show_backlinks).then(|| view! {
                 <div class="panel-section">
                     <div class="panel-header">{move || t("backlinks", ctx.lang.get())}</div>
                     <div class="panel-body">
                         {move || {
-                            let bl = ctx.backlinks.get();
+                            let bl = backlinks.get();
                             if bl.is_empty() {
                                 let msg = t("no_backlinks", ctx.lang.get());
                                 view! { <p class="no-backlinks">{msg}</p> }.into_any()
@@ -189,14 +176,14 @@ pub fn BacklinksPanel() -> impl IntoView {
                     </div>
                 </div>
             })}
-            {move || ctx.show_tags.get().then(|| view! {
+            {move || ctx.pref(|p| p.show_tags).then(|| view! {
                 <div class="panel-section">
                     <div class="panel-header panel-header-row">
                         <span>{move || t("tags", ctx.lang.get())}</span>
                         <button
                             class="panel-add"
-                            disabled=move || ctx.active_tab_data().is_none()
-                            title=move || if ctx.active_tab_data().is_some() {
+                            disabled=move || ctx.work.active_tab_data().is_none()
+                            title=move || if ctx.work.active_tab_data().is_some() {
                                 t("tag_add_title", ctx.lang.get())
                             } else {
                                 t("tag_add_no_page", ctx.lang.get())
@@ -213,7 +200,7 @@ pub fn BacklinksPanel() -> impl IntoView {
                                 list="tag-add-names"
                                 placeholder=move || format!("{} « {} »",
                                     t("tag_add_ph", ctx.lang.get()),
-                                    ctx.active_tab_data().map(|t| t.name).unwrap_or_default())
+                                    ctx.work.active_tab_data().map(|t| t.name).unwrap_or_default())
                                 prop:value=move || new_tag.get()
                                 on:input=move |e| new_tag.set(event_target_value(&e))
                                 on:keydown=move |e: web_sys::KeyboardEvent| match e.key().as_str() {
@@ -224,7 +211,7 @@ pub fn BacklinksPanel() -> impl IntoView {
                                 on:blur=move |_| adding.set(false)
                             />
                             <datalist id="tag-add-names">
-                                {move || ctx.tags.get().into_iter()
+                                {move || ctx.project.tags.get().into_iter()
                                     .map(|tag| view! { <option value=tag.name /> })
                                     .collect_view()}
                             </datalist>
@@ -236,19 +223,19 @@ pub fn BacklinksPanel() -> impl IntoView {
                             type="text"
                             placeholder=move || t("tag_search_ph", ctx.lang.get())
                             title=move || t("tag_search_help", ctx.lang.get())
-                            prop:value=move || ctx.tag_query.get()
-                            on:input=move |e| ctx.tag_query.set(event_target_value(&e))
+                            prop:value=move || ctx.project.tag_query.get()
+                            on:input=move |e| ctx.project.tag_query.set(event_target_value(&e))
                             on:keydown=move |e: web_sys::KeyboardEvent| {
-                                if e.key() == "Escape" { ctx.tag_query.set(String::new()); }
+                                if e.key() == "Escape" { ctx.project.tag_query.set(String::new()); }
                             }
                         />
                     </div>
                     <div class="panel-body">
                         {move || {
                             let lang = ctx.lang.get();
-                            if ctx.tag_query.get().trim().is_empty() {
+                            if ctx.project.tag_query.get().trim().is_empty() {
                                 // No search: every tag of the project
-                                let tags = ctx.tags.get();
+                                let tags = ctx.project.tags.get();
                                 if tags.is_empty() {
                                     return view! { <p class="no-backlinks">{t("no_tags", lang)}</p> }.into_any();
                                 }
@@ -287,14 +274,14 @@ pub fn BacklinksPanel() -> impl IntoView {
                 </div>
             })}
             // The bar resizes the block below; alone in the panel, the block fills it
-            {move || (ctx.show_broken_links.get() && (ctx.show_backlinks.get() || ctx.show_tags.get()))
+            {move || (ctx.pref(|p| p.show_broken_links) && (ctx.pref(|p| p.show_backlinks) || ctx.pref(|p| p.show_tags)))
                 .then(|| view! {
                     <div class="resizer-h" on:mousedown=move |e: web_sys::MouseEvent| {
                         e.prevent_default();
-                        ctx.drag.set(Some(Drag::Broken));
+                        ctx.ui.drag.set(Some(Drag::Broken));
                     } />
                 })}
-            {move || ctx.show_broken_links.get().then(|| view! {
+            {move || ctx.pref(|p| p.show_broken_links).then(|| view! {
                 <div class="broken-links">
                     <button class="broken-links-header" on:click=move |_| broken_open.update(|v| *v = !*v)>
                         <span>{move || format!("{} ({})", t("broken_links", ctx.lang.get()), broken.get().len())}</span>
@@ -346,7 +333,7 @@ pub fn BacklinksPanel() -> impl IntoView {
                     <div class="ctx-menu" style=format!("left:{x}px;top:{y}px")>
                         <button class="ctx-menu-item" on:click=move |_| {
                             menu.set(None);
-                            create_and_open_page(ctx, create_target.clone());
+                            actions::create_and_open_page(ctx, create_target.clone());
                         }>{move || t("create_page_action", ctx.lang.get())}</button>
                         {b.sources.iter().map(|src| {
                             let src_name = src.clone();

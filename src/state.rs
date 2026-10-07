@@ -1,65 +1,8 @@
 use leptos::prelude::*;
-use serde::{Deserialize, Serialize};
 
-use crate::{i18n::Lang, keybindings::Keybindings};
+use crate::{i18n::{t, Lang}, keybindings::Keybindings};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct FileEntry {
-    pub name: String,
-    pub path: String,
-}
-
-/// A `[[link]]` whose page does not exist, with the pages using it.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct BrokenLink {
-    pub target: String,
-    pub sources: Vec<String>,
-    /// Total number of times the link appears in the project.
-    #[serde(default)]
-    pub count: usize,
-}
-
-/// Git state of the project folder (see `src-tauri/src/git.rs`).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct GitStatus {
-    pub repo: bool,
-    pub branch: Option<String>,
-    pub upstream: bool,
-    pub changes: u32,
-    pub ahead: u32,
-    pub behind: u32,
-}
-
-/// An org-mode tag of the project and how many pages and headlines carry it.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct TagCount {
-    pub name: String,
-    pub count: usize,
-}
-
-/// A page, or a headline of it, matching a tag search.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct TagHit {
-    pub page: String,
-    pub path: String,
-    /// `None` when the whole page matches (`#+FILETAGS:`).
-    pub heading: Option<String>,
-    pub level: usize,
-    pub line: usize,
-    /// All its tags, inherited ones included.
-    pub tags: Vec<String>,
-}
-
-/// Pages changed on disk by another program since the last look.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct VaultChanges {
-    /// All the pages of the project, as now on disk.
-    pub files: Vec<FileEntry>,
-    /// Paths of the pages created or modified.
-    pub changed: Vec<String>,
-    /// Paths of the pages deleted.
-    pub removed: Vec<String>,
-}
+pub use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, Prefs, Settings, TagCount, TagHit, VaultChanges};
 
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
@@ -70,37 +13,25 @@ pub enum Goto {
     Line(usize),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Settings {
-    pub vault_path: Option<String>,
-    pub logseq_site_builder_path: Option<String>,
-    pub language: Option<String>,
-    pub update_links_on_rename: Option<bool>,
-    pub case_insensitive_links: Option<bool>,
-    pub hashtag_links: Option<bool>,
-    pub hashtag_dashes: Option<bool>,
-    pub emacs_mark: Option<bool>,
-    pub electric_mode: Option<bool>,
-    pub autosave: Option<bool>,
-    pub delete_empty_pages: Option<bool>,
-    pub delete_title_only_pages: Option<bool>,
-    pub show_brand: Option<bool>,
-    pub show_pages: Option<bool>,
-    pub show_backlinks: Option<bool>,
-    pub show_tags: Option<bool>,
-    pub show_broken_links: Option<bool>,
-    pub site_builder_enabled: Option<bool>,
-    pub git_status_enabled: Option<bool>,
-    #[serde(default)]
-    pub projects: Vec<String>,
-}
-
 #[derive(Clone, Debug)]
 pub struct Tab {
     pub path: String,
     pub name: String,
     pub content: RwSignal<String>,
     pub dirty: RwSignal<bool>,
+}
+
+impl Tab {
+    /// A tab showing `file`. Its signals belong to the current reactive owner:
+    /// create it before any `.await`.
+    pub fn new(file: &FileEntry, content: String, dirty: bool) -> Self {
+        Self {
+            path: file.path.clone(),
+            name: file.name.clone(),
+            content: RwSignal::new(content),
+            dirty: RwSignal::new(dirty),
+        }
+    }
 }
 
 /// A question shown in the in-app confirmation dialog.
@@ -132,145 +63,227 @@ pub enum Drag {
 
 const CHORD_MARK: &str = "⌨ ";
 
-/// Global app context — Copy because RwSignal is Copy.
+/// The open project, as the interface knows it.
 #[derive(Clone, Copy)]
-pub struct AppCtx {
+pub struct ProjectState {
+    /// Folder of the open project.
     pub vault_path: RwSignal<Option<String>>,
+    /// Every project opened, most recent first.
     pub projects: RwSignal<Vec<String>>,
-    pub show_projects: RwSignal<bool>,
-    pub drag: RwSignal<Option<Drag>>,
-    /// Editor split in two panes, if any. `active_tab` is the tab of the focused
-    /// pane; `other_path` is the tab shown in the other one.
+    pub files: RwSignal<Vec<FileEntry>>,
+    /// Org-mode tags of the project (refreshed when pages change).
+    pub tags: RwSignal<Vec<TagCount>>,
+    /// Tag search shown in the tags panel (`projet+urgent-perso`).
+    pub tag_query: RwSignal<String>,
+    /// Last git state read for the project; `None` until read or when git is missing.
+    pub git: RwSignal<Option<GitStatus>>,
+    /// Bumped after every write to disk, so link-derived views can refresh.
+    pub links_version: RwSignal<u32>,
+}
+
+/// The open pages and how the editor shows them.
+#[derive(Clone, Copy)]
+pub struct Workspace {
+    pub tabs: RwSignal<Vec<Tab>>,
+    /// Tab of the focused pane.
+    pub active_tab: RwSignal<Option<usize>>,
+    /// Editor split in two panes, if any; `other_path` is the page shown in the other one.
     pub split: RwSignal<Option<SplitKind>>,
     pub other_path: RwSignal<Option<String>>,
     /// Whether the focused pane is the second one (right / bottom).
     pub focus_second: RwSignal<bool>,
     /// (page path, target): the editor showing that page moves the cursor there.
     pub goto: RwSignal<Option<(String, Goto)>>,
-    /// App name and logo at the top left (Settings > Display).
-    pub show_brand: RwSignal<bool>,
-    /// Frames shown around the editor (Settings > Display).
-    pub show_pages: RwSignal<bool>,
-    pub show_backlinks: RwSignal<bool>,
-    pub show_tags: RwSignal<bool>,
-    pub show_broken_links: RwSignal<bool>,
-    /// logseq-site-builder extension enabled (shows the Export button).
-    pub site_builder: RwSignal<bool>,
-    /// Git extension enabled (git state under the project name).
-    pub git_ext: RwSignal<bool>,
-    /// Last git state read for the open project; `None` until read or when git is missing.
-    pub git: RwSignal<Option<GitStatus>>,
-    /// Org-mode tags of the project (refreshed when pages change).
-    pub tags: RwSignal<Vec<TagCount>>,
-    /// Tag search shown in the tags panel (`projet+urgent-perso`).
-    pub tag_query: RwSignal<String>,
-    /// Pending confirmation (the webview's own `window.confirm` shows nothing here).
-    pub confirm: RwSignal<Option<ConfirmReq>>,
-    /// Bumped after every write to disk, so link-derived views can refresh.
-    pub links_version: RwSignal<u32>,
-    pub autosave: RwSignal<bool>,
-    pub emacs_mark: RwSignal<bool>,
-    pub electric_mode: RwSignal<bool>,
-    pub case_insensitive_links: RwSignal<bool>,
-    pub hashtag_links: RwSignal<bool>,
-    /// Allow `-` in `#tags` (not valid in org-mode tags).
-    pub hashtag_dashes: RwSignal<bool>,
-    pub files: RwSignal<Vec<FileEntry>>,
-    pub tabs: RwSignal<Vec<Tab>>,
-    pub active_tab: RwSignal<Option<usize>>,
-    pub backlinks: RwSignal<Vec<String>>,
+    /// Text of the last Emacs kill, for yank.
+    pub kill_ring: RwSignal<String>,
+}
+
+/// Dialogs, menus and messages.
+#[derive(Clone, Copy)]
+pub struct Ui {
+    pub show_projects: RwSignal<bool>,
     pub show_settings: RwSignal<bool>,
     pub show_new_page: RwSignal<bool>,
     pub show_quick_open: RwSignal<bool>,
+    /// Pending confirmation (the webview's own `window.confirm` shows nothing here).
+    pub confirm: RwSignal<Option<ConfirmReq>>,
+    /// Message of the status bar.
     pub status: RwSignal<Option<String>>,
-    pub lang: RwSignal<Lang>,
+    /// Resize bar being dragged.
+    pub drag: RwSignal<Option<Drag>>,
+}
+
+/// Global app context — Copy because signals are Copy.
+#[derive(Clone, Copy)]
+pub struct AppCtx {
+    /// The settings in effect.
+    pub prefs: RwSignal<Prefs>,
+    /// Interface language (from `prefs`).
+    pub lang: Memo<Lang>,
     pub keybindings: RwSignal<Keybindings>,
-    pub kill_ring: RwSignal<String>,
+    pub project: ProjectState,
+    pub work: Workspace,
+    pub ui: Ui,
 }
 
 impl AppCtx {
     pub fn new() -> Self {
+        let prefs = RwSignal::new(Prefs::default());
         Self {
-            vault_path: RwSignal::new(None),
-            projects: RwSignal::new(vec![]),
-            show_projects: RwSignal::new(false),
-            drag: RwSignal::new(None),
-            split: RwSignal::new(None),
-            other_path: RwSignal::new(None),
-            focus_second: RwSignal::new(false),
-            goto: RwSignal::new(None),
-            show_brand: RwSignal::new(true),
-            show_pages: RwSignal::new(true),
-            show_backlinks: RwSignal::new(true),
-            show_tags: RwSignal::new(true),
-            show_broken_links: RwSignal::new(true),
-            site_builder: RwSignal::new(false),
-            git_ext: RwSignal::new(true),
-            git: RwSignal::new(None),
-            tags: RwSignal::new(vec![]),
-            tag_query: RwSignal::new(String::new()),
-            confirm: RwSignal::new(None),
-            links_version: RwSignal::new(0),
-            autosave: RwSignal::new(true),
-            emacs_mark: RwSignal::new(true),
-            electric_mode: RwSignal::new(true),
-            case_insensitive_links: RwSignal::new(true),
-            hashtag_links: RwSignal::new(true),
-            hashtag_dashes: RwSignal::new(true),
-            files: RwSignal::new(vec![]),
-            tabs: RwSignal::new(vec![]),
-            active_tab: RwSignal::new(None),
-            backlinks: RwSignal::new(vec![]),
-            show_settings: RwSignal::new(false),
-            show_new_page: RwSignal::new(false),
-            show_quick_open: RwSignal::new(false),
-            status: RwSignal::new(None),
-            lang: RwSignal::new(Lang::default()),
+            prefs,
+            lang: Memo::new(move |_| prefs.with(|p| Lang::from_code(&p.lang))),
             keybindings: RwSignal::new(Keybindings::defaults()),
-            kill_ring: RwSignal::new(String::new()),
+            project: ProjectState {
+                vault_path: RwSignal::new(None),
+                projects: RwSignal::new(vec![]),
+                files: RwSignal::new(vec![]),
+                tags: RwSignal::new(vec![]),
+                tag_query: RwSignal::new(String::new()),
+                git: RwSignal::new(None),
+                links_version: RwSignal::new(0),
+            },
+            work: Workspace {
+                tabs: RwSignal::new(vec![]),
+                active_tab: RwSignal::new(None),
+                split: RwSignal::new(None),
+                other_path: RwSignal::new(None),
+                focus_second: RwSignal::new(false),
+                goto: RwSignal::new(None),
+                kill_ring: RwSignal::new(String::new()),
+            },
+            ui: Ui {
+                show_projects: RwSignal::new(false),
+                show_settings: RwSignal::new(false),
+                show_new_page: RwSignal::new(false),
+                show_quick_open: RwSignal::new(false),
+                confirm: RwSignal::new(None),
+                status: RwSignal::new(None),
+                drag: RwSignal::new(None),
+            },
         }
     }
 
-    /// Show the pages and headlines tagged `tag` in the tags frame.
-    pub fn show_tag(&self, tag: String) {
-        self.tag_query.set(tag);
+    /// One setting, tracked (re-runs effects when the settings change).
+    pub fn pref<T>(&self, f: impl FnOnce(&Prefs) -> T) -> T {
+        self.prefs.with(f)
     }
 
-    /// Whether the right-hand panel has any frame to show.
-    pub fn has_right_panel(&self) -> bool {
-        self.show_backlinks.get() || self.show_tags.get() || self.show_broken_links.get()
+    pub fn pref_untracked<T>(&self, f: impl FnOnce(&Prefs) -> T) -> T {
+        self.prefs.with_untracked(f)
     }
 
-    /// How `#tags` are read, from the settings (tracked: re-runs effects when they change).
-    pub fn hashtags(&self) -> crate::motion::Hashtags {
-        crate::motion::Hashtags::new(self.hashtag_links.get(), self.hashtag_dashes.get())
+    /// The settings in effect, with the open project as the project setting.
+    pub fn prefs_untracked(&self) -> Prefs {
+        Prefs {
+            vault: self.project.vault_path.get_untracked().unwrap_or_default(),
+            ..self.prefs.get_untracked()
+        }
     }
 
-    pub fn hashtags_untracked(&self) -> crate::motion::Hashtags {
-        crate::motion::Hashtags::new(self.hashtag_links.get_untracked(), self.hashtag_dashes.get_untracked())
+    /// Tell the views derived from the pages' links (backlinks, tags…) to refresh.
+    pub fn bump_links(&self) {
+        self.project.links_version.update(|v| *v += 1);
+    }
+
+    /// The page called `name`, per the case-sensitivity setting.
+    pub fn find_page(&self, name: &str) -> Option<FileEntry> {
+        self.project.files.with_untracked(|fs| fs.iter().find(|f| self.same_page(&f.name, name)).cloned())
     }
 
     /// Whether two page names designate the same page, per the case-sensitivity setting.
     pub fn same_page(&self, a: &str, b: &str) -> bool {
-        if self.case_insensitive_links.get_untracked() {
+        if self.pref_untracked(|p| p.case_insensitive_links) {
             a.to_lowercase() == b.to_lowercase()
         } else {
             a == b
         }
     }
 
+    /// Show the pages and headlines tagged `tag` in the tags frame.
+    pub fn show_tag(&self, tag: String) {
+        self.project.tag_query.set(tag);
+    }
+
+    /// Whether the right-hand panel has any frame to show.
+    pub fn has_right_panel(&self) -> bool {
+        self.pref(|p| p.show_backlinks || p.show_tags || p.show_broken_links)
+    }
+
+    /// How `#tags` are read, from the settings (tracked: re-runs effects when they change).
+    pub fn hashtags(&self) -> crate::motion::Hashtags {
+        self.pref(|p| p.hashtags())
+    }
+
+    pub fn hashtags_untracked(&self) -> crate::motion::Hashtags {
+        self.pref_untracked(|p| p.hashtags())
+    }
+
     /// Split the editor in two panes showing the current page (Emacs `C-x 2` / `C-x 3`).
     /// Splitting again only changes the direction.
     pub fn split_window(&self, kind: SplitKind) {
-        if self.split.get_untracked().is_none() {
-            let Some(tab) = self.active_tab_data() else {
-                self.status.set(Some("Open a page before splitting".to_string()));
+        let work = self.work;
+        if work.split.get_untracked().is_none() {
+            let Some(tab) = work.active_tab_data() else {
+                self.notify_t("split_needs_page", "");
                 return;
             };
-            self.other_path.set(Some(tab.path));
-            self.focus_second.set(false);
+            work.other_path.set(Some(tab.path));
+            work.focus_second.set(false);
         }
-        self.split.set(Some(kind));
+        work.split.set(Some(kind));
+    }
+
+    /// Ask the user to confirm; `on_yes` runs only if they accept.
+    pub fn ask_confirm(&self, message: String, on_yes: impl Fn() + Send + Sync + 'static) {
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()) }));
+    }
+
+    /// Show a message in the status bar.
+    pub fn notify(&self, msg: impl Into<String>) {
+        self.ui.status.set(Some(msg.into()));
+    }
+
+    /// Show the text of `key`, followed by `detail` (a page name…).
+    pub fn notify_t(&self, key: &'static str, detail: &str) {
+        let label = t(key, self.lang.get_untracked());
+        self.notify(if detail.is_empty() { label.to_string() } else { format!("{label} {detail}") });
+    }
+
+    /// Show the failure `key`, with the error message.
+    pub fn error(&self, key: &'static str, err: &str) {
+        self.notify(format!("{} : {err}", t(key, self.lang.get_untracked())));
+    }
+
+    /// Show the keys of a chord in progress ("⌨ Ctrl+X …") in the status bar.
+    pub fn set_chord_status(&self, keys: &str) {
+        self.notify(format!("{CHORD_MARK}{keys} …"));
+    }
+
+    /// Remove the chord-in-progress message, if that is what the status bar shows.
+    pub fn clear_chord_status(&self) {
+        if self.ui.status.with_untracked(|s| s.as_deref().is_some_and(|s| s.starts_with(CHORD_MARK))) {
+            self.ui.status.set(None);
+        }
+    }
+}
+
+impl Default for AppCtx {
+    fn default() -> Self { Self::new() }
+}
+
+impl Workspace {
+    pub fn active_tab_data(&self) -> Option<Tab> {
+        let idx = self.active_tab.get()?;
+        self.tabs.with(|tabs| tabs.get(idx).cloned())
+    }
+
+    /// Index of the tab showing the page at `path`.
+    pub fn tab_index(&self, path: &str) -> Option<usize> {
+        self.tabs.with_untracked(|tabs| tabs.iter().position(|t| t.path == path))
+    }
+
+    pub fn has_unsaved_tabs(&self) -> bool {
+        self.tabs.with_untracked(|tabs| tabs.iter().any(|t| t.dirty.get_untracked()))
     }
 
     /// Give the focus to a pane; the tab bar and page opening then act on it.
@@ -279,10 +292,7 @@ impl AppCtx {
             return;
         }
         let current = self.active_tab_data().map(|t| t.path);
-        let other = self.other_path.get_untracked();
-        let idx = other.as_ref().and_then(|p| {
-            self.tabs.get_untracked().iter().position(|t| &t.path == p)
-        });
+        let idx = self.other_path.get_untracked().and_then(|p| self.tab_index(&p));
         if idx.is_some() {
             self.active_tab.set(idx);
             self.other_path.set(current);
@@ -320,36 +330,9 @@ impl AppCtx {
     /// Emacs `C-x 0`: close the focused pane; the other one stays.
     pub fn close_window(&self) {
         if self.split.get_untracked().is_none() { return; }
-        let other = self.other_path.get_untracked();
-        if let Some(idx) = other.and_then(|p| self.tabs.get_untracked().iter().position(|t| t.path == p)) {
+        if let Some(idx) = self.other_path.get_untracked().and_then(|p| self.tab_index(&p)) {
             self.active_tab.set(Some(idx));
         }
         self.single_window();
     }
-
-    /// Ask the user to confirm; `on_yes` runs only if they accept.
-    pub fn ask_confirm(&self, message: String, on_yes: impl Fn() + Send + Sync + 'static) {
-        self.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()) }));
-    }
-
-    /// Show the keys of a chord in progress ("⌨ Ctrl+X …") in the status bar.
-    pub fn set_chord_status(&self, keys: &str) {
-        self.status.set(Some(format!("{CHORD_MARK}{keys} …")));
-    }
-
-    /// Remove the chord-in-progress message, if that is what the status bar shows.
-    pub fn clear_chord_status(&self) {
-        if self.status.with_untracked(|s| s.as_deref().map_or(false, |s| s.starts_with(CHORD_MARK))) {
-            self.status.set(None);
-        }
-    }
-
-    pub fn active_tab_data(&self) -> Option<Tab> {
-        let idx = self.active_tab.get()?;
-        self.tabs.get().into_iter().nth(idx)
-    }
-}
-
-impl Default for AppCtx {
-    fn default() -> Self { Self::new() }
 }

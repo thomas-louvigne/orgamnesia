@@ -131,42 +131,7 @@ pub fn previous_heading(chars: &[char], pos: usize) -> usize {
     pos
 }
 
-/// How `#tags` in the text are read (same as the backend's `parser::Hashtags`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Hashtags {
-    /// `#tags` are plain text.
-    Off,
-    /// `#tags` are links to pages; letters, digits and `_` (like org-mode tags).
-    Org,
-    /// Same, also allowing `-` (`#mon-tag`), which org-mode tags don't.
-    Dashes,
-}
-
-impl Hashtags {
-    pub fn new(enabled: bool, dashes: bool) -> Self {
-        match (enabled, dashes) {
-            (false, _) => Self::Off,
-            (true, false) => Self::Org,
-            (true, true) => Self::Dashes,
-        }
-    }
-
-    fn is_tag_char(self, c: char) -> bool {
-        c.is_alphanumeric() || c == '_' || (c == '-' && self == Self::Dashes)
-    }
-}
-
-/// A `#hashtag` starting at `i` (same rules as the backend indexer): returns the tag
-/// (without `#`) and the index just after it. Always `None` when `tags` is `Off`.
-pub fn hashtag_at(chars: &[char], i: usize, tags: Hashtags) -> Option<(String, usize)> {
-    if tags == Hashtags::Off || chars.get(i) != Some(&'#') { return None; }
-    if i > 0 && !(chars[i - 1].is_whitespace() || "([{\"'".contains(chars[i - 1])) { return None; }
-    let mut end = i + 1;
-    while end < chars.len() && tags.is_tag_char(chars[end]) { end += 1; }
-    while end > i + 1 && chars[end - 1] == '-' { end -= 1; }
-    if end == i + 1 || !chars[i + 1].is_alphanumeric() { return None; }
-    Some((chars[i + 1..end].iter().collect(), end))
-}
+pub use orgamnesia_core::hashtags::{hashtag_at, Hashtags};
 
 /// The `#tag` being typed when the caret is at `caret`: returns the index of the
 /// `#` and the part of the tag already typed (possibly empty, right after `#`).
