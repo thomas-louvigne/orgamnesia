@@ -1,5 +1,7 @@
 #+TITLE: Orgamnesia
 
+#+HTML: <p align="center"><img src="src-tauri/icons/app-icon.svg" alt="Orgamnesia" width="128"></p>
+
 Un Obsidian léger à la saveur Emacs : un wiki personnel en fichiers =org-mode=,
 avec des liens entre pages et des liens entrants. Application de bureau
 écrite en Rust : Tauri v2 (backend) et Leptos 0.7 (frontend, compilé en WebAssembly).
@@ -17,8 +19,9 @@ que n'importe quelle contribution.
 
 [[file:docs/screenshot.png]]
 
-/Éditeur coupé en deux, mots-clés =#tag= et liens =[[page]]= cliquables,
-liens entrants à droite, « Pages non créées » en bas à droite./
+/Éditeur coupé en deux volets, chacun avec ses onglets ; liens =[[page]]=,
+=#mots-clés= et =:tags:= cliquables. À gauche, l'état git du projet ; à droite,
+liens entrants, tags et pages non encore créées./
 
 * Fonctionnalités
 
@@ -26,35 +29,53 @@ liens entrants à droite, « Pages non créées » en bas à droite./
 - Un projet est un dossier de fichiers =.org= (les pages sont dans =pages/=).
 - Bouton « ouvrir un dossier » et sélecteur pour passer d'un projet à l'autre.
 - Un projet par défaut réglable dans les préférences.
+- Les pages créées, modifiées ou supprimées par un autre programme (un autre
+  éditeur, un outil de synchronisation, git…) sont prises en compte aussitôt : les
+  onglets sans modification en cours sont rechargés, les autres signalés.
 
 ** Pages et liens
 - Liens =[[Page]]= et =[[Page][texte affiché]]=. Ctrl+clic (ou /Suivre le lien/) ouvre la page, et la crée si elle n'existe pas.
+- *Complétion* : taper =[[…= ou =#…= (deux caractères ou plus) propose les pages correspondantes ;
+  flèches ou =C-n= / =C-p= pour choisir, Entrée ou Tab pour valider, Échap pour fermer.
+- *Ouverture rapide* (Ctrl+K, =C-x b= en Emacs) : aller à un onglet ouvert ou à une page, ou la créer.
 - *Mots-clés* : =#idée= est un lien vers la page =idée= (option, activée par défaut).
   Ne sont pas des mots-clés : =#+TITLE=, =# commentaire= et =a#b=.
   Les tirets (=#mon-tag=) sont acceptés en option ; décochée, seuls lettres, chiffres et =_= comptent, comme dans org-mode.
 - *Tags org-mode* : =#+FILETAGS: :projet:rust:= pour toute la page, =* Titre :urgent:= pour un titre.
   Un titre hérite des tags de la page et de ses titres parents, comme dans Emacs.
   Un tag est un lien : Ctrl+clic ouvre (ou crée) la page du même nom, dont les liens entrants listent ce qui porte le tag.
-  Complétion après =:= dans un titre et dans =#+FILETAGS:=. L'onglet /Tags/ du panneau de droite liste tous les tags
-  et permet une recherche à la syntaxe org (=projet+urgent-perso=, =a|b=).
+  Complétion après =:= dans un titre et dans =#+FILETAGS:=. Le cadre /Tags/ du panneau de droite liste tous les tags,
+  permet une recherche à la syntaxe org (=projet+urgent-perso=, =a|b=), et son bouton =+= ajoute un tag à la page ouverte.
 - *Liens entrants* : panneau de droite listant les pages qui pointent vers la page ouverte.
 - *Pages non créées* : liens qui ne mènent à rien, triés par nombre d'appels
   (=cible (3)=). Clic : aller là où le lien est utilisé. Clic droit : créer la page ou aller au lien.
 - Liens insensibles à la casse (option, activée par défaut).
-- Barre latérale : clic droit pour /renommer/ ou /supprimer/ (le fichier est effacé).
+- Clic droit sur une page de la barre latérale, ou sur son onglet, pour la /renommer/ ou la /supprimer/ (le fichier est effacé).
 - Renommer une page réécrit tous les liens qui y pointent, =[[…]]= comme =#…= (option, activée par défaut).
+- En quittant, les pages vides et celles qui ne contiennent que leur titre peuvent être supprimées (deux options, désactivées par défaut).
 
 ** Édition
 - Coloration org-mode : titres, =TODO=/=DONE=, gras, italique, citations, tableaux, liens.
 - Sauvegarde automatique à chaque frappe (option, activée par défaut).
 - Mode « électrique » : avec du texte sélectionné, taper =( ) [ ] " '= l'entoure.
-- Éditeur coupé en deux (verticalement ou horizontalement), chaque volet avec son en-tête.
+- Éditeur coupé en deux (verticalement ou horizontalement), chaque volet avec sa
+  barre d'onglets ; le volet actif a une bordure visible.
+- Quitter (Ctrl+Q, =C-x C-c= en Emacs) demande confirmation si des pages ne sont pas enregistrées.
 
 ** Interface
+- Paramètres d'*Affichage* : afficher ou masquer le nom et le logo de l'application,
+  le menu des pages, les liens entrants, les tags et les pages non créées.
 - Largeur de la barre latérale et du panneau de droite réglables en glissant leur bordure ;
   hauteur du bloc « Pages non créées » réglable aussi. Les tailles sont mémorisées.
 - Fenêtre des préférences redimensionnable, sa taille est mémorisée.
 - Français et anglais.
+
+** Extensions
+- *Git* (activée par défaut) : sous le nom du projet, sa branche et ce qui reste à
+  commiter, pousser ou récupérer. Nécessite =git= ; l'application ne lance aucune
+  commande git qui modifie le dépôt.
+- *logseq-site-builder* (désactivée par défaut) : un bouton /Exporter/ qui publie le
+  projet en site web avec =logseq-site-builder=.
 
 * Raccourcis clavier
 

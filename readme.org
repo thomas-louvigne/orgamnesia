@@ -1,5 +1,7 @@
 #+TITLE: Orgamnesia
 
+#+HTML: <p align="center"><img src="src-tauri/icons/app-icon.svg" alt="Orgamnesia" width="128"></p>
+
 A lite Obsidian with an Emacs flavour: a personal wiki made of =org-mode= files,
 with links between pages and backlinks. Desktop app written in Rust: Tauri v2 (backend) and
 Leptos 0.7 (frontend, compiled to WebAssembly).
@@ -16,8 +18,9 @@ an AI. Review the code with the same critical eye as any other contribution.
 
 [[file:docs/screenshot.png]]
 
-/Editor split in two, clickable =#tag= keywords and =[[page]]= links,
-backlinks on the right, "Uncreated pages" at the bottom right./
+/Editor split in two panes, each with its tabs; clickable =[[page]]= links,
+=#keywords= and =:tags:=. On the left, the project's git state; on the right,
+backlinks, tags and pages not created yet./
 
 * Features
 
@@ -25,35 +28,53 @@ backlinks on the right, "Uncreated pages" at the bottom right./
 - A project is a folder of =.org= files (pages live in =pages/=).
 - "Open folder" button and a selector to switch between projects.
 - A default project can be set in the preferences.
+- Pages created, modified or deleted by another program (another editor, a sync
+  tool, git…) are picked up right away: open tabs without unsaved changes are
+  reloaded, the others get a warning.
 
 ** Pages and links
 - =[[Page]]= and =[[Page][display text]]= links. Ctrl+click (or /Follow link/) opens the page, creating it if it doesn't exist.
+- *Completion*: typing =[[…= or =#…= (two characters or more) offers the matching pages;
+  arrows or =C-n= / =C-p= to choose, Enter or Tab to accept, Esc to dismiss.
+- *Quick open* (Ctrl+K, =C-x b= in Emacs): jump to an open tab or a page, or create it.
 - *Keywords*: =#idea= is a link to the page =idea= (option, on by default).
   Not keywords: =#+TITLE=, =# comment= and =a#b=.
   Dashes (=#my-tag=) are allowed as an option; unchecked, only letters, digits and =_= count, like in org-mode.
 - *Org-mode tags*: =#+FILETAGS: :project:rust:= for the whole page, =* Title :urgent:= for a headline.
   A headline inherits the tags of the page and of its parent headlines, like in Emacs.
   A tag is a link: Ctrl+click opens (or creates) the page of the same name, whose backlinks list what carries the tag.
-  Completion after =:= in a headline and in =#+FILETAGS:=. The /Tags/ tab of the right-hand panel lists every tag
-  and allows searches in org syntax (=project+urgent-personal=, =a|b=).
+  Completion after =:= in a headline and in =#+FILETAGS:=. The /Tags/ frame of the right-hand panel lists every tag,
+  allows searches in org syntax (=project+urgent-personal=, =a|b=), and its =+= button adds a tag to the open page.
 - *Backlinks*: right-hand panel listing the pages that point to the open page.
-- *Uncreated pages*: links that lead nowhere, sorted by number of uses
+- *Pages not created*: links that lead nowhere, sorted by number of uses
   (=target (3)=). Click: go where the link is used. Right-click: create the page or go to the link.
 - Case-insensitive links (option, on by default).
-- Sidebar: right-click to /rename/ or /delete/ a page (the file is really removed).
+- Right-click on a page in the sidebar, or on its tab, to /rename/ or /delete/ it (the file is really removed).
 - Renaming a page rewrites every link pointing to it, =[[…]]= and =#…= alike (option, on by default).
+- On quit, empty pages and pages holding only their title can be deleted (two options, off by default).
 
 ** Editing
 - org-mode highlighting: headings, =TODO=/=DONE=, bold, italic, quotes, tables, links.
 - Autosave on every keystroke (option, on by default).
 - "Electric" mode: with text selected, typing =( ) [ ] " '= wraps the selection.
-- Editor split in two panes (vertical or horizontal), each with its own header.
+- Editor split in two panes (vertical or horizontal), each with its own tab bar;
+  the active pane has a visible border.
+- Quitting (Ctrl+Q, =C-x C-c= in Emacs) asks for confirmation when pages have unsaved changes.
 
 ** Interface
+- *Display* settings: show or hide the app name and logo, the pages menu, the
+  backlinks, the tags and the pages not created.
 - The sidebar and right panel widths can be resized by dragging their border;
-  so can the height of the "Uncreated pages" block. Sizes are remembered.
+  so can the height of the "Pages not created" block. Sizes are remembered.
 - Resizable preferences window; its size is remembered.
 - French and English.
+
+** Extensions
+- *Git* (on by default): under the project name, its branch and what is left to
+  commit, push or pull. Needs =git= installed; the app runs no git command that
+  changes the repository.
+- *logseq-site-builder* (off by default): an /Export/ button that publishes the
+  project as a website with =logseq-site-builder=.
 
 * Keybindings
 
