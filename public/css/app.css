@@ -59,6 +59,20 @@ html, body { height: 100%; overflow: hidden; }
     user-select: none;
 }
 
+.app-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 12px 4px;
+    color: var(--fg);
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: .02em;
+}
+.app-brand-logo { width: 20px; height: 20px; flex-shrink: 0; }
+.app-brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .project-switcher {
     position: relative;
     display: flex;
@@ -73,6 +87,31 @@ html, body { height: 100%; overflow: hidden; }
     color: var(--fg); padding: 4px 8px; font-size: 13px; cursor: pointer;
 }
 .project-current:hover { border-color: var(--accent); }
+/* Git extension: state of the project, under the project switcher */
+.git-status {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 8px 8px 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--fg-dim);
+}
+.git-status.git-off { flex-direction: row; align-items: center; gap: 6px; font-style: italic; }
+.git-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.git-logo { width: 13px; height: 13px; flex-shrink: 0; color: var(--orange); }
+.git-off .git-logo { color: var(--fg-dim); }
+.git-branch {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--fg); font-size: 12px; font-weight: 600;
+}
+.git-off .git-branch { color: var(--fg-dim); font-weight: 400; }
+.git-items { display: flex; flex-wrap: wrap; gap: 4px; }
+.git-item {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
+    padding: 1px 6px; white-space: nowrap;
+}
+.git-local { font-style: italic; }
+.git-clean { color: var(--green); }
+.git-dirty { color: var(--yellow); }
+.git-ahead, .git-behind { color: var(--accent2); }
 .project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .project-caret { color: var(--fg-dim); margin-left: 6px; }
 .project-menu {

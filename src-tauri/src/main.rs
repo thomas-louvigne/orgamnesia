@@ -33,6 +33,7 @@ fn main() {
             commands::delete_page,
             commands::export_vault,
             commands::pick_folder,
+            commands::git_status,
             commands::quit_app,
         ])
         .build(tauri::generate_context!())

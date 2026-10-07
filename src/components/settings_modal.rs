@@ -18,11 +18,13 @@ struct Snapshot {
     autosave: bool,
     delete_empty: bool,
     delete_title_only: bool,
+    show_brand: bool,
     show_pages: bool,
     show_backlinks: bool,
     show_tags: bool,
     show_broken: bool,
     site_builder: bool,
+    git_ext: bool,
     ci_links: bool,
     hashtags: bool,
     hashtag_dashes: bool,
@@ -156,11 +158,13 @@ pub fn SettingsModal() -> impl IntoView {
     let delete_empty  = RwSignal::new(false);
     let delete_title_only = RwSignal::new(false);
     let ci_links      = RwSignal::new(ctx.case_insensitive_links.get_untracked());
+    let show_brand     = RwSignal::new(ctx.show_brand.get_untracked());
     let show_pages     = RwSignal::new(ctx.show_pages.get_untracked());
     let show_backlinks = RwSignal::new(ctx.show_backlinks.get_untracked());
     let show_tags      = RwSignal::new(ctx.show_tags.get_untracked());
     let show_broken    = RwSignal::new(ctx.show_broken_links.get_untracked());
     let site_builder   = RwSignal::new(ctx.site_builder.get_untracked());
+    let git_ext        = RwSignal::new(ctx.git_ext.get_untracked());
     let hashtags      = RwSignal::new(ctx.hashtag_links.get_untracked());
     let hashtag_dashes = RwSignal::new(ctx.hashtag_dashes.get_untracked());
     let emacs_mark    = RwSignal::new(ctx.emacs_mark.get_untracked());
@@ -275,11 +279,13 @@ pub fn SettingsModal() -> impl IntoView {
         autosave: autosave.get(),
         delete_empty: delete_empty.get(),
         delete_title_only: delete_title_only.get(),
+        show_brand: show_brand.get(),
         show_pages: show_pages.get(),
         show_backlinks: show_backlinks.get(),
         show_tags: show_tags.get(),
         show_broken: show_broken.get(),
         site_builder: site_builder.get(),
+        git_ext: git_ext.get(),
         ci_links: ci_links.get(),
         hashtags: hashtags.get(),
         hashtag_dashes: hashtag_dashes.get(),
@@ -304,11 +310,13 @@ pub fn SettingsModal() -> impl IntoView {
             autosave.set(s.autosave.unwrap_or(true));
             delete_empty.set(s.delete_empty_pages.unwrap_or(false));
             delete_title_only.set(s.delete_title_only_pages.unwrap_or(false));
+            show_brand.set(s.show_brand.unwrap_or(true));
             show_pages.set(s.show_pages.unwrap_or(true));
             show_backlinks.set(s.show_backlinks.unwrap_or(true));
             show_tags.set(s.show_tags.unwrap_or(true));
             show_broken.set(s.show_broken_links.unwrap_or(true));
             site_builder.set(s.site_builder_enabled.unwrap_or(false));
+            git_ext.set(s.git_status_enabled.unwrap_or(true));
             ci_links.set(s.case_insensitive_links.unwrap_or(true));
             hashtags.set(s.hashtag_links.unwrap_or(true));
             hashtag_dashes.set(s.hashtag_dashes.unwrap_or(true));
@@ -409,8 +417,10 @@ pub fn SettingsModal() -> impl IntoView {
         let autosave_val = autosave.get();
         let delete_empty_val = delete_empty.get();
         let delete_title_only_val = delete_title_only.get();
+        let show_brand_val = show_brand.get();
         let shown = (show_pages.get(), show_backlinks.get(), show_tags.get(), show_broken.get());
         let site_builder_val = site_builder.get();
+        let git_ext_val = git_ext.get();
         let ci_links_val = ci_links.get();
         let hashtags_val = hashtags.get();
         let hashtag_dashes_val = hashtag_dashes.get();
@@ -442,11 +452,13 @@ pub fn SettingsModal() -> impl IntoView {
                 autosave: Some(autosave_val),
                 delete_empty_pages: Some(delete_empty_val),
                 delete_title_only_pages: Some(delete_title_only_val),
+                show_brand: Some(show_brand_val),
                 show_pages: Some(shown.0),
                 show_backlinks: Some(shown.1),
                 show_tags: Some(shown.2),
                 show_broken_links: Some(shown.3),
                 site_builder_enabled: Some(site_builder_val),
+                git_status_enabled: Some(git_ext_val),
                 case_insensitive_links: Some(ci_links_val),
                 hashtag_links: Some(hashtags_val),
                 hashtag_dashes: Some(hashtag_dashes_val),
@@ -459,11 +471,13 @@ pub fn SettingsModal() -> impl IntoView {
                     let new_lang = Lang::from_str(&lang_str);
                     ctx.lang.set(new_lang);
                     ctx.autosave.set(autosave_val);
+                    ctx.show_brand.set(show_brand_val);
                     ctx.show_pages.set(shown.0);
                     ctx.show_backlinks.set(shown.1);
                     ctx.show_tags.set(shown.2);
                     ctx.show_broken_links.set(shown.3);
                     ctx.site_builder.set(site_builder_val);
+                    ctx.git_ext.set(git_ext_val);
                     ctx.case_insensitive_links.set(ci_links_val);
                     ctx.hashtag_links.set(hashtags_val);
                     ctx.hashtag_dashes.set(hashtag_dashes_val);
@@ -674,6 +688,19 @@ pub fn SettingsModal() -> impl IntoView {
                     {move || (panel.get() == 3).then(|| view! {
                         <div class="tab-content">
                             <div class="setting-section-title">
+                                {move || t("display_appearance", lang())}
+                            </div>
+                            <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || show_brand.get()
+                                        on:change=move |e| show_brand.set(event_target_checked(&e))
+                                    />
+                                    {move || t("show_brand", lang())}
+                                </label>
+                            </div>
+                            <div class="setting-section-title">
                                 {move || t("display_frames", lang())}
                             </div>
                             <div class="setting-row">
@@ -747,6 +774,17 @@ pub fn SettingsModal() -> impl IntoView {
                                         {move || t("browse", lang())}
                                     </button>
                                 </div>
+                            </div>
+                            <div class="setting-row">
+                                <label class="setting-check">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || git_ext.get()
+                                        on:change=move |e| git_ext.set(event_target_checked(&e))
+                                    />
+                                    {move || t("git_ext_enabled", lang())}
+                                </label>
+                                <span class="setting-hint">{move || t("git_ext_hint", lang())}</span>
                             </div>
                         </div>
                     })}

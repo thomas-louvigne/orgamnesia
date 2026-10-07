@@ -27,6 +27,8 @@ pub struct Settings {
     pub delete_empty_pages: Option<bool>,
     /// On quit, delete pages holding only their `* Title` heading (default: false).
     pub delete_title_only_pages: Option<bool>,
+    /// App name and logo at the top left of the window (default: true).
+    pub show_brand: Option<bool>,
     /// Frames shown around the editor (default: true): pages menu, backlinks,
     /// tags, pages not created.
     pub show_pages: Option<bool>,
@@ -35,6 +37,8 @@ pub struct Settings {
     pub show_broken_links: Option<bool>,
     /// Enable the logseq-site-builder extension (Export button) (default: false).
     pub site_builder_enabled: Option<bool>,
+    /// Git extension: show the git state of the project under its name (default: true).
+    pub git_status_enabled: Option<bool>,
     #[serde(default)]
     pub projects: Vec<String>,
 }

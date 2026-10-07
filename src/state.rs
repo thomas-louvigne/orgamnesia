@@ -19,6 +19,17 @@ pub struct BrokenLink {
     pub count: usize,
 }
 
+/// Git state of the project folder (see `src-tauri/src/git.rs`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct GitStatus {
+    pub repo: bool,
+    pub branch: Option<String>,
+    pub upstream: bool,
+    pub changes: u32,
+    pub ahead: u32,
+    pub behind: u32,
+}
+
 /// An org-mode tag of the project and how many pages and headlines carry it.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TagCount {
@@ -73,11 +84,13 @@ pub struct Settings {
     pub autosave: Option<bool>,
     pub delete_empty_pages: Option<bool>,
     pub delete_title_only_pages: Option<bool>,
+    pub show_brand: Option<bool>,
     pub show_pages: Option<bool>,
     pub show_backlinks: Option<bool>,
     pub show_tags: Option<bool>,
     pub show_broken_links: Option<bool>,
     pub site_builder_enabled: Option<bool>,
+    pub git_status_enabled: Option<bool>,
     #[serde(default)]
     pub projects: Vec<String>,
 }
@@ -134,6 +147,8 @@ pub struct AppCtx {
     pub focus_second: RwSignal<bool>,
     /// (page path, target): the editor showing that page moves the cursor there.
     pub goto: RwSignal<Option<(String, Goto)>>,
+    /// App name and logo at the top left (Settings > Display).
+    pub show_brand: RwSignal<bool>,
     /// Frames shown around the editor (Settings > Display).
     pub show_pages: RwSignal<bool>,
     pub show_backlinks: RwSignal<bool>,
@@ -141,6 +156,10 @@ pub struct AppCtx {
     pub show_broken_links: RwSignal<bool>,
     /// logseq-site-builder extension enabled (shows the Export button).
     pub site_builder: RwSignal<bool>,
+    /// Git extension enabled (git state under the project name).
+    pub git_ext: RwSignal<bool>,
+    /// Last git state read for the open project; `None` until read or when git is missing.
+    pub git: RwSignal<Option<GitStatus>>,
     /// Org-mode tags of the project (refreshed when pages change).
     pub tags: RwSignal<Vec<TagCount>>,
     /// Tag search shown in the tags panel (`projet+urgent-perso`).
@@ -180,11 +199,14 @@ impl AppCtx {
             other_path: RwSignal::new(None),
             focus_second: RwSignal::new(false),
             goto: RwSignal::new(None),
+            show_brand: RwSignal::new(true),
             show_pages: RwSignal::new(true),
             show_backlinks: RwSignal::new(true),
             show_tags: RwSignal::new(true),
             show_broken_links: RwSignal::new(true),
             site_builder: RwSignal::new(false),
+            git_ext: RwSignal::new(true),
+            git: RwSignal::new(None),
             tags: RwSignal::new(vec![]),
             tag_query: RwSignal::new(String::new()),
             confirm: RwSignal::new(None),

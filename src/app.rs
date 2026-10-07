@@ -136,11 +136,13 @@ pub fn App() -> impl IntoView {
             ctx.electric_mode.set(settings.electric_mode.unwrap_or(true));
             ctx.emacs_mark.set(settings.emacs_mark.unwrap_or(true));
             ctx.autosave.set(settings.autosave.unwrap_or(true));
+            ctx.show_brand.set(settings.show_brand.unwrap_or(true));
             ctx.show_pages.set(settings.show_pages.unwrap_or(true));
             ctx.show_backlinks.set(settings.show_backlinks.unwrap_or(true));
             ctx.show_tags.set(settings.show_tags.unwrap_or(true));
             ctx.show_broken_links.set(settings.show_broken_links.unwrap_or(true));
             ctx.site_builder.set(settings.site_builder_enabled.unwrap_or(false));
+            ctx.git_ext.set(settings.git_status_enabled.unwrap_or(true));
             if let Some(path) = settings.vault_path {
                 match invoke::open_vault(&path).await {
                     Ok(files) => {
@@ -192,6 +194,34 @@ pub fn App() -> impl IntoView {
         });
     }, std::time::Duration::from_secs(1));
     on_cleanup(move || if let Ok(h) = poll { h.clear() });
+
+    // Git extension: read the git state of the project right away when it
+    // changes, then every few seconds (commits, pushes made from elsewhere).
+    let git_busy = StoredValue::new(false);
+    let refresh_git = move || {
+        let Some(path) = ctx.vault_path.get_untracked().filter(|_| ctx.git_ext.get_untracked()) else {
+            ctx.git.set(None);
+            return;
+        };
+        if git_busy.get_value() { return; }
+        git_busy.set_value(true);
+        spawn_local(async move {
+            let st = invoke::git_status(&path).await.ok().flatten();
+            // Another project may have been opened meanwhile
+            if ctx.vault_path.get_untracked().as_deref() == Some(path.as_str()) {
+                ctx.git.set(st);
+            }
+            git_busy.set_value(false);
+        });
+    };
+    Effect::new(move |_| {
+        ctx.vault_path.track();
+        ctx.git_ext.track();
+        ctx.git.set(None);
+        refresh_git();
+    });
+    let git_poll = set_interval_with_handle(refresh_git, std::time::Duration::from_secs(3));
+    on_cleanup(move || if let Ok(h) = git_poll { h.clear() });
 
     // Drop the split when the page shown in the other pane is closed
     Effect::new(move |_| {

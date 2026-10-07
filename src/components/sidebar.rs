@@ -370,6 +370,12 @@ pub fn Sidebar() -> impl IntoView {
 
     view! {
         <div class="sidebar">
+            {move || ctx.show_brand.get().then(|| view! {
+                <div class="app-brand">
+                    <img class="app-brand-logo" src="app-icon.svg" alt="" />
+                    <span class="app-brand-name">"Orgamnesia"</span>
+                </div>
+            })}
             <div class="project-switcher">
                 <button
                     class="project-current"
@@ -439,6 +445,7 @@ pub fn Sidebar() -> impl IntoView {
                     </div>
                 })}
             </div>
+            {move || ctx.git_ext.get().then(|| view! { <GitLine /> })}
             <div class="sidebar-header">
                 <span class="sidebar-title">{move || t("pages", ctx.lang.get())}</span>
                 <button
@@ -564,5 +571,54 @@ pub fn Sidebar() -> impl IntoView {
                 }
             })}
         </div>
+    }
+}
+
+/// Git logo (simple-icons, CC0), drawn in the current text color.
+#[component]
+fn GitIcon() -> impl IntoView {
+    view! {
+        <svg class="git-logo" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M23.546 10.93L13.067.452c-.604-.603-1.582-.603-2.188 0L8.708 2.627l2.76 2.76c.645-.215 1.379-.07 1.889.441.516.515.658 1.258.438 1.9l2.658 2.66c.645-.223 1.387-.078 1.9.435.721.72.721 1.884 0 2.604-.719.719-1.881.719-2.6 0-.539-.541-.674-1.337-.404-1.996L12.86 8.955v6.525c.176.086.342.203.488.348.713.721.713 1.883 0 2.6-.719.721-1.889.721-2.609 0-.719-.719-.719-1.879 0-2.598.182-.18.387-.316.605-.406V8.835c-.217-.091-.424-.222-.6-.401-.545-.545-.676-1.342-.396-2.009L7.636 3.7.45 10.881c-.6.605-.6 1.584 0 2.189l10.48 10.477c.604.604 1.582.604 2.186 0l10.43-10.43c.605-.603.605-1.582 0-2.187" />
+        </svg>
+    }
+}
+
+/// Git state of the open project, under its name (git extension).
+#[component]
+fn GitLine() -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    move || {
+        let st = ctx.git.get()?;
+        ctx.vault_path.get()?;
+        if !st.repo {
+            return Some(view! {
+                <div class="git-status git-off">
+                    <GitIcon />
+                    <span class="git-branch">{move || t("git_no_repo", lang())}</span>
+                </div>
+            }.into_any());
+        }
+        let branch = st.branch.clone().unwrap_or_else(|| t("git_detached", lang()).to_string());
+        let mut items: Vec<(&'static str, String)> = vec![];
+        if st.changes > 0 { items.push(("git-dirty", format!("● {} {}", st.changes, t("git_to_commit", lang())))); }
+        if st.ahead > 0 { items.push(("git-ahead", format!("↑ {} {}", st.ahead, t("git_to_push", lang())))); }
+        if st.behind > 0 { items.push(("git-behind", format!("↓ {} {}", st.behind, t("git_to_pull", lang())))); }
+        if !st.upstream { items.push(("git-local", t("git_no_upstream", lang()).to_string())); }
+        if items.is_empty() { items.push(("git-clean", format!("✓ {}", t("git_up_to_date", lang())))); }
+        Some(view! {
+            <div class="git-status">
+                <div class="git-head">
+                    <GitIcon />
+                    <span class="git-branch" title=branch.clone()>{branch.clone()}</span>
+                </div>
+                <div class="git-items">
+                    {items.into_iter().map(|(cls, text)| view! {
+                        <span class=format!("git-item {cls}")>{text}</span>
+                    }).collect_view()}
+                </div>
+            </div>
+        }.into_any())
     }
 }

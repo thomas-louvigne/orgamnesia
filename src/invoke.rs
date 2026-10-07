@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings, TagCount, TagHit, VaultChanges}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings, GitStatus, TagCount, TagHit, VaultChanges}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -103,4 +103,8 @@ pub async fn set_keybindings(kb: &Keybindings) -> Result<(), String> {
 
 pub async fn quit_app() -> Result<(), String> {
     call("quit_app", serde_json::json!({})).await
+}
+
+pub async fn git_status(path: &str) -> Result<Option<GitStatus>, String> {
+    call("git_status", serde_json::json!({ "path": path })).await
 }

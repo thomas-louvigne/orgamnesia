@@ -137,6 +137,12 @@ fn remember(state: &AppState, path: &str) {
     }
 }
 
+/// Git state of a project folder (git extension); `None` when git can't be run.
+#[tauri::command]
+pub async fn git_status(path: String) -> Cmd<Option<crate::git::GitStatus>> {
+    Ok(crate::git::status(&path))
+}
+
 /// Forget a project (the folder itself is left untouched); returns the remaining list.
 #[tauri::command]
 pub async fn remove_project(app: AppHandle, path: String) -> Cmd<Vec<String>> {
