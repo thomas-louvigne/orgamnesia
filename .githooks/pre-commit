@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""Bump the minor version of the project on every commit (0.3.0 -> 0.4.0).
+
+Enable once per clone with: git config core.hooksPath .githooks
+An amend keeps the version of the commit it rewrites.
+"""
+import pathlib, re, subprocess, sys
+
+root = pathlib.Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
+
+# `git commit --amend` already got its bump; don't bump twice
+try:
+    parent = pathlib.Path(f"/proc/{__import__('os').getppid()}/cmdline").read_bytes().split(b"\0")
+    if b"--amend" in parent:
+        sys.exit(0)
+except OSError:
+    pass
+
+current = re.search(r'^version = "(\d+)\.(\d+)\.(\d+)"', (root / "Cargo.toml").read_text(), re.M)
+major, minor = int(current[1]), int(current[2])
+old, new = f"{major}.{minor}.{current[3]}", f"{major}.{minor + 1}.0"
+
+CRATES = ("orgamnesia", "orgamnesia-ui", "orgamnesia-core")
+edits = {
+    "Cargo.toml": [(f'version = "{old}"', f'version = "{new}"', 1)],
+    "core/Cargo.toml": [(f'version = "{old}"', f'version = "{new}"', 1)],
+    "src-tauri/Cargo.toml": [(f'version = "{old}"', f'version = "{new}"', 1)],
+    "src-tauri/tauri.conf.json": [(f'"version": "{old}"', f'"version": "{new}"', 1)],
+    "packaging/arch/PKGBUILD": [(f"pkgver={old}.", f"pkgver={new}.", 1)],
+    "Cargo.lock": [(f'name = "{c}"\nversion = "{old}"', f'name = "{c}"\nversion = "{new}"', 1) for c in CRATES],
+    "src-tauri/Cargo.lock": [(f'name = "{c}"\nversion = "{old}"', f'name = "{c}"\nversion = "{new}"', 1) for c in CRATES],
+}
+for rel, subs in edits.items():
+    path = root / rel
+    text = path.read_text()
+    for a, b, n in subs:
+        text = text.replace(a, b, n)
+    path.write_text(text)
+    subprocess.check_call(["git", "add", rel], cwd=root)
+
+print(f"pre-commit: version {old} -> {new}")
