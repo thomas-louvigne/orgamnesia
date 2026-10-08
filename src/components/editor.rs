@@ -210,7 +210,7 @@ pub fn EditorArea(second: bool) -> impl IntoView {
         let has_focus = ctx.work.focus_second.get() == second;
         if ctx.work.split.get().is_none() || !has_focus { return; }
         crate::keybindings::after_ms(0, move || {
-            let textarea = area_ref.get_untracked()
+            let textarea = area_ref.try_get_untracked().flatten()
                 .and_then(|div| div.query_selector("textarea").ok().flatten())
                 .and_then(|el| el.dyn_into::<Textarea>().ok());
             if let Some(t) = textarea { let _ = t.focus(); }
@@ -361,7 +361,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let resize = window_event_listener(leptos::ev::resize, move |_| {
         if let Some(el) = area_ref.get_untracked() { width.set(el.client_width()); }
     });
-    on_cleanup(move || drop(resize));
+    on_cleanup(move || resize.remove());
     Effect::new(move |_| {
         if let Some(el) = area_ref.get() { width.set(el.client_width()); }
     });
@@ -406,7 +406,8 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     // The caret moved: the table it enters is shown as text, the one it leaves drawn
     let track_caret = move |el: &Textarea| {
         let text = el.value();
-        let pos = shown.with_value(|v| v.content_pos(&text, caret(el)));
+        // Also runs a tick after a key press, when the pane may be closed (C-x 1)
+        let Some(pos) = shown.try_with_value(|v| v.content_pos(&text, caret(el))) else { return };
         if focus_pos.get_untracked() != Some(pos) { focus_pos.set(Some(pos)); }
     };
     // Page text between two positions of the textarea
@@ -495,9 +496,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         find.set(Some(with_replace || find.get_untracked().unwrap_or(false)));
         // Once the textarea shows every table as text
         after_tick(move || {
+            let Some(query) = query.try_get_untracked() else { return };
             show_from_anchor();
-            let target = if with_replace && !query.get_untracked().is_empty() { replace_ref } else { find_ref };
-            if let Some(input) = target.get_untracked() {
+            let target = if with_replace && !query.is_empty() { replace_ref } else { find_ref };
+            if let Some(input) = target.try_get_untracked().flatten() {
                 let _ = input.focus();
                 input.select();
             }
@@ -554,7 +556,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                     Some(EditorAction::KeyboardQuit) => { close_find(); true }
                     Some(EditorAction::Replace) => {
                         find.set(Some(true));
-                        after_tick(move || if let Some(i) = replace_ref.get_untracked() { let _ = i.focus(); });
+                        after_tick(move || if let Some(i) = replace_ref.try_get_untracked().flatten() { let _ = i.focus(); });
                         true
                     }
                     _ => false,
@@ -856,7 +858,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             // Show the target's table as text first, if it is in one
             focus_pos.set(Some(start));
             after_tick(move || {
-                let (a, b) = shown.with_value(|v| (v.view_pos(start), v.view_pos(end)));
+                let Some((a, b)) = shown.try_with_value(|v| (v.view_pos(start), v.view_pos(end))) else { return };
                 let line = el.value().chars().take(a).filter(|&c| c == '\n').count();
                 let _ = el.focus();
                 set_selection(&el, a, b);
@@ -898,15 +900,15 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let on_focus = move |_| {
         if mouse_focus.get_value() { return; }
         after_tick(move || {
-            let Some(el) = area_ref.get_untracked() else { return };
+            let Some(el) = area_ref.try_get_untracked().flatten() else { return };
             let chars: Vec<char> = el.value().chars().collect();
             let pos = caret(&el).min(chars.len());
             let Some(coords) = caret_coords(&el, &chars, pos) else { return };
-            let seq = ping_seq.get_value() + 1;
+            let Some(seq) = ping_seq.try_get_value().map(|n| n + 1) else { return };
             ping_seq.set_value(seq);
             ping.set(Some(coords));
             crate::keybindings::after_ms(800, move || {
-                if ping_seq.get_value() == seq { ping.set(None); }
+                if ping_seq.try_get_value() == Some(seq) { ping.set(None); }
             });
         });
     };

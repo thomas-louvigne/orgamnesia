@@ -30,7 +30,7 @@ pub fn NewPageModal() -> impl IntoView {
             ctx.ui.show_new_page.set(false);
         }
     });
-    on_cleanup(move || drop(esc));
+    on_cleanup(move || esc.remove());
 
     let do_create = move || {
         let n = name.get_untracked().trim().to_string();

@@ -300,7 +300,7 @@ pub fn SettingsModal() -> impl IntoView {
             }
         }
     });
-    on_cleanup(move || { drop(move_handle); drop(up_handle); drop(esc_handle); });
+    on_cleanup(move || { move_handle.remove(); up_handle.remove(); esc_handle.remove(); });
 
     // What was last loaded/applied; the window differs from it when there is
     // something to apply. `None` until the saved settings have been read.

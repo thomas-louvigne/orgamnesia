@@ -63,7 +63,7 @@ fn ConfirmDialog() -> impl IntoView {
             _ => {}
         }
     });
-    on_cleanup(move || drop(keys));
+    on_cleanup(move || keys.remove());
 
     view! {
         <div class="alert-overlay" on:click=move |_| close()>
@@ -273,7 +273,7 @@ pub fn App() -> impl IntoView {
         storage::store(key, &size.get_untracked().to_string());
         ctx.ui.drag.set(None);
     });
-    on_cleanup(move || { drop(drag_move); drop(drag_up); });
+    on_cleanup(move || { drag_move.remove(); drag_up.remove(); });
 
     spawn_local(load_startup(ctx, Owner::current().expect("App owner")));
     watch_disk(ctx);
@@ -310,7 +310,7 @@ pub fn App() -> impl IntoView {
             _ => ctx.clear_chord_status(),
         }
     });
-    on_cleanup(move || drop(kb_handle));
+    on_cleanup(move || kb_handle.remove());
 
     // No webview context menu (Back / Forward / Stop / Reload) outside text
     // fields; the editor and inputs keep theirs for cut / copy / paste.
@@ -320,7 +320,7 @@ pub fn App() -> impl IntoView {
             .is_some_and(|el| el.closest("textarea, input").ok().flatten().is_some());
         if !editable { e.prevent_default(); }
     });
-    on_cleanup(move || drop(ctx_menu_handle));
+    on_cleanup(move || ctx_menu_handle.remove());
 
     let export = move |_| {
         spawn_local(async move {

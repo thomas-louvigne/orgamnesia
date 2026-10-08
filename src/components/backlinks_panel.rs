@@ -25,10 +25,10 @@ pub fn BacklinksPanel() -> impl IntoView {
         backlinks_seq.set_value(seq);
         let Some(page) = page else { backlinks.set(vec![]); return };
         after_ms(150, move || {
-            if backlinks_seq.get_value() != seq { return; }
+            if backlinks_seq.try_get_value() != Some(seq) { return; }
             spawn_local(async move {
                 if let Ok(list) = invoke::get_backlinks(&page).await
-                    && backlinks_seq.get_value() == seq && backlinks.get_untracked() != list
+                    && backlinks_seq.try_get_value() == Some(seq) && backlinks.try_get_untracked().is_some_and(|b| b != list)
                 {
                     backlinks.set(list);
                 }
@@ -52,10 +52,10 @@ pub fn BacklinksPanel() -> impl IntoView {
         let seq = refresh_seq.get_value() + 1;
         refresh_seq.set_value(seq);
         after_ms(400, move || {
-            if refresh_seq.get_value() != seq { return; }
+            if refresh_seq.try_get_value() != Some(seq) { return; }
             spawn_local(async move {
                 if let Ok(list) = invoke::get_broken_links().await
-                    && broken.get_untracked() != list { broken.set(list); }
+                    && broken.try_get_untracked().is_some_and(|b| b != list) { broken.set(list); }
             });
         });
     });
@@ -73,7 +73,7 @@ pub fn BacklinksPanel() -> impl IntoView {
         let seq = tags_seq.get_value() + 1;
         tags_seq.set_value(seq);
         crate::keybindings::after_ms(400, move || {
-            if tags_seq.get_value() != seq { return; }
+            if tags_seq.try_get_value() != Some(seq) { return; }
             spawn_local(async move {
                 if let Ok(list) = invoke::list_tags().await
                     && ctx.project.tags.get_untracked() != list { ctx.project.tags.set(list); }
@@ -95,10 +95,10 @@ pub fn BacklinksPanel() -> impl IntoView {
             return;
         }
         crate::keybindings::after_ms(150, move || {
-            if hits_seq.get_value() != seq { return; }
+            if hits_seq.try_get_value() != Some(seq) { return; }
             spawn_local(async move {
                 if let Ok(list) = invoke::search_tags(&query).await
-                    && hits_seq.get_value() == seq { hits.set(list); }
+                    && hits_seq.try_get_value() == Some(seq) { hits.set(list); }
             });
         });
     });
@@ -114,7 +114,7 @@ pub fn BacklinksPanel() -> impl IntoView {
     Effect::new(move |_| {
         if adding.get() {
             crate::keybindings::after_ms(0, move || {
-                if let Some(el) = add_ref.get_untracked() { let _ = el.focus(); }
+                if let Some(el) = add_ref.try_get_untracked().flatten() { let _ = el.focus(); }
             });
         }
     });
