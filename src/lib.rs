@@ -2,6 +2,7 @@ mod actions;
 mod app;
 mod components;
 mod edit;
+mod folding;
 mod highlight;
 pub mod i18n;
 mod invoke;

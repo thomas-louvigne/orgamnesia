@@ -333,7 +333,7 @@ html, body { height: 100%; overflow: hidden; }
     .caret-ping, .caret-ping::after { animation-duration: .01s; animation-delay: .6s; }
 }
 /* Title of the page shown, in large type above the editor */
-.page-title { flex-shrink: 0; padding: 14px 24px 10px; min-width: 0; }
+.page-title { flex-shrink: 0; padding: 14px 24px 0; min-width: 0; }
 /* Grey bar separating the title from the text, across the pane */
 .page-title::after {
     content: ""; display: block; height: 1px; margin-top: 8px;
@@ -429,6 +429,23 @@ html, body { height: 100%; overflow: hidden; }
     position: absolute; width: var(--ln-w); margin-left: calc(-1 * var(--ln-w) - 1.5ch); text-align: right;
     color: var(--fg-dim); font-weight: normal; font-style: normal; user-select: none;
 }
+
+/* Under the page title, the text starts just below its bar */
+.page-title + .editor-pane-body :is(.hl-layer, .edit-layer) { padding-top: 8px; }
+
+/* Folded headline (Tab): its fold character is invisible, `…` drawn after it; a mark in
+   the margin, or its line number in bold when they are shown */
+.fold { color: transparent; position: relative; }
+.fold::after { content: "…"; position: absolute; left: 0.3ch; color: var(--fg-dim); font-weight: normal; }
+/* A filled triangle pointing right, centred on the line: in the left padding, or
+   over the line separating the numbers from the text when they are shown */
+.fold-mark {
+    position: absolute; width: 0; height: 0; margin-left: -17px; margin-top: calc((1.65em - 12px) / 2);
+    border-left: 9px solid var(--accent2); border-top: 6px solid transparent; border-bottom: 6px solid transparent;
+    pointer-events: none;
+}
+.editor-wrap.line-numbers .fold-mark { margin-left: calc(-0.9ch - 4px); }
+.ln.folded { color: var(--accent2); font-weight: bold; }
 
 .hl-layer {
     background: var(--bg);

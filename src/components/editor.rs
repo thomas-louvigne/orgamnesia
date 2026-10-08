@@ -364,6 +364,8 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let find = RwSignal::new(None::<bool>);
     // Page position of the caret
     let focus_pos = RwSignal::new(None::<usize>);
+    // Folded parts of the page (Tab on a headline), as page ranges: see `folding`
+    let folds = RwSignal::new(Vec::<(usize, usize)>::new());
     // Width of the textarea, which decides how high a drawn table is
     let width = RwSignal::new(0i32);
     let heights = StoredValue::new(std::collections::HashMap::<(String, i32, Option<usize>), usize>::new());
@@ -388,7 +390,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             let n = el.as_ref().and_then(|el| table_lines(el, raw, w, digits)).unwrap_or_else(|| raw.split('\n').count());
             heights.update_value(|h| { h.insert(key, n); });
             n
-        }, collapse, indent)
+        }, collapse, indent, &folds.get())
     });
     // The view the textarea holds: what its text is read with. Until the textarea
     // gets a new view, an edit is still read with the one it shows.
@@ -408,7 +410,13 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     // The textarea was edited: the page follows
     let commit = move |el: &Textarea| {
         let text = el.value();
-        let (page, pos) = shown.with_value(|v| (v.to_content(&text), v.content_pos(&text, caret(el))));
+        let (page, pos, folded) = shown.with_value(|v| (
+            v.to_content(&text),
+            v.content_pos(&text, caret(el)),
+            (!v.folds.is_empty()).then(|| v.fold_ranges(&text)),
+        ));
+        // The folds move with the text
+        if let Some(f) = folded { folds.set(f); }
         focus_pos.set(Some(pos));
         content_sig.set(page);
         dirty_sig.set(true);
@@ -426,6 +434,19 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         if start == end && let Some((a, b)) = run && start < b {
             let back = last_caret.get_value() == b && start + 1 == b && a > 0;
             set_cursor(el, if back { a - 1 } else { b });
+        }
+        // Nor right after the fold character ending a folded headline: it goes before
+        // it, or to the next line when it came from before it
+        let p = caret(el);
+        let chars: Vec<char> = text.chars().collect();
+        if start == end && p > 0 && chars.get(p - 1).is_some_and(|&c| tables::fold_index(c).is_some()) {
+            if last_caret.get_value() == p - 1 && p < chars.len() {
+                let next = p + 1;
+                let after = shown.with_value(|v| v.indent_run(&text, next)).map_or(next, |(_, b)| b);
+                set_cursor(el, after);
+            } else {
+                set_cursor(el, p - 1);
+            }
         }
         last_caret.set_value(caret(el));
         let pos = shown.with_value(|v| v.content_pos(&text, caret(el)));
@@ -517,6 +538,8 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
         let text = el.value();
         anchor.set_value(shown.with_value(|v| v.content_pos(&text, a)));
+        // Matches may be hidden: everything is unfolded
+        folds.set(vec![]);
         find.set(Some(with_replace || find.get_untracked().unwrap_or(false)));
         // Once the textarea shows every table as text
         after_tick(move || {
@@ -675,6 +698,28 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             after_tick(move || point.set(caret(&el2)));
         }
 
+        // The fold character of a folded headline is not deleted on its own (that would
+        // delete the hidden text): Backspace or Delete next to it unfolds the headline
+        if matches!(e.key().as_str(), "Backspace" | "Delete") && !e.ctrl_key() && !e.alt_key() && !e.meta_key() {
+            let (start, end) = get_pos(&el);
+            let chars: Vec<char> = el.value().chars().collect();
+            let at = if e.key() == "Delete" { start } else { start.wrapping_sub(1) };
+            if start == end && chars.get(at).is_some_and(|&c| tables::fold_index(c).is_some()) {
+                e.prevent_default();
+                let text = el.value();
+                let pos = shown.with_value(|v| v.content_pos(&text, at));
+                folds.update(|f| f.retain(|&(a, _)| a != pos));
+                return;
+            }
+        }
+        // Enter at the end of a folded headline: the new line comes after the hidden text
+        if e.key() == "Enter" && !e.ctrl_key() && !e.alt_key() && !e.meta_key() && !e.shift_key() {
+            let (start, end) = get_pos(&el);
+            if start == end && el.value().chars().nth(start).is_some_and(|c| tables::fold_index(c).is_some()) {
+                set_cursor(&el, start + 1);
+            }
+        }
+
         // Backspace at the start of an indented line joins it to the line above
         // (the indentation is not in the page: deleting it would change nothing)
         if e.key() == "Backspace" && !e.ctrl_key() && !e.alt_key() && !e.meta_key() {
@@ -735,7 +780,21 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         if matches!(action, EditorAction::TableNextCell | EditorAction::TablePrevCell) {
             let chars: Vec<char> = el.value().chars().collect();
             let forward = action == EditorAction::TableNextCell;
-            let Some(to) = tables::move_cell(&chars, caret(&el), forward) else { return };
+            let Some(to) = tables::move_cell(&chars, caret(&el), forward) else {
+                // Tab on a headline folds / unfolds it (org-mode cycle)
+                if !forward { return; }
+                let text = el.value();
+                let pos = shown.with_value(|v| v.content_pos(&text, caret(&el)));
+                let page: Vec<char> = content_sig.with_untracked(|c| c.chars().collect());
+                let line = crate::folding::line_start(&page, pos);
+                let Some(next) = folds.with_untracked(|f| crate::folding::cycle(&page, line, f)) else { return };
+                e.prevent_default();
+                e.stop_propagation();
+                // The caret stays on the headline
+                focus_pos.set(Some(pos.min(page[line..].iter().position(|&c| c == '\n').map_or(page.len(), |p| line + p))));
+                folds.set(next);
+                return;
+            };
             e.prevent_default();
             e.stop_propagation();
             match to {
@@ -912,8 +971,9 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             }
         };
         if let Some((start, end)) = range {
-            // Show the target's table as text first, if it is in one
+            // Show the target's table as text first, if it is in one, and unfold it
             focus_pos.set(Some(start));
+            folds.update(|f| f.retain(|&(a, b)| !(a < start && start <= b)));
             after_tick(move || {
                 let Some((a, b)) = shown.try_with_value(|v| (v.view_pos(start), v.view_pos(end))) else { return };
                 let line = el.value().chars().take(a).filter(|&c| c == '\n').count();

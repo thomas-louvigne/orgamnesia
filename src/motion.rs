@@ -250,7 +250,7 @@ pub fn find_link(chars: &[char], target: &str, ignore_case: bool, tags: TagSynta
         .find(|&(a, b)| norm(&chars[a..b].iter().collect::<String>()) == wanted)
 }
 
-/// `content` with the file tag `tag` added to its `#+filetags:` line, which is
+/// `content` with the file tag `tag` added to its `#+FILETAGS:` line, which is
 /// created after the leading `#+` keywords (the top of the page) when missing.
 /// `None` when the page already has that file tag.
 pub fn add_filetag(content: &str, tag: &str) -> Option<String> {
@@ -276,7 +276,7 @@ pub fn add_filetag(content: &str, tag: &str) -> Option<String> {
         }
         None => {
             let at = lines.iter().take_while(|l| l.trim_start().starts_with("#+")).count();
-            lines.insert(at, format!("#+filetags: :{tag}:"));
+            lines.insert(at, format!("#+FILETAGS: :{tag}:"));
         }
     }
     Some(lines.join("\n"))
@@ -288,9 +288,9 @@ mod tests {
 
     #[test]
     fn filetag_added() {
-        assert_eq!(add_filetag("* Page\n", "pro").as_deref(), Some("#+filetags: :pro:\n* Page\n"));
-        assert_eq!(add_filetag("", "pro").as_deref(), Some("#+filetags: :pro:\n"));
-        assert_eq!(add_filetag("#+title: P\n* P", "pro").as_deref(), Some("#+title: P\n#+filetags: :pro:\n* P"));
+        assert_eq!(add_filetag("* Page\n", "pro").as_deref(), Some("#+FILETAGS: :pro:\n* Page\n"));
+        assert_eq!(add_filetag("", "pro").as_deref(), Some("#+FILETAGS: :pro:\n"));
+        assert_eq!(add_filetag("#+title: P\n* P", "pro").as_deref(), Some("#+title: P\n#+FILETAGS: :pro:\n* P"));
         assert_eq!(add_filetag("#+FILETAGS: :a:\nx", "b").as_deref(), Some("#+FILETAGS: :a:b:\nx"));
         assert_eq!(add_filetag("#+filetags:\nx", "b").as_deref(), Some("#+filetags: :b:\nx"));
         assert_eq!(add_filetag("#+filetags: :a:  \nx", "b").as_deref(), Some("#+filetags: :a:b:\nx"));

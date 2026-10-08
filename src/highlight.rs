@@ -39,12 +39,20 @@ pub fn render_view(view: &crate::tables::View, tags: TagSyntax, numbers: bool) -
         let line = *line;
         // The lines below a collapsed table's first one are not lines of the page
         let fill = !line.is_empty() && line.chars().all(crate::tables::is_fill);
+        // A folded headline ends with its fold character
+        let fold = line.chars().last().and_then(crate::tables::fold_index).and_then(|f| view.folds.get(f));
+        let line = if fold.is_some() { &line[..line.len() - line.chars().last().map_or(0, char::len_utf8)] } else { line };
         if numbers && !fill {
-            out.push_str(&format!("<span class='ln'>{page_line}</span>"));
+            let class = if fold.is_some() { "ln folded" } else { "ln" };
+            out.push_str(&format!("<span class='{class}'>{page_line}</span>"));
             let table = line.trim_start_matches(crate::tables::INDENT).chars().next()
                 .and_then(crate::tables::tag_index)
                 .and_then(|t| view.tables.get(t));
             page_line += table.map_or(1, |t| t.raw.split('\n').count());
+            page_line += fold.map_or(0, |f| f.raw.matches('\n').count());
+        }
+        if fold.is_some() {
+            out.push_str("<span class='fold-mark'></span>");
         }
         if heads.contains(&n) {
             out.push_str(&format!("<span class='tbl tbl-head'>{}</span>\n", escape(line)));
@@ -62,6 +70,11 @@ pub fn render_view(view: &crate::tables::View, tags: TagSyntax, numbers: bool) -
             }
             _ if fill => {}
             _ => out.push_str(&highlight_line(line)),
+        }
+        // The fold character, invisible, followed by `…`
+        if fold.is_some() {
+            let c = view.text.split('\n').nth(n).and_then(|l| l.chars().last()).unwrap_or(' ');
+            out.push_str(&format!("<span class='fold'>{c}</span>"));
         }
         out.push('\n');
     }
@@ -134,6 +147,13 @@ fn highlight_line(line: &str) -> String {
     if let Some(v) = crate::motion::filetags_value_start(&chars) {
         return format!("<span class='kw'>{}</span><span class='tags'>{}</span>",
             escape(&text(0, v)), tag_links(&text(v, chars.len())));
+    }
+
+    // `#+TITLE: …`, drawn like `#+FILETAGS:`: the keyword dimmed, the value as text
+    let indent = chars.iter().take_while(|c| c.is_whitespace()).count();
+    if text(indent, chars.len()).get(..8).is_some_and(|k| k.eq_ignore_ascii_case("#+title:")) {
+        return format!("<span class='kw'>{}</span>{}",
+            escape(&text(0, indent + 8)), inline_html(&text(indent + 8, chars.len())));
     }
 
     // Table line
@@ -403,7 +423,7 @@ mod tests {
 
     #[test]
     fn org_tags_in_text_drawn_as_links() {
-        let v = crate::tables::View { text: "voir :ex: à 10:30:".into(), tables: vec![], width: 80, indents: vec![] };
+        let v = crate::tables::View { text: "voir :ex: à 10:30:".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
         let html = render_view(&v, Hashtags::Off.into(), false);
         assert!(html.contains(":<span class='tag-t'>ex</span>:"));
         assert!(!html.contains("30</span>"));
@@ -415,7 +435,7 @@ mod tests {
     fn line_numbers_follow_the_page() {
         // A collapsed table of 3 rows takes 4 lines of the view, numbered as its 3 lines
         let page = "a\n| x |\n|---|\n| y |\nb";
-        let v = crate::tables::View::build(page, None, 80, |_| 4, true, false);
+        let v = crate::tables::View::build(page, None, 80, |_| 4, true, false, &[]);
         let html = render_view(&v, Hashtags::Off.into(), true);
         let nums: Vec<&str> = html.split("<span class='ln'>").skip(1).map(|s| &s[..s.find('<').unwrap()]).collect();
         assert_eq!(nums, vec!["1", "2", "5"]);
@@ -423,8 +443,14 @@ mod tests {
     }
 
     #[test]
+    fn title_keyword_dimmed_like_filetags() {
+        assert_eq!(highlight_line("#+TITLE: Ma page"), "<span class='kw'>#+TITLE:</span> Ma page");
+        assert!(highlight_line("#+FILETAGS: :a:").starts_with("<span class='kw'>#+FILETAGS:</span>"));
+    }
+
+    #[test]
     fn table_header_bold_while_edited() {
-        let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80, indents: vec![] };
+        let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
         let html = render_view(&v, Hashtags::Off.into(), false);
         assert!(html.contains("<span class='tbl tbl-head'>| a | b |</span>"));
         assert!(!html.contains("tbl-head'>| c"));

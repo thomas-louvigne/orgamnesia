@@ -8,6 +8,9 @@
 //! those lines. The page itself is never changed: `View` maps the view back to
 //! the page text and positions between the two.
 //!
+//! The view also hides the folded parts of the page (Emacs `TAB` on a headline): a
+//! fold character at the end of the headline stands for the lines it hides.
+//!
 //! The view also indents the text under a headline to the column of its title, as
 //! Emacs' `org-indent-mode` does: each line gets `INDENT` characters in front of it,
 //! which are not in the page either.
@@ -19,6 +22,9 @@ const TAG_BASE: u32 = 0xE000;
 const MAX_TABLES: u32 = 0x1800;
 /// The other lines of a collapsed table.
 const FILL: char = '\u{2063}';
+/// End of a folded headline: `FOLD_BASE + index` of the fold in the view.
+const FOLD_BASE: u32 = 0xF800;
+const MAX_FOLDS: u32 = 0x100;
 /// Indentation of a line under a headline (a no-break space: one column wide
 /// in every font, and very unlikely to start a line of the page).
 pub const INDENT: char = '\u{a0}';
@@ -31,6 +37,16 @@ fn tag(i: usize) -> char {
 pub fn tag_index(c: char) -> Option<usize> {
     let n = c as u32;
     (TAG_BASE..TAG_BASE + MAX_TABLES).contains(&n).then(|| (n - TAG_BASE) as usize)
+}
+
+fn fold_tag(i: usize) -> char {
+    char::from_u32(FOLD_BASE + i as u32).unwrap_or(FILL)
+}
+
+/// Index of the fold a fold character stands for.
+pub fn fold_index(c: char) -> Option<usize> {
+    let n = c as u32;
+    (FOLD_BASE..FOLD_BASE + MAX_FOLDS).contains(&n).then(|| (n - FOLD_BASE) as usize)
 }
 
 pub fn is_fill(c: char) -> bool {
@@ -77,6 +93,28 @@ pub struct Collapsed {
     pub lines: usize,
 }
 
+/// Lines of the page hidden under a folded headline.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Fold {
+    /// Its text in the page: from the `\n` ending the headline to the end of the
+    /// last hidden line.
+    pub raw: String,
+    /// Where it starts in the page.
+    pub start: usize,
+    /// Its length in the page (chars).
+    pub len: usize,
+}
+
+/// A piece of the view, as `View::walk` reads it.
+enum Piece {
+    /// A character of the page.
+    Char(char),
+    /// A character of a collapsed table's block: the table, the line within the block.
+    Table(usize, usize),
+    /// The character standing for a fold.
+    Fold(usize),
+}
+
 /// The page as the textarea shows it.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct View {
@@ -87,53 +125,106 @@ pub struct View {
     pub width: usize,
     /// The indented lines: where they start in the page, and by how many columns.
     pub indents: Vec<(usize, usize)>,
+    /// The folded parts, in order.
+    pub folds: Vec<Fold>,
 }
 
 impl View {
     /// The view of `content` where, with `collapse`, every table is collapsed but the one
     /// holding the page position `keep` (if any), the text being `width` characters
     /// wide. `lines_of` gives the lines a table takes once drawn. With `indent`, the
-    /// text under a headline is indented to the column of its title.
+    /// text under a headline is indented to the column of its title. `folds` are the
+    /// page ranges to hide (see `Fold`); those that don't fit the page are ignored.
     pub fn build(
         content: &str, keep: Option<usize>, width: usize, mut lines_of: impl FnMut(&str) -> usize,
-        collapse: bool, indent: bool,
+        collapse: bool, indent: bool, folds: &[(usize, usize)],
     ) -> Self {
         let chars: Vec<char> = content.chars().collect();
-        let indents = if indent { heading_indents(&chars) } else { vec![] };
-        let mut text = String::with_capacity(content.len() + indents.len() * 3);
+        let mut all_indents = if indent { heading_indents(&chars) } else { vec![] };
+        let mut indents = Vec::new();
+        // The folds that fit the page (a `\n` at both ends), not inside another one
+        let mut hidden: Vec<(usize, usize)> = Vec::new();
+        let mut sorted = folds.to_vec();
+        sorted.sort();
+        for (a, b) in sorted {
+            let fits = a < b && b <= chars.len() && chars[a] == '\n' && (b == chars.len() || chars[b] == '\n');
+            if !fits || hidden.last().is_some_and(|&(_, end)| a < end) { continue; }
+            if hidden.len() as u32 >= MAX_FOLDS { break; }
+            hidden.push((a, b));
+        }
+        // The hidden lines get no indentation
+        all_indents.retain(|&(at, _)| !hidden.iter().any(|&(a, b)| a < at && at <= b));
+        let mut text = String::with_capacity(content.len() + all_indents.len() * 3);
         let mut next = 0;
         // Copy the page from `a` to `b`, each line with its indentation
         let mut copy = |text: &mut String, a: usize, b: usize| {
             for (p, c) in chars[a..b].iter().map(Some).chain([None]).enumerate() {
                 let p = a + p;
-                while next < indents.len() && indents[next].0 < p { next += 1; }
-                if let Some(&(_, n)) = indents.get(next).filter(|&&(at, _)| at == p) {
+                while next < all_indents.len() && all_indents[next].0 < p { next += 1; }
+                if let Some(&(at, n)) = all_indents.get(next).filter(|&&(at, _)| at == p) {
                     text.extend(std::iter::repeat_n(INDENT, n));
+                    indents.push((at, n));
                     next += 1;
                 }
                 if let Some(&c) = c { text.push(c); }
             }
         };
-        let mut tables = Vec::new();
-        let mut at = 0;
-        let found = if collapse { find_tables(&chars) } else { vec![] };
-        for (start, end) in found {
-            if keep.is_some_and(|k| (start..=end).contains(&k)) || tables.len() as u32 >= MAX_TABLES {
-                continue;
+        // What the view replaces, in order: folds, and tables (but those folded)
+        let mut blocks: Vec<(usize, usize, bool)> = hidden.iter().map(|&(a, b)| (a, b, true)).collect();
+        if collapse {
+            for (start, end) in find_tables(&chars) {
+                let folded = hidden.iter().any(|&(a, b)| start > a && start < b);
+                if !folded && !keep.is_some_and(|k| (start..=end).contains(&k)) {
+                    blocks.push((start, end, false));
+                }
             }
+        }
+        blocks.sort();
+        let mut tables = Vec::new();
+        let mut folded = Vec::new();
+        let mut at = 0;
+        for (start, end, fold) in blocks {
+            if !fold && tables.len() as u32 >= MAX_TABLES { continue; }
             copy(&mut text, at, start);
             let raw: String = chars[start..end].iter().collect();
-            let lines = lines_of(&raw).max(1);
-            text.push(tag(tables.len()));
-            for _ in 1..lines {
-                text.push('\n');
-                text.push(FILL);
+            if fold {
+                text.push(fold_tag(folded.len()));
+                folded.push(Fold { raw, start, len: end - start });
+            } else {
+                let lines = lines_of(&raw).max(1);
+                text.push(tag(tables.len()));
+                for _ in 1..lines {
+                    text.push('\n');
+                    text.push(FILL);
+                }
+                tables.push(Collapsed { raw, start, len: end - start, lines });
             }
-            tables.push(Collapsed { raw, start, len: end - start, lines });
             at = end;
         }
         copy(&mut text, at, chars.len());
-        View { text, tables, width, indents }
+        View { text, tables, width, indents, folds: folded }
+    }
+
+    /// The page ranges folded in `text` (this view, possibly edited since): a fold
+    /// whose character is no longer at the end of a line is opened.
+    pub fn fold_ranges(&self, text: &str) -> Vec<(usize, usize)> {
+        let chars: Vec<char> = text.chars().collect();
+        let mut out = Vec::new();
+        let mut content = 0;
+        let mut last = None;
+        self.walk(text, |i, piece| match piece {
+            Piece::Char(_) => { content += 1; last = None; }
+            Piece::Table(t, _) => {
+                if last != Some(t) { content += self.tables[t].len; last = Some(t); }
+            }
+            Piece::Fold(f) => {
+                let len = self.folds[f].len;
+                if chars.get(i + 1).is_none_or(|&c| c == '\n') { out.push((content, content + len)); }
+                content += len;
+                last = None;
+            }
+        });
+        out
     }
 
     /// The run of `INDENT`s starting the line of the view position `pos` in `text`,
@@ -148,10 +239,9 @@ impl View {
     }
 
     /// Walk `text` (this view, possibly edited since) calling `on` for each piece:
-    /// `Ok(char)` for a page character, `Err((table, line))` for each char of a
-    /// collapsed table's block (line within the block). What is left of a block
-    /// whose tag was deleted is skipped.
-    fn walk(&self, text: &str, mut on: impl FnMut(usize, Result<char, (usize, usize)>)) {
+    /// a page character, each char of a collapsed table's block (line within the
+    /// block), or a fold. What is left of a block whose tag was deleted is skipped.
+    fn walk(&self, text: &str, mut on: impl FnMut(usize, Piece)) {
         let chars: Vec<char> = text.chars().collect();
         let indented = !self.indents.is_empty();
         let mut line_start = true;
@@ -164,14 +254,17 @@ impl View {
                 continue;
             }
             line_start = c == '\n';
-            if let Some(t) = tag_index(c).filter(|&t| t < self.tables.len()) {
-                on(i, Err((t, 0)));
+            if let Some(f) = fold_index(c).filter(|&f| f < self.folds.len()) {
+                on(i, Piece::Fold(f));
+                i += 1;
+            } else if let Some(t) = tag_index(c).filter(|&t| t < self.tables.len()) {
+                on(i, Piece::Table(t, 0));
                 i += 1;
                 let mut line = 0;
                 while i + 1 < chars.len() && chars[i] == '\n' && chars[i + 1] == FILL {
                     line += 1;
-                    on(i, Err((t, line)));
-                    on(i + 1, Err((t, line)));
+                    on(i, Piece::Table(t, line));
+                    on(i + 1, Piece::Table(t, line));
                     i += 2;
                 }
             } else if c == '\n' && chars.get(i + 1) == Some(&FILL) {
@@ -179,7 +272,7 @@ impl View {
                 line_start = false;
                 i += 2;
             } else {
-                if c != FILL && tag_index(c).is_none() { on(i, Ok(c)); }
+                if c != FILL && tag_index(c).is_none() && fold_index(c).is_none() { on(i, Piece::Char(c)); }
                 i += 1;
             }
         }
@@ -190,9 +283,10 @@ impl View {
         let mut out = String::with_capacity(text.len());
         let mut last = None;
         self.walk(text, |_, piece| match piece {
-            Ok(c) => { out.push(c); last = None; }
-            Err((t, _)) if last != Some(t) => { out.push_str(&self.tables[t].raw); last = Some(t); }
-            Err(_) => {}
+            Piece::Char(c) => { out.push(c); last = None; }
+            Piece::Table(t, _) if last != Some(t) => { out.push_str(&self.tables[t].raw); last = Some(t); }
+            Piece::Table(..) => {}
+            Piece::Fold(f) => { out.push_str(&self.folds[f].raw); last = None; }
         });
         out
     }
@@ -208,12 +302,18 @@ impl View {
         self.walk(text, |i, piece| {
             if found.is_some() { return; }
             match piece {
-                Ok(_) => {
+                Piece::Char(_) => {
                     if i >= pos { found = Some(content); }
                     content += 1;
                     last = None;
                 }
-                Err((t, line)) => {
+                // Before the fold: the end of the headline
+                Piece::Fold(f) => {
+                    if i >= pos { found = Some(content); }
+                    content += self.folds[f].len;
+                    last = None;
+                }
+                Piece::Table(t, line) => {
                     let table = &self.tables[t];
                     if last != Some(t) {
                         table_at = content;
@@ -230,20 +330,25 @@ impl View {
     }
 
     /// View position of the page position `pos`; a position inside a collapsed
-    /// table goes to the start of its block.
+    /// table goes to the start of its block, one inside a fold before the fold.
     pub fn view_pos(&self, pos: usize) -> usize {
         // Indentation of the lines starting at or before `p` (a line start goes after it)
         let indent = |p: usize| -> isize {
             self.indents.iter().take_while(|&&(at, _)| at <= p).map(|&(_, n)| n as isize).sum()
         };
+        // Collapsed tables and folds: where they start, their length, the chars they take
+        let mut blocks: Vec<(usize, usize, usize)> = self.tables.iter()
+            .map(|t| (t.start, t.len, 2 * t.lines - 1))
+            .chain(self.folds.iter().map(|f| (f.start, f.len, 1)))
+            .collect();
+        blocks.sort();
         let mut shift: isize = 0;
-        for t in &self.tables {
-            if pos <= t.start { break; }
-            let block = (2 * t.lines - 1) as isize;
-            if pos < t.start + t.len {
-                return (t.start as isize + shift + indent(t.start)) as usize;
+        for (start, len, chars) in blocks {
+            if pos <= start { break; }
+            if pos < start + len {
+                return (start as isize + shift + indent(start)) as usize;
             }
-            shift += block - t.len as isize;
+            shift += chars as isize - len as isize;
         }
         (pos as isize + shift + indent(pos)).max(0) as usize
     }
@@ -524,7 +629,7 @@ mod tests {
     const PAGE: &str = "* Titre\n| a | b |\n|---+---|\n| c | d |\nfin\n| x |";
 
     fn view(keep: Option<usize>) -> View {
-        View::build(PAGE, keep, 80, |raw| raw.split('\n').count() + 1, true, false)
+        View::build(PAGE, keep, 80, |raw| raw.split('\n').count() + 1, true, false, &[])
     }
 
     #[test]
@@ -553,7 +658,7 @@ mod tests {
     #[test]
     fn text_under_headlines_is_indented() {
         let page = "intro\n* A\ntexte\n- item\n** B\n\n| t |\nfin";
-        let v = View::build(page, None, 80, |raw| raw.split('\n').count(), true, true);
+        let v = View::build(page, None, 80, |raw| raw.split('\n').count(), true, true, &[]);
         let i = |n: usize| INDENT.to_string().repeat(n);
         assert_eq!(v.text, format!("intro\n* A\n{}texte\n{}- item\n** B\n{}\n{}\u{e000}\n{}fin", i(2), i(2), i(3), i(3), i(3)));
         assert_eq!(v.to_content(&v.text), page);
@@ -571,8 +676,32 @@ mod tests {
         assert_eq!(v.indent_run(&v.text, texte + 2), Some((texte, texte + 2)));
         assert_eq!(v.indent_run(&v.text, 2), None);
         // Not indented: the page as it is
-        let plain = View::build(page, None, 80, |_| 1, false, false);
+        let plain = View::build(page, None, 80, |_| 1, false, false, &[]);
         assert_eq!(plain.text, page);
+    }
+
+    #[test]
+    fn folded_lines_are_hidden_and_kept() {
+        let page = "* A\ntexte\n| t |\n* B\nfin";
+        let fold = (3, 15); // from the end of `* A` to the end of `| t |`
+        let v = View::build(page, None, 80, |_| 1, true, false, &[fold]);
+        assert_eq!(v.text, "* A\u{f800}\n* B\nfin");
+        assert_eq!(v.to_content(&v.text), page);
+        // Before the fold: the end of the headline; inside it: there too; after it: the next line
+        assert_eq!(v.content_pos(&v.text, 3), 3);
+        assert_eq!(v.view_pos(8), 3);
+        let b = page.find("* B").unwrap();
+        assert_eq!(v.view_pos(b), 5);
+        assert_eq!(v.content_pos(&v.text, 5), b);
+        // Typing above moves the fold along
+        let edited = format!("x{}", v.text);
+        assert_eq!(v.fold_ranges(&edited), vec![(4, 16)]);
+        assert_eq!(v.to_content(&edited), format!("x{page}"));
+        // A fold no longer at the end of a line is opened
+        let joined = v.text.replacen("\u{f800}\n", "\u{f800}", 1);
+        assert_eq!(v.fold_ranges(&joined), vec![]);
+        // A range that doesn't fit the page is ignored
+        assert_eq!(View::build(page, None, 80, |_| 1, true, false, &[(2, 15)]).text, View::build(page, None, 80, |_| 1, true, false, &[]).text);
     }
 
     #[test]
