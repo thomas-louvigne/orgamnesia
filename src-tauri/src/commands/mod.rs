@@ -8,7 +8,7 @@ use crate::{
     error::AppError,
     keybindings,
     project::Project,
-    settings::{self, Settings},
+    settings::{self, Session, Settings},
     watch, AppState,
 };
 
@@ -33,7 +33,9 @@ pub async fn get_settings(state: State<'_, AppState>) -> Cmd<Settings> {
 }
 
 #[tauri::command]
-pub async fn set_settings(state: State<'_, AppState>, app: AppHandle, settings: Settings) -> Cmd<()> {
+pub async fn set_settings(state: State<'_, AppState>, app: AppHandle, mut settings: Settings) -> Cmd<()> {
+    // The settings window doesn't know the session: keep it
+    settings.session = state.settings().session;
     let hashtags = settings.prefs().hashtags();
     let hashtags_changed = state.prefs().hashtags() != hashtags;
     store_settings(&state, &app, settings)?;
@@ -44,6 +46,13 @@ pub async fn set_settings(state: State<'_, AppState>, app: AppHandle, settings: 
         }
     }
     Ok(())
+}
+
+/// The pages and panes open now, written to `settings.json` on quit.
+/// Not async: calls run in order, so the last state sent is the one kept.
+#[tauri::command]
+pub fn set_session(state: State<'_, AppState>, session: Option<Session>) {
+    state.settings.lock().unwrap().session = session;
 }
 
 #[tauri::command]
@@ -184,13 +193,20 @@ pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
-/// When the application exits: delete the blank pages of the open project,
-/// as chosen in the settings.
+/// When the application exits: delete the blank pages of the open project and
+/// save the open pages and panes, as chosen in the settings.
 pub fn on_exit(app: &AppHandle) {
     let state = app.state::<AppState>();
     let prefs = state.prefs();
     let path = state.project.lock().unwrap().as_ref().map(|p| p.path.clone());
     if let Some(path) = path {
         crate::vault::delete_blank_pages(&path, prefs.delete_empty, prefs.delete_title_only);
+    }
+    let mut s = state.settings();
+    if !prefs.restore_session {
+        s.session = None;
+    }
+    if let Ok(dir) = config_dir(app) {
+        let _ = settings::save(&dir, &s);
     }
 }

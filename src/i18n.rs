@@ -45,6 +45,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("delete_empty_pages", Lang::Fr) => "En quittant, supprimer les pages vides (seulement des espaces, tabulations ou *)",
         ("delete_title_only_pages", Lang::En) => "On quit, delete pages holding only their title (* Title)",
         ("delete_title_only_pages", Lang::Fr) => "En quittant, supprimer les pages ne contenant que leur titre (* Titre)",
+        ("restore_session",  Lang::En) => "On start, reopen the pages and panes open when the app was quit",
+        ("restore_session",  Lang::Fr) => "Au démarrage, rouvrir les pages et les panneaux ouverts à la fermeture",
         ("tab_display",      Lang::En) => "Display",
         ("tab_display",      Lang::Fr) => "Affichage",
         ("display_appearance", Lang::En) => "Appearance",

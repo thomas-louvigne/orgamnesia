@@ -9,4 +9,4 @@ pub mod settings;
 
 pub use hashtags::Hashtags;
 pub use model::*;
-pub use settings::{Prefs, Settings};
+pub use settings::{Prefs, Session, Settings, SplitKind};

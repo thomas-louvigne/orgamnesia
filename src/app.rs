@@ -15,7 +15,7 @@ use crate::{
     i18n::t,
     invoke,
     keybindings::{AppAction, Resolution, Scope},
-    state::{AppCtx, Drag, SplitKind, VaultChanges},
+    state::{AppCtx, Drag, Session, SplitKind, Tab, VaultChanges},
     storage,
 };
 
@@ -78,16 +78,21 @@ fn ConfirmDialog() -> impl IntoView {
     }
 }
 
-/// Load the saved settings, project and keybindings.
-async fn load_startup(ctx: AppCtx) {
+/// Load the saved settings, project and keybindings, and the pages and panes
+/// open when the app was last quit. `owner` is the app's: the tabs' signals belong to it.
+async fn load_startup(ctx: AppCtx, owner: Owner) {
     if let Ok(settings) = invoke::get_settings().await {
-        ctx.prefs.set(settings.prefs());
+        let prefs = settings.prefs();
+        ctx.prefs.set(prefs.clone());
         ctx.project.projects.set(settings.projects);
         if let Some(path) = settings.vault_path {
             match invoke::open_vault(&path).await {
                 Ok(files) => {
-                    ctx.project.vault_path.set(Some(path));
+                    ctx.project.vault_path.set(Some(path.clone()));
                     ctx.project.files.set(files);
+                    if let Some(session) = settings.session.filter(|s| prefs.restore_session && s.project == path) {
+                        restore_session(ctx, &owner, session).await;
+                    }
                 }
                 Err(e) => ctx.error("open_project_error", &e),
             }
@@ -97,6 +102,49 @@ async fn load_startup(ctx: AppCtx) {
         kb.upgrade();
         ctx.keybindings.set(kb);
     }
+    track_session(ctx, &owner);
+}
+
+/// Open again the tabs and panes of `session`; pages deleted since are left out.
+async fn restore_session(ctx: AppCtx, owner: &Owner, session: Session) {
+    let files = ctx.project.files.get_untracked();
+    let mut tabs = vec![];
+    for path in &session.tabs {
+        let Some(file) = files.iter().find(|f| &f.path == path) else { continue };
+        if let Ok(content) = invoke::read_file(path).await {
+            tabs.push(owner.with(|| Tab::new(file, content, false)));
+        }
+    }
+    let index = |page: &Option<String>| page.as_ref().and_then(|p| tabs.iter().position(|t| &t.path == p));
+    let active = index(&session.active).or((!tabs.is_empty()).then_some(0));
+    let other = index(&session.other).map(|i| tabs[i].path.clone());
+    let work = ctx.work;
+    work.tabs.set(tabs);
+    work.active_tab.set(active);
+    if let (Some(kind), Some(other), Some(_)) = (session.split, other, active) {
+        work.other_path.set(Some(other));
+        work.focus_second.set(session.focus_second);
+        work.split.set(Some(kind));
+    }
+}
+
+/// Keep the backend told of the open pages and panes, which it saves on quit.
+/// Started after the restore, so the saved session isn't replaced by an empty one.
+fn track_session(ctx: AppCtx, owner: &Owner) {
+    owner.with(|| Effect::new(move |_| {
+        let work = ctx.work;
+        let session = ctx.project.vault_path.get().map(|project| Session {
+            project,
+            tabs: work.tabs.with(|tabs| tabs.iter().map(|t| t.path.clone()).collect()),
+            active: work.active_tab_data().map(|t| t.path),
+            split: work.split.get(),
+            other: work.other_path.get(),
+            focus_second: work.focus_second.get(),
+        });
+        spawn_local(async move {
+            let _ = invoke::set_session(session.as_ref()).await;
+        });
+    }));
 }
 
 /// Pages changed on disk by another program (another editor, a sync tool…),
@@ -227,7 +275,7 @@ pub fn App() -> impl IntoView {
     });
     on_cleanup(move || { drop(drag_move); drop(drag_up); });
 
-    spawn_local(load_startup(ctx));
+    spawn_local(load_startup(ctx, Owner::current().expect("App owner")));
     watch_disk(ctx);
     watch_git(ctx);
 

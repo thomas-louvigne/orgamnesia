@@ -500,6 +500,7 @@ pub fn SettingsModal() -> impl IntoView {
                             <Check draft get=|p| p.autosave set=|p, v| p.autosave = v label="autosave" />
                             <Check draft get=|p| p.delete_empty set=|p, v| p.delete_empty = v label="delete_empty_pages" />
                             <Check draft get=|p| p.delete_title_only set=|p, v| p.delete_title_only = v label="delete_title_only_pages" />
+                            <Check draft get=|p| p.restore_session set=|p, v| p.restore_session = v label="restore_session" />
                             <Check draft get=|p| p.electric_mode set=|p, v| p.electric_mode = v label="electric_mode" />
                             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
                             <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />

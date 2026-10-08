@@ -52,6 +52,7 @@ backlinks, tags and pages not created yet./
 - Right-click on a page in the sidebar, or on its tab, to /rename/ or /delete/ it (the file is really removed).
 - Renaming a page rewrites every link pointing to it, =[[…]]= and =#…= alike (option, on by default).
 - On quit, empty pages and pages holding only their title can be deleted (two options, off by default).
+- The open tabs and editor panes are reopened at the next start (option, on by default).
 
 ** Editing
 - org-mode highlighting: headings, =TODO=/=DONE=, bold, italic, quotes, tables, links.

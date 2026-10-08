@@ -206,11 +206,9 @@ pub fn EditorArea(second: bool) -> impl IntoView {
             {move || match path.get() {
                 None => view! {
                     <div class="editor-empty">
-                        {move || ctx.project.vault_path.get().is_none().then(|| view! {
-                            <img class="empty-logo" src="app-icon.svg" alt="" />
-                        })}
                         <p>{t("no_file", ctx.lang.get())}</p>
                         <p>{t("open_hint", ctx.lang.get())}</p>
+                        <img class="empty-logo" src="app-icon.svg" alt="" />
                     </div>
                 }.into_any(),
                 Some(p) => {

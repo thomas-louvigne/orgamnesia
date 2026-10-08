@@ -53,6 +53,7 @@ liens entrants, tags et pages non encore créées./
 - Clic droit sur une page de la barre latérale, ou sur son onglet, pour la /renommer/ ou la /supprimer/ (le fichier est effacé).
 - Renommer une page réécrit tous les liens qui y pointent, =[[…]]= comme =#…= (option, activée par défaut).
 - En quittant, les pages vides et celles qui ne contiennent que leur titre peuvent être supprimées (deux options, désactivées par défaut).
+- Les onglets et les panneaux de l'éditeur ouverts sont rouverts au démarrage suivant (option, activée par défaut).
 
 ** Édition
 - Coloration org-mode : titres, =TODO=/=DONE=, gras, italique, citations, tableaux, liens.

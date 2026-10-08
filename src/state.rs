@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::{i18n::{t, Lang}, keybindings::Keybindings};
 
-pub use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, Prefs, Settings, TagCount, TagHit, VaultChanges};
+pub use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, Prefs, Session, Settings, SplitKind, TagCount, TagHit, VaultChanges};
 
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
@@ -39,15 +39,6 @@ impl Tab {
 pub struct ConfirmReq {
     pub message: String,
     pub on_yes: Callback<()>,
-}
-
-/// How the editor is split in two (Emacs windows).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SplitKind {
-    /// Side by side (`C-x 3`).
-    Vertical,
-    /// One above the other (`C-x 2`).
-    Horizontal,
 }
 
 /// Which resize bar is being dragged.

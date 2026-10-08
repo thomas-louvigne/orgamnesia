@@ -34,6 +34,7 @@ fn main() {
             commands::pick_folder,
             commands::git_status,
             commands::quit_app,
+            commands::set_session,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

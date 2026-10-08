@@ -345,10 +345,10 @@ html, body { height: 100%; overflow: hidden; }
     gap: 8px;
 }
 
-/* Faded logo shown above the hints while no project is open */
+/* Faded logo shown under the hints while no file is open */
 .empty-logo {
     width: min(50%, 45vh, 360px);
-    margin-bottom: 16px;
+    margin-top: 16px;
     opacity: 0.18;
     pointer-events: none;
     user-select: none;

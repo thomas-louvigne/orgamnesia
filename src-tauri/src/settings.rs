@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::error::AppError;
 
-pub use orgamnesia_core::{Prefs, Settings};
+pub use orgamnesia_core::{Prefs, Session, Settings};
 
 /// The app used to be called "Org Wiki Flow" (config folder `com.org-wiki-flow.app`).
 /// On the first run under the new name, carry the old settings and keybindings over.
@@ -54,5 +54,21 @@ mod tests {
         // Older files lack the newer fields
         let old: Settings = serde_json::from_str(r#"{"vault_path":null}"#).unwrap();
         assert_eq!(old.electric_mode, None);
+    }
+
+    #[test]
+    fn session_round_trips_through_json() {
+        let session = Session {
+            project: "/x".into(),
+            tabs: vec!["/x/a.org".into(), "/x/b.org".into()],
+            active: Some("/x/b.org".into()),
+            split: Some(orgamnesia_core::SplitKind::Vertical),
+            other: Some("/x/a.org".into()),
+            focus_second: true,
+        };
+        let s = Settings { session: Some(session), ..Settings::default() };
+        let json = serde_json::to_string(&s).unwrap();
+        assert!(json.contains(r#""split":"vertical""#));
+        assert_eq!(serde_json::from_str::<Settings>(&json).unwrap(), s);
     }
 }

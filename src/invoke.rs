@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Settings, GitStatus, TagCount, TagHit}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, GitStatus, TagCount, TagHit}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -54,6 +54,11 @@ pub async fn get_settings() -> Result<Settings, String> {
 
 pub async fn save_settings(s: &Settings) -> Result<(), String> {
     call("set_settings", serde_json::json!({ "settings": s })).await
+}
+
+/// Tell the backend which pages and panes are open, to save them on quit.
+pub async fn set_session(session: Option<&Session>) -> Result<(), String> {
+    call("set_session", serde_json::json!({ "session": session })).await
 }
 
 pub async fn open_vault(path: &str) -> Result<Vec<FileEntry>, String> {

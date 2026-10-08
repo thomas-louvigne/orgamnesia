@@ -29,6 +29,8 @@ pub struct Settings {
     pub delete_empty_pages: Option<bool>,
     /// On quit, delete pages holding only their `* Title` heading.
     pub delete_title_only_pages: Option<bool>,
+    /// On start, show again the pages and panes open when the app was quit.
+    pub restore_session: Option<bool>,
     /// App name and logo at the top left of the window.
     pub show_brand: Option<bool>,
     /// Frames shown around the editor: pages menu, backlinks, tags, pages not created.
@@ -43,6 +45,37 @@ pub struct Settings {
     /// Every project (folder) the user has opened, most recent first.
     #[serde(default)]
     pub projects: Vec<String>,
+    /// Pages and panes open when the app was last quit. Kept by the backend:
+    /// the settings window never sends it.
+    pub session: Option<Session>,
+}
+
+/// How the editor is split in two (Emacs windows).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SplitKind {
+    /// Side by side (`C-x 3`).
+    Vertical,
+    /// One above the other (`C-x 2`).
+    Horizontal,
+}
+
+/// The open pages and how the editor shows them, saved on quit.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct Session {
+    /// Folder of the project the pages belong to.
+    pub project: String,
+    /// Paths of the pages open in tabs, in tab order.
+    #[serde(default)]
+    pub tabs: Vec<String>,
+    /// Page of the focused pane.
+    pub active: Option<String>,
+    pub split: Option<SplitKind>,
+    /// Page of the other pane, when split.
+    pub other: Option<String>,
+    /// Whether the focused pane is the second one (right / bottom).
+    #[serde(default)]
+    pub focus_second: bool,
 }
 
 impl Settings {
@@ -63,6 +96,7 @@ pub struct Prefs {
     pub autosave: bool,
     pub delete_empty: bool,
     pub delete_title_only: bool,
+    pub restore_session: bool,
     pub show_brand: bool,
     pub show_pages: bool,
     pub show_backlinks: bool,
@@ -93,6 +127,7 @@ impl Prefs {
             autosave: s.autosave.unwrap_or(true),
             delete_empty: s.delete_empty_pages.unwrap_or(false),
             delete_title_only: s.delete_title_only_pages.unwrap_or(false),
+            restore_session: s.restore_session.unwrap_or(true),
             show_brand: s.show_brand.unwrap_or(true),
             show_pages: s.show_pages.unwrap_or(true),
             show_backlinks: s.show_backlinks.unwrap_or(true),
@@ -123,6 +158,7 @@ impl Prefs {
             autosave: Some(self.autosave),
             delete_empty_pages: Some(self.delete_empty),
             delete_title_only_pages: Some(self.delete_title_only),
+            restore_session: Some(self.restore_session),
             show_brand: Some(self.show_brand),
             show_pages: Some(self.show_pages),
             show_backlinks: Some(self.show_backlinks),
@@ -131,6 +167,7 @@ impl Prefs {
             site_builder_enabled: Some(self.site_builder),
             git_status_enabled: Some(self.git_ext),
             projects,
+            session: None,
         }
     }
 
@@ -147,7 +184,7 @@ mod tests {
     #[test]
     fn missing_values_take_their_default() {
         let p = Settings::default().prefs();
-        assert!(p.autosave && p.git_ext && !p.site_builder && !p.delete_empty);
+        assert!(p.autosave && p.git_ext && !p.site_builder && !p.delete_empty && p.restore_session);
         assert_eq!(p.lang, "fr");
         assert_eq!(p.hashtags(), Hashtags::Dashes);
     }
