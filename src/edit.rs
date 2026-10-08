@@ -140,6 +140,22 @@ pub fn line_start(chars: &[char], n: usize) -> usize {
         .map_or(chars.len(), |(i, _)| i + 1)
 }
 
+/// Bold, italic…: wrap the selection `start..end` in `marker` (`*gras*`), or unwrap it
+/// when it already is (markers just around it, or at its ends). Without a selection,
+/// the two markers are inserted with the caret between them (or removed if the caret
+/// is between two). Returns the range to replace, its new text and the new selection.
+pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -> (usize, usize, String, usize, usize) {
+    let inner: String = chars[start..end].iter().collect();
+    if start > 0 && chars[start - 1] == marker && chars.get(end) == Some(&marker) {
+        return (start - 1, end + 1, inner, start - 1, end - 1);
+    }
+    if end - start >= 2 && chars[start] == marker && chars[end - 1] == marker {
+        let inside: String = chars[start + 1..end - 1].iter().collect();
+        return (start, end, inside, start, end - 2);
+    }
+    (start, end, format!("{marker}{inner}{marker}"), start + 1, end + 1)
+}
+
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
 /// `#tag` or an org-mode `:tag:` (per `tags`).
 pub fn link_at(chars: &[char], pos: usize, tags: TagSyntax) -> Option<String> {
@@ -271,6 +287,19 @@ mod tests {
         assert_eq!(motion_target(EditorAction::BackwardChar, &t, 0), Some(0));
         assert_eq!(motion_target(EditorAction::ForwardChar, &t, 5), Some(5));
         assert_eq!(motion_target(EditorAction::Copy, &t, 0), None);
+    }
+
+    #[test]
+    fn emphasis_toggles() {
+        let t = c("un mot ici");
+        assert_eq!(toggle_emphasis(&t, 3, 6, '*'), (3, 6, "*mot*".into(), 4, 7));
+        let t = c("un *mot* ici");
+        assert_eq!(toggle_emphasis(&t, 4, 7, '*'), (3, 8, "mot".into(), 3, 6));
+        assert_eq!(toggle_emphasis(&t, 3, 8, '*'), (3, 8, "mot".into(), 3, 6));
+        assert_eq!(toggle_emphasis(&t, 4, 7, '_'), (4, 7, "_mot_".into(), 5, 8));
+        // No selection: a pair of markers, the caret inside; again, they go away
+        assert_eq!(toggle_emphasis(&c("ab"), 1, 1, '+'), (1, 1, "++".into(), 2, 2));
+        assert_eq!(toggle_emphasis(&c("a++b"), 2, 2, '+'), (1, 3, String::new(), 1, 1));
     }
 
     #[test]

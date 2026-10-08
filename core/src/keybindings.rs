@@ -120,6 +120,7 @@ pub enum EditorAction {
     BackwardSentence, ForwardSentence, BackwardParagraph, ForwardParagraph,
     BackToIndentation, PreviousHeading, NextHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell,
+    Bold, Italic, Underline, Strikethrough,
 }
 
 impl AppAction {
@@ -196,6 +197,10 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Replace, id: "replace",             label_key: "shortcut_replace" },
     ActionDef { action: EditorAction::TableNextCell, id: "table_next_cell",     label_key: "shortcut_table_next_cell" },
     ActionDef { action: EditorAction::TablePrevCell, id: "table_prev_cell",     label_key: "shortcut_table_prev_cell" },
+    ActionDef { action: EditorAction::Bold, id: "bold",                label_key: "shortcut_bold" },
+    ActionDef { action: EditorAction::Italic, id: "italic",              label_key: "shortcut_italic" },
+    ActionDef { action: EditorAction::Underline, id: "underline",           label_key: "shortcut_underline" },
+    ActionDef { action: EditorAction::Strikethrough, id: "strikethrough",       label_key: "shortcut_strikethrough" },
 ];
 
 /// Preset ids available in the UI (VI intentionally left as a future addition).
@@ -310,6 +315,12 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("replace",             &["alt+%", "alt+shift+%"]),
             ("table_next_cell",     &["Tab"]),
             ("table_prev_cell",     &["shift+Tab"]),
+            // org-emphasize (`C-c C-x C-f`) then the marker. Some markers need Shift,
+            // depending on the keyboard (QWERTY / AZERTY), hence the second variant.
+            ("bold",                &["ctrl+c ctrl+x ctrl+f *", "ctrl+c ctrl+x ctrl+f shift+*"]),
+            ("italic",              &["ctrl+c ctrl+x ctrl+f /", "ctrl+c ctrl+x ctrl+f shift+/"]),
+            ("underline",           &["ctrl+c ctrl+x ctrl+f _", "ctrl+c ctrl+x ctrl+f shift+_"]),
+            ("strikethrough",       &["ctrl+c ctrl+x ctrl+f +", "ctrl+c ctrl+x ctrl+f shift++"]),
         ]),
         // "classic" and any unknown preset fall back to the classic table.
         _ => m(&[
@@ -326,6 +337,10 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("replace",       &["ctrl+h"]),
             ("table_next_cell", &["Tab"]),
             ("table_prev_cell", &["shift+Tab"]),
+            ("bold",          &["ctrl+b"]),
+            ("italic",        &["ctrl+i"]),
+            ("underline",     &["ctrl+u"]),
+            ("strikethrough", &["ctrl+shift+x"]),
         ]),
     }
 }

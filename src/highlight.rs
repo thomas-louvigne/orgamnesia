@@ -200,6 +200,12 @@ fn inline_html(s: &str) -> String {
             i += len;
             continue;
         }
+        // Strikethrough +...+ (not inside a word: `1+2+3`)
+        if chars[i] == '+' && (i == 0 || !chars[i - 1].is_alphanumeric()) && let Some((html, len)) = try_em(&chars, i, '+', "em-s") {
+            out.push_str(&html);
+            i += len;
+            continue;
+        }
         // Underline _..._
         if chars[i] == '_' && let Some((html, len)) = try_em(&chars, i, '_', "em-u") {
             out.push_str(&html);

@@ -504,6 +504,7 @@ html, body { height: 100%; overflow: hidden; }
 .em-b  { color: #fff; font-weight: bold; }
 .em-i  { color: var(--green); font-style: italic; }
 .em-u  { color: var(--accent2); text-decoration: underline; }
+.em-s  { text-decoration: line-through; }
 
 .kw         { color: var(--fg-dim); }
 .tag-t      { text-decoration: underline; text-underline-offset: 2px; }

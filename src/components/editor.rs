@@ -755,6 +755,20 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             EditorAction::Undo => exec_undo(),
             EditorAction::Redo => exec_redo(),
 
+            // ── Org emphasis: *bold*, /italic/, _underline_, +strikethrough+ ──
+            EditorAction::Bold | EditorAction::Italic | EditorAction::Underline | EditorAction::Strikethrough => {
+                let marker = match action {
+                    EditorAction::Bold => '*',
+                    EditorAction::Italic => '/',
+                    EditorAction::Underline => '_',
+                    _ => '+',
+                };
+                let (a, b, with, sel_start, sel_end) = edit::toggle_emphasis(&chars, start, end, marker);
+                splice(&el, a, b, &with);
+                set_selection(&el, sel_start, sel_end);
+                commit(&el);
+            }
+
             // ── Org: new heading at the same level as the current one ─────────
             EditorAction::NewHeading => {
                 let (at, heading) = edit::new_heading(&chars, end);
