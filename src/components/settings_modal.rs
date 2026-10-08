@@ -197,7 +197,7 @@ pub fn SettingsModal() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     let lang = move || ctx.lang.get();
 
-    // Which tab is active: 0 = general, 1 = shortcuts, 2 = extensions, 3 = display
+    // Which tab is active: 0 = general, 1 = shortcuts, 2 = extensions, 3 = display, 4 = editing
     let panel = RwSignal::new(0u8);
 
     // The settings being edited (the saved ones replace these once read)
@@ -463,27 +463,18 @@ pub fn SettingsModal() -> impl IntoView {
                     >"×"</button>
                 </div>
 
+                <div class="modal-main">
                 <div class="modal-tabs">
-                    <button
-                        class=move || if panel.get() == 0 { "modal-tab active" } else { "modal-tab" }
-                        on:click=move |_| panel.set(0)
-                        on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
-                    >{move || t("tab_general", lang())}</button>
-                    <button
-                        class=move || if panel.get() == 3 { "modal-tab active" } else { "modal-tab" }
-                        on:click=move |_| panel.set(3)
-                        on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
-                    >{move || t("tab_display", lang())}</button>
-                    <button
-                        class=move || if panel.get() == 1 { "modal-tab active" } else { "modal-tab" }
-                        on:click=move |_| panel.set(1)
-                        on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
-                    >{move || t("tab_shortcuts", lang())}</button>
-                    <button
-                        class=move || if panel.get() == 2 { "modal-tab active" } else { "modal-tab" }
-                        on:click=move |_| panel.set(2)
-                        on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
-                    >{move || t("tab_extensions", lang())}</button>
+                    {[(0u8, "tab_general"), (4, "tab_editing"), (3, "tab_display"), (1, "tab_shortcuts"), (2, "tab_extensions")]
+                        .into_iter()
+                        .map(|(n, key)| view! {
+                            <button
+                                class=move || if panel.get() == n { "modal-tab active" } else { "modal-tab" }
+                                on:click=move |_| panel.set(n)
+                                on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
+                            >{move || t(key, lang())}</button>
+                        })
+                        .collect_view()}
                 </div>
 
                 <div class="modal-body">
@@ -497,11 +488,7 @@ pub fn SettingsModal() -> impl IntoView {
                                     placeholder=Signal::derive(move || t("vault_hint", lang()).to_string())
                                 />
                             </div>
-                            <Check draft get=|p| p.autosave set=|p, v| p.autosave = v label="autosave" />
-                            <Check draft get=|p| p.delete_empty set=|p, v| p.delete_empty = v label="delete_empty_pages" />
-                            <Check draft get=|p| p.delete_title_only set=|p, v| p.delete_title_only = v label="delete_title_only_pages" />
                             <Check draft get=|p| p.restore_session set=|p, v| p.restore_session = v label="restore_session" />
-                            <Check draft get=|p| p.electric_mode set=|p, v| p.electric_mode = v label="electric_mode" />
                             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
                             <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />
                             <Check draft get=|p| p.hashtag_dashes set=|p, v| p.hashtag_dashes = v
@@ -522,12 +509,23 @@ pub fn SettingsModal() -> impl IntoView {
                         </div>
                     })}
 
+                    {move || (panel.get() == 4).then(|| view! {
+                        <div class="tab-content">
+                            <Check draft get=|p| p.autosave set=|p, v| p.autosave = v label="autosave" />
+                            <Check draft get=|p| p.electric_mode set=|p, v| p.electric_mode = v label="electric_mode" />
+                            <Check draft get=|p| p.delete_empty set=|p, v| p.delete_empty = v label="delete_empty_pages" />
+                            <Check draft get=|p| p.delete_title_only set=|p, v| p.delete_title_only = v label="delete_title_only_pages" />
+                        </div>
+                    })}
+
                     {move || (panel.get() == 3).then(|| view! {
                         <div class="tab-content">
                             <div class="setting-section-title">
                                 {move || t("display_appearance", lang())}
                             </div>
                             <Check draft get=|p| p.show_brand set=|p, v| p.show_brand = v label="show_brand" />
+                            <Check draft get=|p| p.show_page_title set=|p, v| p.show_page_title = v
+                                label="show_page_title" hint="show_page_title_hint" />
                             <div class="setting-section-title">
                                 {move || t("display_frames", lang())}
                             </div>
@@ -657,6 +655,7 @@ pub fn SettingsModal() -> impl IntoView {
                                 }).collect_view()}
                         </div>
                     })}
+                </div>
                 </div>
 
                 <div class="modal-footer">

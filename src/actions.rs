@@ -189,6 +189,19 @@ pub fn rename_page(ctx: AppCtx, old_path: String, new_name: String) {
         return;
     }
     spawn_local(async move {
+        // The backend rewrites the links on disk: first write the pages with
+        // unsaved changes, else their next save would bring the old links back.
+        for tab in ctx.work.tabs.get_untracked() {
+            if !tab.dirty.get_untracked() { continue; }
+            let content = tab.content.get_untracked();
+            match invoke::write_file(&tab.path, &content).await {
+                Ok(_) => if tab.content.get_untracked() == content { tab.dirty.set(false) },
+                Err(e) => {
+                    ctx.error("save_error", &e);
+                    return;
+                }
+            }
+        }
         match invoke::rename_page(&old_path, &new_name).await {
             Ok(nf) => {
                 ctx.work.tabs.update(|tabs| {
@@ -234,7 +247,7 @@ pub fn delete_page(ctx: AppCtx, file: FileEntry) {
 }
 
 /// Reload the content of open tabs without unsaved changes (after links were
-/// rewritten on disk by a rename).
+/// rewritten on disk by a rename: every tab, as the rename saves them first).
 async fn reload_clean_tabs(ctx: AppCtx) {
     for tab in ctx.work.tabs.get_untracked() {
         if tab.dirty.get_untracked() { continue; }

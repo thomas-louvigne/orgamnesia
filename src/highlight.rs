@@ -28,6 +28,26 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
     format!("{}<mark class='region'>{}</mark>{}\n", part(0, start), part(start, end), part(end, chars.len()))
 }
 
+/// The page with the search matches (`(start, end)` char ranges, in order)
+/// marked, `current` being the selected one; same layout as the text.
+pub fn render_matches(content: &str, matches: &[(usize, usize)], current: Option<usize>) -> String {
+    if matches.is_empty() { return String::new(); }
+    let chars: Vec<char> = content.chars().collect();
+    let part = |a: usize, b: usize| escape(&chars[a.min(chars.len())..b.min(chars.len())].iter().collect::<String>());
+    let mut out = String::new();
+    let mut at = 0;
+    for (i, &(a, b)) in matches.iter().enumerate() {
+        if a < at { continue; }
+        let class = if Some(i) == current { "match current" } else { "match" };
+        out.push_str(&part(at, a));
+        out.push_str(&format!("<mark class='{class}'>{}</mark>", part(a, b)));
+        at = b;
+    }
+    out.push_str(&part(at, chars.len()));
+    out.push('\n');
+    out
+}
+
 fn highlight_line(line: &str) -> String {
     let chars: Vec<char> = line.chars().collect();
     let text = |a: usize, b: usize| chars[a..b].iter().collect::<String>();

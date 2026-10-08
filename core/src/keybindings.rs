@@ -119,6 +119,7 @@ pub enum EditorAction {
     BeginningOfBuffer, EndOfBuffer, ScrollDown, ScrollUp,
     BackwardSentence, ForwardSentence, BackwardParagraph, ForwardParagraph,
     BackToIndentation, PreviousHeading, NextHeading, OpenLink, SetMark, KeyboardQuit,
+    Find, FindPrevious, Replace,
 }
 
 impl AppAction {
@@ -188,6 +189,9 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::OpenLink, id: "open_link",           label_key: "shortcut_open_link" },
     ActionDef { action: EditorAction::SetMark, id: "set_mark",            label_key: "shortcut_set_mark" },
     ActionDef { action: EditorAction::KeyboardQuit, id: "keyboard_quit",       label_key: "shortcut_keyboard_quit" },
+    ActionDef { action: EditorAction::Find, id: "find",                label_key: "shortcut_find" },
+    ActionDef { action: EditorAction::FindPrevious, id: "find_previous",       label_key: "shortcut_find_previous" },
+    ActionDef { action: EditorAction::Replace, id: "replace",             label_key: "shortcut_replace" },
 ];
 
 /// Preset ids available in the UI (VI intentionally left as a future addition).
@@ -292,6 +296,10 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("next_heading",        &["ctrl+c ctrl+n"]),
             ("set_mark",            &["ctrl+space"]),
             ("keyboard_quit",       &["ctrl+g"]),
+            // isearch-forward / isearch-backward / query-replace
+            ("find",                &["ctrl+s"]),
+            ("find_previous",       &["ctrl+r"]),
+            ("replace",             &["alt+%", "alt+shift+%"]),
         ]),
         // "classic" and any unknown preset fall back to the classic table.
         _ => m(&[
@@ -303,6 +311,9 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("redo",        &["ctrl+shift+z", "ctrl+y"]),
             ("new_heading", &["shift+Enter"]),
             ("open_link",   &["ctrl+Enter"]),
+            ("find",          &["ctrl+f", "F3"]),
+            ("find_previous", &["shift+F3"]),
+            ("replace",       &["ctrl+h"]),
         ]),
     }
 }

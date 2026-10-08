@@ -4,7 +4,7 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 use crate::{
     actions::follow_link,
-    components::tabs::TabBar,
+    components::{page_title::PageTitle, tabs::TabBar},
     edit,
     highlight,
     i18n::t,
@@ -87,6 +87,15 @@ fn splice(el: &Textarea, del_start: usize, del_end: usize, insert: &str) -> usiz
     el.set_selection_end(Some(del_end as u32)).ok();
     exec_insert(insert);
     del_start + insert.chars().count()
+}
+
+/// Scroll the textarea so the char at `pos` is in view (in the middle when it was not).
+fn reveal(el: &Textarea, chars: &[char], pos: usize) {
+    let Some((_, top, bottom)) = caret_coords(el, chars, pos) else { return };
+    let height = el.client_height() as f64;
+    if top < 0.0 || bottom > height {
+        el.set_scroll_top((el.scroll_top() as f64 + top - height / 2.0).max(0.0) as i32);
+    }
 }
 
 // ─── Completion of page names (#tag and [[link]]) and org-mode :tags: ─────────
@@ -202,6 +211,11 @@ pub fn EditorArea(second: bool) -> impl IntoView {
                 (split == Some(SplitKind::Vertical) || (second && split == Some(SplitKind::Horizontal)))
                     .then(|| view! { <div class="pane-tabs"><TabBar pane=second /></div> })
             }}
+            {move || ctx.pref(|p| p.show_page_title).then(|| {
+                let p = path.get()?;
+                let tab = ctx.work.tabs.with(|tabs| tabs.iter().find(|t| t.path == p).cloned())?;
+                Some(view! { <PageTitle tab=tab /> })
+            }).flatten()}
             <div class="editor-pane-body">
             {move || match path.get() {
                 None => view! {
@@ -332,6 +346,140 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         dirty_sig.set(true);
     };
 
+    // ── Find / replace in the page ────────────────────────────────────────────
+    let area_ref = NodeRef::<leptos::html::Textarea>::new();
+    let find_ref = NodeRef::<leptos::html::Input>::new();
+    let replace_ref = NodeRef::<leptos::html::Input>::new();
+    // None: bar closed; Some(with_replace)
+    let find = RwSignal::new(None::<bool>);
+    let query = RwSignal::new(String::new());
+    let replacement = RwSignal::new(String::new());
+    let match_case = RwSignal::new(false);
+    let current = RwSignal::new(None::<usize>);
+    // Where the search started: the first match shown is the one after it
+    let anchor = StoredValue::new(0usize);
+    let matches = Memo::new(move |_| {
+        if find.with(|f| f.is_none()) { return vec![]; }
+        let q = query.get();
+        content_sig.with(|c| edit::find_all(&c.chars().collect::<Vec<_>>(), &q, match_case.get()))
+    });
+    // Select match `i` in the text and bring it into view
+    let show_match = move |i: usize| {
+        let Some(&(a, b)) = matches.with_untracked(|m| m.get(i).copied()).as_ref() else {
+            current.set(None);
+            return;
+        };
+        current.set(Some(i));
+        anchor.set_value(a);
+        if let Some(el) = area_ref.get_untracked() {
+            set_selection(&el, a, b);
+            reveal(&el, &el.value().chars().collect::<Vec<_>>(), a);
+        }
+    };
+    // The first match at or after the anchor
+    let show_from_anchor = move || {
+        let at = anchor.get_value();
+        let n = matches.with_untracked(|m| m.iter().position(|&(a, _)| a >= at).or((!m.is_empty()).then_some(0)));
+        match n {
+            Some(i) => show_match(i),
+            None => current.set(None),
+        }
+    };
+    let step = move |forward: bool| {
+        let n = matches.with_untracked(|m| m.len());
+        if n == 0 { return; }
+        let i = match current.get_untracked() {
+            Some(i) if forward => (i + 1) % n,
+            Some(i) => (i + n - 1) % n,
+            None if forward => 0,
+            None => n - 1,
+        };
+        show_match(i);
+    };
+    let open_find = move |with_replace: bool, el: &Textarea| {
+        let (a, b) = get_pos(el);
+        let selected: String = el.value().chars().skip(a).take(b - a).collect();
+        if !selected.is_empty() && !selected.contains('\n') {
+            query.set(selected);
+        }
+        anchor.set_value(a);
+        find.set(Some(with_replace || find.get_untracked().unwrap_or(false)));
+        show_from_anchor();
+        after_tick(move || {
+            let target = if with_replace && !query.get_untracked().is_empty() { replace_ref } else { find_ref };
+            if let Some(input) = target.get_untracked() {
+                let _ = input.focus();
+                input.select();
+            }
+        });
+    };
+    let close_find = move || {
+        find.set(None);
+        current.set(None);
+        if let Some(el) = area_ref.get_untracked() { let _ = el.focus(); }
+    };
+    let replace_current = move || {
+        let Some(el) = area_ref.get_untracked() else { return };
+        let Some((a, b)) = current.get_untracked().and_then(|i| matches.with_untracked(|m| m.get(i).copied())) else {
+            step(true);
+            return;
+        };
+        let with = replacement.get_untracked();
+        let end = splice(&el, a, b, &with);
+        content_sig.set(el.value());
+        dirty_sig.set(true);
+        anchor.set_value(end);
+        show_from_anchor();
+    };
+    let replace_all = move || {
+        let Some(el) = area_ref.get_untracked() else { return };
+        let found = matches.get_untracked();
+        if found.is_empty() { return; }
+        let chars: Vec<char> = el.value().chars().collect();
+        let with = replacement.get_untracked();
+        let mut out = String::new();
+        let mut at = 0;
+        for &(a, b) in &found {
+            out.extend(&chars[at..a]);
+            out.push_str(&with);
+            at = b;
+        }
+        out.extend(&chars[at..]);
+        // A single edit, so one undo brings everything back
+        splice(&el, 0, chars.len(), &out);
+        set_cursor(&el, 0);
+        content_sig.set(el.value());
+        dirty_sig.set(true);
+        current.set(None);
+        ctx.notify(format!("{} × {}", found.len(), t("replace_all", ctx.lang.get_untracked())));
+    };
+    let on_find_key = move |e: web_sys::KeyboardEvent, in_replace: bool| {
+        let plain = !e.ctrl_key() && !e.alt_key() && !e.meta_key();
+        let handled = match e.key().as_str() {
+            "Escape" if plain => { close_find(); true }
+            "Enter" if plain && in_replace && !e.shift_key() => { replace_current(); true }
+            "Enter" if plain => { step(!e.shift_key()); true }
+            _ => match crate::keybindings::resolve(&ctx.keybindings.get_untracked(), &e) {
+                Resolution::Action(Scope::Editor, id) => match EditorAction::from_id(&id) {
+                    Some(EditorAction::Find) => { step(true); true }
+                    Some(EditorAction::FindPrevious) => { step(false); true }
+                    Some(EditorAction::KeyboardQuit) => { close_find(); true }
+                    Some(EditorAction::Replace) => {
+                        find.set(Some(true));
+                        after_tick(move || if let Some(i) = replace_ref.get_untracked() { let _ = i.focus(); });
+                        true
+                    }
+                    _ => false,
+                },
+                _ => false,
+            },
+        };
+        if handled {
+            e.prevent_default();
+            e.stop_propagation();
+        }
+    };
+
     let on_input = move |e: web_sys::Event| {
         let el = e.target().unwrap().dyn_into::<Textarea>().unwrap();
         // Typing ends the region
@@ -371,6 +519,14 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             {
                 completion.set(None);
             }
+        }
+
+        if find.get_untracked().is_some() && e.key() == "Escape"
+            && !e.ctrl_key() && !e.alt_key() && !e.meta_key() && !e.shift_key()
+        {
+            e.prevent_default();
+            close_find();
+            return;
         }
 
         let kb = ctx.keybindings.get();
@@ -551,7 +707,12 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                     }
                 }
             }
-            EditorAction::KeyboardQuit => mark.set(None),
+            EditorAction::KeyboardQuit => {
+                mark.set(None);
+                if find.get_untracked().is_some() { close_find(); }
+            }
+            EditorAction::Find | EditorAction::FindPrevious => open_find(false, &el),
+            EditorAction::Replace => open_find(true, &el),
             // Movements are handled above; copy / cut without a selection do nothing
             _ => {}
         }
@@ -571,7 +732,6 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     };
 
     // Jump to a link (from the "pages not created" list) or a line (from a tag search)
-    let area_ref = NodeRef::<leptos::html::Textarea>::new();
     let tab_goto = tab.clone();
     Effect::new(move |_| {
         let Some((path, goto)) = ctx.work.goto.get() else { return };
@@ -608,6 +768,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             highlight::render_region(&tab_region.content.get(), m.min(p), m.max(p))
         }).unwrap_or_default()
     };
+    let tab_match = tab.clone();
+    let match_html = move || matches.with(|m| {
+        highlight::render_matches(&tab_match.content.get(), m, current.get())
+    });
     // Mouse moves the caret too
     let on_pointer = move |e: web_sys::MouseEvent| {
         if mark.get_untracked().is_some()
@@ -643,6 +807,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         <div class="editor-wrap">
             <div class="hl-layer" aria-hidden="true" inner_html=highlighted />
             <div class="hl-layer region-layer" aria-hidden="true" inner_html=region_html />
+            <div class="hl-layer match-layer" aria-hidden="true" inner_html=match_html />
             <textarea
                 node_ref=area_ref
                 class="edit-layer"
@@ -661,6 +826,66 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 on:blur=move |_| completion.set(None)
                 on:scroll=move |_| completion.set(None)
             />
+            {move || find.get().map(|with_replace| {
+                let lang = ctx.lang.get();
+                view! {
+                    <div class="find-bar" on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()>
+                        <div class="find-row">
+                            <button
+                                class=if with_replace { "find-btn find-toggle open" } else { "find-btn find-toggle" }
+                                title=t("find_replace_toggle", lang)
+                                on:click=move |_| find.set(Some(!with_replace))
+                            >"›"</button>
+                            <input
+                                node_ref=find_ref
+                                class="find-input"
+                                type="text"
+                                placeholder=t("find_placeholder", lang)
+                                prop:value=move || query.get()
+                                on:input=move |e| { query.set(event_target_value(&e)); show_from_anchor(); }
+                                on:keydown=move |e| on_find_key(e, false)
+                            />
+                            <span class=move || if !query.get().is_empty() && matches.with(|m| m.is_empty()) {
+                                "find-count none"
+                            } else { "find-count" }>
+                                {move || {
+                                    let n = matches.with(|m| m.len());
+                                    if query.get().is_empty() { String::new() }
+                                    else if n == 0 { t("find_none", ctx.lang.get()).to_string() }
+                                    else { format!("{}/{n}", current.get().map_or(0, |i| i + 1)) }
+                                }}
+                            </span>
+                            <button
+                                class=move || if match_case.get() { "find-btn active" } else { "find-btn" }
+                                title=t("find_case_title", lang)
+                                on:click=move |_| { match_case.update(|c| *c = !*c); show_from_anchor(); }
+                            >"Aa"</button>
+                            <button class="find-btn" title=t("find_prev_title", lang) on:click=move |_| step(false)>"↑"</button>
+                            <button class="find-btn" title=t("find_next_title", lang) on:click=move |_| step(true)>"↓"</button>
+                            <button class="find-btn" on:click=move |_| close_find()>"×"</button>
+                        </div>
+                        {with_replace.then(|| view! {
+                            <div class="find-row find-replace-row">
+                                <input
+                                    node_ref=replace_ref
+                                    class="find-input"
+                                    type="text"
+                                    placeholder=t("replace_placeholder", lang)
+                                    prop:value=move || replacement.get()
+                                    on:input=move |e| replacement.set(event_target_value(&e))
+                                    on:keydown=move |e| on_find_key(e, true)
+                                />
+                                <button class="find-btn find-text-btn" on:click=move |_| replace_current()>
+                                    {t("replace_one", lang)}
+                                </button>
+                                <button class="find-btn find-text-btn" on:click=move |_| replace_all()>
+                                    {t("replace_all", lang)}
+                                </button>
+                            </div>
+                        })}
+                    </div>
+                }
+            })}
             {move || ping.get().map(|(x, top, bottom)| view! {
                 <div
                     class="caret-ping"

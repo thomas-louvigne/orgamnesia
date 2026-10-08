@@ -118,19 +118,14 @@ pub fn BacklinksPanel() -> impl IntoView {
             });
         }
     });
-    let add_tag = move || {
+    // Add the file tag `tag` to the page being edited
+    let tag_active_page = move |tag: &str| {
         let lang = ctx.lang.get_untracked();
-        let tag = new_tag.get_untracked().trim().trim_matches(':').trim_start_matches('#').to_string();
-        if tag.is_empty() { adding.set(false); return; }
-        if !tag.chars().all(crate::motion::is_org_tag_char) {
-            ctx.ui.status.set(Some(t("tag_invalid", lang).to_string()));
-            return;
-        }
         let Some(tab) = ctx.work.active_tab_data() else {
             ctx.ui.status.set(Some(t("tag_add_no_page", lang).to_string()));
             return;
         };
-        match crate::motion::add_filetag(&tab.content.get_untracked(), &tag) {
+        match crate::motion::add_filetag(&tab.content.get_untracked(), tag) {
             Some(content) => {
                 // Like typing in the page: marked unsaved, then auto-saved if enabled
                 tab.dirty.set(true);
@@ -139,6 +134,15 @@ pub fn BacklinksPanel() -> impl IntoView {
             }
             None => ctx.ui.status.set(Some(format!("{} :{tag}:", t("tag_exists", lang)))),
         }
+    };
+    let add_tag = move || {
+        let tag = new_tag.get_untracked().trim().trim_matches(':').trim_start_matches('#').to_string();
+        if tag.is_empty() { adding.set(false); return; }
+        if !tag.chars().all(crate::motion::is_org_tag_char) {
+            ctx.ui.status.set(Some(t("tag_invalid", ctx.lang.get_untracked()).to_string()));
+            return;
+        }
+        tag_active_page(&tag);
         new_tag.set(String::new());
         adding.set(false);
     };
@@ -238,10 +242,22 @@ pub fn BacklinksPanel() -> impl IntoView {
                                 }
                                 let items = tags.into_iter().map(|tag| {
                                     let name = tag.name.clone();
+                                    let to_add = tag.name.clone();
                                     view! {
                                         <div class="backlink-item tag-item" on:click=move |_| ctx.show_tag(name.clone())>
                                             <span class="tags">{format!(":{}:", tag.name)}</span>
-                                            <span class="tag-count">{tag.count}</span>
+                                            <span class="tag-item-end">
+                                                <span class="tag-count">{tag.count}</span>
+                                                <button
+                                                    class="btn-icon tag-add-btn"
+                                                    title=t("tag_add_to_page", lang)
+                                                    prop:disabled=move || ctx.work.active_tab.get().is_none()
+                                                    on:click=move |e: web_sys::MouseEvent| {
+                                                        e.stop_propagation();
+                                                        tag_active_page(&to_add);
+                                                    }
+                                                >"+"</button>
+                                            </span>
                                         </div>
                                     }
                                 }).collect_view();

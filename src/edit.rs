@@ -186,6 +186,24 @@ fn wiki_link_at(chars: &[char], pos: usize, hashtags: Hashtags) -> Option<String
     None
 }
 
+/// Char ranges of the occurrences of `query` in `chars`, without overlap.
+pub fn find_all(chars: &[char], query: &str, match_case: bool) -> Vec<(usize, usize)> {
+    let norm = |c: char| if match_case { c } else { c.to_lowercase().next().unwrap_or(c) };
+    let q: Vec<char> = query.chars().map(norm).collect();
+    let mut found = Vec::new();
+    if q.is_empty() { return found; }
+    let mut i = 0;
+    while i + q.len() <= chars.len() {
+        if chars[i..i + q.len()].iter().zip(&q).all(|(&c, &k)| norm(c) == k) {
+            found.push((i, i + q.len()));
+            i += q.len();
+        } else {
+            i += 1;
+        }
+    }
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -262,5 +280,14 @@ mod tests {
         assert_eq!(link_at(&t, 39, Hashtags::Off), None);
         assert_eq!(link_at(&t, 1, Hashtags::Dashes), None);
         assert_eq!(link_at(&c("* Titre :projet:"), 11, Hashtags::Off).as_deref(), Some("projet"));
+    }
+
+    #[test]
+    fn finds_every_occurrence() {
+        let c: Vec<char> = "Élan, élan ÉLAN aaa".chars().collect();
+        assert_eq!(find_all(&c, "élan", false), vec![(0, 4), (6, 10), (11, 15)]);
+        assert_eq!(find_all(&c, "élan", true), vec![(6, 10)]);
+        assert_eq!(find_all(&c, "aa", false), vec![(16, 18)]);
+        assert!(find_all(&c, "", false).is_empty());
     }
 }

@@ -318,6 +318,22 @@ html, body { height: 100%; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
     .caret-ping, .caret-ping::after { animation-duration: .01s; animation-delay: .6s; }
 }
+/* Title of the page shown, in large type above the editor */
+.page-title { flex-shrink: 0; padding: 14px 24px 10px; min-width: 0; }
+/* Grey bar separating the title from the text, across the pane */
+.page-title::after {
+    content: ""; display: block; height: 1px; margin-top: 8px;
+    background: var(--border);
+}
+.page-title-text {
+    font-size: 26px; font-weight: 600; color: var(--fg); line-height: 1.25;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default;
+}
+.page-title-input {
+    width: 100%; font-size: 26px; font-weight: 600; font-family: inherit; line-height: 1.25;
+    background: var(--bg3); color: var(--fg); border: 1px solid var(--accent);
+    border-radius: 4px; padding: 0 6px; outline: none;
+}
 .editor-pane-body { flex: 1; display: flex; min-width: 0; min-height: 0; overflow: hidden; }
 .pane-tab {
     display: flex; align-items: center; height: 32px; padding: 0 12px; flex-shrink: 0;
@@ -389,6 +405,39 @@ html, body { height: 100%; overflow: hidden; }
 /* Emacs region: transparent text so only the <mark> background shows over the highlight layer */
 .region-layer { background: transparent; color: transparent; z-index: 0; }
 .region-layer mark.region { background: rgba(97,175,239,.35); color: transparent; }
+
+/* Find in the page: every match, the selected one brighter */
+.match-layer { background: transparent; color: transparent; z-index: 0; }
+.match-layer mark.match { background: rgba(229,192,123,.30); color: transparent; border-radius: 2px; }
+.match-layer mark.match.current { background: rgba(229,192,123,.75); }
+
+.find-bar {
+    position: absolute; top: 8px; right: 18px; z-index: 4;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 6px 8px; border-radius: 6px;
+    background: var(--bg2); border: 1px solid var(--border);
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+    font-family: system-ui, sans-serif; font-size: 13px;
+}
+.find-row { display: flex; align-items: center; gap: 4px; }
+.find-replace-row { padding-left: 26px; }
+.find-input {
+    width: 220px; background: var(--bg3); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 3px 7px; font: inherit; outline: none;
+}
+.find-input:focus { border-color: var(--accent); }
+.find-count { min-width: 64px; color: var(--fg-dim); font-size: 12px; text-align: center; white-space: nowrap; }
+.find-count.none { color: var(--red); }
+.find-btn {
+    background: none; border: 1px solid transparent; border-radius: 4px;
+    color: var(--fg-dim); cursor: pointer; min-width: 24px; height: 24px; padding: 0 5px; font: inherit;
+}
+.find-btn:hover { color: var(--fg); background: var(--bg3); }
+.find-btn.active { color: var(--fg); border-color: var(--accent); }
+.find-toggle { transition: transform .15s; }
+.find-toggle.open { transform: rotate(90deg); }
+.find-text-btn { border-color: var(--border); }
 
 .edit-layer {
     background: transparent;
@@ -487,6 +536,11 @@ html, body { height: 100%; overflow: hidden; }
 .tag-search { padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .tag-item { display: flex; justify-content: space-between; gap: 8px; }
 .tag-count { color: var(--fg-dim); font-size: 11px; }
+.tag-item { align-items: center; }
+.tag-item-end { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.tag-add-btn { width: 18px; height: 18px; padding: 0; line-height: 1; font-size: 14px; opacity: .45; }
+.tag-item:hover .tag-add-btn { opacity: 1; }
+.tag-add-btn:disabled { display: none; }
 .tag-hit-page { overflow: hidden; text-overflow: ellipsis; }
 .tag-hit-heading { color: var(--fg-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 
@@ -579,7 +633,7 @@ html, body { height: 100%; overflow: hidden; }
     max-width: 95vw;
     max-height: 95vh;
 }
-.modal-resizable .modal-body { flex: 1; min-height: 0; max-height: none; }
+.modal-resizable .modal-body { flex: 1; min-width: 0; min-height: 0; max-height: none; }
 
 .modal-header {
     display: flex;
@@ -589,24 +643,32 @@ html, body { height: 100%; overflow: hidden; }
 }
 .modal-header h2 { font-size: 16px; color: var(--fg); }
 
+/* Settings window: the tabs in a column on the left, the selected one's settings on the right */
+.modal-main { flex: 1; display: flex; min-height: 0; border-top: 1px solid var(--border); }
+
 .modal-tabs {
     display: flex;
-    border-bottom: 1px solid var(--border);
+    flex-direction: column;
+    border-right: 1px solid var(--border);
     background: var(--bg3);
     flex-shrink: 0;
+    min-width: 130px;
+    padding: 6px 0;
+    overflow-y: auto;
 }
 
 .modal-tab {
     background: none;
     border: none;
-    border-bottom: 2px solid transparent;
+    border-left: 2px solid transparent;
     color: var(--fg-dim);
     cursor: pointer;
     font-size: 13px;
-    padding: 9px 20px;
+    padding: 9px 20px 9px 16px;
+    text-align: left;
 }
 .modal-tab:hover { color: var(--fg); }
-.modal-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
+.modal-tab.active { color: var(--fg); border-left-color: var(--accent); background: var(--bg2); }
 
 .tab-content { display: flex; flex-direction: column; gap: 16px; }
 

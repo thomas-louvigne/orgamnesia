@@ -1,7 +1,7 @@
 # Maintainer: Thomas L <zobi8225@gmail.com>
 pkgname=orgamnesia-git
 _pkgname=orgamnesia
-pkgver=0.6.0.r0.g0000000
+pkgver=0.7.0.r0.g0000000
 pkgrel=1
 pkgdesc="A lite Obsidian with an Emacs flavour: personal wiki in org-mode files"
 arch=('x86_64' 'aarch64')
