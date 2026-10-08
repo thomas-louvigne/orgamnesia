@@ -27,6 +27,8 @@ pub struct Settings {
     pub find_match_case: Option<bool>,
     /// Indent the text under a headline to the column of its title (on screen only).
     pub indent_headings: Option<bool>,
+    /// Tab on a headline folds / unfolds it (org-mode cycle).
+    pub tab_folds: Option<bool>,
     /// Emacs mark: Ctrl+Space starts a region that follows the cursor.
     pub emacs_mark: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
@@ -128,6 +130,7 @@ pub struct Prefs {
     pub org_tag_dashes: bool,
     pub find_match_case: bool,
     pub indent_headings: bool,
+    pub tab_folds: bool,
     pub emacs_mark: bool,
     pub electric_mode: bool,
 }
@@ -166,6 +169,7 @@ impl Prefs {
             org_tag_dashes: s.org_tag_dashes.unwrap_or(false),
             find_match_case: s.find_match_case.unwrap_or(false),
             indent_headings: s.indent_headings.unwrap_or(true),
+            tab_folds: s.tab_folds.unwrap_or(true),
             emacs_mark: s.emacs_mark.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
         }
@@ -185,6 +189,7 @@ impl Prefs {
             org_tag_dashes: Some(self.org_tag_dashes),
             find_match_case: Some(self.find_match_case),
             indent_headings: Some(self.indent_headings),
+            tab_folds: Some(self.tab_folds),
             emacs_mark: Some(self.emacs_mark),
             electric_mode: Some(self.electric_mode),
             autosave: Some(self.autosave),

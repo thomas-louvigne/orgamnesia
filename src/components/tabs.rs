@@ -134,6 +134,7 @@ fn TabItem(
             })}
             <button
                 class="tab-close"
+                aria-label=move || t("shortcut_close_tab", ctx.lang.get())
                 style=hidden_while_editing
                 on:click=close
                 on:dblclick=|e: web_sys::MouseEvent| e.stop_propagation()

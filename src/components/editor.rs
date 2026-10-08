@@ -4,7 +4,7 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 use crate::{
     actions::follow_link,
-    components::{page_title::PageTitle, tabs::TabBar},
+    components::{empty_state::EmptyState, page_title::PageTitle, tabs::TabBar},
     edit,
     highlight,
     tables,
@@ -230,6 +230,8 @@ pub fn EditorArea(second: bool) -> impl IntoView {
             node_ref=area_ref
             class=move || if focused() { "editor-area focused" } else { "editor-area" }
             on:mousedown=move |_| ctx.work.focus_pane(second)
+            // Keyboard focus entering the pane (F6, Tab) makes it the one commands act on
+            on:focusin=move |_| ctx.work.focus_pane(second)
         >
             {move || (ctx.work.split.get() == Some(SplitKind::Vertical)).then(|| {
                 let name = path.try_get().flatten()
@@ -253,13 +255,7 @@ pub fn EditorArea(second: bool) -> impl IntoView {
             <div class="editor-pane-body">
             // `try_get`: these also re-run when the pane is closed (C-x 0), after `path` is disposed
             {move || match path.try_get().flatten() {
-                None => view! {
-                    <div class="editor-empty">
-                        <p>{t("no_file", ctx.lang.get())}</p>
-                        <p>{t("open_hint", ctx.lang.get())}</p>
-                        <img class="empty-logo" src="app-icon.svg" alt="" />
-                    </div>
-                }.into_any(),
+                None => view! { <EmptyState /> }.into_any(),
                 Some(p) => {
                     let tab = ctx.work.tabs.get_untracked().into_iter().find(|t| t.path == p);
                     match tab {
@@ -781,15 +777,20 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             let chars: Vec<char> = el.value().chars().collect();
             let forward = action == EditorAction::TableNextCell;
             let Some(to) = tables::move_cell(&chars, caret(&el), forward) else {
-                // Tab on a headline folds / unfolds it (org-mode cycle)
-                if !forward { return; }
+                // Tab on a headline folds / unfolds it (org-mode cycle), when the settings say so
+                if !forward || !ctx.pref_untracked(|p| p.tab_folds) { return; }
                 let text = el.value();
                 let pos = shown.with_value(|v| v.content_pos(&text, caret(&el)));
                 let page: Vec<char> = content_sig.with_untracked(|c| c.chars().collect());
                 let line = crate::folding::line_start(&page, pos);
-                let Some(next) = folds.with_untracked(|f| crate::folding::cycle(&page, line, f)) else { return };
+                if !crate::folding::is_headline(&page, line) { return; }
+                // On a headline, Tab never leaves the editor: with nothing under it, say so (Emacs: EMPTY ENTRY)
                 e.prevent_default();
                 e.stop_propagation();
+                let Some(next) = folds.with_untracked(|f| crate::folding::cycle(&page, line, f)) else {
+                    ctx.notify_t("fold_empty", "");
+                    return;
+                };
                 // The caret stays on the headline
                 focus_pos.set(Some(pos.min(page[line..].iter().position(|&c| c == '\n').map_or(page.len(), |p| line + p))));
                 folds.set(next);
@@ -1041,6 +1042,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             <textarea
                 node_ref=area_ref
                 class="edit-layer"
+                aria-label=format!("{} {}", t("editor_label", ctx.lang.get_untracked()), tab.name)
                 spellcheck=false
                 on:input=on_input
                 on:keydown=on_keydown

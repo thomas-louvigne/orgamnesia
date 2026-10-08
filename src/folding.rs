@@ -11,6 +11,11 @@ fn level(chars: &[char], ls: usize) -> Option<usize> {
     (stars > 0 && matches!(chars.get(ls + stars), Some(' ' | '\n') | None)).then_some(stars)
 }
 
+/// Whether the line starting at `ls` is a headline (`* Title`).
+pub fn is_headline(chars: &[char], ls: usize) -> bool {
+    level(chars, ls).is_some()
+}
+
 fn line_end(chars: &[char], ls: usize) -> usize {
     chars[ls..].iter().position(|&c| c == '\n').map_or(chars.len(), |p| ls + p)
 }
@@ -106,6 +111,7 @@ mod tests {
         let t = c("* A\n* B\ntexte");
         assert_eq!(cycle(&t, 0, &[]), None);        // empty headline
         assert_eq!(cycle(&t, 8, &[]), None);        // not a headline
+        assert!(is_headline(&t, 0) && !is_headline(&t, 8));
         assert_eq!(cycle(&t, 4, &[]), Some(vec![(7, 13)]));
         // Without children, FOLDED shows everything again
         assert_eq!(cycle(&t, 4, &[(7, 13)]), Some(vec![]));

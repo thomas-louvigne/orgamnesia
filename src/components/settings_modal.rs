@@ -458,6 +458,7 @@ pub fn SettingsModal() -> impl IntoView {
                     <h2>{move || t("settings", lang())}</h2>
                     <button
                         class="btn-close"
+                        aria-label=move || t("close", lang())
                         on:click=move |_| ctx.ui.show_settings.set(false)
                         on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
                     >"×"</button>
@@ -520,6 +521,8 @@ pub fn SettingsModal() -> impl IntoView {
                             <Check draft get=|p| p.find_match_case set=|p, v| p.find_match_case = v label="find_match_case" />
                             <Check draft get=|p| p.indent_headings set=|p, v| p.indent_headings = v
                                 label="indent_headings" hint="indent_headings_hint" />
+                            <Check draft get=|p| p.tab_folds set=|p, v| p.tab_folds = v
+                                label="tab_folds" hint="tab_folds_hint" />
                             <Check draft get=|p| p.delete_empty set=|p, v| p.delete_empty = v label="delete_empty_pages" />
                             <Check draft get=|p| p.delete_title_only set=|p, v| p.delete_title_only = v label="delete_title_only_pages" />
                         </div>

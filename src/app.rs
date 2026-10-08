@@ -214,6 +214,8 @@ fn run_app_action(ctx: AppCtx, action: AppAction) {
         AppAction::CloseSplit      => ctx.work.close_window(),
         AppAction::SingleWindow    => ctx.work.single_window(),
         AppAction::OtherWindow     => ctx.work.other_window(),
+        AppAction::NextRegion      => crate::a11y::cycle_region(true),
+        AppAction::PrevRegion      => crate::a11y::cycle_region(false),
         AppAction::Quit => {
             let quit = move || spawn_local(async move {
                 if let Err(err) = invoke::quit_app().await {
@@ -360,7 +362,7 @@ pub fn App() -> impl IntoView {
                     <Sidebar />
                     <Resizer which=Drag::Sidebar />
                 })}
-                <div class="workspace">
+                <main class="workspace">
                     // Side by side, each pane has its own tabs under its title (see EditorArea)
                     {move || {
                         let split = ctx.work.split.get();
@@ -384,7 +386,7 @@ pub fn App() -> impl IntoView {
                         })
                     }}
                     <EditorSplit />
-                </div>
+                </main>
                 {move || ctx.has_right_panel().then(|| view! {
                     <Resizer which=Drag::Panel />
                     <BacklinksPanel />
@@ -394,6 +396,7 @@ pub fn App() -> impl IntoView {
             {move || ctx.pref(|p| p.show_quit_button).then(|| view! {
                 <button
                     class="btn-quit"
+                    aria-label=move || t("quit_button_title", ctx.lang.get())
                     title=move || {
                         let label = t("quit_button_title", ctx.lang.get());
                         match ctx.keybindings.with(|kb| kb.app_binds("quit").first().cloned()) {
@@ -417,7 +420,7 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.status.get().map(|msg| view! {
                 <div class="status-bar">
                     <span>{msg}</span>
-                    <button class="status-close" on:click=move |_| ctx.ui.status.set(None)>"×"</button>
+                    <button class="status-close" aria-label=move || t("close", ctx.lang.get()) on:click=move |_| ctx.ui.status.set(None)>"×"</button>
                 </div>
             })}
         </div>

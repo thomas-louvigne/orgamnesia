@@ -106,7 +106,7 @@ pub struct ActionDef<A: 'static> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppAction {
     NewPage, Save, OpenSettings, QuickOpen, CloseTab, NextTab, PrevTab, PageBack, PageForward,
-    SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, Quit,
+    SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
 }
 
 /// Editor actions.
@@ -150,6 +150,8 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::CloseSplit, id: "close_split",      label_key: "shortcut_close_split" },
     ActionDef { action: AppAction::SingleWindow, id: "single_window",    label_key: "shortcut_single_window" },
     ActionDef { action: AppAction::OtherWindow, id: "other_window",     label_key: "shortcut_other_window" },
+    ActionDef { action: AppAction::NextRegion, id: "next_region",      label_key: "shortcut_next_region" },
+    ActionDef { action: AppAction::PrevRegion, id: "prev_region",      label_key: "shortcut_prev_region" },
     ActionDef { action: AppAction::Quit, id: "quit",             label_key: "shortcut_quit" },
 ];
 
@@ -235,7 +237,10 @@ pub fn default_app() -> Bindings {
         ("split_horizontal", &["ctrl+alt+h"]),
         ("close_split",      &["ctrl+alt+w"]),
         ("single_window",    &["ctrl+alt+o"]),
-        ("other_window",     &["ctrl+o", "F6"]),
+        ("other_window",     &["ctrl+o"]),
+        // Pages, editor panes, side panel
+        ("next_region",      &["F6"]),
+        ("prev_region",      &["shift+F6"]),
         ("quit",             &["ctrl+q"]),
     ])
 }
@@ -268,6 +273,8 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("close_split",      &["ctrl+x 0", "ctrl+x shift+0"]),
             ("single_window",    &["ctrl+x 1", "ctrl+x shift+1"]),
             ("other_window",     &["ctrl+x o", "ctrl+o"]),
+            ("next_region",      &["F6"]),
+            ("prev_region",      &["shift+F6"]),
             ("quit",             &["ctrl+x ctrl+c"]),
         ]),
         _ => default_app(),

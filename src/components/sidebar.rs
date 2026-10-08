@@ -46,7 +46,7 @@ pub fn NewPageModal() -> impl IntoView {
             <div class="modal" on:click=|e| e.stop_propagation()>
                 <div class="modal-header">
                     <h2>{move || t("new_page_title", lang())}</h2>
-                    <button class="btn-close" on:click=move |_| ctx.ui.show_new_page.set(false)>"×"</button>
+                    <button class="btn-close" aria-label=move || t("close", ctx.lang.get()) on:click=move |_| ctx.ui.show_new_page.set(false)>"×"</button>
                 </div>
                 <div class="modal-body">
                     <input
@@ -116,7 +116,7 @@ pub fn Sidebar() -> impl IntoView {
     };
 
     view! {
-        <div class="sidebar">
+        <nav class="sidebar" aria-label=move || t("pages", ctx.lang.get())>
             {move || ctx.pref(|p| p.show_brand).then(|| view! {
                 <div class="app-brand">
                     <img class="app-brand-logo" src="app-icon.svg" alt="" />
@@ -130,6 +130,7 @@ pub fn Sidebar() -> impl IntoView {
                 <button
                     class="btn-icon"
                     title={move || t("new_page_title", ctx.lang.get())}
+                    aria-label={move || t("new_page_title", ctx.lang.get())}
                     on:click=move |_| trigger_new_page()
                 >"+"</button>
             </div>
@@ -137,6 +138,7 @@ pub fn Sidebar() -> impl IntoView {
                 <input
                     type="text"
                     class="search-input"
+                    aria-label={move || t("filter_hint", ctx.lang.get())}
                     placeholder={move || {
                         // With the shortcut of the quick open (search any page), discreetly
                         let hint = t("filter_hint", ctx.lang.get());
@@ -164,14 +166,19 @@ pub fn Sidebar() -> impl IntoView {
                     {
                         let path = file.path.clone();
                         let path_r = file.path.clone();
+                        let path_c = file.path.clone();
                         let name = file.name.clone();
                         let file_open = file.clone();
                         let file_menu = file.clone();
                         view! {
                             <div
                                 class=move || if active_path.get().as_deref() == Some(path.as_str()) {
-                                    "file-item active"
-                                } else { "file-item" }
+                                    "file-item list-item active"
+                                } else { "file-item list-item" }
+                                role="button"
+                                tabindex="0"
+                                aria-current=move || (active_path.get().as_deref() == Some(path_c.as_str())).then_some("page")
+                                on:keydown=crate::a11y::list_item_keys
                                 on:click=move |_| {
                                     if renaming.get_untracked().is_none() {
                                         actions::open_file(ctx, file_open.clone(), None);
@@ -256,7 +263,7 @@ pub fn Sidebar() -> impl IntoView {
                     </div>
                 }
             })}
-        </div>
+        </nav>
     }
 }
 
@@ -279,10 +286,16 @@ fn ProjectSwitcher() -> impl IntoView {
                 <span class="project-caret">"▾"</span>
             </button>
             <button
-                class="btn-icon"
+                class="btn-icon btn-open-folder"
                 title={move || t("open_project", ctx.lang.get())}
+                aria-label={move || t("open_project", ctx.lang.get())}
                 on:click=move |_| spawn_local(actions::pick_and_open_project(ctx))
-            >"📂"</button>
+            >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 7.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V9a1.5 1.5 0 0 0-1.5-1.5h-7.2L10.4 5H4.5A1.5 1.5 0 0 0 3 6.5z" />
+                </svg>
+            </button>
             {move || ctx.ui.show_projects.get().then(|| view! {
                 <div class="ctx-overlay" on:click=move |_| ctx.ui.show_projects.set(false) />
                 <div class="project-menu">
@@ -299,9 +312,12 @@ fn ProjectSwitcher() -> impl IntoView {
                             view! {
                                 <div
                                     class=move || if ctx.project.vault_path.get().as_deref() == Some(p_cmp.as_str()) {
-                                        "project-item active"
-                                    } else { "project-item" }
+                                        "project-item list-item active"
+                                    } else { "project-item list-item" }
                                     title=path.clone()
+                                    role="button"
+                                    tabindex="0"
+                                    on:keydown=crate::a11y::list_item_keys
                                     on:click=move |_| {
                                         ctx.ui.show_projects.set(false);
                                         spawn_local(actions::open_project(ctx, p_open.clone()));
@@ -311,6 +327,7 @@ fn ProjectSwitcher() -> impl IntoView {
                                     <button
                                         class="btn-icon"
                                         title={move || t("remove_project", ctx.lang.get())}
+                                        aria-label={move || t("remove_project", ctx.lang.get())}
                                         on:click=move |e: web_sys::MouseEvent| {
                                             e.stop_propagation();
                                             let p = p_rm.clone();

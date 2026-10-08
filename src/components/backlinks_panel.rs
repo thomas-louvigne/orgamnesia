@@ -180,7 +180,7 @@ pub fn BacklinksPanel() -> impl IntoView {
     let next_source = StoredValue::new(std::collections::HashMap::<String, usize>::new());
 
     view! {
-        <div class="backlinks-panel">
+        <aside class="backlinks-panel" aria-label=move || t("side_panel", ctx.lang.get())>
             {move || ctx.pref(|p| p.show_backlinks).then(|| view! {
                 <div class="panel-section">
                     <div class="panel-header">{move || t("backlinks", ctx.lang.get())}</div>
@@ -194,7 +194,9 @@ pub fn BacklinksPanel() -> impl IntoView {
                                 let items = bl.into_iter().map(|name| {
                                     let name2 = name.clone();
                                     view! {
-                                        <div class="backlink-item" on:click=move |_| open_backlink(name2.clone())>
+                                        <div class="backlink-item list-item" role="button" tabindex="0"
+                                            on:keydown=crate::a11y::list_item_keys
+                                            on:click=move |_| open_backlink(name2.clone())>
                                             {name.clone()}
                                         </div>
                                     }
@@ -217,6 +219,7 @@ pub fn BacklinksPanel() -> impl IntoView {
                             } else {
                                 t("tag_add_no_page", ctx.lang.get())
                             }
+                            aria-label=move || t("tag_add_title", ctx.lang.get())
                             on:click=move |_| adding.update(|a| *a = !*a)
                         >"+"</button>
                     </div>
@@ -311,13 +314,16 @@ pub fn BacklinksPanel() -> impl IntoView {
                                     let name = tag.name.clone();
                                     let to_add = tag.name.clone();
                                     view! {
-                                        <div class="backlink-item tag-item" on:click=move |_| ctx.show_tag(name.clone())>
+                                        <div class="backlink-item tag-item list-item" role="button" tabindex="0"
+                                            on:keydown=crate::a11y::list_item_keys
+                                            on:click=move |_| ctx.show_tag(name.clone())>
                                             <span class="tags">{format!(":{}:", tag.name)}</span>
                                             <span class="tag-item-end">
                                                 <span class="tag-count">{tag.count}</span>
                                                 <button
                                                     class="btn-icon tag-add-btn"
                                                     title=t("tag_add_to_page", lang)
+                                                    aria-label=format!("{} :{}:", t("tag_add_to_page", lang), tag.name)
                                                     prop:disabled=move || ctx.work.active_tab.get().is_none()
                                                     on:click=move |e: web_sys::MouseEvent| {
                                                         e.stop_propagation();
@@ -338,7 +344,8 @@ pub fn BacklinksPanel() -> impl IntoView {
                                 let (page, line) = (h.page.clone(), h.line);
                                 let tip = format!(":{}:", h.tags.join(":"));
                                 view! {
-                                    <div class="backlink-item tag-hit" title=tip
+                                    <div class="backlink-item tag-hit list-item" title=tip role="button" tabindex="0"
+                                        on:keydown=crate::a11y::list_item_keys
                                         on:click=move |_| open_page(page.clone(), Some(Goto::Line(line)))
                                     >
                                         <div class="tag-hit-page">{h.page.clone()}</div>
@@ -363,9 +370,10 @@ pub fn BacklinksPanel() -> impl IntoView {
                 })}
             {move || ctx.pref(|p| p.show_broken_links).then(|| view! {
                 <div class="broken-links">
-                    <button class="broken-links-header" on:click=move |_| broken_open.update(|v| *v = !*v)>
+                    <button class="broken-links-header" aria-expanded=move || broken_open.get().to_string()
+                        on:click=move |_| broken_open.update(|v| *v = !*v)>
                         <span>{move || format!("{} ({})", t("broken_links", ctx.lang.get()), broken.get().len())}</span>
-                        <span class="project-caret">{move || if broken_open.get() { "▾" } else { "▸" }}</span>
+                        <span class="project-caret" aria-hidden="true">{move || if broken_open.get() { "▾" } else { "▸" }}</span>
                     </button>
                     {move || broken_open.get().then(|| view! {
                         <div class="broken-links-list">
@@ -380,8 +388,11 @@ pub fn BacklinksPanel() -> impl IntoView {
                                         let b_menu = b.clone();
                                         view! {
                                             <div
-                                                class="broken-link-item"
+                                                class="broken-link-item list-item"
                                                 title=tip
+                                                role="button"
+                                                tabindex="0"
+                                                on:keydown=crate::a11y::list_item_keys
                                                 on:click=move |_| {
                                                     // Visit the pages using this link, one after the other
                                                     let n = b_click.sources.len();
@@ -429,6 +440,6 @@ pub fn BacklinksPanel() -> impl IntoView {
                     </div>
                 }
             })}
-        </div>
+        </aside>
     }
 }
