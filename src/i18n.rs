@@ -393,6 +393,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("quick_open_ph",    Lang::Fr) => "Aller à la page…",
         ("quick_open_empty", Lang::En) => "No pages found.",
         ("quick_open_empty", Lang::Fr) => "Aucune page trouvée.",
+        ("quick_open_tag",   Lang::En) => "tag",
+        ("quick_open_tag",   Lang::Fr) => "tag",
         ("quick_open_new",   Lang::En) => "new page",
         ("quick_open_new",   Lang::Fr) => "nouvelle page",
         // Tab context menu

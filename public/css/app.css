@@ -435,6 +435,7 @@ html, body { height: 100%; overflow: hidden; }
     vertical-align: top; text-align: left; overflow-wrap: break-word;
 }
 .org-table th { font-weight: bold; background: var(--bg2); }
+.org-table .num { text-align: right; }
 /* Header rows of a table being edited as text */
 .tbl-head { font-weight: bold; }
 .org-table tr.rule > * { border-top: 2px solid var(--fg-dim); }
@@ -570,6 +571,15 @@ html, body { height: 100%; overflow: hidden; }
 .tag-search { padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .tag-item { display: flex; justify-content: space-between; gap: 8px; }
 .tag-count { color: var(--fg-dim); font-size: 11px; }
+/* Tags proposed while typing a tag search */
+.tag-search { position: relative; }
+.tag-suggest {
+    position: absolute; left: 10px; right: 10px; top: 100%; z-index: 20; margin-top: -4px;
+    list-style: none; padding: 4px 0; background: var(--bg2);
+    border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.35);
+}
+.tag-suggest li { padding: 3px 10px; cursor: pointer; color: var(--purple); font-size: 13px; }
+.tag-suggest li.selected { background: var(--accent); color: #fff; }
 .tag-item { align-items: center; }
 .tag-item-end { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .tag-add-btn { width: 18px; height: 18px; padding: 0; line-height: 1; font-size: 14px; opacity: .45; }
@@ -947,6 +957,7 @@ html, body { height: 100%; overflow: hidden; }
 }
 .qo-tab    { color: var(--accent2); }
 .qo-file   { color: var(--fg-dim); }
+.qo-tag    { color: var(--purple); font-weight: bold; }
 .qo-create { color: var(--green); font-size: 15px; font-weight: bold; }
 
 .qo-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

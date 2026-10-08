@@ -6,6 +6,8 @@ use crate::{actions, i18n::t, state::{AppCtx, FileEntry}};
 enum QuickItem {
     Tab { idx: usize, name: String, is_active: bool },
     File(FileEntry),
+    /// An org-mode tag: shown in the tags frame.
+    Tag(String),
     Create { name: String },
 }
 
@@ -14,6 +16,7 @@ impl QuickItem {
         match self {
             Self::Tab { name, .. } | Self::Create { name } => name.clone(),
             Self::File(f) => f.name.clone(),
+            Self::Tag(tag) => format!(":{tag}:"),
         }
     }
 }
@@ -23,6 +26,7 @@ fn do_open(ctx: AppCtx, item: QuickItem) {
     match item {
         QuickItem::Tab { idx, .. } => ctx.work.active_tab.set(Some(idx)),
         QuickItem::File(file) => actions::open_file(ctx, file, None),
+        QuickItem::Tag(tag) => ctx.show_tag(tag),
         QuickItem::Create { name } => actions::create_and_open_page(ctx, name),
     }
 }
@@ -63,6 +67,15 @@ pub fn QuickOpenModal() -> impl IntoView {
                 }
             }
         });
+
+        // The tags, when typing something and the tags frame is shown (`:pro` or `#pro` work too)
+        let tag_q = q.trim_start_matches([':', '#']).trim_end_matches(':');
+        if !tag_q.is_empty() && ctx.pref(|p| p.show_tags) {
+            let names: Vec<String> = ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect());
+            let exact = names.iter().find(|n| n.to_lowercase() == tag_q).cloned();
+            let found = crate::motion::complete_page(&names, tag_q, None, 8);
+            list.extend(exact.into_iter().chain(found).map(QuickItem::Tag));
+        }
 
         if !q.is_empty() {
             list.push(QuickItem::Create { name: query.get() });
@@ -133,6 +146,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                                         QuickItem::Tab { is_active: true,  .. } => ("●", "qo-tab",    None),
                                         QuickItem::Tab { is_active: false, .. } => ("○", "qo-tab",    None),
                                         QuickItem::File(_)                      => ("▫", "qo-file",   None),
+                                        QuickItem::Tag(_)                       => ("#", "qo-tag",    Some(t("quick_open_tag", lang))),
                                         QuickItem::Create { .. }                => ("+", "qo-create", Some(t("quick_open_new", lang))),
                                     };
                                     view! {

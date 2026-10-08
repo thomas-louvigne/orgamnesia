@@ -190,7 +190,8 @@ pub fn org_tag_at(chars: &[char], pos: usize) -> Option<String> {
 }
 
 /// The org-mode tag being typed when the caret is at `caret`: after `:` in the tags
-/// of a headline (`* Title :pro`), or in a `#+FILETAGS:` line. Returns the index
+/// of a headline (`* Title :pro`), in a `#+FILETAGS:` line, or as `:pro` in the
+/// text (a character typed at least). Returns the index
 /// where the tag starts and the part already typed (possibly empty).
 pub fn org_tag_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
     if chars.get(caret).is_some_and(|&c| is_org_tag_char(c)) { return None; }
@@ -203,9 +204,15 @@ pub fn org_tag_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
         let ok = start - ls >= v && (start - ls == v || chars[start - 1] == ':' || chars[start - 1].is_whitespace());
         return ok.then_some((start, prefix));
     }
-    // Headline: the caret is in its last word, which starts with `:` after a space
     let stars = line.iter().take_while(|&&c| c == '*').count();
-    if stars == 0 || line.get(stars) != Some(&' ') { return None; }
+    if stars == 0 || line.get(stars) != Some(&' ') {
+        // In the text: a word starting with `:`, at the start of the line or after a
+        // space, once a character of the tag is typed (`10:30`, `http://` are not tags)
+        let ok = !prefix.is_empty() && start > ls && chars[start - 1] == ':'
+            && (start - 1 == ls || chars[start - 2].is_whitespace());
+        return ok.then_some((start, prefix));
+    }
+    // Headline: the caret is in its last word, which starts with `:` after a space
     let after: String = chars[caret..le].iter().collect();
     if after.trim_end().chars().any(|c| c != ':' && !is_org_tag_char(c)) { return None; }
     if start == 0 || chars[start - 1] != ':' { return None; }
@@ -393,15 +400,21 @@ mod tests {
 
     #[test]
     fn org_tag_prefix_while_typing() {
+        // In the text
+        assert_eq!(org_tag_prefix(&c("voir :pro"), 9), Some((6, "pro".into())));
+        assert_eq!(org_tag_prefix(&c(":pro"), 4), Some((1, "pro".into())));
+        assert_eq!(org_tag_prefix(&c("voir :"), 6), None);
+        assert_eq!(org_tag_prefix(&c("à 10:30"), 7), None);
+        assert_eq!(org_tag_prefix(&c("http://x"), 8), None);
         assert_eq!(org_tag_prefix(&c("* T :pro"), 8), Some((5, "pro".into())));
         assert_eq!(org_tag_prefix(&c("* T :"), 5), Some((5, String::new())));
         assert_eq!(org_tag_prefix(&c("* T :a:b"), 8), Some((7, "b".into())));
         assert_eq!(org_tag_prefix(&c("* T :pr:"), 7), Some((5, "pr".into())));
         assert_eq!(org_tag_prefix(&c("#+FILETAGS: :a"), 14), Some((13, "a".into())));
         assert_eq!(org_tag_prefix(&c("#+filetags: "), 12), Some((12, String::new())));
-        // `Note:` glued to a word, a colon in text, a caret before more words
+        // `Note:` glued to a word, a caret before more words
         assert_eq!(org_tag_prefix(&c("* Note:"), 7), None);
-        assert_eq!(org_tag_prefix(&c("texte :a"), 8), None);
+        assert_eq!(org_tag_prefix(&c("texte :a"), 8), Some((7, "a".into())));
         assert_eq!(org_tag_prefix(&c("* T :a suite"), 6), None);
         assert_eq!(org_tag_prefix(&c("#+TITLE: x"), 10), None);
     }

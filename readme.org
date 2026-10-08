@@ -2,9 +2,8 @@
 
 #+HTML: <p align="center"><img src="src-tauri/icons/app-icon.svg" alt="Orgamnesia" width="128"></p>
 
-A lite Obsidian with an Emacs flavour: a personal wiki made of =org-mode= files,
-with links between pages and backlinks. Desktop app written in Rust: Tauri v2 (backend) and
-Leptos 0.7 (frontend, compiled to WebAssembly).
+A personal wiki in =org-mode= files: a lite Obsidian with an Emacs flavour,
+with links between pages and backlinks.
 
 /[[file:readme.fr.org][🇫🇷 Version française]]/
 
@@ -18,200 +17,50 @@ an AI. Review the code with the same critical eye as any other contribution.
 
 [[file:docs/screenshot.png]]
 
-/Editor split in two panes, each with its tabs; clickable =[[page]]= links,
-=#keywords= and =:tags:=. On the left, the project's git state; on the right,
-backlinks, tags and pages not created yet./
-
 * Features
 
-** Projects
-- A project is a folder of =.org= files (pages live in =pages/=).
-- "Open folder" button and a selector to switch between projects.
-- A default project can be set in the preferences.
-- Pages created, modified or deleted by another program (another editor, a sync
-  tool, git…) are picked up right away: open tabs without unsaved changes are
-  reloaded, the others get a warning.
+- *Pages and links*: =[[Page]]= links, =#keywords= and org-mode =:tags:=, with
+  completion while typing. Ctrl+click opens a page (and creates it if needed);
+  renaming a page rewrites the links to it.
+- *Right-hand panel*: backlinks, tags (search in org syntax: =a+b-c=, =a|b=) and
+  pages not created yet.
+- *Quick open* (Ctrl+K): any page, open tab or tag.
+- *Editor*: org-mode highlighting, page title on top, find & replace, autosave,
+  split in two panes, Emacs or Classic keybindings (configurable).
+- *Tables*: drawn as real tables; Tab / Shift+Tab move between cells and realign
+  the table as in Emacs; =|-= + Tab draws the header rule.
+- *Extensions*: git state of the project, export to a website with
+  =logseq-site-builder=.
+- Pages changed by another program (sync, git…) are reloaded. French and English.
 
-** Pages and links
-- =[[Page]]= and =[[Page][display text]]= links. Ctrl+click (or /Follow link/) opens the page, creating it if it doesn't exist.
-- *Completion*: typing =[[…= or =#…= (two characters or more) offers the matching pages;
-  arrows or =C-n= / =C-p= to choose, Enter or Tab to accept, Esc to dismiss.
-- *Quick open* (Ctrl+K, =C-x b= in Emacs): jump to an open tab or a page, or create it.
-- *Keywords*: =#idea= is a link to the page =idea= (option, on by default).
-  Not keywords: =#+TITLE=, =# comment= and =a#b=.
-  Dashes (=#my-tag=) are allowed as an option; unchecked, only letters, digits and =_= count, like in org-mode.
-- *Org-mode tags*: =#+FILETAGS: :project:rust:= for the whole page, =* Title :urgent:= for a headline.
-  A headline inherits the tags of the page and of its parent headlines, like in Emacs.
-  A tag is a link: Ctrl+click opens (or creates) the page of the same name, whose backlinks list what carries the tag.
-  Completion after =:= in a headline and in =#+FILETAGS:=. The /Tags/ frame of the right-hand panel lists every tag,
-  allows searches in org syntax (=project+urgent-personal=, =a|b=), and its =+= button adds a tag to the open page.
-- *Backlinks*: right-hand panel listing the pages that point to the open page.
-- *Pages not created*: links that lead nowhere, sorted by number of uses
-  (=target (3)=). Click: go where the link is used. Right-click: create the page or go to the link.
-- Case-insensitive links (option, on by default).
-- Right-click on a page in the sidebar, or on its tab, to /rename/ or /delete/ it (the file is really removed).
-- Renaming a page rewrites every link pointing to it, =[[…]]= and =#…= alike (option, on by default).
-- On quit, empty pages and pages holding only their title can be deleted (two options, off by default).
-- The open tabs and editor panes are reopened at the next start (option, on by default).
+* Installation (Linux)
 
-** Editing
-- org-mode highlighting: headings, =TODO=/=DONE=, bold, italic, quotes, tables, links.
-- Autosave on every keystroke (option, on by default).
-- "Electric" mode: with text selected, typing =( ) [ ] " '= wraps the selection.
-- Editor split in two panes (vertical or horizontal), each with its own tab bar;
-  the active pane has a visible border.
-- Quitting (Ctrl+Q, =C-x C-c= in Emacs) asks for confirmation when pages have unsaved changes.
+Download the =.deb= (Debian, Ubuntu, Mint…) or the =.AppImage= (other distributions)
+from the [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Releases page]].
+On Arch Linux, a =PKGBUILD= is in =packaging/arch= (=makepkg -si=).
 
-** Tables
-org-mode tables (lines starting with =|=):
-- *Drawn as real tables* while the caret is elsewhere: borders, columns, long cells
-  wrapping. A click in the table (or the arrow keys) turns it back into org text to
-  edit it; it is drawn again once the caret leaves. This display never changes the file.
-- A table too wide for the page takes the whole width, with no column under 80 % of an
-  equal share (40 % for two columns): long cells wrap instead of squeezing the others.
-- *Tab* goes to the next cell, *Shift+Tab* to the previous one; Tab past the last cell
-  adds a row. As in Emacs, every Tab *realigns the table*: each column gets the width of
-  its widest cell, the text of a cell always has a space on each side, incomplete rows
-  are closed with =|=, and columns of numbers are right-aligned.
-- *Header*: typing =|-= then Tab draws a rule (=|-----+-----|=) and goes to the next row.
-  The rows above the first rule are the header, shown in bold.
-- While finding in the page (Ctrl+F, =C-s= in Emacs), tables stay as text so their
-  content is found.
-- The cell shortcuts can be changed in Settings → Shortcuts.
-
-#+BEGIN_SRC org
-| Name         | Age |
-|--------------+-----|
-| Jean John    |  36 |
-| Élody Kerval |  29 |
-#+END_SRC
-
-** Interface
-- *Display* settings: show or hide the app name and logo, the quit button in the
-  top right corner, the page title above the editor, the pages menu, the
-  backlinks, the tags and the pages not created.
-- The sidebar and right panel widths can be resized by dragging their border;
-  so can the height of the "Pages not created" block. Sizes are remembered.
-- Resizable preferences window; its size is remembered.
-- French and English.
-
-** Extensions
-- *Git* (on by default): under the project name, its branch and what is left to
-  commit, push or pull. Needs =git= installed; the app runs no git command that
-  changes the repository.
-- *logseq-site-builder* (off by default): an /Export/ button that publishes the
-  project as a website with =logseq-site-builder=.
-
-* Keybindings
-
-Shortcuts are configurable in *Settings → Shortcuts*: two presets (*Classic* and
-*Emacs*) plus your own custom profiles, with key sequences and conflict detection.
-
-* Installation
-
-Orgamnesia runs on Linux.
-
-** Download
-
-Each version is published on the [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Releases page]]:
-
-- =Orgamnesia_*_amd64.deb= for Debian, Ubuntu, Linux Mint, Pop!_OS…:
-  =sudo apt install ./Orgamnesia_*_amd64.deb=, then uninstall with =sudo apt remove orgamnesia=.
-- =Orgamnesia_*_amd64.AppImage= for the other distributions: make it executable
-  (=chmod +x Orgamnesia_*.AppImage=) and run it.
-
-To build from the sources instead, follow one of the sections below; compiling
-takes a few minutes the first time.
-
-** Debian, Ubuntu, Linux Mint, Pop!_OS…
-
-1. Install the build tools and system libraries:
-
-   #+BEGIN_SRC sh
-   sudo apt update
-   sudo apt install build-essential curl wget file git pkg-config libssl-dev \
-     libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
-   #+END_SRC
-
-2. Install Rust (skip if =cargo= is already available), then the web target,
-   Trunk and the Tauri CLI:
-
-   #+BEGIN_SRC sh
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   source "$HOME/.cargo/env"
-   rustup target add wasm32-unknown-unknown
-   cargo install trunk tauri-cli --locked
-   #+END_SRC
-
-3. Download the sources, build the =.deb= package and install it:
-
-   #+BEGIN_SRC sh
-   git clone https://github.com/thomas-louvigne/orgamnesia.git
-   cd orgamnesia
-   cargo tauri build --bundles deb
-   sudo apt install ./src-tauri/target/release/bundle/deb/Orgamnesia_*_amd64.deb
-   #+END_SRC
-
-Orgamnesia now appears in your applications menu. To uninstall:
-=sudo apt remove orgamnesia=.
-
-** Arch Linux, Manjaro, EndeavourOS…
-
-A =PKGBUILD= is provided. =makepkg= installs the build dependencies itself
-(=-s=) and then installs the package with pacman (=-i=):
+To build from the sources, install the
+[[https://v2.tauri.app/start/prerequisites/#linux][Tauri prerequisites]] and Rust, then:
 
 #+BEGIN_SRC sh
-sudo pacman -S --needed base-devel git
-git clone https://github.com/thomas-louvigne/orgamnesia.git
-cd orgamnesia/packaging/arch
-makepkg -si
+rustup target add wasm32-unknown-unknown
+cargo install trunk tauri-cli --locked
+cargo tauri build --bundles deb   # or --no-bundle
 #+END_SRC
 
-The package (=orgamnesia-git=) builds the latest version of =main=; run
-=makepkg -si= again in the same folder to update. To uninstall:
-=sudo pacman -R orgamnesia-git=.
-
-** Other Linux distributions
-
-Install the [[https://v2.tauri.app/start/prerequisites/#linux][Tauri prerequisites]]
-for your distribution (mainly WebKitGTK 4.1), Rust, then build as in step 2 and 3
-of the Debian section but without packaging:
-
-#+BEGIN_SRC sh
-cargo tauri build --no-bundle
-install -Dm755 src-tauri/target/release/orgamnesia ~/.local/bin/orgamnesia
-install -Dm644 src-tauri/icons/icon.png ~/.local/share/icons/hicolor/512x512/apps/orgamnesia.png
-install -Dm644 packaging/arch/orgamnesia.desktop ~/.local/share/applications/orgamnesia.desktop
-#+END_SRC
-
-Make sure =~/.local/bin= is in your =PATH=. To uninstall, delete these three files.
-
-** Your data
-
-Your wiki pages are plain =.org= files in the folder you choose in the app; they
-are never touched by uninstalling. Settings live in =~/.config/com.orgamnesia.app/=.
+Your pages stay plain =.org= files in the folder you choose; settings live in
+=~/.config/com.orgamnesia.app/=.
 
 * Development
 
-#+BEGIN_SRC sh
-cargo tauri dev            # run with hot reload
-cargo tauri build          # release build (+ .deb)
-cargo test --lib           # interface tests (editing, tabs, translations)
-cd src-tauri && cargo test # backend tests (project, parser, link index, settings)
-cd core && cargo test      # shared core tests (settings, shortcuts, #tags)
-cargo clippy --target wasm32-unknown-unknown   # lints (also in src-tauri/ and core/)
-#+END_SRC
+Desktop app written in Rust: Tauri v2 (backend, =src-tauri/=) and Leptos 0.7
+(interface compiled to WebAssembly, =src/=); =core/= holds what both share.
 
-The code is split in three crates:
-- =src/= :: the interface (Leptos, compiled to WebAssembly). =actions.rs= holds the
-  operations on pages and tabs, =edit.rs= what the editor commands do to the text.
-- =src-tauri/= :: the backend. =project.rs= owns the open project (pages, links,
-  tags), =watch.rs= watches its folder, =commands/= exposes both to the interface.
-- =core/= :: what both sides share: exchanged data, settings and their defaults,
-  shortcut registry, reading of =#tags=.
+#+BEGIN_SRC sh
+cargo tauri dev     # run with hot reload
+cargo test --lib    # tests (also in src-tauri/ and core/)
+#+END_SRC
 
 * License
 
-Orgamnesia is free software, released under the
-[[https://www.gnu.org/licenses/gpl-3.0.html][GNU General Public License v3]] (or any later version).
-See the [[file:LICENSE][LICENSE]] file.
+[[https://www.gnu.org/licenses/gpl-3.0.html][GNU GPL v3]] or later. See [[file:LICENSE][LICENSE]].

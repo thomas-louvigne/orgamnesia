@@ -147,6 +147,28 @@ pub fn BacklinksPanel() -> impl IntoView {
         adding.set(false);
     };
 
+    // Completion of the tag search: the tags starting with (or holding) the word
+    // being typed, the last one of the query (after `+`, `-`, `|` or a space)
+    let suggest_open = RwSignal::new(false);
+    let suggest_sel = RwSignal::new(0usize);
+    let last_word = |q: &str| -> usize { q.rfind(['+', '-', '|', ' ']).map_or(0, |i| i + 1) };
+    let suggestions = move || -> Vec<String> {
+        if !suggest_open.get() { return vec![]; }
+        let q = ctx.project.tag_query.get();
+        let word = q[last_word(&q)..].trim_matches(':').to_string();
+        if word.is_empty() { return vec![]; }
+        let names: Vec<String> = ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect());
+        crate::motion::complete_page(&names, &word, None, 8)
+    };
+    let accept_suggestion = move |tag: String| {
+        ctx.project.tag_query.update(|q| {
+            let at = last_word(q);
+            q.truncate(at);
+            q.push_str(&tag);
+        });
+        suggest_open.set(false);
+    };
+
     // Right-click menu of a missing page, and which source a left click visits next
     let menu = RwSignal::new(None::<(i32, i32, BrokenLink)>);
     let next_source = StoredValue::new(std::collections::HashMap::<String, usize>::new());
@@ -225,11 +247,50 @@ pub fn BacklinksPanel() -> impl IntoView {
                             placeholder=move || t("tag_search_ph", ctx.lang.get())
                             title=move || t("tag_search_help", ctx.lang.get())
                             prop:value=move || ctx.project.tag_query.get()
-                            on:input=move |e| ctx.project.tag_query.set(event_target_value(&e))
-                            on:keydown=move |e: web_sys::KeyboardEvent| {
-                                if e.key() == "Escape" { ctx.project.tag_query.set(String::new()); }
+                            on:input=move |e| {
+                                ctx.project.tag_query.set(event_target_value(&e));
+                                suggest_open.set(true);
+                                suggest_sel.set(0);
                             }
+                            on:keydown=move |e: web_sys::KeyboardEvent| {
+                                let list = suggestions();
+                                let n = list.len();
+                                let open = n > 0;
+                                match e.key().as_str() {
+                                    "ArrowDown" if open => suggest_sel.update(|s| *s = (*s + 1) % n),
+                                    "ArrowUp" if open => suggest_sel.update(|s| *s = (*s + n - 1) % n),
+                                    "Enter" | "Tab" if open => {
+                                        accept_suggestion(list[suggest_sel.get_untracked().min(n - 1)].clone());
+                                    }
+                                    "Escape" if open => suggest_open.set(false),
+                                    "Escape" => ctx.project.tag_query.set(String::new()),
+                                    _ => return,
+                                }
+                                e.prevent_default();
+                                e.stop_propagation();
+                            }
+                            on:blur=move |_| suggest_open.set(false)
                         />
+                        {move || {
+                            let list = suggestions();
+                            (!list.is_empty()).then(|| view! {
+                                <ul class="tag-suggest">
+                                    {list.into_iter().enumerate().map(|(i, tag)| {
+                                        let pick = tag.clone();
+                                        view! {
+                                            <li
+                                                class=move || if suggest_sel.get() == i { "selected" } else { "" }
+                                                // mousedown + preventDefault keeps the focus in the field
+                                                on:mousedown=move |e: web_sys::MouseEvent| {
+                                                    e.prevent_default();
+                                                    accept_suggestion(pick.clone());
+                                                }
+                                            >{format!(":{tag}:")}</li>
+                                        }
+                                    }).collect_view()}
+                                </ul>
+                            })
+                        }}
                     </div>
                     <div class="panel-body">
                         {move || {

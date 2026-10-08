@@ -245,6 +245,15 @@ pub fn to_html(raw: &str, width: usize) -> String {
             .map(|l| cells_of(l).get(i).map_or(0, |c| c.chars().count()))
             .max().unwrap_or(0)
     }).collect();
+    // Columns of numbers to the right, as in the text (see `align`)
+    let numeric: Vec<bool> = (0..columns).map(|i| {
+        let filled: Vec<String> = lines.iter().enumerate()
+            .filter(|(n, l)| !is_rule(l) && *n >= header_rows)
+            .filter_map(|(_, l)| cells_of(l).get(i).cloned())
+            .filter(|c| !c.is_empty())
+            .collect();
+        !filled.is_empty() && filled.iter().filter(|c| is_number(c)).count() * 2 > filled.len()
+    }).collect();
     let mut out = match column_shares(&lengths, width) {
         Some(shares) => {
             let cols: String = shares.iter().map(|s| format!("<col style='width: {s}%'>")).collect();
@@ -266,9 +275,10 @@ pub fn to_html(raw: &str, width: usize) -> String {
         rule_before = false;
         out.push_str(&format!("<tr class='{}'>", class.join(" ")));
         let cell_tag = if n < header_rows { "th" } else { "td" };
-        for i in 0..columns {
+        for (i, &num) in numeric.iter().enumerate() {
             let cell = cells.get(i).map(String::as_str).unwrap_or("");
-            out.push_str(&format!("<{cell_tag}>{}</{cell_tag}>", highlight::inline(cell)));
+            let class = if num { " class='num'" } else { "" };
+            out.push_str(&format!("<{cell_tag}{class}>{}</{cell_tag}>", highlight::inline(cell)));
         }
         out.push_str("</tr>");
     }
@@ -498,6 +508,9 @@ mod tests {
         assert!(html.contains("<th>a</th><th>b</th>"));
         assert!(html.contains("<tr class='rule'><td>c</td><td></td>"));
         assert!(html.contains("<tr class='empty'>"));
+        // Columns of numbers to the right, their header too
+        let html = to_html("| Livre | Pages |\n|---+---|\n| A | 560 |\n| B | 92 |", 80);
+        assert!(html.contains("<th>Livre</th><th class='num'>Pages</th>") && html.contains("<td class='num'>560</td>"));
     }
 
     #[test]
