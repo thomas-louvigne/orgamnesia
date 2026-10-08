@@ -40,7 +40,8 @@ fn TabItem(
             Some(second) => ctx.work.pane_path(second),
             None => ctx.work.active_tab_data().map(|t| t.path),
         };
-        path.with_value(|p| shown.as_ref() == Some(p))
+        // Also re-run when the pane is closed (C-x 0), after this tab is disposed
+        path.try_with_value(|p| shown.as_ref() == Some(p)).unwrap_or(false)
     };
 
     let editing    = RwSignal::new(false);
@@ -87,7 +88,7 @@ fn TabItem(
 
     view! {
         <div
-            class=move || match (is_active(), editing.get()) {
+            class=move || match (is_active(), editing.try_get().unwrap_or(false)) {
                 (_, true)      => "tab active editing",
                 (true, false)  => "tab active",
                 (false, false) => "tab",

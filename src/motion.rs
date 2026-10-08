@@ -231,17 +231,17 @@ pub fn link_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
     Some((start, chars[start..caret].iter().collect()))
 }
 
-/// Page names completing `prefix` (case-insensitive): names starting with it first
+/// Page names completing `prefix` (ignoring case and accents): names starting with it first
 /// (shortest first), then names containing it; the exact name is left out. With
 /// `tag: Some(_)`, only names usable as such a `#tag` are kept.
 pub fn complete_page(names: &[String], prefix: &str, tag: Option<Hashtags>, limit: usize) -> Vec<String> {
-    let p = prefix.trim().to_lowercase();
+    let p = orgamnesia_core::names::fold(prefix.trim());
     let mut starts = Vec::new();
     let mut contains = Vec::new();
     for name in names {
         let valid = tag.is_none_or(|t| name.chars().next().is_some_and(char::is_alphanumeric)
             && name.chars().all(|c| t.is_tag_char(c)));
-        let n = name.to_lowercase();
+        let n = orgamnesia_core::names::fold(name);
         if !valid || n == p { continue; }
         if n.starts_with(&p) { starts.push(name.clone()); }
         else if n.contains(&p) { contains.push(name.clone()); }
@@ -254,7 +254,7 @@ pub fn complete_page(names: &[String], prefix: &str, tag: Option<Hashtags>, limi
 /// Char range of the target text of the first `[[target]]` / `[[target][label]]`
 /// link naming `target`.
 pub fn find_link(chars: &[char], target: &str, ignore_case: bool, hashtags: Hashtags) -> Option<(usize, usize)> {
-    let norm = |s: &str| if ignore_case { s.trim().to_lowercase() } else { s.trim().to_string() };
+    let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
     let wanted = norm(target);
     let mut i = 0;
     while i < chars.len() {
@@ -376,6 +376,10 @@ mod tests {
         assert_eq!(complete_page(&names, "ru", Some(Hashtags::Org), 10), vec!["Rust", "Rustacean", "Trust"]);
         // Links accept any page name
         assert_eq!(complete_page(&names, "page", None, 10), vec!["my page"]);
+        // Accents ignored
+        let names: Vec<String> = ["Règles", "Élody"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(complete_page(&names, "regle", None, 10), vec!["Règles"]);
+        assert_eq!(complete_page(&names, "elo", None, 10), vec!["Élody"]);
     }
 
     #[test]

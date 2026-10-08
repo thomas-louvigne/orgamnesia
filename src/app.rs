@@ -207,6 +207,8 @@ fn run_app_action(ctx: AppCtx, action: AppAction) {
             let step = if action == AppAction::NextTab { 1 } else { -1 };
             if let Some(idx) = cycle(active, tab_count, step) { ctx.work.active_tab.set(Some(idx)); }
         }
+        AppAction::PageBack        => actions::history_step(ctx, true),
+        AppAction::PageForward     => actions::history_step(ctx, false),
         AppAction::SplitVertical   => ctx.split_window(SplitKind::Vertical),
         AppAction::SplitHorizontal => ctx.split_window(SplitKind::Horizontal),
         AppAction::CloseSplit      => ctx.work.close_window(),
@@ -278,6 +280,19 @@ pub fn App() -> impl IntoView {
     spawn_local(load_startup(ctx, Owner::current().expect("App owner")));
     watch_disk(ctx);
     watch_git(ctx);
+
+    // Page history: each time the focused pane shows another page, the one it
+    // left is recorded (not when the focus only moves to the other pane).
+    Effect::new(move |prev: Option<(Option<String>, bool)>| {
+        let page = ctx.work.active_tab_data().map(|t| t.path);
+        let second = ctx.work.focus_second.get();
+        if let Some((Some(left), was_second)) = prev
+            && was_second == second && page.as_ref() != Some(&left)
+        {
+            actions::record_visit(ctx, left, page.as_deref());
+        }
+        (page, second)
+    });
 
     // Drop the split when the page shown in the other pane is closed
     Effect::new(move |_| {

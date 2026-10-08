@@ -66,7 +66,7 @@ fn tag_zone(line: &str) -> Option<(usize, usize)> {
 /// `None` when nothing changed, or when `new` can't be a tag (spaces, dashes…).
 pub fn rename(content: &str, old: &str, new: &str, ignore_case: bool) -> Option<String> {
     if new.is_empty() || !new.chars().all(is_tag_char) { return None; }
-    let norm = |s: &str| if ignore_case { s.to_lowercase() } else { s.to_string() };
+    let norm = |s: &str| orgamnesia_core::names::page_key(s, ignore_case);
     let old = norm(old);
     let mut out = String::with_capacity(content.len());
     let mut changed = false;
@@ -106,7 +106,8 @@ pub fn written_tags(content: &str) -> Vec<String> {
 }
 
 /// A tag search in org-mode match syntax: groups separated by `|` (or); in a group,
-/// `+tag` (or a bare `tag`) must be there, `-tag` must not. Tags are case-sensitive.
+/// `+tag` (or a bare `tag`) must be there, `-tag` must not. Tags are case-sensitive,
+/// accents are ignored (`idee` finds `:idée:`).
 #[derive(Debug, PartialEq)]
 pub struct Query(Vec<Vec<(bool, String)>>);
 
@@ -125,7 +126,7 @@ impl Query {
                         tag.push(c);
                         chars.next();
                     }
-                    group.push((wanted, tag));
+                    group.push((wanted, unaccent(&tag)));
                     wanted = true;
                     continue;
                 }
@@ -142,8 +143,17 @@ impl Query {
     }
 
     pub fn matches(&self, tags: &HashSet<&str>) -> bool {
-        self.0.iter().any(|g| g.iter().all(|(wanted, t)| tags.contains(t.as_str()) == *wanted))
+        let tags: HashSet<String> = tags.iter().map(|t| unaccent(t)).collect();
+        self.0.iter().any(|g| g.iter().all(|(wanted, t)| tags.contains(t) == *wanted))
     }
+}
+
+/// `s` without accents, case kept: "Idée" → "Idee".
+fn unaccent(s: &str) -> String {
+    s.chars().map(|c| {
+        let plain = orgamnesia_core::names::fold_char(c);
+        if c.is_uppercase() { plain.to_uppercase().next().unwrap_or(plain) } else { plain }
+    }).collect()
 }
 
 /// The page itself (`heading: None`) or one of its headlines, matching a search.
@@ -198,6 +208,14 @@ pub fn search(content: &str, query: &Query) -> Vec<Hit> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn search_ignores_accents_not_case() {
+        let content = "* Note :idée:\n* Autre :Idee:\n";
+        let q = Query::parse("idee").unwrap();
+        let hits: Vec<usize> = search(content, &q).iter().map(|h| h.line).collect();
+        assert_eq!(hits, vec![0]);
+    }
+
     use super::*;
 
     fn q(s: &str) -> Query { Query::parse(s).unwrap() }

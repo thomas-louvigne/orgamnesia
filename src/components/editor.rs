@@ -224,7 +224,7 @@ pub fn EditorArea(second: bool) -> impl IntoView {
             on:mousedown=move |_| ctx.work.focus_pane(second)
         >
             {move || (ctx.work.split.get() == Some(SplitKind::Vertical)).then(|| {
-                let name = path.get()
+                let name = path.try_get().flatten()
                     .and_then(|p| ctx.work.tabs.get().into_iter().find(|t| t.path == p))
                     .map(|t| t.name)
                     .unwrap_or_default();
@@ -238,12 +238,13 @@ pub fn EditorArea(second: bool) -> impl IntoView {
                     .then(|| view! { <div class="pane-tabs"><TabBar pane=second /></div> })
             }}
             {move || ctx.pref(|p| p.show_page_title).then(|| {
-                let p = path.get()?;
+                let p = path.try_get().flatten()?;
                 let tab = ctx.work.tabs.with(|tabs| tabs.iter().find(|t| t.path == p).cloned())?;
                 Some(view! { <PageTitle tab=tab /> })
             }).flatten()}
             <div class="editor-pane-body">
-            {move || match path.get() {
+            // `try_get`: these also re-run when the pane is closed (C-x 0), after `path` is disposed
+            {move || match path.try_get().flatten() {
                 None => view! {
                     <div class="editor-empty">
                         <p>{t("no_file", ctx.lang.get())}</p>

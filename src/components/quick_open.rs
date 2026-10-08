@@ -1,5 +1,7 @@
 use leptos::{html, prelude::*};
 
+use orgamnesia_core::names::fold;
+
 use crate::{actions, i18n::t, state::{AppCtx, FileEntry}};
 
 #[derive(Clone, Debug)]
@@ -43,10 +45,11 @@ pub fn QuickOpenModal() -> impl IntoView {
     });
 
     let items = move || -> Vec<QuickItem> {
-        let q     = query.get().to_lowercase();
+        let q     = fold(&query.get());
         let tabs  = ctx.work.tabs.get();
         let active = ctx.work.active_tab.get();
-        let matches = |name: &str| q.is_empty() || name.to_lowercase().contains(&q);
+        // Case and accents ignored: "regle" finds "Règle"
+        let matches = |name: &str| q.is_empty() || fold(name).contains(&q);
         let mut list = Vec::new();
 
         for (i, tab) in tabs.iter().enumerate() {
@@ -72,7 +75,7 @@ pub fn QuickOpenModal() -> impl IntoView {
         let tag_q = q.trim_start_matches([':', '#']).trim_end_matches(':');
         if !tag_q.is_empty() && ctx.pref(|p| p.show_tags) {
             let names: Vec<String> = ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect());
-            let exact = names.iter().find(|n| n.to_lowercase() == tag_q).cloned();
+            let exact = names.iter().find(|n| fold(n) == tag_q).cloned();
             let found = crate::motion::complete_page(&names, tag_q, None, 8);
             list.extend(exact.into_iter().chain(found).map(QuickItem::Tag));
         }

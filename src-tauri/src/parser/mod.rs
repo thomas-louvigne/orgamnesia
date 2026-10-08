@@ -62,12 +62,12 @@ pub fn is_page_link(target: &str) -> bool {
 }
 
 /// Rewrite every `[[old]]` / `[[old][label]]` link so it targets `new`.
-/// With `ignore_case`, `[[pageMagique]]` also matches `PageMagique`.
+/// With `ignore_case`, `[[pageMagique]]` also matches `PageMagique`, and `[[elody]]` `Élody`.
 /// Org-mode tags naming `old` are renamed too, when `new` can be a tag.
 /// Returns `None` when nothing changed. The display label is left untouched.
 pub fn rewrite_links(content: &str, old_name: &str, new: &str, ignore_case: bool, hashtags: Hashtags) -> Option<String> {
     let chars: Vec<char> = content.chars().collect();
-    let norm = |s: &str| if ignore_case { s.to_lowercase() } else { s.to_string() };
+    let norm = |s: &str| orgamnesia_core::names::page_key(s, ignore_case);
     let old = norm(old_name);
     let mut out = String::with_capacity(content.len());
     let mut changed = false;

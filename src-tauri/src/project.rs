@@ -170,10 +170,10 @@ impl Project {
 
     /// Links to pages that don't exist, most used first.
     pub fn broken_links(&self, ignore_case: bool) -> Vec<BrokenLink> {
-        let norm = |s: &str| if ignore_case { s.trim().to_lowercase() } else { s.trim().to_string() };
+        let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
         let pages: HashSet<String> = self.pages.keys().map(|p| norm(&vault::page_name(p))).collect();
 
-        // Group targets that only differ by case when case is ignored
+        // Group targets that only differ by case or accents when they are ignored
         let mut grouped: Vec<(String, BrokenLink)> = Vec::new();
         for (target, sources, count) in self.links.all_links() {
             let key = norm(&target);

@@ -87,6 +87,12 @@ pub struct Workspace {
     pub goto: RwSignal<Option<(String, Goto)>>,
     /// Text of the last Emacs kill, for yank.
     pub kill_ring: RwSignal<String>,
+    /// Pages visited before the current one (most recent last), and the ones left
+    /// by going back, for Alt+← / Alt+→.
+    pub history_back: RwSignal<Vec<String>>,
+    pub history_forward: RwSignal<Vec<String>>,
+    /// Page being reached by going back or forward: not recorded as a new visit.
+    pub history_arriving: RwSignal<Option<String>>,
 }
 
 /// Dialogs, menus and messages.
@@ -141,6 +147,9 @@ impl AppCtx {
                 focus_second: RwSignal::new(false),
                 goto: RwSignal::new(None),
                 kill_ring: RwSignal::new(String::new()),
+                history_back: RwSignal::new(vec![]),
+                history_forward: RwSignal::new(vec![]),
+                history_arriving: RwSignal::new(None),
             },
             ui: Ui {
                 show_projects: RwSignal::new(false),
@@ -176,15 +185,16 @@ impl AppCtx {
         self.project.links_version.update(|v| *v += 1);
     }
 
-    /// The page called `name`, per the case-sensitivity setting.
+    /// The page called `name`, per the setting ignoring case and accents.
     pub fn find_page(&self, name: &str) -> Option<FileEntry> {
         self.project.files.with_untracked(|fs| fs.iter().find(|f| self.same_page(&f.name, name)).cloned())
     }
 
-    /// Whether two page names designate the same page, per the case-sensitivity setting.
+    /// Whether two page names designate the same page, per the setting ignoring
+    /// case and accents (`[[élody]]` = `[[Elody]]`).
     pub fn same_page(&self, a: &str, b: &str) -> bool {
         if self.pref_untracked(|p| p.case_insensitive_links) {
-            a.to_lowercase() == b.to_lowercase()
+            orgamnesia_core::names::fold(a) == orgamnesia_core::names::fold(b)
         } else {
             a == b
         }

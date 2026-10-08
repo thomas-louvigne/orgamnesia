@@ -78,13 +78,13 @@ impl BacklinkIndex {
         v
     }
 
-    /// Like `get_backlinks`, but link targets match `page` ignoring case.
+    /// Like `get_backlinks`, but link targets match `page` ignoring case and accents.
     pub fn get_backlinks_ignore_case(&self, page: &str) -> Vec<String> {
-        let page = page.to_lowercase();
+        let page = orgamnesia_core::names::fold(page);
         let mut v: Vec<String> = self
             .reverse_map
             .iter()
-            .filter(|(target, _)| target.to_lowercase() == page)
+            .filter(|(target, _)| orgamnesia_core::names::fold(target) == page)
             .flat_map(|(_, sources)| sources.iter().cloned())
             .collect();
         v.sort();
@@ -135,6 +135,13 @@ mod tests {
         let b = idx(&[("a", &["Page"]), ("b", &["page"]), ("c", &["other"])]);
         assert_eq!(b.get_backlinks("Page"), vec!["a"]);
         assert_eq!(b.get_backlinks_ignore_case("PAGE"), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn backlinks_ignore_accents() {
+        let b = idx(&[("a", &["élody"]), ("b", &["Elody"]), ("c", &["elodie"])]);
+        assert_eq!(b.get_backlinks("élody"), vec!["a"]);
+        assert_eq!(b.get_backlinks_ignore_case("Élody"), vec!["a", "b"]);
     }
 
     #[test]

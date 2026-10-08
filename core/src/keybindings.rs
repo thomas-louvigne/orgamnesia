@@ -105,7 +105,7 @@ pub struct ActionDef<A: 'static> {
 /// Application actions (handled outside the editor).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppAction {
-    NewPage, Save, OpenSettings, QuickOpen, CloseTab, NextTab, PrevTab,
+    NewPage, Save, OpenSettings, QuickOpen, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, Quit,
 }
 
@@ -142,6 +142,8 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::CloseTab, id: "close_tab",     label_key: "shortcut_close_tab" },
     ActionDef { action: AppAction::NextTab, id: "next_tab",      label_key: "shortcut_next_tab" },
     ActionDef { action: AppAction::PrevTab, id: "prev_tab",      label_key: "shortcut_prev_tab" },
+    ActionDef { action: AppAction::PageBack, id: "page_back",     label_key: "shortcut_page_back" },
+    ActionDef { action: AppAction::PageForward, id: "page_forward", label_key: "shortcut_page_forward" },
     ActionDef { action: AppAction::SplitVertical, id: "split_vertical",   label_key: "shortcut_split_vertical" },
     ActionDef { action: AppAction::SplitHorizontal, id: "split_horizontal", label_key: "shortcut_split_horizontal" },
     ActionDef { action: AppAction::CloseSplit, id: "close_split",      label_key: "shortcut_close_split" },
@@ -221,6 +223,8 @@ pub fn default_app() -> Bindings {
         ("close_tab",     &["ctrl+w", "ctrl+shift+w"]),
         ("next_tab",      &["ctrl+Tab"]),
         ("prev_tab",      &["ctrl+shift+Tab"]),
+        ("page_back",     &["alt+ArrowLeft"]),
+        ("page_forward",  &["alt+ArrowRight"]),
         // Editor panes. `ctrl+k` is taken by quick open, so no `ctrl+k …` chords here.
         ("split_vertical",   &["ctrl+alt+v"]),
         ("split_horizontal", &["ctrl+alt+h"]),
@@ -251,6 +255,8 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("close_tab",     &["ctrl+x k"]),
             ("next_tab",      &["ctrl+x ArrowRight", "ctrl+Tab"]),
             ("prev_tab",      &["ctrl+x ArrowLeft", "ctrl+shift+Tab"]),
+            ("page_back",     &["alt+ArrowLeft"]),
+            ("page_forward",  &["alt+ArrowRight"]),
             // Digits need Shift on an AZERTY keyboard, hence the second variant
             ("split_vertical",   &["ctrl+x 3", "ctrl+x shift+3"]),
             ("split_horizontal", &["ctrl+x 2", "ctrl+x shift+2"]),

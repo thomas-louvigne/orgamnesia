@@ -5,6 +5,7 @@
 pub mod hashtags;
 pub mod keybindings;
 pub mod model;
+pub mod names;
 pub mod settings;
 
 pub use hashtags::Hashtags;

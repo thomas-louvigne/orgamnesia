@@ -187,8 +187,9 @@ fn wiki_link_at(chars: &[char], pos: usize, hashtags: Hashtags) -> Option<String
 }
 
 /// Char ranges of the occurrences of `query` in `chars`, without overlap.
+/// Without `match_case`, case and accents are ignored ("regle" finds "Règle").
 pub fn find_all(chars: &[char], query: &str, match_case: bool) -> Vec<(usize, usize)> {
-    let norm = |c: char| if match_case { c } else { c.to_lowercase().next().unwrap_or(c) };
+    let norm = |c: char| if match_case { c } else { orgamnesia_core::names::fold_char(c) };
     let q: Vec<char> = query.chars().map(norm).collect();
     let mut found = Vec::new();
     if q.is_empty() { return found; }
@@ -289,5 +290,9 @@ mod tests {
         assert_eq!(find_all(&c, "élan", true), vec![(6, 10)]);
         assert_eq!(find_all(&c, "aa", false), vec![(16, 18)]);
         assert!(find_all(&c, "", false).is_empty());
+        // Accents ignored too, unless matching case
+        let c: Vec<char> = "La règle, les Règles, regle".chars().collect();
+        assert_eq!(find_all(&c, "regle", false), vec![(3, 8), (14, 19), (22, 27)]);
+        assert_eq!(find_all(&c, "regle", true), vec![(22, 27)]);
     }
 }

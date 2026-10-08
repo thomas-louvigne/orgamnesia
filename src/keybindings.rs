@@ -123,7 +123,7 @@ pub fn key_matches(event: &web_sys::KeyboardEvent, binding: &str) -> bool {
     let need_ctrl  = parts.contains(&"ctrl");
     let need_shift = parts.contains(&"shift");
     let need_alt   = parts.contains(&"alt");
-    let ev_key = event.key();
+    let ev_key = event_key(event);
     let ev_key_norm = match ev_key.as_str() {
         " " => "space".to_string(),
         k if k.len() == 1 => k.to_lowercase(),
@@ -133,6 +133,12 @@ pub fn key_matches(event: &web_sys::KeyboardEvent, binding: &str) -> bool {
         && event.shift_key() == need_shift
         && event.alt_key()   == need_alt
         && ev_key_norm == *key
+}
+
+/// `key` of the event. Shift+Tab is the `ISO_Left_Tab` key under GTK, which
+/// WebKitGTK may not report as "Tab": go by the physical key.
+fn event_key(event: &web_sys::KeyboardEvent) -> String {
+    if event.code() == "Tab" { "Tab".to_string() } else { event.key() }
 }
 
 /// Best-effort key name from a physical `KeyboardEvent.code` ("KeyA" -> "a", "Minus" -> "-").
@@ -149,7 +155,7 @@ fn key_from_code(code: &str) -> Option<String> {
 
 /// Builds a binding string from a KeyboardEvent (returns None for bare modifiers).
 pub fn capture_from_event(event: &web_sys::KeyboardEvent) -> Option<String> {
-    let mut key = event.key();
+    let mut key = event_key(event);
     if matches!(key.as_str(), "Control" | "Shift" | "Alt" | "Meta") {
         return None;
     }

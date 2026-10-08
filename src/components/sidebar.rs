@@ -99,9 +99,9 @@ pub fn Sidebar() -> impl IntoView {
     };
 
     let filtered = move || {
-        let q = filter.get().to_lowercase();
+        let q = orgamnesia_core::names::fold(&filter.get());
         ctx.project.files.get().into_iter().filter(|f| {
-            q.is_empty() || f.name.to_lowercase().contains(&q)
+            q.is_empty() || orgamnesia_core::names::fold(&f.name).contains(&q)
         }).collect::<Vec<_>>()
     };
 

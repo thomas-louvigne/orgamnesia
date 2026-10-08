@@ -391,6 +391,10 @@ html, body { height: 100%; overflow: hidden; }
     font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
     font-size: 14px;
     line-height: 1.65;
+    /* No ligatures (Fira Code draws `***` with the middle star raised, `->` as an arrow…):
+       the page is shown as typed, each character in its own column */
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "calt" 0;
 }
 
 .hl-layer,
