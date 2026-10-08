@@ -733,10 +733,8 @@ fn KeybindingSlot(
     let input_ref = NodeRef::<html::Input>::new();
 
     Effect::new(move |_| {
-        if recording.get() {
-            if let Some(el) = input_ref.get() {
-                let _ = el.focus();
-            }
+        if recording.get() && let Some(el) = input_ref.get() {
+            let _ = el.focus();
         }
     });
 
@@ -813,9 +811,7 @@ fn KeybindingSlot(
 
     let clear = move |_| {
         map.update(|m| {
-            if let Some(v) = m.get_mut(id) {
-                if index < v.len() { v[index] = String::new(); }
-            }
+            if let Some(v) = m.get_mut(id) && index < v.len() { v[index] = String::new(); }
         });
         recording.set(false);
     };

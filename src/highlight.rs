@@ -93,45 +93,37 @@ fn inline_html(s: &str) -> String {
 
     while i < chars.len() {
         // Wiki link [[...]]
-        if chars[i] == '[' && chars.get(i + 1) == Some(&'[') {
-            if let Some((html, len)) = try_link(&chars, i) {
-                out.push_str(&html);
-                i += len;
-                continue;
-            }
+        if chars[i] == '[' && chars.get(i + 1) == Some(&'[') && let Some((html, len)) = try_link(&chars, i) {
+            out.push_str(&html);
+            i += len;
+            continue;
         }
         // #hashtag
-        if chars[i] == '#' {
-            if let Some((tag, end)) = crate::motion::hashtag_at(&chars, i, HASHTAGS.with(|h| h.get())) {
-                out.push_str(&format!(
-                    "<span class='link'>#<span class='link-t'>{}</span></span>", escape(&tag)));
-                i = end;
-                continue;
-            }
+        if chars[i] == '#'
+            && let Some((tag, end)) = crate::motion::hashtag_at(&chars, i, HASHTAGS.with(|h| h.get()))
+        {
+            out.push_str(&format!(
+                "<span class='link'>#<span class='link-t'>{}</span></span>", escape(&tag)));
+            i = end;
+            continue;
         }
         // Bold *...*
-        if chars[i] == '*' {
-            if let Some((html, len)) = try_em(&chars, i, '*', "em-b") {
-                out.push_str(&html);
-                i += len;
-                continue;
-            }
+        if chars[i] == '*' && let Some((html, len)) = try_em(&chars, i, '*', "em-b") {
+            out.push_str(&html);
+            i += len;
+            continue;
         }
         // Italic /.../
-        if chars[i] == '/' {
-            if let Some((html, len)) = try_em(&chars, i, '/', "em-i") {
-                out.push_str(&html);
-                i += len;
-                continue;
-            }
+        if chars[i] == '/' && let Some((html, len)) = try_em(&chars, i, '/', "em-i") {
+            out.push_str(&html);
+            i += len;
+            continue;
         }
         // Underline _..._
-        if chars[i] == '_' {
-            if let Some((html, len)) = try_em(&chars, i, '_', "em-u") {
-                out.push_str(&html);
-                i += len;
-                continue;
-            }
+        if chars[i] == '_' && let Some((html, len)) = try_em(&chars, i, '_', "em-u") {
+            out.push_str(&html);
+            i += len;
+            continue;
         }
 
         out.push_str(&escape_char(chars[i]));

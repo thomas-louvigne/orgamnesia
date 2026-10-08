@@ -50,11 +50,9 @@ fn TabItem(
 
     // Auto-focus + select-all when edit mode starts
     Effect::new(move |_| {
-        if editing.get() {
-            if let Some(el) = input_ref.get() {
-                let _ = el.focus();
-                el.select();
-            }
+        if editing.get() && let Some(el) = input_ref.get() {
+            let _ = el.focus();
+            el.select();
         }
     });
 

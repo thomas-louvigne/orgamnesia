@@ -27,10 +27,10 @@ pub fn BacklinksPanel() -> impl IntoView {
         after_ms(150, move || {
             if backlinks_seq.get_value() != seq { return; }
             spawn_local(async move {
-                if let Ok(list) = invoke::get_backlinks(&page).await {
-                    if backlinks_seq.get_value() == seq && backlinks.get_untracked() != list {
-                        backlinks.set(list);
-                    }
+                if let Ok(list) = invoke::get_backlinks(&page).await
+                    && backlinks_seq.get_value() == seq && backlinks.get_untracked() != list
+                {
+                    backlinks.set(list);
                 }
             });
         });
@@ -54,9 +54,8 @@ pub fn BacklinksPanel() -> impl IntoView {
         after_ms(400, move || {
             if refresh_seq.get_value() != seq { return; }
             spawn_local(async move {
-                if let Ok(list) = invoke::get_broken_links().await {
-                    if broken.get_untracked() != list { broken.set(list); }
-                }
+                if let Ok(list) = invoke::get_broken_links().await
+                    && broken.get_untracked() != list { broken.set(list); }
             });
         });
     });
@@ -76,9 +75,8 @@ pub fn BacklinksPanel() -> impl IntoView {
         crate::keybindings::after_ms(400, move || {
             if tags_seq.get_value() != seq { return; }
             spawn_local(async move {
-                if let Ok(list) = invoke::list_tags().await {
-                    if ctx.project.tags.get_untracked() != list { ctx.project.tags.set(list); }
-                }
+                if let Ok(list) = invoke::list_tags().await
+                    && ctx.project.tags.get_untracked() != list { ctx.project.tags.set(list); }
             });
         });
     });
@@ -99,9 +97,8 @@ pub fn BacklinksPanel() -> impl IntoView {
         crate::keybindings::after_ms(150, move || {
             if hits_seq.get_value() != seq { return; }
             spawn_local(async move {
-                if let Ok(list) = invoke::search_tags(&query).await {
-                    if hits_seq.get_value() == seq { hits.set(list); }
-                }
+                if let Ok(list) = invoke::search_tags(&query).await
+                    && hits_seq.get_value() == seq { hits.set(list); }
             });
         });
     });

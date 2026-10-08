@@ -86,11 +86,9 @@ pub fn Sidebar() -> impl IntoView {
     let rename_ref   = NodeRef::<leptos::html::Input>::new();
 
     Effect::new(move |_| {
-        if renaming.get().is_some() {
-            if let Some(el) = rename_ref.get() {
-                let _ = el.focus();
-                el.select();
-            }
+        if renaming.get().is_some() && let Some(el) = rename_ref.get() {
+            let _ = el.focus();
+            el.select();
         }
     });
 

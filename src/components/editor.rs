@@ -267,11 +267,9 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
 
     // Region to act on: mark..point when a mark is set (and enabled), else the native selection.
     let region_of = move |el: &Textarea| -> (usize, usize) {
-        if ctx.pref_untracked(|p| p.emacs_mark) {
-            if let Some(m) = mark.get_untracked() {
-                let p = caret(el);
-                return (m.min(p), m.max(p));
-            }
+        if ctx.pref_untracked(|p| p.emacs_mark) && let Some(m) = mark.get_untracked() {
+            let p = caret(el);
+            return (m.min(p), m.max(p));
         }
         get_pos(el)
     };
@@ -612,10 +610,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     };
     // Mouse moves the caret too
     let on_pointer = move |e: web_sys::MouseEvent| {
-        if mark.get_untracked().is_some() {
-            if let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) {
-                after_tick(move || point.set(caret(&el)));
-            }
+        if mark.get_untracked().is_some()
+            && let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok())
+        {
+            after_tick(move || point.set(caret(&el)));
         }
     };
 

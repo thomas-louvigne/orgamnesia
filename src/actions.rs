@@ -238,10 +238,8 @@ pub fn delete_page(ctx: AppCtx, file: FileEntry) {
 async fn reload_clean_tabs(ctx: AppCtx) {
     for tab in ctx.work.tabs.get_untracked() {
         if tab.dirty.get_untracked() { continue; }
-        if let Ok(content) = invoke::read_file(&tab.path).await {
-            if content != tab.content.get_untracked() {
-                tab.content.set(content);
-            }
+        if let Ok(content) = invoke::read_file(&tab.path).await && content != tab.content.get_untracked() {
+            tab.content.set(content);
         }
     }
 }
@@ -263,10 +261,10 @@ pub async fn apply_disk_changes(ctx: AppCtx, changes: VaultChanges) {
                 ctx.ui.status.set(Some(format!("{} : {}", tab.name, t("changed_on_disk", lang))));
                 continue;
             }
-            if let Ok(content) = invoke::read_file(&tab.path).await {
-                if !dirty() && tab.content.try_get_untracked().is_some_and(|c| c != content) {
-                    tab.content.try_set(content);
-                }
+            if let Ok(content) = invoke::read_file(&tab.path).await
+                && !dirty() && tab.content.try_get_untracked().is_some_and(|c| c != content)
+            {
+                tab.content.try_set(content);
             }
         }
     }

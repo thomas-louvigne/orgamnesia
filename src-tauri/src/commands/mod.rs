@@ -40,10 +40,8 @@ pub async fn set_settings(state: State<'_, AppState>, app: AppHandle, mut settin
     let hashtags_changed = state.prefs().hashtags() != hashtags;
     store_settings(&state, &app, settings)?;
     // `#tags` are read differently (as links or not, with or without `-`): read the links again
-    if hashtags_changed {
-        if let Some(p) = state.project.lock().unwrap().as_mut() {
-            p.reindex(hashtags);
-        }
+    if hashtags_changed && let Some(p) = state.project.lock().unwrap().as_mut() {
+        p.reindex(hashtags);
     }
     Ok(())
 }

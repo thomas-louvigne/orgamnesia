@@ -45,9 +45,7 @@ pub fn resolve(kb: &Keybindings, event: &web_sys::KeyboardEvent) -> Resolution {
     let key = event.key();
     CHORD.with(|c| {
         let mut c = c.borrow_mut();
-        if c.last_ts == ts && c.last_key == key {
-            if let Some(r) = &c.last { return r.clone(); }
-        }
+        if c.last_ts == ts && c.last_key == key && let Some(r) = &c.last { return r.clone(); }
         let res = resolve_step(&mut c, kb, event, ts);
         c.last_ts = ts;
         c.last_key = key;
@@ -87,13 +85,11 @@ fn resolve_step(c: &mut ChordState, kb: &Keybindings, event: &web_sys::KeyboardE
     }
     // Emacs users often keep Ctrl held through a chord (`C-x C-o` for `C-x o`):
     // when the key after the first one matches nothing with Ctrl, try it without.
-    if !c.pending.is_empty() {
-        if let Some(bare) = seq.last().and_then(|t| t.strip_prefix("ctrl+")) {
-            let relaxed = format!("{} {}", c.pending.join(" "), bare);
-            if let Some((scope, id)) = find(&relaxed) {
-                c.pending.clear();
-                return Resolution::Action(scope, id);
-            }
+    if !c.pending.is_empty() && let Some(bare) = seq.last().and_then(|t| t.strip_prefix("ctrl+")) {
+        let relaxed = format!("{} {}", c.pending.join(" "), bare);
+        if let Some((scope, id)) = find(&relaxed) {
+            c.pending.clear();
+            return Resolution::Action(scope, id);
         }
     }
     let prefix = format!("{seq_str} ");

@@ -136,7 +136,7 @@ pub fn motion_target(action: EditorAction, chars: &[char], pos: usize) -> Option
 /// Position of the start of line `n` (0-based); the end of the text past the last line.
 pub fn line_start(chars: &[char], n: usize) -> usize {
     if n == 0 { return 0; }
-    chars.iter().enumerate().filter(|(_, &c)| c == '\n').nth(n - 1)
+    chars.iter().enumerate().filter(|&(_, &c)| c == '\n').nth(n - 1)
         .map_or(chars.len(), |(i, _)| i + 1)
 }
 

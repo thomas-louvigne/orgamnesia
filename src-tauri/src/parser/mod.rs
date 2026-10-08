@@ -157,9 +157,7 @@ fn parse_headline_block(lines: &[&str], start: usize, level: u8) -> (Block, usiz
     // collect child lines until next headline of same/higher level
     let mut i = start + 1;
     while i < lines.len() {
-        if let Some(l) = headline_level(lines[i]) {
-            if l <= level { break; }
-        }
+        if let Some(l) = headline_level(lines[i]) && l <= level { break; }
         i += 1;
     }
     let children = parse_blocks(&lines[start + 1..i], level);
@@ -229,13 +227,13 @@ pub fn parse_inline(input: &str) -> Vec<Inline> {
     }
 
     while i < chars.len() {
-        if chars[i] == '[' && chars.get(i + 1) == Some(&'[') {
-            if let Some((link, consumed)) = parse_wiki_link(&chars, i) {
-                flush_text!();
-                result.push(link);
-                i += consumed;
-                continue;
-            }
+        if chars[i] == '[' && chars.get(i + 1) == Some(&'[')
+            && let Some((link, consumed)) = parse_wiki_link(&chars, i)
+        {
+            flush_text!();
+            result.push(link);
+            i += consumed;
+            continue;
         }
         if let Some((ctor, consumed)) = try_emphasis(&chars, i) {
             flush_text!();
