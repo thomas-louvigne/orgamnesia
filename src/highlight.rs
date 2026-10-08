@@ -6,7 +6,9 @@ thread_local! {
 }
 
 /// Render org-mode text as syntax-highlighted HTML for the editor overlay.
-/// Pure function — no side effects, easy to test.
+/// Pure function — no side effects, easy to test. (The editor draws its view
+/// with `render_view`, which highlights the lines the same way.)
+#[cfg(test)]
 pub fn render(content: &str, hashtags: Hashtags) -> String {
     HASHTAGS.with(|h| h.set(hashtags));
     let mut out = String::with_capacity(content.len() * 2);
@@ -30,6 +32,53 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
 
 /// The page with the search matches (`(start, end)` char ranges, in order)
 /// marked, `current` being the selected one; same layout as the text.
+/// Like `render`, for the view of the page where some tables are collapsed
+/// (see `tables`): the first line of a collapsed table draws the whole table,
+/// over the empty lines that follow it.
+pub fn render_view(view: &crate::tables::View, hashtags: Hashtags) -> String {
+    HASHTAGS.with(|h| h.set(hashtags));
+    let mut out = String::with_capacity(view.text.len() * 2);
+    let lines: Vec<&str> = view.text.split('\n').collect();
+    let heads = header_lines(&lines);
+    for (n, line) in lines.iter().enumerate() {
+        let line = *line;
+        if heads.contains(&n) {
+            out.push_str(&format!("<span class='tbl tbl-head'>{}</span>\n", escape(line)));
+            continue;
+        }
+        let mut chars = line.chars();
+        match chars.next().and_then(crate::tables::tag_index) {
+            Some(t) if chars.next().is_none() && t < view.tables.len() => {
+                out.push_str("<span class='tbl-view'>");
+                out.push_str(&crate::tables::to_html(&view.tables[t].raw, view.width));
+                out.push_str("</span>");
+            }
+            _ if line.chars().all(crate::tables::is_fill) && !line.is_empty() => {}
+            _ => out.push_str(&highlight_line(line)),
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// Lines that are table headers: in a table, the rows above its first rule
+/// (`|---+---|`), as org-mode draws them.
+fn header_lines(lines: &[&str]) -> std::collections::HashSet<usize> {
+    let is_table = |l: &str| l.trim_start().starts_with('|');
+    let is_rule = |l: &str| l.trim_start().starts_with("|-");
+    let mut heads = std::collections::HashSet::new();
+    let mut n = 0;
+    while n < lines.len() {
+        if !is_table(lines[n]) { n += 1; continue; }
+        let start = n;
+        while n < lines.len() && is_table(lines[n]) { n += 1; }
+        if let Some(rule) = (start..n).find(|&i| is_rule(lines[i])) {
+            heads.extend(start..rule);
+        }
+    }
+    heads
+}
+
 pub fn render_matches(content: &str, matches: &[(usize, usize)], current: Option<usize>) -> String {
     if matches.is_empty() { return String::new(); }
     let chars: Vec<char> = content.chars().collect();
@@ -106,6 +155,11 @@ fn tag_links(s: &str) -> String {
 }
 
 /// Convert inline org-mode markup to highlighted HTML.
+/// Inline markup of a piece of text (links, emphasis…), as in a paragraph.
+pub fn inline(s: &str) -> String {
+    inline_html(s)
+}
+
 fn inline_html(s: &str) -> String {
     let chars: Vec<char> = s.chars().collect();
     let mut out = String::new();
@@ -317,5 +371,13 @@ mod tests {
     fn no_bold_with_space_after_star() {
         let html = inline_html("* not bold");
         assert!(!html.contains("em-b"));
+    }
+
+    #[test]
+    fn table_header_bold_while_edited() {
+        let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80 };
+        let html = render_view(&v, Hashtags::Off);
+        assert!(html.contains("<span class='tbl tbl-head'>| a | b |</span>"));
+        assert!(!html.contains("tbl-head'>| c"));
     }
 }

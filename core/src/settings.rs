@@ -35,6 +35,8 @@ pub struct Settings {
     pub show_brand: Option<bool>,
     /// Title of the page (its `#+TITLE:`, or its name) in large type above the editor.
     pub show_page_title: Option<bool>,
+    /// Quit button in the top right corner of the window.
+    pub show_quit_button: Option<bool>,
     /// Frames shown around the editor: pages menu, backlinks, tags, pages not created.
     pub show_pages: Option<bool>,
     pub show_backlinks: Option<bool>,
@@ -101,6 +103,7 @@ pub struct Prefs {
     pub restore_session: bool,
     pub show_brand: bool,
     pub show_page_title: bool,
+    pub show_quit_button: bool,
     pub show_pages: bool,
     pub show_backlinks: bool,
     pub show_tags: bool,
@@ -133,6 +136,7 @@ impl Prefs {
             restore_session: s.restore_session.unwrap_or(true),
             show_brand: s.show_brand.unwrap_or(true),
             show_page_title: s.show_page_title.unwrap_or(true),
+            show_quit_button: s.show_quit_button.unwrap_or(true),
             show_pages: s.show_pages.unwrap_or(true),
             show_backlinks: s.show_backlinks.unwrap_or(true),
             show_tags: s.show_tags.unwrap_or(true),
@@ -165,6 +169,7 @@ impl Prefs {
             restore_session: Some(self.restore_session),
             show_brand: Some(self.show_brand),
             show_page_title: Some(self.show_page_title),
+            show_quit_button: Some(self.show_quit_button),
             show_pages: Some(self.show_pages),
             show_backlinks: Some(self.show_backlinks),
             show_tags: Some(self.show_tags),

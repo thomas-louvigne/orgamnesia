@@ -119,7 +119,7 @@ pub enum EditorAction {
     BeginningOfBuffer, EndOfBuffer, ScrollDown, ScrollUp,
     BackwardSentence, ForwardSentence, BackwardParagraph, ForwardParagraph,
     BackToIndentation, PreviousHeading, NextHeading, OpenLink, SetMark, KeyboardQuit,
-    Find, FindPrevious, Replace,
+    Find, FindPrevious, Replace, TableNextCell, TablePrevCell,
 }
 
 impl AppAction {
@@ -192,6 +192,8 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Find, id: "find",                label_key: "shortcut_find" },
     ActionDef { action: EditorAction::FindPrevious, id: "find_previous",       label_key: "shortcut_find_previous" },
     ActionDef { action: EditorAction::Replace, id: "replace",             label_key: "shortcut_replace" },
+    ActionDef { action: EditorAction::TableNextCell, id: "table_next_cell",     label_key: "shortcut_table_next_cell" },
+    ActionDef { action: EditorAction::TablePrevCell, id: "table_prev_cell",     label_key: "shortcut_table_prev_cell" },
 ];
 
 /// Preset ids available in the UI (VI intentionally left as a future addition).
@@ -300,6 +302,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("find",                &["ctrl+s"]),
             ("find_previous",       &["ctrl+r"]),
             ("replace",             &["alt+%", "alt+shift+%"]),
+            ("table_next_cell",     &["Tab"]),
+            ("table_prev_cell",     &["shift+Tab"]),
         ]),
         // "classic" and any unknown preset fall back to the classic table.
         _ => m(&[
@@ -314,6 +318,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("find",          &["ctrl+f", "F3"]),
             ("find_previous", &["shift+F3"]),
             ("replace",       &["ctrl+h"]),
+            ("table_next_cell", &["Tab"]),
+            ("table_prev_cell", &["shift+Tab"]),
         ]),
     }
 }

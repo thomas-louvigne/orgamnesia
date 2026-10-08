@@ -137,7 +137,14 @@ pub fn Sidebar() -> impl IntoView {
                 <input
                     type="text"
                     class="search-input"
-                    placeholder={move || t("filter_hint", ctx.lang.get())}
+                    placeholder={move || {
+                        // With the shortcut of the quick open (search any page), discreetly
+                        let hint = t("filter_hint", ctx.lang.get());
+                        match ctx.keybindings.with(|kb| kb.app_binds("quick_open").first().cloned()) {
+                            Some(b) => format!("{hint}   {}", crate::keybindings::display(&b)),
+                            None => hint.to_string(),
+                        }
+                    }}
                     prop:value=move || filter.get()
                     on:input=move |e| filter.set(event_target_value(&e))
                 />

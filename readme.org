@@ -62,8 +62,33 @@ backlinks, tags and pages not created yet./
   the active pane has a visible border.
 - Quitting (Ctrl+Q, =C-x C-c= in Emacs) asks for confirmation when pages have unsaved changes.
 
+** Tables
+org-mode tables (lines starting with =|=):
+- *Drawn as real tables* while the caret is elsewhere: borders, columns, long cells
+  wrapping. A click in the table (or the arrow keys) turns it back into org text to
+  edit it; it is drawn again once the caret leaves. This display never changes the file.
+- A table too wide for the page takes the whole width, with no column under 80 % of an
+  equal share (40 % for two columns): long cells wrap instead of squeezing the others.
+- *Tab* goes to the next cell, *Shift+Tab* to the previous one; Tab past the last cell
+  adds a row. As in Emacs, every Tab *realigns the table*: each column gets the width of
+  its widest cell, the text of a cell always has a space on each side, incomplete rows
+  are closed with =|=, and columns of numbers are right-aligned.
+- *Header*: typing =|-= then Tab draws a rule (=|-----+-----|=) and goes to the next row.
+  The rows above the first rule are the header, shown in bold.
+- While finding in the page (Ctrl+F, =C-s= in Emacs), tables stay as text so their
+  content is found.
+- The cell shortcuts can be changed in Settings → Shortcuts.
+
+#+BEGIN_SRC org
+| Name         | Age |
+|--------------+-----|
+| Jean John    |  36 |
+| Élody Kerval |  29 |
+#+END_SRC
+
 ** Interface
-- *Display* settings: show or hide the app name and logo, the pages menu, the
+- *Display* settings: show or hide the app name and logo, the quit button in the
+  top right corner, the page title above the editor, the pages menu, the
   backlinks, the tags and the pages not created.
 - The sidebar and right panel widths can be resized by dragging their border;
   so can the height of the "Pages not created" block. Sizes are remembered.

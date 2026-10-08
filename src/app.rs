@@ -375,6 +375,26 @@ pub fn App() -> impl IntoView {
                     <BacklinksPanel />
                 })}
             </div>
+            // Quit, in the top right corner of the window (Display setting)
+            {move || ctx.pref(|p| p.show_quit_button).then(|| view! {
+                <button
+                    class="btn-quit"
+                    title=move || {
+                        let label = t("quit_button_title", ctx.lang.get());
+                        match ctx.keybindings.with(|kb| kb.app_binds("quit").first().cloned()) {
+                            Some(b) => format!("{label} ({})", crate::keybindings::display(&b)),
+                            None => label.to_string(),
+                        }
+                    }
+                    on:click=move |_| run_app_action(ctx, AppAction::Quit)
+                >
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                        stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+                        <path d="M12 3v8" />
+                        <path d="M6.3 6.8a8 8 0 1 0 11.4 0" />
+                    </svg>
+                </button>
+            })}
             {move || ctx.ui.show_quick_open.get().then(|| view! { <QuickOpenModal /> })}
             {move || ctx.ui.show_settings.get().then(|| view! { <SettingsModal /> })}
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <ConfirmDialog /> })}

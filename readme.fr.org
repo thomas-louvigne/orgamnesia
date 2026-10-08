@@ -63,8 +63,37 @@ liens entrants, tags et pages non encore créées./
   barre d'onglets ; le volet actif a une bordure visible.
 - Quitter (Ctrl+Q, =C-x C-c= en Emacs) demande confirmation si des pages ne sont pas enregistrées.
 
+** Tableaux
+Les tableaux org-mode (lignes qui commencent par =|=) :
+- *Affichés comme de vrais tableaux* quand le curseur n'y est pas : bordures, colonnes,
+  longues cellules qui passent à la ligne. Un clic dans le tableau (ou les flèches) le
+  repasse en texte org pour le modifier ; il se redessine quand le curseur en sort.
+  Le fichier n'est pas modifié par cet affichage.
+- Un tableau trop large pour la page prend toute la largeur, sans qu'aucune colonne ne
+  descende sous 80 % d'une part égale (40 % pour deux colonnes) : les longues cellules
+  passent à la ligne plutôt que d'écraser les autres.
+- *Tab* passe à la cellule suivante, *Maj+Tab* à la précédente ; Tab après la dernière
+  cellule ajoute une ligne. Comme dans Emacs, chaque Tab *réaligne le tableau* : chaque
+  colonne prend la largeur de sa plus longue cellule, un espace entoure toujours le texte
+  des cellules, les lignes incomplètes sont fermées par =|=, et les colonnes de nombres
+  sont alignées à droite.
+- *En-tête* : taper =|-= puis Tab trace une ligne de séparation (=|-----+-----|=) et passe
+  à la ligne suivante. Les lignes au-dessus de la première séparation forment l'en-tête,
+  affiché en gras.
+- Pendant une recherche dans la page (Ctrl+F, =C-s= en Emacs), les tableaux restent en
+  texte pour que leur contenu soit trouvé.
+- Les raccourcis des cellules se changent dans Préférences → Raccourcis.
+
+#+BEGIN_SRC org
+| Nom          | Âge |
+|--------------+-----|
+| Jean John    |  36 |
+| Élody Kerval |  29 |
+#+END_SRC
+
 ** Interface
 - Paramètres d'*Affichage* : afficher ou masquer le nom et le logo de l'application,
+  le bouton pour quitter en haut à droite, le titre de la page au-dessus de l'éditeur,
   le menu des pages, les liens entrants, les tags et les pages non créées.
 - Largeur de la barre latérale et du panneau de droite réglables en glissant leur bordure ;
   hauteur du bloc « Pages non créées » réglable aussi. Les tailles sont mémorisées.

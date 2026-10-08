@@ -9,6 +9,7 @@ pub mod keybindings;
 pub mod motion;
 mod state;
 mod storage;
+mod tables;
 
 use app::App;
 use leptos::prelude::*;

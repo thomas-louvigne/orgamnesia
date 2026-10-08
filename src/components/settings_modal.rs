@@ -526,6 +526,8 @@ pub fn SettingsModal() -> impl IntoView {
                             <Check draft get=|p| p.show_brand set=|p, v| p.show_brand = v label="show_brand" />
                             <Check draft get=|p| p.show_page_title set=|p, v| p.show_page_title = v
                                 label="show_page_title" hint="show_page_title_hint" />
+                            <Check draft get=|p| p.show_quit_button set=|p, v| p.show_quit_button = v
+                                label="show_quit_button" />
                             <div class="setting-section-title">
                                 {move || t("display_frames", lang())}
                             </div>

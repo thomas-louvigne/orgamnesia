@@ -7,6 +7,7 @@ use crate::{
     components::{page_title::PageTitle, tabs::TabBar},
     edit,
     highlight,
+    tables,
     i18n::t,
     invoke,
     keybindings::{after_ms, EditorAction, Resolution, Scope},
@@ -87,6 +88,31 @@ fn splice(el: &Textarea, del_start: usize, del_end: usize, insert: &str) -> usiz
     el.set_selection_end(Some(del_end as u32)).ok();
     exec_insert(insert);
     del_start + insert.chars().count()
+}
+
+/// Height of a line of the editor (14px font, 1.65 line height).
+const LINE_HEIGHT: f64 = 14.0 * 1.65;
+
+/// Width of a character of the editor font (monospace, 14px).
+const CHAR_WIDTH: f64 = 14.0 * 0.6;
+
+/// Width in characters of the text of a textarea `width` px wide (24px padding each side).
+fn text_columns(width: i32) -> usize {
+    ((width - 48).max(0) as f64 / CHAR_WIDTH) as usize
+}
+
+/// Lines of text a table takes once drawn, the text being `width` px wide.
+fn table_lines(el: &Textarea, raw: &str, width: i32) -> Option<usize> {
+    let doc = web_sys::window()?.document()?;
+    let parent = el.parent_element()?;
+    let probe = doc.create_element("div").ok()?;
+    probe.set_class_name("hl-layer tbl-probe");
+    probe.set_attribute("style", &format!("width: {width}px")).ok()?;
+    probe.set_inner_html(&format!("<div class='tbl-view'>{}</div>", tables::to_html(raw, text_columns(width))));
+    parent.append_child(&probe).ok()?;
+    let height = probe.query_selector("table").ok()??.dyn_into::<web_sys::HtmlElement>().ok()?.offset_height();
+    probe.remove();
+    Some((height as f64 / LINE_HEIGHT).ceil() as usize)
 }
 
 /// Scroll the textarea so the char at `pos` is in view (in the middle when it was not).
@@ -242,10 +268,6 @@ pub fn EditorArea(second: bool) -> impl IntoView {
 fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
 
-    let tab_input = tab.clone();
-    let tab_key   = tab.clone();
-    let tab_hl    = tab.clone();
-    let tab_click = tab.clone();
 
     // Auto-save: re-runs on every content change while the tab is dirty.
     // A single write loop runs at a time, so writes never reach the disk out of order.
@@ -324,6 +346,75 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         completion.set(Some(PageCompletion { start, caret, kind, items, selected: 0, x, y }));
     };
     let (content_sig, dirty_sig) = (tab.content, tab.dirty);
+
+    // ── Tables drawn as tables (see `tables`) ─────────────────────────────────
+    // The textarea holds a view of the page where the tables are drawn, but the
+    // one the caret is in (and all of them while finding).
+    let area_ref = NodeRef::<leptos::html::Textarea>::new();
+    // None: find bar closed; Some(with_replace)
+    let find = RwSignal::new(None::<bool>);
+    // Page position of the caret
+    let focus_pos = RwSignal::new(None::<usize>);
+    // Width of the textarea, which decides how high a drawn table is
+    let width = RwSignal::new(0i32);
+    let heights = StoredValue::new(std::collections::HashMap::<(String, i32), usize>::new());
+    let resize = window_event_listener(leptos::ev::resize, move |_| {
+        if let Some(el) = area_ref.get_untracked() { width.set(el.client_width()); }
+    });
+    on_cleanup(move || drop(resize));
+    Effect::new(move |_| {
+        if let Some(el) = area_ref.get() { width.set(el.client_width()); }
+    });
+    let view = Memo::new(move |_| {
+        let w = width.get();
+        let content = content_sig.get();
+        if w <= 0 || find.get().is_some() {
+            return tables::View { text: content, ..Default::default() };
+        }
+        let el = area_ref.get_untracked();
+        tables::View::build(&content, focus_pos.get(), text_columns(w), |raw| {
+            let key = (raw.to_string(), w);
+            if let Some(n) = heights.with_value(|h| h.get(&key).copied()) { return n; }
+            let n = el.as_ref().and_then(|el| table_lines(el, raw, w)).unwrap_or_else(|| raw.split('\n').count());
+            heights.update_value(|h| { h.insert(key, n); });
+            n
+        })
+    });
+    // The view the textarea holds: what its text is read with. Until the textarea
+    // gets a new view, an edit is still read with the one it shows.
+    let shown = StoredValue::new(tables::View::default());
+    // Show the view in the textarea, the caret where it was in the page
+    Effect::new(move |_| {
+        let v = view.get();
+        let Some(el) = area_ref.get() else { return };
+        if el.value() != v.text {
+            let scroll = el.scroll_top();
+            el.set_value(&v.text);
+            if let Some(p) = focus_pos.get_untracked() { set_cursor(&el, v.view_pos(p)); }
+            el.set_scroll_top(scroll);
+        }
+        shown.set_value(v);
+    });
+    // The textarea was edited: the page follows
+    let commit = move |el: &Textarea| {
+        let text = el.value();
+        let (page, pos) = shown.with_value(|v| (v.to_content(&text), v.content_pos(&text, caret(el))));
+        focus_pos.set(Some(pos));
+        content_sig.set(page);
+        dirty_sig.set(true);
+    };
+    // The caret moved: the table it enters is shown as text, the one it leaves drawn
+    let track_caret = move |el: &Textarea| {
+        let text = el.value();
+        let pos = shown.with_value(|v| v.content_pos(&text, caret(el)));
+        if focus_pos.get_untracked() != Some(pos) { focus_pos.set(Some(pos)); }
+    };
+    // Page text between two positions of the textarea
+    let page_text = move |el: &Textarea, a: usize, b: usize| -> String {
+        let text = el.value();
+        let (a, b) = shown.with_value(|v| (v.content_pos(&text, a), v.content_pos(&text, b)));
+        content_sig.with_untracked(|c| c.chars().skip(a).take(b.saturating_sub(a)).collect())
+    };
     let accept_completion = move |el: &Textarea, name: &str| {
         let Some(c) = completion.get_untracked() else { return };
         accepting.set_value(true);
@@ -342,16 +433,12 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         accepting.set_value(false);
         set_cursor(el, cursor);
         completion.set(None);
-        content_sig.set(el.value());
-        dirty_sig.set(true);
+        commit(el);
     };
 
     // ── Find / replace in the page ────────────────────────────────────────────
-    let area_ref = NodeRef::<leptos::html::Textarea>::new();
     let find_ref = NodeRef::<leptos::html::Input>::new();
     let replace_ref = NodeRef::<leptos::html::Input>::new();
-    // None: bar closed; Some(with_replace)
-    let find = RwSignal::new(None::<bool>);
     let query = RwSignal::new(String::new());
     let replacement = RwSignal::new(String::new());
     let match_case = RwSignal::new(false);
@@ -371,6 +458,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         };
         current.set(Some(i));
         anchor.set_value(a);
+        focus_pos.set(Some(a));
         if let Some(el) = area_ref.get_untracked() {
             set_selection(&el, a, b);
             reveal(&el, &el.value().chars().collect::<Vec<_>>(), a);
@@ -398,14 +486,16 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     };
     let open_find = move |with_replace: bool, el: &Textarea| {
         let (a, b) = get_pos(el);
-        let selected: String = el.value().chars().skip(a).take(b - a).collect();
+        let selected = page_text(el, a, b);
         if !selected.is_empty() && !selected.contains('\n') {
             query.set(selected);
         }
-        anchor.set_value(a);
+        let text = el.value();
+        anchor.set_value(shown.with_value(|v| v.content_pos(&text, a)));
         find.set(Some(with_replace || find.get_untracked().unwrap_or(false)));
-        show_from_anchor();
+        // Once the textarea shows every table as text
         after_tick(move || {
+            show_from_anchor();
             let target = if with_replace && !query.get_untracked().is_empty() { replace_ref } else { find_ref };
             if let Some(input) = target.get_untracked() {
                 let _ = input.focus();
@@ -426,8 +516,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         };
         let with = replacement.get_untracked();
         let end = splice(&el, a, b, &with);
-        content_sig.set(el.value());
-        dirty_sig.set(true);
+        commit(&el);
         anchor.set_value(end);
         show_from_anchor();
     };
@@ -448,8 +537,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         // A single edit, so one undo brings everything back
         splice(&el, 0, chars.len(), &out);
         set_cursor(&el, 0);
-        content_sig.set(el.value());
-        dirty_sig.set(true);
+        commit(&el);
         current.set(None);
         ctx.notify(format!("{} × {}", found.len(), t("replace_all", ctx.lang.get_untracked())));
     };
@@ -484,13 +572,16 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let el = e.target().unwrap().dyn_into::<Textarea>().unwrap();
         // Typing ends the region
         mark.set(None);
-        tab_input.content.set(el.value());
-        tab_input.dirty.set(true);
+        commit(&el);
         if !accepting.get_value() { refresh_completion(&el); }
     };
 
     let on_keydown = move |e: web_sys::KeyboardEvent| {
         let el: Textarea = e.target().unwrap().dyn_into().unwrap();
+        {
+            let el = el.clone();
+            after_tick(move || track_caret(&el));
+        }
 
         // Completion popup: navigate, accept or dismiss before any shortcut
         if let Some(c) = completion.get_untracked() {
@@ -555,12 +646,6 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             after_tick(move || point.set(caret(&el2)));
         }
 
-        // Helper: sync Leptos signal after DOM edit
-        let sync = |new_val: String| {
-            tab_key.content.set(new_val);
-            tab_key.dirty.set(true);
-        };
-
         // ── Auto-pairing / electric wrapping ──────────────────────────────────
         // Without a selection, ( [ { and " insert their closing character too.
         // With a selection, electric mode wraps it in the typed pair.
@@ -573,14 +658,14 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                     let selected: String = el.value().chars().skip(start).take(end - start).collect();
                     let new_end = splice(&el, start, end, &format!("{open}{selected}{close}"));
                     set_selection(&el, start + 1, new_end - 1);
-                    sync(el.value());
+                    commit(&el);
                     return;
                 }
             } else if edit::auto_closes(&key) {
                 e.prevent_default();
                 let cursor = splice(&el, start, start, &format!("{open}{close}"));
                 set_cursor(&el, cursor - 1);
-                sync(el.value());
+                commit(&el);
                 return;
             }
         }
@@ -601,16 +686,34 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             }
         };
         let Some(action) = action else { return };
+        // Tab / Shift+Tab only move between cells in a table; elsewhere the key does what it usually does
+        if matches!(action, EditorAction::TableNextCell | EditorAction::TablePrevCell) {
+            let chars: Vec<char> = el.value().chars().collect();
+            let forward = action == EditorAction::TableNextCell;
+            let Some(to) = tables::move_cell(&chars, caret(&el), forward) else { return };
+            e.prevent_default();
+            e.stop_propagation();
+            match to {
+                tables::CellMove::Caret(p) => set_cursor(&el, p),
+                tables::CellMove::Edit { from, to, text, caret } => {
+                    splice(&el, from, to, &text);
+                    set_cursor(&el, caret);
+                    commit(&el);
+                }
+            }
+            track_caret(&el);
+            return;
+        }
         e.prevent_default();
         e.stop_propagation();
 
         let chars: Vec<char> = el.value().chars().collect();
-        let text = |a: usize, b: usize| -> String { chars[a..b].iter().collect() };
+        let text = |a: usize, b: usize| -> String { page_text(&el, a, b) };
         // Replace a..b with `with`, caret after it; the page has changed
         let replace = |a: usize, b: usize, with: &str| {
             let cursor = splice(&el, a, b, with);
             set_cursor(&el, cursor);
-            sync(el.value());
+            commit(&el);
         };
 
         if let Some(target) = edit::motion_target(action, &chars, caret(&el)) {
@@ -629,7 +732,6 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 replace(start, end, "");
             }
             EditorAction::Paste => {
-                let (content, dirty) = (tab_key.content, tab_key.dirty);
                 let el = el.clone();
                 if let Some(cb) = clipboard() {
                     let promise = cb.read_text();
@@ -639,8 +741,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                             let (start, end) = get_pos(&el);
                             let cursor = splice(&el, start, end, &pasted);
                             set_cursor(&el, cursor);
-                            content.set(el.value());
-                            dirty.set(true);
+                            commit(&el);
                         }
                     });
                 }
@@ -724,7 +825,9 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         if !e.ctrl_key() { return; }
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
         let pos = el.selection_start().ok().flatten().unwrap_or(0) as usize;
-        let chars: Vec<char> = tab_click.content.get_untracked().chars().collect();
+        let text = el.value();
+        let pos = shown.with_value(|v| v.content_pos(&text, pos));
+        let chars: Vec<char> = content_sig.get_untracked().chars().collect();
         if let Some(name) = edit::link_at(&chars, pos, ctx.hashtags_untracked()) {
             e.prevent_default();
             follow_link(ctx, name);
@@ -750,22 +853,26 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             }
         };
         if let Some((start, end)) = range {
-            let line = chars[..start].iter().filter(|&&c| c == '\n').count();
-            let _ = el.focus();
-            set_selection(&el, start, end);
-            // Bring the line to the middle of the view (14px font, 1.65 line height)
-            let y = (line as f64 * 14.0 * 1.65 - el.client_height() as f64 / 2.0).max(0.0);
-            el.set_scroll_top(y as i32);
+            // Show the target's table as text first, if it is in one
+            focus_pos.set(Some(start));
+            after_tick(move || {
+                let (a, b) = shown.with_value(|v| (v.view_pos(start), v.view_pos(end)));
+                let line = el.value().chars().take(a).filter(|&c| c == '\n').count();
+                let _ = el.focus();
+                set_selection(&el, a, b);
+                // Bring the line to the middle of the view
+                let y = (line as f64 * LINE_HEIGHT - el.client_height() as f64 / 2.0).max(0.0);
+                el.set_scroll_top(y as i32);
+            });
         }
     });
 
-    let highlighted = move || highlight::render(&tab_hl.content.get(), ctx.hashtags());
-    let tab_region = tab.clone();
+    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.hashtags()));
     let region_html = move || {
         if !ctx.pref(|p| p.emacs_mark) { return String::new(); }
         mark.get().map(|m| {
             let p = point.get();
-            highlight::render_region(&tab_region.content.get(), m.min(p), m.max(p))
+            view.with(|v| highlight::render_region(&v.text, m.min(p), m.max(p)))
         }).unwrap_or_default()
     };
     let tab_match = tab.clone();
@@ -774,9 +881,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     });
     // Mouse moves the caret too
     let on_pointer = move |e: web_sys::MouseEvent| {
-        if mark.get_untracked().is_some()
-            && let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok())
-        {
+        let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
+        // A click on a drawn table shows it as text
+        if !e.ctrl_key() { track_caret(&el); }
+        if mark.get_untracked().is_some() {
             after_tick(move || point.set(caret(&el)));
         }
     };
@@ -812,7 +920,6 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 node_ref=area_ref
                 class="edit-layer"
                 spellcheck=false
-                prop:value=move || tab.content.get()
                 on:input=on_input
                 on:keydown=on_keydown
                 on:click=on_click
