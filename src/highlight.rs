@@ -1,27 +1,13 @@
 use crate::motion::Hashtags;
 
 thread_local! {
-    /// How `#tags` are drawn as links (set by `render`, read while highlighting a line).
+    /// How `#tags` are drawn as links (set by `render_view`, read while highlighting a line).
     static HASHTAGS: std::cell::Cell<Hashtags> = const { std::cell::Cell::new(Hashtags::Off) };
-}
-
-/// Render org-mode text as syntax-highlighted HTML for the editor overlay.
-/// Pure function — no side effects, easy to test. (The editor draws its view
-/// with `render_view`, which highlights the lines the same way.)
-#[cfg(test)]
-pub fn render(content: &str, hashtags: Hashtags) -> String {
-    HASHTAGS.with(|h| h.set(hashtags));
-    let mut out = String::with_capacity(content.len() * 2);
-    for line in content.split('\n') {
-        out.push_str(&highlight_line(line));
-        out.push('\n');
-    }
-    out
 }
 
 /// Plain-text copy of the document with the char range `start..end` wrapped in
 /// `<mark>`, drawn (transparent text) on top of the highlight layer to show the
-/// Emacs region. Same trailing-newline handling as `render` so the layers line up.
+/// Emacs region. Same trailing-newline handling as `render_view` so the layers line up.
 pub fn render_region(content: &str, start: usize, end: usize) -> String {
     let chars: Vec<char> = content.chars().collect();
     let end = end.min(chars.len());
@@ -30,9 +16,7 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
     format!("{}<mark class='region'>{}</mark>{}\n", part(0, start), part(start, end), part(end, chars.len()))
 }
 
-/// The page with the search matches (`(start, end)` char ranges, in order)
-/// marked, `current` being the selected one; same layout as the text.
-/// Like `render`, for the view of the page where some tables are collapsed
+/// Syntax-highlighted HTML for the view of the page where some tables are collapsed
 /// (see `tables`): the first line of a collapsed table draws the whole table,
 /// over the empty lines that follow it.
 pub fn render_view(view: &crate::tables::View, hashtags: Hashtags) -> String {
