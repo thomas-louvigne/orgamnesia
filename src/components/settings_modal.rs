@@ -518,6 +518,8 @@ pub fn SettingsModal() -> impl IntoView {
                             <Check draft get=|p| p.autosave set=|p, v| p.autosave = v label="autosave" />
                             <Check draft get=|p| p.electric_mode set=|p, v| p.electric_mode = v label="electric_mode" />
                             <Check draft get=|p| p.find_match_case set=|p, v| p.find_match_case = v label="find_match_case" />
+                            <Check draft get=|p| p.indent_headings set=|p, v| p.indent_headings = v
+                                label="indent_headings" hint="indent_headings_hint" />
                             <Check draft get=|p| p.delete_empty set=|p, v| p.delete_empty = v label="delete_empty_pages" />
                             <Check draft get=|p| p.delete_title_only set=|p, v| p.delete_title_only = v label="delete_title_only_pages" />
                         </div>
@@ -533,6 +535,8 @@ pub fn SettingsModal() -> impl IntoView {
                                 label="show_page_title" hint="show_page_title_hint" />
                             <Check draft get=|p| p.show_quit_button set=|p, v| p.show_quit_button = v
                                 label="show_quit_button" />
+                            <Check draft get=|p| p.show_line_numbers set=|p, v| p.show_line_numbers = v
+                                label="show_line_numbers" />
                             <div class="setting-section-title">
                                 {move || t("display_frames", lang())}
                             </div>

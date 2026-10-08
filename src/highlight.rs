@@ -27,25 +27,40 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
 /// Syntax-highlighted HTML for the view of the page where some tables are collapsed
 /// (see `tables`): the first line of a collapsed table draws the whole table,
 /// over the empty lines that follow it.
-pub fn render_view(view: &crate::tables::View, tags: TagSyntax) -> String {
+/// With `numbers`, each line of the page starts with its number, drawn in the margin.
+pub fn render_view(view: &crate::tables::View, tags: TagSyntax, numbers: bool) -> String {
     TAGS.with(|t| t.set(tags));
     let mut out = String::with_capacity(view.text.len() * 2);
     let lines: Vec<&str> = view.text.split('\n').collect();
     let heads = header_lines(&lines);
+    // Number of the next line of the page
+    let mut page_line = 1;
     for (n, line) in lines.iter().enumerate() {
         let line = *line;
+        // The lines below a collapsed table's first one are not lines of the page
+        let fill = !line.is_empty() && line.chars().all(crate::tables::is_fill);
+        if numbers && !fill {
+            out.push_str(&format!("<span class='ln'>{page_line}</span>"));
+            let table = line.trim_start_matches(crate::tables::INDENT).chars().next()
+                .and_then(crate::tables::tag_index)
+                .and_then(|t| view.tables.get(t));
+            page_line += table.map_or(1, |t| t.raw.split('\n').count());
+        }
         if heads.contains(&n) {
             out.push_str(&format!("<span class='tbl tbl-head'>{}</span>\n", escape(line)));
             continue;
         }
-        let mut chars = line.chars();
+        // A collapsed table, maybe indented under a headline
+        let indent = line.chars().take_while(|&c| c == crate::tables::INDENT).count();
+        let mut chars = line.chars().skip(indent);
         match chars.next().and_then(crate::tables::tag_index) {
             Some(t) if chars.next().is_none() && t < view.tables.len() => {
-                out.push_str("<span class='tbl-view'>");
-                out.push_str(&crate::tables::to_html(&view.tables[t].raw, view.width));
+                out.push_str(&crate::tables::INDENT.to_string().repeat(indent));
+                out.push_str(&format!("<span class='tbl-view' style='width: calc(100% - {indent}ch)'>"));
+                out.push_str(&crate::tables::to_html(&view.tables[t].raw, view.width.saturating_sub(indent)));
                 out.push_str("</span>");
             }
-            _ if line.chars().all(crate::tables::is_fill) && !line.is_empty() => {}
+            _ if fill => {}
             _ => out.push_str(&highlight_line(line)),
         }
         out.push('\n');
@@ -388,18 +403,29 @@ mod tests {
 
     #[test]
     fn org_tags_in_text_drawn_as_links() {
-        let v = crate::tables::View { text: "voir :ex: à 10:30:".into(), tables: vec![], width: 80 };
-        let html = render_view(&v, Hashtags::Off.into());
+        let v = crate::tables::View { text: "voir :ex: à 10:30:".into(), tables: vec![], width: 80, indents: vec![] };
+        let html = render_view(&v, Hashtags::Off.into(), false);
         assert!(html.contains(":<span class='tag-t'>ex</span>:"));
         assert!(!html.contains("30</span>"));
         let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
-        assert!(!render_view(&v, off).contains("tag-t"));
+        assert!(!render_view(&v, off, false).contains("tag-t"));
+    }
+
+    #[test]
+    fn line_numbers_follow_the_page() {
+        // A collapsed table of 3 rows takes 4 lines of the view, numbered as its 3 lines
+        let page = "a\n| x |\n|---|\n| y |\nb";
+        let v = crate::tables::View::build(page, None, 80, |_| 4, true, false);
+        let html = render_view(&v, Hashtags::Off.into(), true);
+        let nums: Vec<&str> = html.split("<span class='ln'>").skip(1).map(|s| &s[..s.find('<').unwrap()]).collect();
+        assert_eq!(nums, vec!["1", "2", "5"]);
+        assert!(!render_view(&v, Hashtags::Off.into(), false).contains("class='ln'"));
     }
 
     #[test]
     fn table_header_bold_while_edited() {
-        let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80 };
-        let html = render_view(&v, Hashtags::Off.into());
+        let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80, indents: vec![] };
+        let html = render_view(&v, Hashtags::Off.into(), false);
         assert!(html.contains("<span class='tbl tbl-head'>| a | b |</span>"));
         assert!(!html.contains("tbl-head'>| c"));
     }

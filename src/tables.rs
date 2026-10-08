@@ -7,6 +7,10 @@
 //! filler characters on the others. The highlight layer draws the table over
 //! those lines. The page itself is never changed: `View` maps the view back to
 //! the page text and positions between the two.
+//!
+//! The view also indents the text under a headline to the column of its title, as
+//! Emacs' `org-indent-mode` does: each line gets `INDENT` characters in front of it,
+//! which are not in the page either.
 
 use crate::highlight;
 
@@ -15,6 +19,9 @@ const TAG_BASE: u32 = 0xE000;
 const MAX_TABLES: u32 = 0x1800;
 /// The other lines of a collapsed table.
 const FILL: char = '\u{2063}';
+/// Indentation of a line under a headline (a no-break space: one column wide
+/// in every font, and very unlikely to start a line of the page).
+pub const INDENT: char = '\u{a0}';
 
 fn tag(i: usize) -> char {
     char::from_u32(TAG_BASE + i as u32).unwrap_or(FILL)
@@ -78,22 +85,43 @@ pub struct View {
     pub tables: Vec<Collapsed>,
     /// Width of the text, in characters: how wide a drawn table can be.
     pub width: usize,
+    /// The indented lines: where they start in the page, and by how many columns.
+    pub indents: Vec<(usize, usize)>,
 }
 
 impl View {
-    /// The view of `content` where every table is collapsed but the one holding
-    /// the page position `keep` (if any), the text being `width` characters
-    /// wide. `lines_of` gives the lines a table takes once drawn.
-    pub fn build(content: &str, keep: Option<usize>, width: usize, mut lines_of: impl FnMut(&str) -> usize) -> Self {
+    /// The view of `content` where, with `collapse`, every table is collapsed but the one
+    /// holding the page position `keep` (if any), the text being `width` characters
+    /// wide. `lines_of` gives the lines a table takes once drawn. With `indent`, the
+    /// text under a headline is indented to the column of its title.
+    pub fn build(
+        content: &str, keep: Option<usize>, width: usize, mut lines_of: impl FnMut(&str) -> usize,
+        collapse: bool, indent: bool,
+    ) -> Self {
         let chars: Vec<char> = content.chars().collect();
-        let mut text = String::with_capacity(content.len());
+        let indents = if indent { heading_indents(&chars) } else { vec![] };
+        let mut text = String::with_capacity(content.len() + indents.len() * 3);
+        let mut next = 0;
+        // Copy the page from `a` to `b`, each line with its indentation
+        let mut copy = |text: &mut String, a: usize, b: usize| {
+            for (p, c) in chars[a..b].iter().map(Some).chain([None]).enumerate() {
+                let p = a + p;
+                while next < indents.len() && indents[next].0 < p { next += 1; }
+                if let Some(&(_, n)) = indents.get(next).filter(|&&(at, _)| at == p) {
+                    text.extend(std::iter::repeat_n(INDENT, n));
+                    next += 1;
+                }
+                if let Some(&c) = c { text.push(c); }
+            }
+        };
         let mut tables = Vec::new();
         let mut at = 0;
-        for (start, end) in find_tables(&chars) {
+        let found = if collapse { find_tables(&chars) } else { vec![] };
+        for (start, end) in found {
             if keep.is_some_and(|k| (start..=end).contains(&k)) || tables.len() as u32 >= MAX_TABLES {
                 continue;
             }
-            text.extend(&chars[at..start]);
+            copy(&mut text, at, start);
             let raw: String = chars[start..end].iter().collect();
             let lines = lines_of(&raw).max(1);
             text.push(tag(tables.len()));
@@ -104,8 +132,19 @@ impl View {
             tables.push(Collapsed { raw, start, len: end - start, lines });
             at = end;
         }
-        text.extend(&chars[at..]);
-        View { text, tables, width }
+        copy(&mut text, at, chars.len());
+        View { text, tables, width, indents }
+    }
+
+    /// The run of `INDENT`s starting the line of the view position `pos` in `text`,
+    /// when `pos` is in it or right after it.
+    pub fn indent_run(&self, text: &str, pos: usize) -> Option<(usize, usize)> {
+        if self.indents.is_empty() { return None; }
+        let chars: Vec<char> = text.chars().collect();
+        let pos = pos.min(chars.len());
+        let ls = chars[..pos].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
+        let n = chars[ls..].iter().take_while(|&&c| c == INDENT).count();
+        (n > 0 && pos <= ls + n).then_some((ls, ls + n))
     }
 
     /// Walk `text` (this view, possibly edited since) calling `on` for each piece:
@@ -114,9 +153,17 @@ impl View {
     /// whose tag was deleted is skipped.
     fn walk(&self, text: &str, mut on: impl FnMut(usize, Result<char, (usize, usize)>)) {
         let chars: Vec<char> = text.chars().collect();
+        let indented = !self.indents.is_empty();
+        let mut line_start = true;
         let mut i = 0;
         while i < chars.len() {
             let c = chars[i];
+            if indented && line_start && c == INDENT {
+                // Indentation of the view, not in the page
+                i += 1;
+                continue;
+            }
+            line_start = c == '\n';
             if let Some(t) = tag_index(c).filter(|&t| t < self.tables.len()) {
                 on(i, Err((t, 0)));
                 i += 1;
@@ -129,6 +176,7 @@ impl View {
                 }
             } else if c == '\n' && chars.get(i + 1) == Some(&FILL) {
                 // A line of a block whose first line was deleted
+                line_start = false;
                 i += 2;
             } else {
                 if c != FILL && tag_index(c).is_none() { on(i, Ok(c)); }
@@ -184,17 +232,42 @@ impl View {
     /// View position of the page position `pos`; a position inside a collapsed
     /// table goes to the start of its block.
     pub fn view_pos(&self, pos: usize) -> usize {
+        // Indentation of the lines starting at or before `p` (a line start goes after it)
+        let indent = |p: usize| -> isize {
+            self.indents.iter().take_while(|&&(at, _)| at <= p).map(|&(_, n)| n as isize).sum()
+        };
         let mut shift: isize = 0;
         for t in &self.tables {
             if pos <= t.start { break; }
             let block = (2 * t.lines - 1) as isize;
             if pos < t.start + t.len {
-                return (t.start as isize + shift) as usize;
+                return (t.start as isize + shift + indent(t.start)) as usize;
             }
             shift += block - t.len as isize;
         }
-        (pos as isize + shift).max(0) as usize
+        (pos as isize + shift + indent(pos)).max(0) as usize
     }
+}
+
+/// The lines under a headline: where they start and their indentation,
+/// the width of the stars of the headline and the space after them.
+fn heading_indents(chars: &[char]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut level = 0;
+    let mut start = 0;
+    loop {
+        let end = chars[start..].iter().position(|&c| c == '\n').map_or(chars.len(), |p| start + p);
+        let line = &chars[start..end];
+        let stars = line.iter().take_while(|&&c| c == '*').count();
+        if stars > 0 && matches!(line.get(stars), Some(' ') | None) {
+            level = stars;
+        } else if level > 0 {
+            out.push((start, level + 1));
+        }
+        if end == chars.len() { break; }
+        start = end + 1;
+    }
+    out
 }
 
 /// Position in `raw` of the start of the row shown at line `line` of `lines`.
@@ -451,7 +524,7 @@ mod tests {
     const PAGE: &str = "* Titre\n| a | b |\n|---+---|\n| c | d |\nfin\n| x |";
 
     fn view(keep: Option<usize>) -> View {
-        View::build(PAGE, keep, 80, |raw| raw.split('\n').count() + 1)
+        View::build(PAGE, keep, 80, |raw| raw.split('\n').count() + 1, true, false)
     }
 
     #[test]
@@ -475,6 +548,31 @@ mod tests {
         assert_eq!(v.tables.len(), 1);
         assert!(v.text.contains("| c | d |"));
         assert_eq!(v.to_content(&v.text), PAGE);
+    }
+
+    #[test]
+    fn text_under_headlines_is_indented() {
+        let page = "intro\n* A\ntexte\n- item\n** B\n\n| t |\nfin";
+        let v = View::build(page, None, 80, |raw| raw.split('\n').count(), true, true);
+        let i = |n: usize| INDENT.to_string().repeat(n);
+        assert_eq!(v.text, format!("intro\n* A\n{}texte\n{}- item\n** B\n{}\n{}\u{e000}\n{}fin", i(2), i(2), i(3), i(3), i(3)));
+        assert_eq!(v.to_content(&v.text), page);
+        // A line start goes after its indentation, and back
+        let texte = page.find("texte").unwrap();
+        assert_eq!(v.view_pos(texte), texte + 2);
+        assert_eq!(v.content_pos(&v.text, texte + 2), texte);
+        assert_eq!(v.content_pos(&v.text, texte + 1), texte);
+        let fin = page.find("fin").unwrap();
+        assert_eq!(v.content_pos(&v.text, v.view_pos(fin)), fin);
+        // Typed in the indentation, a character goes to the start of the line
+        let edited = v.text.replacen(&format!("{}texte", i(2)), &format!("{}X{}texte", i(1), i(1)), 1);
+        assert_eq!(v.to_content(&edited), page.replacen("texte", "X\u{a0}texte", 1));
+        // The indentation around a position
+        assert_eq!(v.indent_run(&v.text, texte + 2), Some((texte, texte + 2)));
+        assert_eq!(v.indent_run(&v.text, 2), None);
+        // Not indented: the page as it is
+        let plain = View::build(page, None, 80, |_| 1, false, false);
+        assert_eq!(plain.text, page);
     }
 
     #[test]

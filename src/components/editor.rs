@@ -96,19 +96,27 @@ const LINE_HEIGHT: f64 = 14.0 * 1.65;
 /// Width of a character of the editor font (monospace, 14px).
 const CHAR_WIDTH: f64 = 14.0 * 0.6;
 
-/// Width in characters of the text of a textarea `width` px wide (24px padding each side).
-fn text_columns(width: i32) -> usize {
-    ((width - 48).max(0) as f64 / CHAR_WIDTH) as usize
+/// Width in characters of the text of a textarea `width` px wide (24px padding each
+/// side). With line numbers of `digits` digits, the left padding is 4px and the
+/// numbers and their margin take `digits + 1.5` columns (see `.line-numbers` in the CSS).
+fn text_columns(width: i32, digits: Option<usize>) -> usize {
+    let (padding, gutter) = digits.map_or((48.0, 0.0), |d| (28.0, d as f64 + 1.5));
+    ((width as f64 - padding).max(0.0) / CHAR_WIDTH - gutter).max(0.0) as usize
+}
+
+/// Digits of the line numbers of `content`: those of its last line, at least 2.
+fn number_digits(content: &str) -> usize {
+    (content.matches('\n').count() + 1).to_string().len().max(2)
 }
 
 /// Lines of text a table takes once drawn, the text being `width` px wide.
-fn table_lines(el: &Textarea, raw: &str, width: i32) -> Option<usize> {
+fn table_lines(el: &Textarea, raw: &str, width: i32, digits: Option<usize>) -> Option<usize> {
     let doc = web_sys::window()?.document()?;
     let parent = el.parent_element()?;
     let probe = doc.create_element("div").ok()?;
     probe.set_class_name("hl-layer tbl-probe");
     probe.set_attribute("style", &format!("width: {width}px")).ok()?;
-    probe.set_inner_html(&format!("<div class='tbl-view'>{}</div>", tables::to_html(raw, text_columns(width))));
+    probe.set_inner_html(&format!("<div class='tbl-view'>{}</div>", tables::to_html(raw, text_columns(width, digits))));
     parent.append_child(&probe).ok()?;
     let height = probe.query_selector("table").ok()??.dyn_into::<web_sys::HtmlElement>().ok()?.offset_height();
     probe.remove();
@@ -358,7 +366,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let focus_pos = RwSignal::new(None::<usize>);
     // Width of the textarea, which decides how high a drawn table is
     let width = RwSignal::new(0i32);
-    let heights = StoredValue::new(std::collections::HashMap::<(String, i32), usize>::new());
+    let heights = StoredValue::new(std::collections::HashMap::<(String, i32, Option<usize>), usize>::new());
     let resize = window_event_listener(leptos::ev::resize, move |_| {
         if let Some(el) = area_ref.get_untracked() { width.set(el.client_width()); }
     });
@@ -369,17 +377,18 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let view = Memo::new(move |_| {
         let w = width.get();
         let content = content_sig.get();
-        if w <= 0 || find.get().is_some() {
-            return tables::View { text: content, ..Default::default() };
-        }
+        // While searching, tables are shown as text (matches may be in them)
+        let collapse = w > 0 && find.get().is_none();
+        let indent = ctx.pref(|p| p.indent_headings);
+        let digits = ctx.pref(|p| p.show_line_numbers).then(|| number_digits(&content));
         let el = area_ref.get_untracked();
-        tables::View::build(&content, focus_pos.get(), text_columns(w), |raw| {
-            let key = (raw.to_string(), w);
+        tables::View::build(&content, focus_pos.get(), text_columns(w.max(0), digits), |raw| {
+            let key = (raw.to_string(), w, digits);
             if let Some(n) = heights.with_value(|h| h.get(&key).copied()) { return n; }
-            let n = el.as_ref().and_then(|el| table_lines(el, raw, w)).unwrap_or_else(|| raw.split('\n').count());
+            let n = el.as_ref().and_then(|el| table_lines(el, raw, w, digits)).unwrap_or_else(|| raw.split('\n').count());
             heights.update_value(|h| { h.insert(key, n); });
             n
-        })
+        }, collapse, indent)
     });
     // The view the textarea holds: what its text is read with. Until the textarea
     // gets a new view, an edit is still read with the one it shows.
@@ -405,10 +414,21 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         dirty_sig.set(true);
     };
     // The caret moved: the table it enters is shown as text, the one it leaves drawn
+    // Caret in the textarea after the last move
+    let last_caret = StoredValue::new(0usize);
     let track_caret = move |el: &Textarea| {
         let text = el.value();
         // Also runs a tick after a key press, when the pane may be closed (C-x 1)
-        let Some(pos) = shown.try_with_value(|v| v.content_pos(&text, caret(el))) else { return };
+        let Some(run) = shown.try_with_value(|v| v.indent_run(&text, caret(el))) else { return };
+        // The caret doesn't stay in the indentation of a line: it goes after it, or
+        // to the end of the line above when it came back from the start of the text
+        let (start, end) = get_pos(el);
+        if start == end && let Some((a, b)) = run && start < b {
+            let back = last_caret.get_value() == b && start + 1 == b && a > 0;
+            set_cursor(el, if back { a - 1 } else { b });
+        }
+        last_caret.set_value(caret(el));
+        let pos = shown.with_value(|v| v.content_pos(&text, caret(el)));
         if focus_pos.get_untracked() != Some(pos) { focus_pos.set(Some(pos)); }
     };
     // Page text between two positions of the textarea
@@ -464,6 +484,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         anchor.set_value(a);
         focus_pos.set(Some(a));
         if let Some(el) = area_ref.get_untracked() {
+            let (a, b) = shown.with_value(|v| (v.view_pos(a), v.view_pos(b)));
             set_selection(&el, a, b);
             reveal(&el, &el.value().chars().collect::<Vec<_>>(), a);
         }
@@ -520,16 +541,19 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             return;
         };
         let with = replacement.get_untracked();
-        let end = splice(&el, a, b, &with);
+        let (va, vb) = shown.with_value(|v| (v.view_pos(a), v.view_pos(b)));
+        splice(&el, va, vb, &with);
         commit(&el);
-        anchor.set_value(end);
+        anchor.set_value(a + with.chars().count());
         show_from_anchor();
     };
     let replace_all = move || {
         let Some(el) = area_ref.get_untracked() else { return };
         let found = matches.get_untracked();
         if found.is_empty() { return; }
-        let chars: Vec<char> = el.value().chars().collect();
+        // Replaced in the page, which then takes the place of the whole view
+        let chars: Vec<char> = content_sig.get_untracked().chars().collect();
+        let all = el.value().chars().count();
         let with = replacement.get_untracked();
         let mut out = String::new();
         let mut at = 0;
@@ -540,7 +564,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
         out.extend(&chars[at..]);
         // A single edit, so one undo brings everything back
-        splice(&el, 0, chars.len(), &out);
+        splice(&el, 0, all, &out);
         set_cursor(&el, 0);
         commit(&el);
         current.set(None);
@@ -649,6 +673,22 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         if mark.get_untracked().is_some() {
             let el2 = el.clone();
             after_tick(move || point.set(caret(&el2)));
+        }
+
+        // Backspace at the start of an indented line joins it to the line above
+        // (the indentation is not in the page: deleting it would change nothing)
+        if e.key() == "Backspace" && !e.ctrl_key() && !e.alt_key() && !e.meta_key() {
+            let (start, end) = get_pos(&el);
+            let text = el.value();
+            if start == end && let Some((a, b)) = shown.with_value(|v| v.indent_run(&text, start)) {
+                e.prevent_default();
+                if a > 0 {
+                    let cursor = splice(&el, a - 1, b, "");
+                    set_cursor(&el, cursor);
+                    commit(&el);
+                }
+                return;
+            }
         }
 
         // ── Auto-pairing / electric wrapping ──────────────────────────────────
@@ -886,7 +926,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
     });
 
-    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.tags()));
+    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.tags(), ctx.pref(|p| p.show_line_numbers)));
     let region_html = move || {
         if !ctx.pref(|p| p.emacs_mark) { return String::new(); }
         mark.get().map(|m| {
@@ -894,10 +934,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             view.with(|v| highlight::render_region(&v.text, m.min(p), m.max(p)))
         }).unwrap_or_default()
     };
-    let tab_match = tab.clone();
-    let match_html = move || matches.with(|m| {
-        highlight::render_matches(&tab_match.content.get(), m, current.get())
-    });
+    let match_html = move || matches.with(|m| view.with(|v| {
+        let m: Vec<(usize, usize)> = m.iter().map(|&(a, b)| (v.view_pos(a), v.view_pos(b))).collect();
+        highlight::render_matches(&v.text, &m, current.get())
+    }));
     // Mouse moves the caret too
     let on_pointer = move |e: web_sys::MouseEvent| {
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
@@ -931,7 +971,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     };
 
     view! {
-        <div class="editor-wrap">
+        <div
+            class=move || if ctx.pref(|p| p.show_line_numbers) { "editor-wrap line-numbers" } else { "editor-wrap" }
+            style=move || content_sig.with(|c| format!("--ln-w: {}ch", number_digits(c)))
+        >
             <div class="hl-layer" aria-hidden="true" inner_html=highlighted />
             <div class="hl-layer region-layer" aria-hidden="true" inner_html=region_html />
             <div class="hl-layer match-layer" aria-hidden="true" inner_html=match_html />

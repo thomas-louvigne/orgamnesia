@@ -25,6 +25,8 @@ pub struct Settings {
     pub org_tag_dashes: Option<bool>,
     /// The search in the page matches case (and accents) when it opens.
     pub find_match_case: Option<bool>,
+    /// Indent the text under a headline to the column of its title (on screen only).
+    pub indent_headings: Option<bool>,
     /// Emacs mark: Ctrl+Space starts a region that follows the cursor.
     pub emacs_mark: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
@@ -43,6 +45,8 @@ pub struct Settings {
     pub show_page_title: Option<bool>,
     /// Quit button in the top right corner of the window.
     pub show_quit_button: Option<bool>,
+    /// Line numbers in the margin of the editor.
+    pub show_line_numbers: Option<bool>,
     /// Frames shown around the editor: pages menu, backlinks, tags, pages not created.
     pub show_pages: Option<bool>,
     pub show_backlinks: Option<bool>,
@@ -110,6 +114,7 @@ pub struct Prefs {
     pub show_brand: bool,
     pub show_page_title: bool,
     pub show_quit_button: bool,
+    pub show_line_numbers: bool,
     pub show_pages: bool,
     pub show_backlinks: bool,
     pub show_tags: bool,
@@ -122,6 +127,7 @@ pub struct Prefs {
     pub org_tag_links: bool,
     pub org_tag_dashes: bool,
     pub find_match_case: bool,
+    pub indent_headings: bool,
     pub emacs_mark: bool,
     pub electric_mode: bool,
 }
@@ -146,6 +152,7 @@ impl Prefs {
             show_brand: s.show_brand.unwrap_or(true),
             show_page_title: s.show_page_title.unwrap_or(true),
             show_quit_button: s.show_quit_button.unwrap_or(true),
+            show_line_numbers: s.show_line_numbers.unwrap_or(false),
             show_pages: s.show_pages.unwrap_or(true),
             show_backlinks: s.show_backlinks.unwrap_or(true),
             show_tags: s.show_tags.unwrap_or(true),
@@ -158,6 +165,7 @@ impl Prefs {
             org_tag_links: s.org_tag_links.unwrap_or(true),
             org_tag_dashes: s.org_tag_dashes.unwrap_or(false),
             find_match_case: s.find_match_case.unwrap_or(false),
+            indent_headings: s.indent_headings.unwrap_or(true),
             emacs_mark: s.emacs_mark.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
         }
@@ -176,6 +184,7 @@ impl Prefs {
             org_tag_links: Some(self.org_tag_links),
             org_tag_dashes: Some(self.org_tag_dashes),
             find_match_case: Some(self.find_match_case),
+            indent_headings: Some(self.indent_headings),
             emacs_mark: Some(self.emacs_mark),
             electric_mode: Some(self.electric_mode),
             autosave: Some(self.autosave),
@@ -185,6 +194,7 @@ impl Prefs {
             show_brand: Some(self.show_brand),
             show_page_title: Some(self.show_page_title),
             show_quit_button: Some(self.show_quit_button),
+            show_line_numbers: Some(self.show_line_numbers),
             show_pages: Some(self.show_pages),
             show_backlinks: Some(self.show_backlinks),
             show_tags: Some(self.show_tags),

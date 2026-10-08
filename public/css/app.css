@@ -412,6 +412,24 @@ html, body { height: 100%; overflow: hidden; }
     tab-size: 4;
 }
 
+/* Line numbers: the text moves right by the width of the numbers (--ln-w, set by the
+   editor: as many columns as the last line number has digits) plus 1.5 columns (see
+   `text_columns` in editor.rs); each number is drawn at the start of its line, pulled
+   back into that margin, which keeps only 4px from the edge */
+.editor-wrap.line-numbers .hl-layer,
+.editor-wrap.line-numbers .edit-layer { padding-left: calc(4px + var(--ln-w) + 1.5ch); }
+/* Thin grey line between the numbers and the text, the whole height of the editor */
+.editor-wrap.line-numbers .hl-layer:not(.region-layer, .match-layer) {
+    background-image: linear-gradient(var(--border), var(--border));
+    background-size: 1px 100%;
+    background-position: calc(4px + var(--ln-w) + 0.6ch) 0;
+    background-repeat: no-repeat;
+}
+.ln {
+    position: absolute; width: var(--ln-w); margin-left: calc(-1 * var(--ln-w) - 1.5ch); text-align: right;
+    color: var(--fg-dim); font-weight: normal; font-style: normal; user-select: none;
+}
+
 .hl-layer {
     background: var(--bg);
     color: var(--fg);
