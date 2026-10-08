@@ -210,13 +210,14 @@ impl AppCtx {
         self.pref(|p| p.show_backlinks || p.show_tags || p.show_broken_links)
     }
 
-    /// How `#tags` are read, from the settings (tracked: re-runs effects when they change).
-    pub fn hashtags(&self) -> crate::motion::Hashtags {
-        self.pref(|p| p.hashtags())
+    /// How `#tags` and `:tags:` are read, from the settings (tracked: re-runs effects
+    /// when they change).
+    pub fn tags(&self) -> crate::motion::TagSyntax {
+        self.pref(|p| p.tags())
     }
 
-    pub fn hashtags_untracked(&self) -> crate::motion::Hashtags {
-        self.pref_untracked(|p| p.hashtags())
+    pub fn tags_untracked(&self) -> crate::motion::TagSyntax {
+        self.pref_untracked(|p| p.tags())
     }
 
     /// Split the editor in two panes showing the current page (Emacs `C-x 2` / `C-x 3`).

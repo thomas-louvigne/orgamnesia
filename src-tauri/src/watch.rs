@@ -28,11 +28,11 @@ pub fn watch(app: AppHandle, path: &str) -> Result<Watcher, AppError> {
 
         if pages {
             let state = app.state::<AppState>();
-            let hashtags = state.prefs().hashtags();
+            let tags = state.prefs().tags();
             let changes = state.project.lock().unwrap().as_mut()
                 // Another project may have been opened meanwhile
                 .filter(|p| p.path == project_path)
-                .and_then(|p| p.refresh(hashtags).ok().flatten());
+                .and_then(|p| p.refresh(tags).ok().flatten());
             if let Some(changes) = changes {
                 let _ = app.emit(VAULT_CHANGED, changes);
             }

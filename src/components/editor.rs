@@ -321,9 +321,9 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             crate::motion::link_prefix(&chars, caret)
                 .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
                 .map(|(start, p)| (start, p, CompletionKind::Link))
-                .or_else(|| crate::motion::org_tag_prefix(&chars, caret)
+                .or_else(|| crate::motion::org_tag_prefix(&chars, caret, ctx.tags_untracked().org)
                     .map(|(start, p)| (start, p, CompletionKind::OrgTag)))
-                .or_else(|| crate::motion::hashtag_prefix(&chars, caret, ctx.hashtags_untracked())
+                .or_else(|| crate::motion::hashtag_prefix(&chars, caret, ctx.tags_untracked().hashtags)
                     .map(|(hash, p)| (hash + 1, p, CompletionKind::Hashtag)))
         };
         let Some((start, prefix, kind)) = found else { completion.set(None); return };
@@ -334,7 +334,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             }
             _ => {
                 let names: Vec<String> = ctx.project.files.get_untracked().into_iter().map(|f| f.name).collect();
-                let tag = (kind == CompletionKind::Hashtag).then(|| ctx.hashtags_untracked());
+                let tag = (kind == CompletionKind::Hashtag).then(|| ctx.tags_untracked().hashtags);
                 crate::motion::complete_page(&names, &prefix, tag, MAX_SUGGESTIONS)
             }
         };
@@ -443,7 +443,9 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let replace_ref = NodeRef::<leptos::html::Input>::new();
     let query = RwSignal::new(String::new());
     let replacement = RwSignal::new(String::new());
+    // Starts as the settings say, and follows them when they change
     let match_case = RwSignal::new(false);
+    Effect::new(move |_| match_case.set(ctx.pref(|p| p.find_match_case)));
     let current = RwSignal::new(None::<usize>);
     // Where the search started: the first match shown is the one after it
     let anchor = StoredValue::new(0usize);
@@ -759,7 +761,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 replace(at, at, &heading);
             }
             EditorAction::OpenLink => {
-                if let Some(name) = edit::link_at(&chars, start, ctx.hashtags_untracked()) {
+                if let Some(name) = edit::link_at(&chars, start, ctx.tags_untracked()) {
                     follow_link(ctx, name);
                 }
             }
@@ -831,7 +833,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let text = el.value();
         let pos = shown.with_value(|v| v.content_pos(&text, pos));
         let chars: Vec<char> = content_sig.get_untracked().chars().collect();
-        if let Some(name) = edit::link_at(&chars, pos, ctx.hashtags_untracked()) {
+        if let Some(name) = edit::link_at(&chars, pos, ctx.tags_untracked()) {
             e.prevent_default();
             follow_link(ctx, name);
         }
@@ -848,7 +850,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let range = match goto {
             Goto::Link(target) => {
                 let ci = ctx.pref_untracked(|p| p.case_insensitive_links);
-                crate::motion::find_link(&chars, &target, ci, ctx.hashtags_untracked())
+                crate::motion::find_link(&chars, &target, ci, ctx.tags_untracked())
             }
             Goto::Line(n) => {
                 let start = edit::line_start(&chars, n);
@@ -870,7 +872,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
     });
 
-    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.hashtags()));
+    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.tags()));
     let region_html = move || {
         if !ctx.pref(|p| p.emacs_mark) { return String::new(); }
         mark.get().map(|m| {

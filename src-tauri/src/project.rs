@@ -4,7 +4,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use orgamnesia_core::{BrokenLink, FileEntry, Hashtags, Prefs, TagCount, TagHit, VaultChanges};
+use orgamnesia_core::{BrokenLink, FileEntry, OrgTags, Prefs, TagCount, TagHit, TagSyntax, VaultChanges};
 
 use crate::{error::AppError, index::backlinks::BacklinkIndex, parser, tags, vault};
 
@@ -21,7 +21,7 @@ pub struct Project {
 
 impl Project {
     /// Open the folder `path` (creating `pages/` and `assets/` if needed) and read its pages.
-    pub fn open(path: &str, hashtags: Hashtags) -> Result<Self, AppError> {
+    pub fn open(path: &str, tags: TagSyntax) -> Result<Self, AppError> {
         vault::ensure_structure(path)?;
         let mut project = Self {
             path: path.to_string(),
@@ -33,7 +33,7 @@ impl Project {
         let files = vault::list_org_files(path)?;
         for f in &files {
             let content = std::fs::read_to_string(&f.path).unwrap_or_default();
-            project.store(&f.path, content, hashtags);
+            project.store(&f.path, content, tags);
         }
         project.snapshot = vault::snapshot(&files);
         Ok(project)
@@ -66,16 +66,16 @@ impl Project {
         Ok(std::fs::read_to_string(path)?)
     }
 
-    pub fn write(&mut self, path: &str, content: String, hashtags: Hashtags) -> Result<(), AppError> {
+    pub fn write(&mut self, path: &str, content: String, tags: TagSyntax) -> Result<(), AppError> {
         self.check_page(path)?;
         std::fs::write(path, &content)?;
-        self.store(path, content, hashtags);
+        self.store(path, content, tags);
         self.remember(path);
         Ok(())
     }
 
     /// Create the page `name`, holding its title heading.
-    pub fn create(&mut self, name: &str, hashtags: Hashtags) -> Result<FileEntry, AppError> {
+    pub fn create(&mut self, name: &str, tags: TagSyntax) -> Result<FileEntry, AppError> {
         let name = valid_name(name)?;
         let path = vault::page_path(&self.path, &name);
         if path.exists() {
@@ -84,7 +84,7 @@ impl Project {
         let content = format!("* {name}\n");
         std::fs::write(&path, &content)?;
         let path = path.to_string_lossy().to_string();
-        self.store(&path, content, hashtags);
+        self.store(&path, content, tags);
         self.remember(&path);
         Ok(FileEntry { name, path })
     }
@@ -110,20 +110,20 @@ impl Project {
         let new_path = Path::new(old_path).with_file_name(format!("{new_name}.org"));
         std::fs::rename(old_path, &new_path)?;
         let new_path = new_path.to_string_lossy().to_string();
-        let hashtags = prefs.hashtags();
+        let tags = prefs.tags();
 
         self.forget(old_path);
-        self.store(&new_path, std::fs::read_to_string(&new_path).unwrap_or_default(), hashtags);
+        self.store(&new_path, std::fs::read_to_string(&new_path).unwrap_or_default(), tags);
         self.remember(&new_path);
 
         if prefs.update_links && old_name != new_name {
             let paths: Vec<String> = self.pages.keys().cloned().collect();
             for path in paths {
                 let Ok(text) = std::fs::read_to_string(&path) else { continue };
-                let updated = parser::rewrite_links(&text, &old_name, &new_name, prefs.case_insensitive_links, hashtags);
+                let updated = parser::rewrite_links(&text, &old_name, &new_name, prefs.case_insensitive_links, tags);
                 if let Some(updated) = updated {
                     std::fs::write(&path, &updated)?;
-                    self.store(&path, updated, hashtags);
+                    self.store(&path, updated, tags);
                     self.remember(&path);
                 }
             }
@@ -133,7 +133,7 @@ impl Project {
 
     /// Pick up the pages created, modified or deleted outside the app since the
     /// last look. `None` when nothing changed.
-    pub fn refresh(&mut self, hashtags: Hashtags) -> Result<Option<VaultChanges>, AppError> {
+    pub fn refresh(&mut self, tags: TagSyntax) -> Result<Option<VaultChanges>, AppError> {
         let files = vault::list_org_files(&self.path)?;
         let now = vault::snapshot(&files);
         let (changed, removed) = vault::diff(&self.snapshot, &now);
@@ -145,17 +145,17 @@ impl Project {
         }
         for path in &changed {
             let content = std::fs::read_to_string(path).unwrap_or_default();
-            self.store(path, content, hashtags);
+            self.store(path, content, tags);
         }
         self.snapshot = now;
         Ok(Some(VaultChanges { files, changed, removed }))
     }
 
     /// Read the links again (after `#tags` started being read differently).
-    pub fn reindex(&mut self, hashtags: Hashtags) {
+    pub fn reindex(&mut self, tags: TagSyntax) {
         self.links = BacklinkIndex::new();
         for (path, content) in &self.pages {
-            self.links.index_file(&vault::page_name(path), &parser::extract_links(content, hashtags));
+            self.links.index_file(&vault::page_name(path), &parser::extract_links(content, tags));
         }
     }
 
@@ -199,10 +199,10 @@ impl Project {
     }
 
     /// Every `:tag:` and `#+FILETAGS:` tag, with the number of pages and headlines carrying it.
-    pub fn tags(&self) -> Vec<TagCount> {
+    pub fn tags(&self, org: OrgTags) -> Vec<TagCount> {
         let mut counts = HashMap::<String, usize>::new();
         for content in self.pages.values() {
-            for t in tags::written_tags(content) { *counts.entry(t).or_default() += 1; }
+            for t in tags::written_tags(content, org) { *counts.entry(t).or_default() += 1; }
         }
         let mut list: Vec<TagCount> = counts.into_iter().map(|(name, count)| TagCount { name, count }).collect();
         list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then_with(|| a.name.cmp(&b.name)));
@@ -210,11 +210,11 @@ impl Project {
     }
 
     /// Pages and headlines matching an org-mode tag search (`projet+urgent-perso|idée`).
-    pub fn search_tags(&self, query: &str) -> Vec<TagHit> {
-        let Some(query) = tags::Query::parse(query) else { return vec![] };
+    pub fn search_tags(&self, query: &str, org: OrgTags) -> Vec<TagHit> {
+        let Some(query) = tags::Query::parse(query, org) else { return vec![] };
         self.files().into_iter().flat_map(|f| {
             let content = self.pages.get(&f.path).map(String::as_str).unwrap_or("");
-            tags::search(content, &query).into_iter().map(move |h| TagHit {
+            tags::search(content, &query, org).into_iter().map(move |h| TagHit {
                 page: f.name.clone(),
                 path: f.path.clone(),
                 heading: h.heading,
@@ -225,8 +225,8 @@ impl Project {
         }).collect()
     }
 
-    fn store(&mut self, path: &str, content: String, hashtags: Hashtags) {
-        self.links.index_file(&vault::page_name(path), &parser::extract_links(&content, hashtags));
+    fn store(&mut self, path: &str, content: String, tags: TagSyntax) {
+        self.links.index_file(&vault::page_name(path), &parser::extract_links(&content, tags));
         self.pages.insert(path.to_string(), content);
     }
 
@@ -257,6 +257,7 @@ fn valid_name(name: &str) -> Result<String, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use orgamnesia_core::Hashtags;
 
     /// A fresh project folder holding the given pages.
     fn project(test: &str, pages: &[(&str, &str)]) -> (PathBuf, Project) {
@@ -266,7 +267,7 @@ mod tests {
         for (name, content) in pages {
             std::fs::write(dir.join("pages").join(format!("{name}.org")), content).unwrap();
         }
-        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes).unwrap();
+        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into()).unwrap();
         (dir, p)
     }
 
@@ -292,11 +293,11 @@ mod tests {
         assert_eq!(p.backlinks("b", false), vec!["a"]);
         assert_eq!(p.broken_links(false).len(), 2);
 
-        p.create("b", Hashtags::Dashes).unwrap();
+        p.create("b", Hashtags::Dashes.into()).unwrap();
         assert_eq!(p.broken_links(false).iter().map(|b| b.target.as_str()).collect::<Vec<_>>(), vec!["c"]);
-        assert!(matches!(p.create("b", Hashtags::Dashes), Err(AppError::PageExists(_))));
+        assert!(matches!(p.create("b", Hashtags::Dashes.into()), Err(AppError::PageExists(_))));
 
-        p.write(&path_of(&p, "a"), "plus rien\n".into(), Hashtags::Dashes).unwrap();
+        p.write(&path_of(&p, "a"), "plus rien\n".into(), Hashtags::Dashes.into()).unwrap();
         assert!(p.backlinks("b", false).is_empty());
 
         p.delete(&path_of(&p, "b")).unwrap();
@@ -318,14 +319,14 @@ mod tests {
     #[test]
     fn refresh_sees_outside_changes_only() {
         let (dir, mut p) = project("refresh", &[("a", "* a\n")]);
-        p.write(&path_of(&p, "a"), "* a\n[[b]]\n".into(), Hashtags::Dashes).unwrap();
-        assert!(p.refresh(Hashtags::Dashes).unwrap().is_none());
+        p.write(&path_of(&p, "a"), "* a\n[[b]]\n".into(), Hashtags::Dashes.into()).unwrap();
+        assert!(p.refresh(Hashtags::Dashes.into()).unwrap().is_none());
 
         std::fs::write(dir.join("pages/n.org"), "* n :projet:\n").unwrap();
-        let changes = p.refresh(Hashtags::Dashes).unwrap().unwrap();
+        let changes = p.refresh(Hashtags::Dashes.into()).unwrap().unwrap();
         assert_eq!(changes.changed.len(), 1);
-        assert_eq!(p.tags(), vec![TagCount { name: "projet".into(), count: 1 }]);
-        assert_eq!(p.search_tags("projet").len(), 1);
+        assert_eq!(p.tags(OrgTags::default()), vec![TagCount { name: "projet".into(), count: 1 }]);
+        assert_eq!(p.search_tags("projet", OrgTags::default()).len(), 1);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::Hashtags;
+use crate::{Hashtags, OrgTags, TagSyntax};
 
 /// `settings.json`. A missing value (older file, or never set) means the
 /// default: see `Prefs`, the only place defaults are decided.
@@ -19,6 +19,12 @@ pub struct Settings {
     pub hashtag_links: Option<bool>,
     /// Allow `-` in `#tags` (`#mon-tag`); org-mode tags don't.
     pub hashtag_dashes: Option<bool>,
+    /// Treat org-mode `:tags:` as links to pages, also when written in the text.
+    pub org_tag_links: Option<bool>,
+    /// Allow `-` in `:tags:` (`:mon-tag:`); org-mode doesn't.
+    pub org_tag_dashes: Option<bool>,
+    /// The search in the page matches case (and accents) when it opens.
+    pub find_match_case: Option<bool>,
     /// Emacs mark: Ctrl+Space starts a region that follows the cursor.
     pub emacs_mark: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
@@ -113,6 +119,9 @@ pub struct Prefs {
     pub case_insensitive_links: bool,
     pub hashtag_links: bool,
     pub hashtag_dashes: bool,
+    pub org_tag_links: bool,
+    pub org_tag_dashes: bool,
+    pub find_match_case: bool,
     pub emacs_mark: bool,
     pub electric_mode: bool,
 }
@@ -146,6 +155,9 @@ impl Prefs {
             case_insensitive_links: s.case_insensitive_links.unwrap_or(true),
             hashtag_links: s.hashtag_links.unwrap_or(true),
             hashtag_dashes: s.hashtag_dashes.unwrap_or(true),
+            org_tag_links: s.org_tag_links.unwrap_or(true),
+            org_tag_dashes: s.org_tag_dashes.unwrap_or(false),
+            find_match_case: s.find_match_case.unwrap_or(false),
             emacs_mark: s.emacs_mark.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
         }
@@ -161,6 +173,9 @@ impl Prefs {
             case_insensitive_links: Some(self.case_insensitive_links),
             hashtag_links: Some(self.hashtag_links),
             hashtag_dashes: Some(self.hashtag_dashes),
+            org_tag_links: Some(self.org_tag_links),
+            org_tag_dashes: Some(self.org_tag_dashes),
+            find_match_case: Some(self.find_match_case),
             emacs_mark: Some(self.emacs_mark),
             electric_mode: Some(self.electric_mode),
             autosave: Some(self.autosave),
@@ -181,9 +196,12 @@ impl Prefs {
         }
     }
 
-    /// How `#tags` are read.
-    pub fn hashtags(&self) -> Hashtags {
-        Hashtags::new(self.hashtag_links, self.hashtag_dashes)
+    /// How `#tags` and `:tags:` are read.
+    pub fn tags(&self) -> TagSyntax {
+        TagSyntax {
+            hashtags: Hashtags::new(self.hashtag_links, self.hashtag_dashes),
+            org: OrgTags { links: self.org_tag_links, dashes: self.org_tag_dashes },
+        }
     }
 }
 
@@ -196,7 +214,7 @@ mod tests {
         let p = Settings::default().prefs();
         assert!(p.autosave && p.git_ext && !p.site_builder && !p.delete_empty && p.restore_session);
         assert_eq!(p.lang, "fr");
-        assert_eq!(p.hashtags(), Hashtags::Dashes);
+        assert_eq!(p.tags(), TagSyntax { hashtags: Hashtags::Dashes, org: OrgTags::default() });
     }
 
     #[test]

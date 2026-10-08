@@ -138,7 +138,8 @@ pub fn BacklinksPanel() -> impl IntoView {
     let add_tag = move || {
         let tag = new_tag.get_untracked().trim().trim_matches(':').trim_start_matches('#').to_string();
         if tag.is_empty() { adding.set(false); return; }
-        if !tag.chars().all(crate::motion::is_org_tag_char) {
+        let org = ctx.tags_untracked().org;
+        if !tag.chars().all(|c| org.is_tag_char(c)) {
             ctx.ui.status.set(Some(t("tag_invalid", ctx.lang.get_untracked()).to_string()));
             return;
         }
@@ -148,10 +149,15 @@ pub fn BacklinksPanel() -> impl IntoView {
     };
 
     // Completion of the tag search: the tags starting with (or holding) the word
-    // being typed, the last one of the query (after `+`, `-`, `|` or a space)
+    // being typed, the last one of the query (after `+`, `-`, `|` or a space; when tags
+    // may hold dashes, a `-` only counts at the start of a word)
     let suggest_open = RwSignal::new(false);
     let suggest_sel = RwSignal::new(0usize);
-    let last_word = |q: &str| -> usize { q.rfind(['+', '-', '|', ' ']).map_or(0, |i| i + 1) };
+    let last_word = move |q: &str| -> usize {
+        if !ctx.tags_untracked().org.dashes { return q.rfind(['+', '-', '|', ' ']).map_or(0, |i| i + 1); }
+        let at = q.rfind(['+', '|', ' ']).map_or(0, |i| i + 1);
+        if q[at..].starts_with('-') { at + 1 } else { at }
+    };
     let suggestions = move || -> Vec<String> {
         if !suggest_open.get() { return vec![]; }
         let q = ctx.project.tag_query.get();

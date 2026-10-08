@@ -3,7 +3,7 @@
 //! applies the result to its textarea. See also `motion.rs`.
 
 use crate::keybindings::EditorAction;
-use crate::motion::{self, Hashtags};
+use crate::motion::{self, Hashtags, TagSyntax};
 
 /// Lines moved by the page-up / page-down actions.
 pub const PAGE_LINES: i32 = 20;
@@ -141,9 +141,10 @@ pub fn line_start(chars: &[char], n: usize) -> usize {
 }
 
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
-/// `#tag` (per `hashtags`) or an org-mode `:tag:`.
-pub fn link_at(chars: &[char], pos: usize, hashtags: Hashtags) -> Option<String> {
-    wiki_link_at(chars, pos, hashtags).or_else(|| motion::org_tag_at(chars, pos))
+/// `#tag` or an org-mode `:tag:` (per `tags`).
+pub fn link_at(chars: &[char], pos: usize, tags: TagSyntax) -> Option<String> {
+    wiki_link_at(chars, pos, tags.hashtags)
+        .or_else(|| tags.org.links.then(|| motion::org_tag_at(chars, pos, tags.org)).flatten())
 }
 
 fn wiki_link_at(chars: &[char], pos: usize, hashtags: Hashtags) -> Option<String> {
@@ -275,12 +276,15 @@ mod tests {
     #[test]
     fn links_under_the_cursor() {
         let t = c("voir [[Ma page]] et [[cible][texte]] #tag fin");
-        assert_eq!(link_at(&t, 8, Hashtags::Dashes).as_deref(), Some("Ma page"));
-        assert_eq!(link_at(&t, 30, Hashtags::Dashes).as_deref(), Some("cible"));
-        assert_eq!(link_at(&t, 39, Hashtags::Dashes).as_deref(), Some("tag"));
-        assert_eq!(link_at(&t, 39, Hashtags::Off), None);
-        assert_eq!(link_at(&t, 1, Hashtags::Dashes), None);
-        assert_eq!(link_at(&c("* Titre :projet:"), 11, Hashtags::Off).as_deref(), Some("projet"));
+        assert_eq!(link_at(&t, 8, Hashtags::Dashes.into()).as_deref(), Some("Ma page"));
+        assert_eq!(link_at(&t, 30, Hashtags::Dashes.into()).as_deref(), Some("cible"));
+        assert_eq!(link_at(&t, 39, Hashtags::Dashes.into()).as_deref(), Some("tag"));
+        assert_eq!(link_at(&t, 39, Hashtags::Off.into()), None);
+        assert_eq!(link_at(&t, 1, Hashtags::Dashes.into()), None);
+        assert_eq!(link_at(&c("* Titre :projet:"), 11, Hashtags::Off.into()).as_deref(), Some("projet"));
+        assert_eq!(link_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into()).as_deref(), Some("exemple"));
+        let off = TagSyntax { hashtags: Hashtags::Off, org: motion::OrgTags { links: false, dashes: false } };
+        assert_eq!(link_at(&c("voir :exemple: ici"), 7, off), None);
     }
 
     #[test]

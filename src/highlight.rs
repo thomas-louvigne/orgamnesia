@@ -1,8 +1,16 @@
-use crate::motion::Hashtags;
+use crate::motion::{Hashtags, OrgTags, TagSyntax};
 
 thread_local! {
-    /// How `#tags` are drawn as links (set by `render_view`, read while highlighting a line).
-    static HASHTAGS: std::cell::Cell<Hashtags> = const { std::cell::Cell::new(Hashtags::Off) };
+    /// How `#tags` and `:tags:` are drawn as links (set by `render_view`, read while
+    /// highlighting a line).
+    static TAGS: std::cell::Cell<TagSyntax> = const { std::cell::Cell::new(TagSyntax {
+        hashtags: Hashtags::Off,
+        org: OrgTags { links: true, dashes: false },
+    }) };
+}
+
+fn tags() -> TagSyntax {
+    TAGS.with(|t| t.get())
 }
 
 /// Plain-text copy of the document with the char range `start..end` wrapped in
@@ -19,8 +27,8 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
 /// Syntax-highlighted HTML for the view of the page where some tables are collapsed
 /// (see `tables`): the first line of a collapsed table draws the whole table,
 /// over the empty lines that follow it.
-pub fn render_view(view: &crate::tables::View, hashtags: Hashtags) -> String {
-    HASHTAGS.with(|h| h.set(hashtags));
+pub fn render_view(view: &crate::tables::View, tags: TagSyntax) -> String {
+    TAGS.with(|t| t.set(tags));
     let mut out = String::with_capacity(view.text.len() * 2);
     let lines: Vec<&str> = view.text.split('\n').collect();
     let heads = header_lines(&lines);
@@ -90,7 +98,7 @@ fn highlight_line(line: &str) -> String {
     if stars > 0 && matches!(line.as_bytes().get(stars), Some(b' ') | None) {
         let level = stars.min(6);
         let title_start = (stars + 1).min(chars.len());
-        let (title, tags_html) = match crate::motion::headline_tags_range(&chars) {
+        let (title, tags_html) = match crate::motion::headline_tags_range(&chars, tags().org) {
             Some((a, b)) => (text(title_start, a), format!(
                 "<span class='tags'>{}</span>{}", tag_links(&text(a, b)), escape(&text(b, chars.len())))),
             None => (text(title_start, chars.len()), String::new()),
@@ -122,16 +130,22 @@ fn highlight_line(line: &str) -> String {
     inline_html(line)
 }
 
-/// Org-mode tags (`:a:b:`) drawn as links to their pages; separators left as they are.
+/// Org-mode tags (`:a:b:`) drawn as links to their pages (when they are links);
+/// separators left as they are.
 fn tag_links(s: &str) -> String {
+    let org = tags().org;
     let mut out = String::new();
     let mut word = String::new();
     let flush = |word: &mut String, out: &mut String| {
-        if !word.is_empty() { out.push_str(&format!("<span class='tag-t'>{}</span>", escape(word))); }
+        if org.links && !word.is_empty() {
+            out.push_str(&format!("<span class='tag-t'>{}</span>", escape(word)));
+        } else {
+            out.push_str(&escape(word));
+        }
         word.clear();
     };
     for c in s.chars() {
-        if crate::motion::is_org_tag_char(c) { word.push(c); }
+        if org.is_tag_char(c) { word.push(c); }
         else { flush(&mut word, &mut out); out.push_str(&escape_char(c)); }
     }
     flush(&mut word, &mut out);
@@ -158,10 +172,19 @@ fn inline_html(s: &str) -> String {
         }
         // #hashtag
         if chars[i] == '#'
-            && let Some((tag, end)) = crate::motion::hashtag_at(&chars, i, HASHTAGS.with(|h| h.get()))
+            && let Some((tag, end)) = crate::motion::hashtag_at(&chars, i, tags().hashtags)
         {
             out.push_str(&format!(
                 "<span class='link'>#<span class='link-t'>{}</span></span>", escape(&tag)));
+            i = end;
+            continue;
+        }
+        // :tag: in the text
+        if chars[i] == ':' && tags().org.links
+            && let Some((_, end)) = orgamnesia_core::hashtags::text_tags_at(&chars, i, tags().org)
+        {
+            let s: String = chars[i..end].iter().collect();
+            out.push_str(&format!("<span class='tags'>{}</span>", tag_links(&s)));
             i = end;
             continue;
         }
@@ -358,9 +381,19 @@ mod tests {
     }
 
     #[test]
+    fn org_tags_in_text_drawn_as_links() {
+        let v = crate::tables::View { text: "voir :ex: à 10:30:".into(), tables: vec![], width: 80 };
+        let html = render_view(&v, Hashtags::Off.into());
+        assert!(html.contains(":<span class='tag-t'>ex</span>:"));
+        assert!(!html.contains("30</span>"));
+        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
+        assert!(!render_view(&v, off).contains("tag-t"));
+    }
+
+    #[test]
     fn table_header_bold_while_edited() {
         let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80 };
-        let html = render_view(&v, Hashtags::Off);
+        let html = render_view(&v, Hashtags::Off.into());
         assert!(html.contains("<span class='tbl tbl-head'>| a | b |</span>"));
         assert!(!html.contains("tbl-head'>| c"));
     }

@@ -36,12 +36,13 @@ pub async fn get_settings(state: State<'_, AppState>) -> Cmd<Settings> {
 pub async fn set_settings(state: State<'_, AppState>, app: AppHandle, mut settings: Settings) -> Cmd<()> {
     // The settings window doesn't know the session: keep it
     settings.session = state.settings().session;
-    let hashtags = settings.prefs().hashtags();
-    let hashtags_changed = state.prefs().hashtags() != hashtags;
+    let tags = settings.prefs().tags();
+    let tags_changed = state.prefs().tags() != tags;
     store_settings(&state, &app, settings)?;
-    // `#tags` are read differently (as links or not, with or without `-`): read the links again
-    if hashtags_changed && let Some(p) = state.project.lock().unwrap().as_mut() {
-        p.reindex(hashtags);
+    // `#tags` or `:tags:` are read differently (as links or not, with or without `-`):
+    // read the links again
+    if tags_changed && let Some(p) = state.project.lock().unwrap().as_mut() {
+        p.reindex(tags);
     }
     Ok(())
 }
@@ -68,7 +69,7 @@ pub async fn set_keybindings(app: AppHandle, keybindings: keybindings::Keybindin
 /// Open the folder `path` as the project; returns its pages.
 #[tauri::command]
 pub async fn open_vault(state: State<'_, AppState>, app: AppHandle, path: String) -> Cmd<Vec<FileEntry>> {
-    let project = Project::open(&path, state.prefs().hashtags())?;
+    let project = Project::open(&path, state.prefs().tags())?;
     let files = project.files();
 
     // Remember it as the open project, first of the list
@@ -103,14 +104,14 @@ pub async fn read_file(state: State<'_, AppState>, path: String) -> Cmd<String> 
 
 #[tauri::command]
 pub async fn write_file(state: State<'_, AppState>, path: String, content: String) -> Cmd<()> {
-    let hashtags = state.prefs().hashtags();
-    state.with_project(|p| p.write(&path, content, hashtags))
+    let tags = state.prefs().tags();
+    state.with_project(|p| p.write(&path, content, tags))
 }
 
 #[tauri::command]
 pub async fn create_page(state: State<'_, AppState>, page_name: String) -> Cmd<FileEntry> {
-    let hashtags = state.prefs().hashtags();
-    state.with_project(|p| p.create(&page_name, hashtags))
+    let tags = state.prefs().tags();
+    state.with_project(|p| p.create(&page_name, tags))
 }
 
 /// Delete a page of the open project (irreversible).
@@ -141,12 +142,14 @@ pub async fn get_broken_links(state: State<'_, AppState>) -> Cmd<Vec<BrokenLink>
 
 #[tauri::command]
 pub async fn list_tags(state: State<'_, AppState>) -> Cmd<Vec<TagCount>> {
-    state.with_project(|p| Ok(p.tags()))
+    let org = state.prefs().tags().org;
+    state.with_project(|p| Ok(p.tags(org)))
 }
 
 #[tauri::command]
 pub async fn search_tags(state: State<'_, AppState>, query: String) -> Cmd<Vec<TagHit>> {
-    state.with_project(|p| Ok(p.search_tags(&query)))
+    let org = state.prefs().tags().org;
+    state.with_project(|p| Ok(p.search_tags(&query, org)))
 }
 
 // ─── Extensions ──────────────────────────────────────────────────────────────
