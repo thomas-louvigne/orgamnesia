@@ -674,6 +674,23 @@ pub fn SettingsModal() -> impl IntoView {
                                 label="show_quit_button" />
                             <Check draft get=|p| p.show_line_numbers set=|p, v| p.show_line_numbers = v
                                 label="show_line_numbers" />
+                            <Check draft get=|p| p.mark_broken_links set=|p, v| p.mark_broken_links = v
+                                label="mark_broken_links" hint="mark_broken_links_hint" />
+                            <Check draft get=|p| p.show_images set=|p, v| p.show_images = v
+                                label="show_images" hint="show_images_hint" />
+                            <div class="setting-row setting-sub">
+                                <label>{move || t("image_size_format", lang())}</label>
+                                <select
+                                    prop:disabled=move || !draft.with(|p| p.show_images)
+                                    prop:value=move || draft.with(|p| p.image_size_format.clone())
+                                    on:change=move |e| draft.update(|p| p.image_size_format = event_target_value(&e))
+                                >
+                                    <option value="org">{move || t("image_size_org", lang())}</option>
+                                    <option value="logseq">{move || t("image_size_logseq", lang())}</option>
+                                </select>
+                            </div>
+                            <Check draft get=|p| p.hide_leading_stars set=|p, v| p.hide_leading_stars = v
+                                label="hide_leading_stars" hint="hide_leading_stars_hint" />
                             <div class="setting-section-title">
                                 {move || t("display_frames", lang())}
                             </div>

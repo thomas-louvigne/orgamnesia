@@ -575,6 +575,34 @@ kbd {
     overflow: hidden; /* textarea drives scrolling */
 }
 
+/* Images (see images.rs): drawn from the line of their link over the empty lines
+   that follow it, like tables. The highlight layer lets the mouse through: the editor
+   finds the image under the pointer and shows its resize corner. */
+.img-view {
+    display: inline-block; vertical-align: top; height: 1.65em;
+    overflow: visible; white-space: nowrap; line-height: 0;
+}
+.img-box { display: inline-block; position: relative; margin-top: 2px; }
+.img-pic { display: block; border-radius: 4px; max-width: none; }
+.img-box.hover .img-pic, .img-box.resizing .img-pic { outline: 1px solid var(--border); }
+.img-box::after {
+    content: ""; position: absolute; right: 3px; bottom: 3px; width: 9px; height: 9px;
+    border-right: 2px solid var(--accent2); border-bottom: 2px solid var(--accent2);
+    opacity: 0; transition: opacity .12s;
+}
+.img-box.hover::after, .img-box.resizing::after { opacity: 1; }
+
+
+/* Add an image: bottom right of the editor, quiet until pointed at */
+.img-add {
+    position: absolute; right: 18px; bottom: 12px; z-index: 3;
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 6px;
+    background: var(--bg2); border: 1px solid var(--border); color: var(--fg-dim);
+    opacity: .55; cursor: pointer;
+}
+.img-add:hover, .img-add:focus-visible { opacity: 1; color: var(--accent2); border-color: var(--accent); }
+
 /* Emacs region: transparent text so only the <mark> background shows over the highlight layer */
 .region-layer { background: transparent; color: transparent; z-index: 0; }
 .region-layer mark.region { background: rgba(150,120,230,.35); color: transparent; }
@@ -646,13 +674,20 @@ kbd {
 }
 
 /* ── Org-mode highlighting ─────────────────────────────────── */
-.h1 { color: var(--red);    font-weight: bold; }
-.h2 { color: var(--orange); font-weight: bold; }
-.h3 { color: var(--yellow); font-weight: bold; }
-.h4 { color: var(--green);  font-weight: bold; }
-.h5 { color: var(--cyan);   font-weight: bold; }
-.h6 { color: var(--purple); font-weight: bold; }
+/* Each level apart from the next on more than its colour: neighbouring levels far apart
+   in hue, the weight going down with depth (bold to level 2, plain from level 3).
+   Nothing that changes the width of a character: the text must stay on the
+   textarea's columns */
+.h1 { color: var(--red);     font-weight: bold; }
+.h2 { color: var(--accent2); font-weight: bold; }
+.h3 { color: var(--yellow); }
+.h4 { color: var(--cyan); }
+.h5 { color: var(--green); }
+.h6 { color: var(--orange); }
 .h-stars { opacity: 0.5; }
+/* org-hide-leading-stars: the stars before the last fade into the page, the level
+   reads as an indent */
+.hide-stars .h-lead { opacity: 0.15; }
 /* TODO keywords (org-mode): no padding, the text must stay on the textarea's columns */
 .todo  { color: var(--red);   background: color-mix(in srgb, var(--red) 16%, transparent);   border-radius: 3px; }
 .done  { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); border-radius: 3px; }
@@ -671,6 +706,12 @@ kbd {
 .link       { color: var(--cyan); }
 .link-t     { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
 .link-d     { color: var(--cyan); text-decoration: underline; text-underline-offset: 2px; }
+/* A link leading nowhere (a page that doesn't exist, a missing file): in red, dashed,
+   and a cross in the margin of its line, where the mark of a folded headline goes */
+.link.broken, .link.broken :is(.link-t, .link-d) { color: var(--red); text-decoration-style: dashed; }
+.broken-mark { position: absolute; margin-left: -20px; pointer-events: none; user-select: none; }
+.broken-mark::before { content: "❌"; font-size: 10px; }
+.editor-wrap.line-numbers .broken-mark { margin-left: calc(-0.9ch - 6px); }
 
 /* ── Backlinks panel ───────────────────────────────────────── */
 .backlinks-panel {

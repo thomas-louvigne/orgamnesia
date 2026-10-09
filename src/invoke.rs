@@ -10,6 +10,10 @@ extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = "invoke")]
     fn tauri_invoke_raw(cmd: &str, args: JsValue) -> Promise;
 
+    /// URL the webview loads a file of the disk from (Tauri's asset protocol).
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = "convertFileSrc")]
+    pub fn convert_file_src(path: &str) -> String;
+
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"], js_name = "listen")]
     fn tauri_listen(event: &str, handler: &Closure<dyn FnMut(JsValue)>) -> Promise;
 }
@@ -19,6 +23,22 @@ extern "C" {
 pub const VAULT_CHANGED: &str = "vault-changed";
 /// Event sent by the backend when the git state of the project may have changed.
 pub const GIT_CHANGED: &str = "git-changed";
+
+/// Event sent by the window when files are dropped on it.
+pub const DRAG_DROP: &str = "tauri://drag-drop";
+
+/// Files dropped on the window, and where (physical pixels).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Dropped {
+    pub paths: Vec<String>,
+    pub position: DropPosition,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct DropPosition {
+    pub x: f64,
+    pub y: f64,
+}
 
 /// Run `f` with the payload of every `event` the backend emits, for the whole
 /// life of the app.
@@ -167,4 +187,20 @@ pub async fn git_push() -> Result<String, String> {
 /// A file picker opening in `start`.
 pub async fn pick_file(start: Option<&str>) -> Result<Option<String>, String> {
     call("pick_file", serde_json::json!({ "start": start })).await
+}
+
+/// A file picker for images.
+pub async fn pick_image() -> Result<Option<String>, String> {
+    call("pick_image", serde_json::json!({})).await
+}
+
+/// Copy the image `source` into the project's assets; returns the link to it from
+/// the page `page` (`../assets/photo_1759520598218_0.png`).
+pub async fn import_image(page: &str, source: &str) -> Result<String, String> {
+    call("import_image", serde_json::json!({ "page": page, "source": source })).await
+}
+
+/// Of `paths`, those missing from the disk.
+pub async fn missing_files(paths: &[String]) -> Result<Vec<String>, String> {
+    call("missing_files", serde_json::json!({ "paths": paths })).await
 }

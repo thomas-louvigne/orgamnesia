@@ -11,11 +11,15 @@
 //! The view also hides the folded parts of the page (Emacs `TAB` on a headline): a
 //! fold character at the end of the headline stands for the lines it hides.
 //!
+//! The view also draws the images (see `images`): a line holding only a link to
+//! an image is collapsed the same way, from the link to the end of the line, into
+//! as many lines as the image is high.
+//!
 //! The view also indents the text under a headline to the column of its title, as
 //! Emacs' `org-indent-mode` does: each line gets `INDENT` characters in front of it,
 //! which are not in the page either.
 
-use crate::highlight;
+use crate::{highlight, images};
 
 /// First line of a collapsed table: `TAG_BASE + index` of the table in the view.
 const TAG_BASE: u32 = 0xE000;
@@ -91,6 +95,25 @@ pub struct Collapsed {
     pub len: usize,
     /// Lines it takes in the view.
     pub lines: usize,
+    /// Not a table but an image, drawn this way.
+    pub image: Option<Shown>,
+}
+
+/// An image as the view draws it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Shown {
+    /// URL of the image.
+    pub src: String,
+    /// Size drawn, in px.
+    pub width: f64,
+    pub height: f64,
+}
+
+/// What `View::build` replaces.
+enum Block {
+    Fold,
+    Table,
+    Image(Shown, usize),
 }
 
 /// Lines of the page hidden under a folded headline.
@@ -119,7 +142,7 @@ enum Piece {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct View {
     pub text: String,
-    /// The collapsed tables, in order.
+    /// The collapsed tables and images, in order.
     pub tables: Vec<Collapsed>,
     /// Width of the text, in characters: how wide a drawn table can be.
     pub width: usize,
@@ -135,8 +158,13 @@ impl View {
     /// wide. `lines_of` gives the lines a table takes once drawn. With `indent`, the
     /// text under a headline is indented to the column of its title. `folds` are the
     /// page ranges to hide (see `Fold`); those that don't fit the page are ignored.
+    /// With `collapse`, image lines are drawn too, but the one holding `keep`: `image_of`
+    /// gives how an image is drawn and the lines it takes, from its line, the width
+    /// `#+ATTR_ORG:` gives it and the columns before its link (`None`: shown as text).
+    #[allow(clippy::too_many_arguments)]
     pub fn build(
         content: &str, keep: Option<usize>, width: usize, mut lines_of: impl FnMut(&str) -> usize,
+        mut image_of: impl FnMut(&images::ImageLine, Option<images::Width>, usize) -> Option<(Shown, usize)>,
         collapse: bool, indent: bool, folds: &[(usize, usize)],
     ) -> Self {
         let chars: Vec<char> = content.chars().collect();
@@ -170,35 +198,58 @@ impl View {
             }
         };
         // What the view replaces, in order: folds, and tables (but those folded)
-        let mut blocks: Vec<(usize, usize, bool)> = hidden.iter().map(|&(a, b)| (a, b, true)).collect();
+        let mut blocks: Vec<(usize, usize, Block)> = hidden.iter().map(|&(a, b)| (a, b, Block::Fold)).collect();
         if collapse {
             for (start, end) in find_tables(&chars) {
                 let folded = hidden.iter().any(|&(a, b)| start > a && start < b);
                 if !folded && !keep.is_some_and(|k| (start..=end).contains(&k)) {
-                    blocks.push((start, end, false));
+                    blocks.push((start, end, Block::Table));
                 }
             }
+            let mut start = 0;
+            let mut above: Option<usize> = None;
+            loop {
+                let end = chars[start..].iter().position(|&c| c == '\n').map_or(chars.len(), |n| start + n);
+                // Not in a fold, nor a folded headline (its fold starts at its end)
+                let folded = hidden.iter().any(|&(a, b)| (start > a && start <= b) || a == end);
+                if !folded && !keep.is_some_and(|k| (start..=end).contains(&k))
+                    && let Some(image) = images::parse(&chars[start..end])
+                {
+                    let attr = above.and_then(|a| images::attr_width(&chars[a..start - 1].iter().collect::<String>()));
+                    let indent = all_indents.iter().find(|&&(at, _)| at == start).map_or(0, |&(_, n)| n);
+                    if let Some((shown, lines)) = image_of(&image, attr, indent + image.prefix) {
+                        blocks.push((start + image.prefix, end, Block::Image(shown, lines)));
+                    }
+                }
+                if end >= chars.len() { break; }
+                above = Some(start);
+                start = end + 1;
+            }
         }
-        blocks.sort();
+        blocks.sort_by_key(|&(start, end, _)| (start, end));
         let mut tables = Vec::new();
         let mut folded = Vec::new();
         let mut at = 0;
-        for (start, end, fold) in blocks {
-            if !fold && tables.len() as u32 >= MAX_TABLES { continue; }
+        for (start, end, block) in blocks {
+            if !matches!(block, Block::Fold) && tables.len() as u32 >= MAX_TABLES { continue; }
             copy(&mut text, at, start);
             let raw: String = chars[start..end].iter().collect();
-            if fold {
-                text.push(fold_tag(folded.len()));
-                folded.push(Fold { raw, start, len: end - start });
-            } else {
-                let lines = lines_of(&raw).max(1);
-                text.push(tag(tables.len()));
-                for _ in 1..lines {
-                    text.push('\n');
-                    text.push(FILL);
+            let (lines, image) = match block {
+                Block::Fold => {
+                    text.push(fold_tag(folded.len()));
+                    folded.push(Fold { raw, start, len: end - start });
+                    at = end;
+                    continue;
                 }
-                tables.push(Collapsed { raw, start, len: end - start, lines });
+                Block::Table => (lines_of(&raw).max(1), None),
+                Block::Image(shown, lines) => (lines.max(1), Some(shown)),
+            };
+            text.push(tag(tables.len()));
+            for _ in 1..lines {
+                text.push('\n');
+                text.push(FILL);
             }
+            tables.push(Collapsed { raw, start, len: end - start, lines, image });
             at = end;
         }
         copy(&mut text, at, chars.len());
@@ -629,7 +680,7 @@ mod tests {
     const PAGE: &str = "* Titre\n| a | b |\n|---+---|\n| c | d |\nfin\n| x |";
 
     fn view(keep: Option<usize>) -> View {
-        View::build(PAGE, keep, 80, |raw| raw.split('\n').count() + 1, true, false, &[])
+        View::build(PAGE, keep, 80, |raw| raw.split('\n').count() + 1, |_, _, _| None, true, false, &[])
     }
 
     #[test]
@@ -658,7 +709,7 @@ mod tests {
     #[test]
     fn text_under_headlines_is_indented() {
         let page = "intro\n* A\ntexte\n- item\n** B\n\n| t |\nfin";
-        let v = View::build(page, None, 80, |raw| raw.split('\n').count(), true, true, &[]);
+        let v = View::build(page, None, 80, |raw| raw.split('\n').count(), |_, _, _| None, true, true, &[]);
         let i = |n: usize| INDENT.to_string().repeat(n);
         assert_eq!(v.text, format!("intro\n* A\n{}texte\n{}- item\n** B\n{}\n{}\u{e000}\n{}fin", i(2), i(2), i(3), i(3), i(3)));
         assert_eq!(v.to_content(&v.text), page);
@@ -676,15 +727,36 @@ mod tests {
         assert_eq!(v.indent_run(&v.text, texte + 2), Some((texte, texte + 2)));
         assert_eq!(v.indent_run(&v.text, 2), None);
         // Not indented: the page as it is
-        let plain = View::build(page, None, 80, |_| 1, false, false, &[]);
+        let plain = View::build(page, None, 80, |_| 1, |_, _, _| None, false, false, &[]);
         assert_eq!(plain.text, page);
+    }
+
+    #[test]
+    fn image_lines_are_drawn_after_their_prefix() {
+        let page = "a\n#+ATTR_ORG: :width 50%\n* [[x.png]]{:width 9}\nb";
+        let mut seen = None;
+        let build = |keep, seen: &mut Option<_>| View::build(page, keep, 80, |_| 1, |img, attr, before| {
+            *seen = Some((img.target.clone(), attr, before));
+            Some((Shown { src: "x".into(), width: 10.0, height: 40.0 }, 3))
+        }, true, false, &[]);
+        let v = build(None, &mut seen);
+        assert_eq!(seen, Some(("x.png".into(), Some(images::Width::Part(0.5)), 2)));
+        assert_eq!(v.text, "a\n#+ATTR_ORG: :width 50%\n* \u{e000}\n\u{2063}\n\u{2063}\nb");
+        assert_eq!(v.to_content(&v.text), page);
+        let link = page.find("[[").unwrap();
+        assert_eq!(v.tables[0].start, link);
+        // In the image's lines: its link; after them, the next line
+        assert_eq!(v.content_pos(&v.text, v.text.chars().count() - 3), link);
+        assert_eq!(v.view_pos(page.len() - 1), v.text.chars().count() - 1);
+        // The caret on its line shows it as text
+        assert_eq!(build(Some(link - 1), &mut seen).text, page);
     }
 
     #[test]
     fn folded_lines_are_hidden_and_kept() {
         let page = "* A\ntexte\n| t |\n* B\nfin";
         let fold = (3, 15); // from the end of `* A` to the end of `| t |`
-        let v = View::build(page, None, 80, |_| 1, true, false, &[fold]);
+        let v = View::build(page, None, 80, |_| 1, |_, _, _| None, true, false, &[fold]);
         assert_eq!(v.text, "* A\u{f800}\n* B\nfin");
         assert_eq!(v.to_content(&v.text), page);
         // Before the fold: the end of the headline; inside it: there too; after it: the next line
@@ -701,7 +773,7 @@ mod tests {
         let joined = v.text.replacen("\u{f800}\n", "\u{f800}", 1);
         assert_eq!(v.fold_ranges(&joined), vec![]);
         // A range that doesn't fit the page is ignored
-        assert_eq!(View::build(page, None, 80, |_| 1, true, false, &[(2, 15)]).text, View::build(page, None, 80, |_| 1, true, false, &[]).text);
+        assert_eq!(View::build(page, None, 80, |_| 1, |_, _, _| None, true, false, &[(2, 15)]).text, View::build(page, None, 80, |_| 1, |_, _, _| None, true, false, &[]).text);
     }
 
     #[test]

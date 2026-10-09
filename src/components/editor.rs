@@ -7,6 +7,8 @@ use crate::{
     components::{empty_state::EmptyState, page_title::PageTitle, tabs::TabBar},
     edit,
     highlight,
+    images,
+    links,
     tables,
     i18n::t,
     invoke,
@@ -121,6 +123,61 @@ fn table_lines(el: &Textarea, raw: &str, width: i32, digits: Option<usize>) -> O
     let height = probe.query_selector("table").ok()??.dyn_into::<web_sys::HtmlElement>().ok()?.offset_height();
     probe.remove();
     Some((height as f64 / LINE_HEIGHT).ceil() as usize)
+}
+
+/// Natural size of an image, by URL; `None` when it could not be loaded.
+type ImageSizes = std::collections::HashMap<String, Option<(f64, f64)>>;
+
+/// URL of the image a link `target` of the page `page` points to.
+fn image_src(page: &str, target: &str) -> String {
+    if target.contains("://") { target.to_string() } else { invoke::convert_file_src(&images::resolve(page, target)) }
+}
+
+/// Load the image at `src` to learn its natural size, into `sizes`.
+fn load_size(src: &str, sizes: RwSignal<ImageSizes>) {
+    let Ok(img) = web_sys::HtmlImageElement::new() else { return };
+    let (url, el) = (src.to_string(), img.clone());
+    let done = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |e: web_sys::Event| {
+        let size = (e.type_() == "load" && el.natural_width() > 0)
+            .then(|| (el.natural_width() as f64, el.natural_height() as f64));
+        let _ = sizes.try_update(|s| { s.insert(url.clone(), size); });
+    });
+    img.set_onload(Some(done.as_ref().unchecked_ref()));
+    img.set_onerror(Some(done.as_ref().unchecked_ref()));
+    done.forget();
+    img.set_src(src);
+}
+
+/// Distance from the bottom right corner of an image within which it is resized.
+const HANDLE: f64 = 14.0;
+
+/// The image drawn in `wrap` under the point `x`, `y` (client px): its box, page
+/// position (see `.img-box`), and whether the point is on its resize corner.
+fn image_at(wrap: &web_sys::Element, x: f64, y: f64) -> Option<(web_sys::HtmlElement, usize, bool)> {
+    let boxes = wrap.query_selector_all(".img-box").ok()?;
+    (0..boxes.length()).filter_map(|i| boxes.item(i)?.dyn_into::<web_sys::HtmlElement>().ok()).find_map(|b| {
+        let r = b.get_bounding_client_rect();
+        let inside = x >= r.left() && x <= r.right() + 2.0 && y >= r.top() && y <= r.bottom() + 2.0;
+        let corner = x >= r.right() - HANDLE && y >= r.bottom() - HANDLE;
+        let at = b.get_attribute("data-at")?.parse().ok()?;
+        inside.then_some((b, at, corner))
+    })
+}
+
+/// An image being resized with the mouse.
+#[derive(Clone)]
+struct ImageDrag {
+    /// Its box (`.img-box`) and picture.
+    frame: web_sys::HtmlElement,
+    img: web_sys::HtmlElement,
+    /// Page position of its link.
+    at: usize,
+    /// Pointer x and image width when the drag started, the width it may reach.
+    x0: f64,
+    w0: f64,
+    max: f64,
+    /// Height / width.
+    ratio: f64,
 }
 
 /// Scroll the textarea so the char at `pos` is in view (in the middle when it was not).
@@ -369,6 +426,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     // Width of the textarea, which decides how high a drawn table is
     let width = RwSignal::new(0i32);
     let heights = StoredValue::new(std::collections::HashMap::<(String, i32, Option<usize>), usize>::new());
+    // Natural sizes of the images of the page, and those being loaded
+    let sizes = RwSignal::new(ImageSizes::new());
+    let loading = StoredValue::new(std::collections::HashSet::<String>::new());
+    let page_path = tab.path.clone();
     let resize = window_event_listener(leptos::ev::resize, move |_| {
         if let Some(el) = area_ref.get_untracked() { width.set(el.client_width()); }
     });
@@ -384,12 +445,29 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let indent = ctx.pref(|p| p.indent_headings);
         let digits = ctx.pref(|p| p.show_line_numbers).then(|| number_digits(&content));
         let el = area_ref.get_untracked();
-        tables::View::build(&content, focus_pos.get(), text_columns(w.max(0), digits), |raw| {
+        let columns = text_columns(w.max(0), digits);
+        let show_images = ctx.pref(|p| p.show_images);
+        tables::View::build(&content, focus_pos.get(), columns, |raw| {
             let key = (raw.to_string(), w, digits);
             if let Some(n) = heights.with_value(|h| h.get(&key).copied()) { return n; }
             let n = el.as_ref().and_then(|el| table_lines(el, raw, w, digits)).unwrap_or_else(|| raw.split('\n').count());
             heights.update_value(|h| { h.insert(key, n); });
             n
+        }, |image, attr, before| {
+            if !show_images { return None; }
+            let src = image_src(&page_path, &image.target);
+            // Shown as text until its size is known, and when it can't be loaded
+            let Some(natural) = sizes.with(|s| s.get(&src).copied()) else {
+                if loading.with_value(|l| !l.contains(&src)) {
+                    loading.update_value(|l| { l.insert(src.clone()); });
+                    load_size(&src, sizes);
+                }
+                return None;
+            };
+            let max = (columns.saturating_sub(before) as f64 * CHAR_WIDTH).max(16.0);
+            let (width, height) = images::display_size(natural?, attr, image, max);
+            let lines = ((height + 4.0) / LINE_HEIGHT).ceil() as usize;
+            Some((tables::Shown { src, width, height }, lines))
         }, collapse, indent, &folds.get())
     });
     // The view the textarea holds: what its text is read with. Until the textarea
@@ -1065,7 +1143,60 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
     });
 
-    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.tags(), todo_keywords.get(), ctx.pref(|p| p.show_line_numbers)));
+    // ── Links that lead nowhere: a page that doesn't exist, a missing file ──────
+    let page_keys = Memo::new(move |_| {
+        let loose = ctx.pref(|p| p.case_insensitive_links);
+        ctx.project.files.with(|fs| fs.iter()
+            .map(|f| orgamnesia_core::names::page_key(f.name.trim(), loose))
+            .collect::<std::collections::HashSet<_>>())
+    });
+    let page_dir = StoredValue::new(tab.path.clone());
+    // The files the page links to, and those of them missing (asked to the backend)
+    let file_links = Memo::new(move |_| {
+        if !ctx.pref(|p| p.mark_broken_links) { return Vec::new(); }
+        let page = page_dir.get_value();
+        let mut paths: Vec<String> = content_sig.with(|c| links::targets(c).into_iter()
+            .filter_map(links::file_target)
+            .map(|t| images::resolve(&page, t))
+            .collect());
+        paths.sort();
+        paths.dedup();
+        paths
+    });
+    let missing = RwSignal::new(std::collections::HashSet::<String>::new());
+    let missing_seq = StoredValue::new(0u32);
+    Effect::new(move |_| {
+        let paths = file_links.get();
+        // Also after every write: files may have been added since
+        ctx.project.links_version.track();
+        let seq = missing_seq.get_value() + 1;
+        missing_seq.set_value(seq);
+        spawn_local(async move {
+            let found = if paths.is_empty() { Ok(Vec::new()) } else { invoke::missing_files(&paths).await };
+            // Only the answer to the last question counts
+            if let Ok(m) = found && missing_seq.try_get_value() == Some(seq) {
+                missing.set(m.into_iter().collect());
+            }
+        });
+    });
+    let broken_links = move || -> Option<highlight::Broken> {
+        if !ctx.pref(|p| p.mark_broken_links) { return None; }
+        let loose = ctx.pref(|p| p.case_insensitive_links);
+        let page = page_dir.get_value();
+        Some(Box::new(move |target: &str| {
+            if let Some(file) = links::file_target(target) {
+                let path = images::resolve(&page, file);
+                // A missing file, or an image that can't be loaded
+                missing.with(|m| m.contains(&path))
+                    || (images::is_image(file) && sizes.with(|s| s.get(&image_src(&page, file)) == Some(&None)))
+            } else if links::is_page_target(target) {
+                !page_keys.with(|k| k.contains(&orgamnesia_core::names::page_key(target.trim(), loose)))
+            } else {
+                false
+            }
+        }))
+    };
+    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.tags(), todo_keywords.get(), ctx.pref(|p| p.show_line_numbers), broken_links()));
     let region_html = move || {
         if !ctx.pref(|p| p.emacs_mark) { return String::new(); }
         mark.get().map(|m| {
@@ -1109,9 +1240,140 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         });
     };
 
+    // ── Images: added with the button or dropped, resized by their corner ───────
+    let wrap_ref = NodeRef::<leptos::html::Div>::new();
+    // Put links to images on lines of their own, after the caret's line (or in it
+    // when empty); the caret goes to the line after them, so they are drawn
+    let insert_links = move |el: &Textarea, links: &[String]| {
+        let chars: Vec<char> = el.value().chars().collect();
+        let p = caret(el).min(chars.len());
+        let ls = chars[..p].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
+        let le = chars[p..].iter().position(|&c| c == '\n').map_or(chars.len(), |i| p + i);
+        let empty = chars[ls..le].iter().all(|c| c.is_whitespace());
+        let block = links.join("\n");
+        let last = if le == chars.len() { "\n" } else { "" };
+        let (from, text) = if empty { (ls, format!("{block}{last}")) } else { (le, format!("\n{block}{last}")) };
+        let end = splice(el, from, le, &text);
+        set_cursor(el, if last.is_empty() { end + 1 } else { end });
+        track_caret(el);
+    };
+    let page_for_images = StoredValue::new(tab.path.clone());
+    // Copy the image files into the project and link them from the page
+    let add_images = move |paths: Vec<String>| {
+        let page = page_for_images.get_value();
+        spawn_local(async move {
+            let mut links = Vec::new();
+            for path in paths {
+                match invoke::import_image(&page, &path).await {
+                    Ok(link) => links.push(format!("[[{link}]]")),
+                    Err(e) => ctx.error("image_error", &e),
+                }
+            }
+            let Some(el) = area_ref.try_get_untracked().flatten() else { return };
+            if links.is_empty() { return; }
+            let _ = el.focus();
+            insert_links(&el, &links);
+        });
+    };
+    let pick_image = move || {
+        spawn_local(async move {
+            match invoke::pick_image().await {
+                Ok(Some(path)) => add_images(vec![path]),
+                Ok(None) => {}
+                Err(e) => ctx.error("image_error", &e),
+            }
+        });
+    };
+    // Files dropped on this editor (the window reports every drop, see `app`)
+    let seen_drop = StoredValue::new(ctx.ui.dropped.with_untracked(|d| d.as_ref().map(|(n, _)| *n)));
+    Effect::new(move |_| {
+        let Some((n, drop)) = ctx.ui.dropped.get() else { return };
+        if seen_drop.get_value() == Some(n) { return; }
+        seen_drop.set_value(Some(n));
+        let Some(wrap) = wrap_ref.get_untracked() else { return };
+        let ratio = web_sys::window().map_or(1.0, |w| w.device_pixel_ratio());
+        let (x, y) = (drop.position.x / ratio, drop.position.y / ratio);
+        let r = wrap.get_bounding_client_rect();
+        if x < r.left() || x > r.right() || y < r.top() || y > r.bottom() { return; }
+        let (pictures, others): (Vec<String>, Vec<String>) = drop.paths.into_iter().partition(|p| images::is_image(p));
+        if !others.is_empty() {
+            ctx.ui.status.set(Some(t("image_only", ctx.lang.get_untracked()).to_string()));
+        }
+        if !pictures.is_empty() { add_images(pictures); }
+    });
+    // Give the image of the link at page position `at` the size `w` x `h`, in the file
+    let resize_image = move |at: usize, w: f64, h: f64| {
+        let Some(el) = area_ref.get_untracked() else { return };
+        let org = ctx.pref_untracked(|p| p.image_size_format != "logseq");
+        let Some((from, to, text)) = content_sig.with_untracked(|c| images::resize(c, at, w, h, org)) else { return };
+        let before = focus_pos.get_untracked();
+        let (a, b) = shown.with_value(|v| (v.view_pos(from), v.view_pos(to)));
+        mouse_focus.set_value(true);
+        let _ = el.focus();
+        after_tick(move || mouse_focus.set_value(false));
+        splice(&el, a, b, &text);
+        // The caret back where it was, out of the image's lines: the image is drawn again
+        let grown = text.chars().count() as isize - (to - from) as isize;
+        let back = before.map_or(0, |p| if p >= to { (p as isize + grown) as usize } else { p.min(from) });
+        focus_pos.set(Some(back));
+    };
+    let image_drag = StoredValue::new(None::<ImageDrag>);
+    let drag_move = window_event_listener(leptos::ev::mousemove, move |e: web_sys::MouseEvent| {
+        let Some(d) = image_drag.get_value() else { return };
+        let w = (d.w0 + e.client_x() as f64 - d.x0).clamp(24.0, d.max);
+        let _ = d.img.style().set_property("width", &format!("{w}px"));
+        let _ = d.img.style().set_property("height", &format!("{}px", w * d.ratio));
+    });
+    let drag_up = window_event_listener(leptos::ev::mouseup, move |_| {
+        let Some(d) = image_drag.get_value() else { return };
+        image_drag.set_value(None);
+        d.frame.class_list().remove_1("resizing").ok();
+        let r = d.img.get_bounding_client_rect();
+        if (r.width() - d.w0).abs() >= 1.0 { resize_image(d.at, r.width(), r.width() * d.ratio); }
+    });
+    on_cleanup(move || { drag_move.remove(); drag_up.remove(); });
+    // The pointer over an image shows its corner; on the corner, it resizes it
+    let hovered = StoredValue::new(None::<web_sys::HtmlElement>);
+    let on_image_hover = move |e: web_sys::MouseEvent| {
+        if image_drag.with_value(Option::is_some) { return; }
+        let Some(wrap) = wrap_ref.get_untracked() else { return };
+        let hit = image_at(&wrap, e.client_x() as f64, e.client_y() as f64);
+        if let Some(old) = hovered.get_value() && hit.as_ref().is_none_or(|(b, ..)| b != &old) {
+            old.class_list().remove_1("hover").ok();
+        }
+        if let Some((b, ..)) = &hit { b.class_list().add_1("hover").ok(); }
+        let corner = hit.as_ref().is_some_and(|&(_, _, c)| c);
+        hovered.set_value(hit.map(|(b, ..)| b));
+        if let Some(el) = area_ref.get_untracked() {
+            let _ = web_sys::HtmlElement::style(&el).set_property("cursor", if corner { "nwse-resize" } else { "" });
+        }
+    };
+    // A press on an image's corner starts resizing it; true when it did
+    let start_image_drag = move |e: &web_sys::MouseEvent| -> bool {
+        let Some(wrap) = wrap_ref.get_untracked() else { return false };
+        let Some((frame, at, true)) = image_at(&wrap, e.client_x() as f64, e.client_y() as f64) else { return false };
+        let Some(img) = frame.first_element_child().and_then(|i| i.dyn_into::<web_sys::HtmlElement>().ok()) else { return false };
+        let Some(area) = area_ref.get_untracked() else { return false };
+        e.prevent_default();
+        let r = img.get_bounding_client_rect();
+        let right = area.get_bounding_client_rect().right() - 24.0;
+        frame.class_list().add_1("resizing").ok();
+        image_drag.set_value(Some(ImageDrag {
+            frame, img, at,
+            x0: e.client_x() as f64,
+            w0: r.width(),
+            max: (right - r.left()).max(24.0),
+            ratio: if r.width() > 0.0 { r.height() / r.width() } else { 1.0 },
+        }));
+        true
+    };
+
     view! {
         <div
-            class=move || if ctx.pref(|p| p.show_line_numbers) { "editor-wrap line-numbers" } else { "editor-wrap" }
+            node_ref=wrap_ref
+            class=move || format!("editor-wrap{}{}",
+                if ctx.pref(|p| p.show_line_numbers) { " line-numbers" } else { "" },
+                if ctx.pref(|p| p.hide_leading_stars) { " hide-stars" } else { "" })
             style=move || content_sig.with(|c| format!("--ln-w: {}ch", number_digits(c)))
         >
             <div class="hl-layer" aria-hidden="true" inner_html=highlighted />
@@ -1126,15 +1388,32 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 on:keydown=on_keydown
                 on:click=on_click
                 on:mouseup=on_pointer
-                on:mousedown=move |_| {
+                on:mousedown=move |e: web_sys::MouseEvent| {
+                    if start_image_drag(&e) { return; }
                     completion.set(None);
                     mouse_focus.set_value(true);
                     after_tick(move || mouse_focus.set_value(false));
                 }
+                on:mousemove=on_image_hover
                 on:focus=on_focus
                 on:blur=move |_| completion.set(None)
                 on:scroll=move |_| completion.set(None)
             />
+            <button
+                class="img-add"
+                title=move || t("image_add", ctx.lang.get())
+                aria-label=move || t("image_add", ctx.lang.get())
+                // Keeps the caret where it is in the textarea
+                on:mousedown=|e: web_sys::MouseEvent| e.prevent_default()
+                on:click=move |_| pick_image()
+            >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
+                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <circle cx="9" cy="10" r="1.8" />
+                    <path d="M21 16l-5-5-9 9" />
+                </svg>
+            </button>
             {move || find.get().map(|with_replace| {
                 let lang = ctx.lang.get();
                 view! {

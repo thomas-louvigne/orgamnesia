@@ -14,6 +14,20 @@ fn tags() -> TagSyntax {
     TAGS.with(|t| t.get())
 }
 
+/// Whether a link target leads nowhere.
+pub type Broken = Box<dyn Fn(&str) -> bool>;
+
+thread_local! {
+    /// Whether a link target leads nowhere, when such links are marked (set by `render_view`).
+    static BROKEN: std::cell::RefCell<Option<Broken>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Class of a `[[link]]` to `target`.
+fn link_class(target: &str) -> &'static str {
+    let broken = BROKEN.with(|b| b.borrow().as_ref().is_some_and(|f| f(target)));
+    if broken { "link broken" } else { "link" }
+}
+
 thread_local! {
     /// The TODO keywords of the page, `None` when they are off (set by `render_view`).
     static TODO: std::cell::RefCell<Option<TodoKeywords>> = const { std::cell::RefCell::new(None) };
@@ -35,15 +49,35 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
 /// over the empty lines that follow it.
 /// With `numbers`, each line of the page starts with its number, drawn in the margin.
 /// `todo`: the TODO keywords drawn on headlines (`None` when they are off).
-pub fn render_view(view: &crate::tables::View, tags: TagSyntax, todo: Option<TodoKeywords>, numbers: bool) -> String {
+/// With `broken`, telling the link targets that lead nowhere, those links are drawn
+/// as such and their lines get a mark in the margin.
+pub fn render_view(
+    view: &crate::tables::View, tags: TagSyntax, todo: Option<TodoKeywords>, numbers: bool,
+    broken: Option<Broken>,
+) -> String {
     TAGS.with(|t| t.set(tags));
     TODO.with(|t| *t.borrow_mut() = todo);
+    BROKEN.with(|b| *b.borrow_mut() = broken);
+    let out = render_lines(view, numbers);
+    BROKEN.with(|b| *b.borrow_mut() = None);
+    out
+}
+
+fn render_lines(view: &crate::tables::View, numbers: bool) -> String {
     let mut out = String::with_capacity(view.text.len() * 2);
     let lines: Vec<&str> = view.text.split('\n').collect();
     let heads = header_lines(&lines);
     // Number of the next line of the page
     let mut page_line = 1;
+    // Where the HTML of the line just drawn starts, to mark it if a link of it is broken
+    let mut drawn: Option<usize> = None;
+    let mark_broken = |out: &mut String, from: Option<usize>| {
+        if let Some(from) = from && out[from..].contains("'link broken'") {
+            out.insert_str(from, "<span class='broken-mark'></span>");
+        }
+    };
     for (n, line) in lines.iter().enumerate() {
+        mark_broken(&mut out, drawn.take());
         let line = *line;
         // The lines below a collapsed table's first one are not lines of the page
         let fill = !line.is_empty() && line.chars().all(crate::tables::is_fill);
@@ -61,9 +95,25 @@ pub fn render_view(view: &crate::tables::View, tags: TagSyntax, todo: Option<Tod
         }
         if fold.is_some() {
             out.push_str("<span class='fold-mark'></span>");
+        } else {
+            drawn = Some(out.len());
         }
         if heads.contains(&n) {
             out.push_str(&format!("<span class='tbl tbl-head'>{}</span>\n", escape(line)));
+            continue;
+        }
+        // An image, after what comes before its link (indentation, stars, bullet)
+        let image = line.chars().last().and_then(crate::tables::tag_index)
+            .and_then(|t| view.tables.get(t))
+            .and_then(|t| t.image.as_ref().map(|i| (t.start, i)));
+        if let Some((at, img)) = image {
+            let before = &line[..line.len() - line.chars().last().map_or(0, char::len_utf8)];
+            if !before.is_empty() { out.push_str(&highlight_line(before)); }
+            out.push_str(&format!(
+                "<span class='img-view'><span class='img-box' data-at='{at}'>\
+                 <img class='img-pic' src='{}' style='width: {}px; height: {}px' alt=''></span></span>\n",
+                escape(&img.src), img.width, img.height,
+            ));
             continue;
         }
         // A collapsed table, maybe indented under a headline
@@ -86,6 +136,7 @@ pub fn render_view(view: &crate::tables::View, tags: TagSyntax, todo: Option<Tod
         }
         out.push('\n');
     }
+    mark_broken(&mut out, drawn);
     out
 }
 
@@ -149,11 +200,13 @@ fn highlight_line(line: &str) -> String {
         };
         return format!(
             "<span class='h{level}{}'>\
-             <span class='h-stars'>{}</span>{}\
+             <span class='h-stars'>{}{}</span>{}\
              {keyword_html}{}{}\
              </span>",
             if keyword.is_some_and(|k| k.done) { " h-done" } else { "" },
-            "*".repeat(stars),
+            // The stars before the last, hidden when the setting asks it
+            if stars > 1 { format!("<span class='h-lead'>{}</span>", "*".repeat(stars - 1)) } else { String::new() },
+            "*",
             if stars < chars.len() { " " } else { "" },
             inline_html(&title),
             tags_html,
@@ -279,8 +332,8 @@ fn try_link(chars: &[char], start: usize) -> Option<(String, usize)> {
         match (chars[i], chars.get(i + 1)) {
             (']', Some(&']')) => {
                 let html = format!(
-                    "<span class='link'>[[<span class='link-t'>{}</span>]]</span>",
-                    escape(&target)
+                    "<span class='{}'>[[<span class='link-t'>{}</span>]]</span>",
+                    link_class(&target), escape(&target)
                 );
                 return Some((html, i + 2 - start));
             }
@@ -290,8 +343,9 @@ fn try_link(chars: &[char], start: usize) -> Option<(String, usize)> {
                 while i < chars.len() {
                     if chars[i] == ']' && chars.get(i + 1) == Some(&']') {
                         let html = format!(
-                            "<span class='link'>[[<span class='link-t'>{}</span>]\
+                            "<span class='{}'>[[<span class='link-t'>{}</span>]\
                             [<span class='link-d'>{}</span>]]</span>",
+                            link_class(&target),
                             escape(&target),
                             escape(&disp)
                         );
@@ -346,6 +400,20 @@ fn escape_char(c: char) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn broken_links_are_marked_in_the_margin() {
+        let page = "a [[Existe]]\nb [[Absente]] et [[Existe]]\n[[x]]";
+        let v = crate::tables::View::build(page, None, 80, |_| 1, |_, _, _| None, true, false, &[]);
+        let html = render_view(&v, Hashtags::Off.into(), None, false, Some(Box::new(|t: &str| t != "Existe")));
+        let lines: Vec<&str> = html.split('\n').collect();
+        assert!(!lines[0].contains("broken"));
+        assert!(lines[1].starts_with("<span class='broken-mark'></span>b "));
+        assert!(lines[1].contains("<span class='link broken'>[[<span class='link-t'>Absente"));
+        assert!(lines[2].starts_with("<span class='broken-mark'>"));
+        // Not marked when not asked
+        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None).contains("broken"));
+    }
 
     #[test]
     fn headline_h1() {
@@ -441,22 +509,22 @@ mod tests {
     #[test]
     fn org_tags_in_text_drawn_as_links() {
         let v = crate::tables::View { text: "voir :ex: à 10:30:".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
-        let html = render_view(&v, Hashtags::Off.into(), None, false);
+        let html = render_view(&v, Hashtags::Off.into(), None, false, None);
         assert!(html.contains(":<span class='tag-t'>ex</span>:"));
         assert!(!html.contains("30</span>"));
         let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
-        assert!(!render_view(&v, off, None, false).contains("tag-t"));
+        assert!(!render_view(&v, off, None, false, None).contains("tag-t"));
     }
 
     #[test]
     fn line_numbers_follow_the_page() {
         // A collapsed table of 3 rows takes 4 lines of the view, numbered as its 3 lines
         let page = "a\n| x |\n|---|\n| y |\nb";
-        let v = crate::tables::View::build(page, None, 80, |_| 4, true, false, &[]);
-        let html = render_view(&v, Hashtags::Off.into(), None, true);
+        let v = crate::tables::View::build(page, None, 80, |_| 4, |_, _, _| None, true, false, &[]);
+        let html = render_view(&v, Hashtags::Off.into(), None, true, None);
         let nums: Vec<&str> = html.split("<span class='ln'>").skip(1).map(|s| &s[..s.find('<').unwrap()]).collect();
         assert_eq!(nums, vec!["1", "2", "5"]);
-        assert!(!render_view(&v, Hashtags::Off.into(), None, false).contains("class='ln'"));
+        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None).contains("class='ln'"));
     }
 
     #[test]
@@ -469,18 +537,18 @@ mod tests {
     fn todo_keywords_on_headlines() {
         let v = crate::tables::View { text: "** TODO a :x:\n* DONE b\n* TODOS c".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
         let kw = Some(TodoKeywords::parse("TODO | DONE"));
-        let html = render_view(&v, Hashtags::Off.into(), kw, false);
-        assert!(html.contains("<span class='h-stars'>**</span> <span class='todo'>TODO</span> a <span class='tags'>"));
+        let html = render_view(&v, Hashtags::Off.into(), kw, false, None);
+        assert!(html.contains("<span class='h-stars'><span class='h-lead'>*</span>*</span> <span class='todo'>TODO</span> a <span class='tags'>"));
         assert!(html.contains("<span class='h1 h-done'><span class='h-stars'>*</span> <span class='done'>DONE</span> b"));
         assert!(!html.contains("TODOS</span>"));
         // Off: plain titles
-        assert!(!render_view(&v, Hashtags::Off.into(), None, false).contains("class='todo'"));
+        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None).contains("class='todo'"));
     }
 
     #[test]
     fn table_header_bold_while_edited() {
         let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
-        let html = render_view(&v, Hashtags::Off.into(), None, false);
+        let html = render_view(&v, Hashtags::Off.into(), None, false, None);
         assert!(html.contains("<span class='tbl tbl-head'>| a | b |</span>"));
         assert!(!html.contains("tbl-head'>| c"));
     }

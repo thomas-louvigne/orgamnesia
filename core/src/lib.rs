@@ -2,6 +2,7 @@
 //! data they exchange, the settings and their defaults, the way `#tags` are
 //! read (`#tags`, `:tags:`), the TODO keywords and the shortcut registry. Plain Rust, no I/O.
 
+pub mod assets;
 pub mod hashtags;
 pub mod keybindings;
 pub mod model;

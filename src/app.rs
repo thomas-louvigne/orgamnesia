@@ -161,6 +161,11 @@ fn watch_disk(ctx: AppCtx) {
     invoke::listen(invoke::VAULT_CHANGED, move |changes: VaultChanges| {
         spawn_local(actions::apply_disk_changes(ctx, changes));
     });
+    // Files dropped on the window: the editor under them adds the images
+    invoke::listen(invoke::DRAG_DROP, move |d: invoke::Dropped| {
+        let n = ctx.ui.dropped.with_untracked(|d| d.as_ref().map_or(0, |(n, _)| n + 1));
+        ctx.ui.dropped.set(Some((n, d)));
+    });
 }
 
 /// Git extension: read the git state of the project when it is opened or the

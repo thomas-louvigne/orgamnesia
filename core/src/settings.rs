@@ -30,12 +30,23 @@ pub struct Settings {
     pub find_match_case: Option<bool>,
     /// Indent the text under a headline to the column of its title (on screen only).
     pub indent_headings: Option<bool>,
+    /// Hide the stars of a headline but the last (`  * Titre`), like Emacs'
+    /// org-hide-leading-stars: the level reads as an indent.
+    pub hide_leading_stars: Option<bool>,
     /// Tab on a headline folds / unfolds it (org-mode cycle).
     pub tab_folds: Option<bool>,
     /// TODO keywords on headlines (`* TODO Titre`), stepped through with a shortcut.
     pub todo_enabled: Option<bool>,
     /// The TODO keywords, as in Emacs: `TODO DOING | DONE`.
     pub todo_keywords: Option<String>,
+    /// A mark in the margin of the lines holding a link that leads nowhere (a page
+    /// that doesn't exist, a missing file).
+    pub mark_broken_links: Option<bool>,
+    /// Draw the images of the page (a line holding only a link to an image).
+    pub show_images: Option<bool>,
+    /// How a size given to an image is written: `org` (`#+ATTR_ORG: :width 300` on
+    /// the line above, Emacs) or `logseq` (`{:height 200, :width 300}` after the link).
+    pub image_size_format: Option<String>,
     /// Emacs mark: Ctrl+Space starts a region that follows the cursor.
     pub emacs_mark: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
@@ -153,9 +164,14 @@ pub struct Prefs {
     pub org_tag_dashes: bool,
     pub find_match_case: bool,
     pub indent_headings: bool,
+    pub hide_leading_stars: bool,
     pub tab_folds: bool,
     pub todo_enabled: bool,
     pub todo_keywords: String,
+    pub show_images: bool,
+    pub mark_broken_links: bool,
+    /// `org` or `logseq`: see `Settings::image_size_format`.
+    pub image_size_format: String,
     pub emacs_mark: bool,
     pub electric_mode: bool,
 }
@@ -199,10 +215,15 @@ impl Prefs {
             org_tag_dashes: s.org_tag_dashes.unwrap_or(false),
             find_match_case: s.find_match_case.unwrap_or(false),
             indent_headings: s.indent_headings.unwrap_or(true),
+            hide_leading_stars: s.hide_leading_stars.unwrap_or(false),
             tab_folds: s.tab_folds.unwrap_or(true),
             todo_enabled: s.todo_enabled.unwrap_or(true),
             todo_keywords: s.todo_keywords.clone().filter(|k| !k.trim().is_empty())
                 .unwrap_or_else(|| DEFAULT_TODO_KEYWORDS.to_string()),
+            show_images: s.show_images.unwrap_or(true),
+            mark_broken_links: s.mark_broken_links.unwrap_or(true),
+            image_size_format: s.image_size_format.clone().filter(|f| f == "logseq")
+                .unwrap_or_else(|| "org".to_string()),
             emacs_mark: s.emacs_mark.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
         }
@@ -222,9 +243,13 @@ impl Prefs {
             org_tag_dashes: Some(self.org_tag_dashes),
             find_match_case: Some(self.find_match_case),
             indent_headings: Some(self.indent_headings),
+            hide_leading_stars: Some(self.hide_leading_stars),
             tab_folds: Some(self.tab_folds),
             todo_enabled: Some(self.todo_enabled),
             todo_keywords: Some(self.todo_keywords.clone()),
+            show_images: Some(self.show_images),
+            mark_broken_links: Some(self.mark_broken_links),
+            image_size_format: Some(self.image_size_format.clone()),
             emacs_mark: Some(self.emacs_mark),
             electric_mode: Some(self.electric_mode),
             autosave: Some(self.autosave),
@@ -274,6 +299,7 @@ mod tests {
         let p = Settings::default().prefs();
         assert!(p.autosave && p.git_ext && !p.site_builder && !p.delete_empty && p.restore_session);
         assert_eq!(p.lang, "fr");
+        assert_eq!(p.image_size_format, "org");
         assert_eq!(p.todo(), Some(TodoKeywords::parse(DEFAULT_TODO_KEYWORDS)));
         let blank = Settings { todo_keywords: Some(" ".into()), ..Settings::default() };
         assert_eq!(blank.prefs().todo_keywords, DEFAULT_TODO_KEYWORDS);

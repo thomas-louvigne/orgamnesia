@@ -10,6 +10,7 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 - [[*Liens et tags][Liens et tags]]
 - [[*États TODO][États TODO]]
 - [[*Tableaux][Tableaux]]
+- [[*Images][Images]]
 - [[*Fenêtre][Fenêtre]]
 - [[*Panneau de droite][Panneau de droite]]
 - [[*Corbeille][Corbeille]]
@@ -104,6 +105,15 @@ caché. Désactivable (Tab fait alors comme ailleurs).
 Le texte sous un titre est décalé à la colonne du texte du titre, comme
 =org-indent-mode= d'Emacs. C'est un affichage seulement : le fichier ne contient pas
 ces espaces. Désactivable.
+
+** Étoiles des titres
+En option, seule la dernière étoile d'un titre reste visible, comme
+=org-hide-leading-stars= d'Emacs : le niveau se lit comme un retrait.
+
+** Liens cassés
+Un lien qui n'aboutit à rien (page inexistante, fichier ou image absents) est en
+rouge, et un ❌ est dessiné dans la marge de sa ligne. C'est un affichage seulement :
+rien n'est écrit dans le fichier. Désactivable.
 
 ** Numéros de ligne
 En option, dans la marge. Ils suivent les lignes du fichier, même quand un tableau
@@ -223,6 +233,21 @@ Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
   tableau, comme org-mode. Tab après la dernière cellule ajoute une ligne.
 - =|-= puis Tab trace la ligne de séparation ; les lignes au-dessus de la première
   séparation sont l'en-tête.
+
+* Images
+- Une ligne qui ne contient qu'un lien vers une image (=[[../assets/photo.png]]=,
+  éventuellement après les étoiles d'un titre ou un tiret de liste) est dessinée
+  comme l'image tant que le curseur n'est pas dessus ; elle redevient du texte pour
+  l'éditer.
+- Le bouton en bas à droite de l'éditeur, ou le dépôt d'un fichier sur la page,
+  copie l'image dans le dossier =assets/= du projet, nommée comme le fait Logseq
+  (=photo_1759520598218_0.png=), et ajoute son lien sur une ligne à part.
+- Le coin en bas à droite d'une image la redimensionne à la souris. La taille est
+  écrite au choix au format org-mode (=#+ATTR_ORG: :width 300= sur la ligne du
+  dessus, par défaut) ou au format Logseq (={:height 200, :width 300}= après le
+  lien). Les deux formats sont lus ; Logseq en ajoute un à chaque redimensionnement,
+  le dernier compte.
+- Désactivable : les liens restent alors du texte.
 
 * Fenêtre
 
@@ -390,7 +415,10 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 - Corbeille : la vider, la vider automatiquement, durée et poids maximum.
 
 ** Affichage
-- Apparence : nom et logo, titre de la page, bouton pour quitter, numéros de ligne.
+- Apparence : nom et logo, titre de la page, bouton pour quitter, numéros de ligne,
+  étoiles des titres masquées sauf la dernière.
+- Signaler les liens cassés.
+- Images : les afficher, et le format de leur taille (org-mode ou Logseq).
 - Cadres : menu des pages, liens entrants, tags, pages non créées, à faire.
 
 ** Extensions

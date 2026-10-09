@@ -120,6 +120,9 @@ pub struct Ui {
     pub status_undo: RwSignal<Option<(String, Callback<()>)>>,
     /// Resize bar being dragged.
     pub drag: RwSignal<Option<Drag>>,
+    /// Last files dropped on the window, numbered so that the same drop twice is seen:
+    /// the editor they fall on adds the images among them.
+    pub dropped: RwSignal<Option<(u32, crate::invoke::Dropped)>>,
 }
 
 /// Global app context — Copy because signals are Copy.
@@ -174,6 +177,7 @@ impl AppCtx {
                 status: RwSignal::new(None),
                 status_undo: RwSignal::new(None),
                 drag: RwSignal::new(None),
+                dropped: RwSignal::new(None),
             },
         }
     }

@@ -42,6 +42,9 @@ fn main() {
             commands::git_pull,
             commands::git_push,
             commands::pick_file,
+            commands::pick_image,
+            commands::import_image,
+            commands::missing_files,
             commands::quit_app,
             commands::set_session,
         ])

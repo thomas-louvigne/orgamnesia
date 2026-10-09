@@ -15,6 +15,7 @@ keybindings.
 - [[*Links and tags][Links and tags]]
 - [[*TODO states][TODO states]]
 - [[*Tables][Tables]]
+- [[*Images][Images]]
 - [[*Window][Window]]
 - [[*Side panel][Side panel]]
 - [[*Trash][Trash]]
@@ -112,6 +113,15 @@ hidden text. Can be turned off (Tab then does what it does elsewhere).
 The text under a headline is shifted to the column of the headline's text, like
 Emacs' =org-indent-mode=. This is on screen only: the file holds no such spaces.
 Can be turned off.
+
+** Headline stars
+Optional: only the last star of a headline shows, like Emacs'
+=org-hide-leading-stars=; the level reads as an indent.
+
+** Broken links
+A link that leads nowhere (a page that doesn't exist, a missing file or image) is
+drawn in red, with a ❌ in the margin of its line. On screen only: nothing is written
+to the file. Can be turned off.
 
 ** Line numbers
 Optional, in the margin. They follow the lines of the file, even when a table is
@@ -227,6 +237,19 @@ As in org-mode, a keyword after the stars of a headline gives its state.
   header.
 
 [[file:images/table.png]]
+
+* Images
+- A line holding only a link to an image (=[[../assets/photo.png]]=, maybe after the
+  stars of a headline or a list dash) is drawn as the image while the cursor is not
+  on it; it turns back into text to be edited.
+- The button at the bottom right of the editor, or dropping a file on the page,
+  copies the image into the project's =assets/= folder, named as Logseq names them
+  (=photo_1759520598218_0.png=), and adds its link on a line of its own.
+- The bottom right corner of an image resizes it with the mouse. The size is written
+  in the org-mode format (=#+ATTR_ORG: :width 300= on the line above, the default) or
+  the Logseq one (={:height 200, :width 300}= after the link). Both are read; Logseq
+  adds one at each resize, the last one counts.
+- Can be turned off: the links then stay text.
 
 * Window
 
@@ -403,7 +426,10 @@ closes without saving. The explanations under a setting are in italics.
 - Trash: empty it, empty it automatically, maximum time and size.
 
 ** Display
-- Appearance: app name and logo, page title, quit button, line numbers.
+- Appearance: app name and logo, page title, quit button, line numbers,
+  headline stars hidden but the last.
+- Mark the broken links.
+- Images: show them, and the format of their size (org-mode or Logseq).
 - Frames: list of pages, backlinks, tags, pages not created, to do.
 
 ** Extensions

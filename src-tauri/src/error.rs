@@ -23,6 +23,8 @@ pub enum AppError {
     Dialog,
     /// A git command failed; what it said.
     Git(String),
+    /// The file added as an image is not one (by its extension).
+    NotAnImage(String),
 }
 
 impl std::fmt::Display for AppError {
@@ -38,6 +40,7 @@ impl std::fmt::Display for AppError {
             Self::Settings(e)      => write!(f, "Settings error: {e}"),
             Self::Dialog           => write!(f, "The folder picker could not be shown"),
             Self::Git(e)           => write!(f, "{e}"),
+            Self::NotAnImage(p)    => write!(f, "Not an image: {p}"),
         }
     }
 }

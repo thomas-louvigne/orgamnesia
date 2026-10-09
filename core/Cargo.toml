@@ -1,6 +1,6 @@
 [package]
 name = "orgamnesia-core"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Types and rules shared by the Orgamnesia backend (Tauri) and interface (WebAssembly)"

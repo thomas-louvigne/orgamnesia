@@ -89,6 +89,26 @@ impl Project {
         Ok(FileEntry { name, path })
     }
 
+    /// Copy the image `source` into the project's `assets/` folder, named as Logseq
+    /// names them; returns the link to it from the page `page`.
+    pub fn import_image(&self, page: &str, source: &str) -> Result<String, AppError> {
+        self.check_page(page)?;
+        let src = Path::new(source);
+        let name = src.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let ext = src.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
+        if !src.is_file() || !ext.is_some_and(|e| orgamnesia_core::assets::EXTENSIONS.contains(&e.as_str())) {
+            return Err(AppError::NotAnImage(source.to_string()));
+        }
+        let dir = Path::new(&self.path).join("assets");
+        std::fs::create_dir_all(&dir)?;
+        let millis = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
+        let file = orgamnesia_core::assets::asset_name(name, millis);
+        std::fs::copy(src, dir.join(&file))?;
+        // The pages are in `pages/` (Logseq), or right in the project's folder
+        let up = std::fs::canonicalize(&self.path)? != self.pages_dir;
+        Ok(format!("{}assets/{file}", if up { "../" } else { "./" }))
+    }
+
     /// Delete a page: it goes to the project's trash (`.trash/`, named
     /// `<time>-<page>.org`), from where `restore` brings it back. Returns its path there.
     pub fn delete(&mut self, path: &str) -> Result<String, AppError> {
@@ -375,6 +395,21 @@ mod tests {
         }
         let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into()).unwrap();
         (dir, p)
+    }
+
+    #[test]
+    fn images_are_copied_to_the_assets() {
+        let (dir, p) = project("images", &[("a", "* a\n")]);
+        let src = dir.join("Ma photo.PNG");
+        std::fs::write(&src, b"png").unwrap();
+        let link = p.import_image(&path_of(&p, "a"), src.to_str().unwrap()).unwrap();
+        let file = link.strip_prefix("../assets/").unwrap();
+        assert!(file.starts_with("Ma_photo_") && file.ends_with("_0.png"));
+        assert_eq!(std::fs::read(dir.join("assets").join(file)).unwrap(), b"png");
+        let text = dir.join("notes.txt");
+        std::fs::write(&text, b"x").unwrap();
+        assert!(matches!(p.import_image(&path_of(&p, "a"), text.to_str().unwrap()), Err(AppError::NotAnImage(_))));
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     fn path_of(p: &Project, name: &str) -> String {
