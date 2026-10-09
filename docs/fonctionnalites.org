@@ -133,6 +133,11 @@ de marqueurs avec le curseur au milieu.
 Le raccourci « Nouveau titre » (Maj+Entrée ; aussi Alt+Entrée en Emacs) insère, sous
 la ligne courante, un titre du même niveau que le titre en cours.
 
+** Niveau des titres
+Sur un titre, Alt+Maj+→ le descend d'un niveau et Alt+Maj+← le remonte d'un niveau,
+avec ses sous-titres, comme =M-S-<right>= / =M-S-<left>= dans Emacs
+(=org-demote-subtree= / =org-promote-subtree=). Un titre de premier niveau ne remonte pas.
+
 ** Recherche et remplacement
 - Rechercher dans la page : Entrée pour l'occurrence suivante, Maj+Entrée pour la
   précédente, Échap pour fermer.
@@ -327,6 +332,7 @@ connaissait pas.
 | Souligné                     | Ctrl+U             | Ctrl+C Ctrl+X Ctrl+F _      |
 | Barré                        | Ctrl+Maj+X         | Ctrl+C Ctrl+X Ctrl+F +      |
 | État TODO suivant / précédent | —                 | Maj+→ / Maj+←               |
+| Titre : descendre / remonter | Alt+Maj+→ / ←      | Alt+Maj+→ / ←               |
 | Marqueur / annuler           | —                  | Ctrl+Espace / Ctrl+G        |
 | Début / fin de ligne         | —                  | Ctrl+A / Ctrl+E             |
 | Caractère suivant / précédent | —                 | Ctrl+F / Ctrl+B             |

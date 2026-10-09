@@ -835,6 +835,58 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             track_caret(&el);
             return;
         }
+        // On a headline, the headline and its sub-headlines go one level up / down (org-mode
+        // M-S-<left> / M-S-<right>); elsewhere the key does what it usually does
+        if matches!(action, EditorAction::PromoteSubtree | EditorAction::DemoteSubtree) {
+            let text = el.value();
+            let (_, end) = get_pos(&el);
+            let pos = shown.with_value(|v| v.content_pos(&text, end));
+            let page: Vec<char> = content_sig.with_untracked(|c| c.chars().collect());
+            let demote = action == EditorAction::DemoteSubtree;
+            let lines = match crate::folding::shift_subtree(&page, crate::folding::line_start(&page, pos), demote) {
+                Ok(lines) => lines,
+                Err(crate::folding::ShiftError::NotHeadline) => return,
+                Err(crate::folding::ShiftError::TopLevel) => {
+                    e.prevent_default();
+                    e.stop_propagation();
+                    ctx.notify_t("promote_top_level", "");
+                    return;
+                }
+            };
+            e.prevent_default();
+            e.stop_propagation();
+            let folded = folds.get_untracked();
+            if !lines.iter().any(|&l| folded.iter().any(|&(a, b)| a < l && l <= b)) {
+                // All the headlines are shown: edit the textarea, so the change can be undone
+                let at: Vec<usize> = shown.with_value(|v| lines.iter().map(|&l| v.view_pos(l)).collect());
+                for &p in at.iter().rev() {
+                    if demote { splice(&el, p, p, "*"); } else { splice(&el, p, p + 1, ""); }
+                }
+                set_cursor(&el, if demote { end + 1 } else if end > at[0] { end - 1 } else { end });
+                commit(&el);
+                track_caret(&el);
+            } else {
+                // Some are hidden in a fold: change the page, the folds keep their place
+                let shift = |p: usize| -> usize {
+                    let n = lines.iter().take_while(|&&l| l < p).count();
+                    if demote { p + n } else { p - n }
+                };
+                let mut out = String::with_capacity(page.len() + lines.len());
+                let mut next = lines.iter().peekable();
+                for (i, &c) in page.iter().enumerate() {
+                    if next.next_if(|&&l| l == i).is_some() {
+                        if demote { out.push('*'); } else { continue; }
+                    }
+                    out.push(c);
+                }
+                folds.set(folded.iter().map(|&(a, b)| (shift(a), shift(b))).collect());
+                // The caret is on the headline: only its own star moves it
+                focus_pos.set(Some(if demote { pos + 1 } else if pos > lines[0] { pos - 1 } else { pos }));
+                content_sig.set(out);
+                dirty_sig.set(true);
+            }
+            return;
+        }
         e.prevent_default();
         e.stop_propagation();
 

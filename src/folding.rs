@@ -77,11 +77,49 @@ pub fn cycle(chars: &[char], ls: usize, folds: &[(usize, usize)]) -> Option<Vec<
     Some(out)
 }
 
+/// Why a headline's subtree can't be promoted or demoted.
+#[derive(Debug, PartialEq)]
+pub enum ShiftError {
+    /// The line is not a headline.
+    NotHeadline,
+    /// A level-1 headline can't be promoted (Emacs: "Cannot promote to level 0").
+    TopLevel,
+}
+
+/// The starts of the headlines of the subtree of the headline starting at `ls`
+/// (itself first): where org-mode's `M-S-<right>` / `M-S-<left>` add or remove a
+/// star, to demote or promote the whole subtree.
+pub fn shift_subtree(chars: &[char], ls: usize, demote: bool) -> Result<Vec<usize>, ShiftError> {
+    let level_of = level(chars, ls).ok_or(ShiftError::NotHeadline)?;
+    if !demote && level_of == 1 { return Err(ShiftError::TopLevel); }
+    let (le, end, _) = subtree(chars, ls, level_of);
+    let mut lines = vec![ls];
+    let mut p = le;
+    while p < end {
+        let next = p + 1;
+        if is_headline(chars, next) { lines.push(next); }
+        p = line_end(chars, next);
+    }
+    Ok(lines)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
+
+    #[test]
+    fn shift_subtree_takes_the_sub_headlines() {
+        let t = c("* A\n** B\ntexte\n*** C\n** D\n* E\n** F\n");
+        // `** B` takes `*** C`, not its sibling `** D`
+        assert_eq!(shift_subtree(&t, 4, true), Ok(vec![4, 15]));
+        assert_eq!(shift_subtree(&t, 4, false), Ok(vec![4, 15]));
+        assert_eq!(shift_subtree(&t, 0, true), Ok(vec![0, 4, 15, 21]));
+        assert_eq!(shift_subtree(&t, 0, false), Err(ShiftError::TopLevel));
+        assert_eq!(shift_subtree(&t, 9, true), Err(ShiftError::NotHeadline));
+        assert_eq!(shift_subtree(&t, 26, true), Ok(vec![26, 30]));
+    }
 
     #[test]
     fn tab_cycles_folded_children_subtree() {

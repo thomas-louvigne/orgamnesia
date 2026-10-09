@@ -72,7 +72,11 @@ impl Keybindings {
         for p in self.profiles.iter_mut() {
             let base = p.editor_preset.clone();
             fill_missing(&mut p.app, &mut p.editor, &base);
+            canonicalize(&mut p.app);
+            canonicalize(&mut p.editor);
         }
+        canonicalize(&mut self.app);
+        canonicalize(&mut self.editor);
         if self.active_profile.is_empty() { return; }
         let active = self.resolved_active();
         if is_builtin(&active) {
@@ -89,6 +93,30 @@ impl Keybindings {
     /// Bindings for an app action (empty slice if unbound).
     pub fn app_binds(&self, id: &str) -> &[String] {
         self.app.get(id).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+}
+
+/// A binding with the modifiers of each key in the order key presses are
+/// written in (`ctrl+shift+alt+key`), the only one they are matched with.
+/// Bindings written otherwise ("alt+shift+<", once in the Emacs preset) never matched.
+pub fn canonical(binding: &str) -> String {
+    binding.split(' ').map(|combo| {
+        let parts: Vec<&str> = combo.split('+').collect();
+        // The key itself may be "+" ("ctrl+shift++"): the last part, or an empty one
+        let (mods, key) = match parts.as_slice() {
+            [mods @ .., "", ""] => (mods, "+"),
+            [mods @ .., key] => (mods, *key),
+            [] => return combo.to_string(),
+        };
+        let mut out: Vec<&str> = ["ctrl", "shift", "alt"].into_iter().filter(|m| mods.contains(m)).collect();
+        out.push(key);
+        out.join("+")
+    }).collect::<Vec<_>>().join(" ")
+}
+
+fn canonicalize(map: &mut Bindings) {
+    for binds in map.values_mut() {
+        for b in binds.iter_mut() { *b = canonical(b); }
     }
 }
 
@@ -121,6 +149,7 @@ pub enum EditorAction {
     BackToIndentation, PreviousHeading, NextHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell,
     Bold, Italic, Underline, Strikethrough, TodoNext, TodoPrev,
+    PromoteSubtree, DemoteSubtree,
 }
 
 impl AppAction {
@@ -205,6 +234,8 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Strikethrough, id: "strikethrough",       label_key: "shortcut_strikethrough" },
     ActionDef { action: EditorAction::TodoNext, id: "todo_next",           label_key: "shortcut_todo_next" },
     ActionDef { action: EditorAction::TodoPrev, id: "todo_prev",           label_key: "shortcut_todo_prev" },
+    ActionDef { action: EditorAction::PromoteSubtree, id: "promote_subtree", label_key: "shortcut_promote_subtree" },
+    ActionDef { action: EditorAction::DemoteSubtree, id: "demote_subtree",   label_key: "shortcut_demote_subtree" },
 ];
 
 /// Preset ids available in the UI (VI intentionally left as a future addition).
@@ -305,14 +336,14 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("previous_line",       &["ctrl+p"]),
             ("forward_word",        &["alt+f"]),
             ("backward_word",       &["alt+b"]),
-            ("beginning_of_buffer", &["alt+<", "alt+shift+<"]),
-            ("end_of_buffer",       &["alt+>", "alt+shift+>"]),
+            ("beginning_of_buffer", &["alt+<", "shift+alt+<"]),
+            ("end_of_buffer",       &["alt+>", "shift+alt+>"]),
             ("scroll_down",         &["ctrl+v"]),
             ("scroll_up",           &["alt+v"]),
             ("backward_sentence",   &["alt+a"]),
             ("forward_sentence",    &["alt+e"]),
-            ("backward_paragraph",  &["alt+shift+{", "ctrl+ArrowUp"]),
-            ("forward_paragraph",   &["alt+shift+}", "ctrl+ArrowDown"]),
+            ("backward_paragraph",  &["shift+alt+{", "ctrl+ArrowUp"]),
+            ("forward_paragraph",   &["shift+alt+}", "ctrl+ArrowDown"]),
             ("back_to_indentation", &["alt+m"]),
             ("previous_heading",    &["ctrl+c ctrl+p"]),
             ("next_heading",        &["ctrl+c ctrl+n"]),
@@ -321,7 +352,7 @@ pub fn preset_editor(preset: &str) -> Bindings {
             // isearch-forward / isearch-backward / query-replace
             ("find",                &["ctrl+s"]),
             ("find_previous",       &["ctrl+r"]),
-            ("replace",             &["alt+%", "alt+shift+%"]),
+            ("replace",             &["alt+%", "shift+alt+%"]),
             ("table_next_cell",     &["Tab"]),
             ("table_prev_cell",     &["shift+Tab"]),
             // org-emphasize (`C-c C-x C-f`) then the marker. Some markers need Shift,
@@ -333,6 +364,9 @@ pub fn preset_editor(preset: &str) -> Bindings {
             // org-shiftright / org-shiftleft on a headline (elsewhere, Shift+arrows select)
             ("todo_next",           &["shift+ArrowRight"]),
             ("todo_prev",           &["shift+ArrowLeft"]),
+            // org-promote-subtree / org-demote-subtree (M-S-<left> / M-S-<right>)
+            ("promote_subtree",     &["shift+alt+ArrowLeft"]),
+            ("demote_subtree",      &["shift+alt+ArrowRight"]),
         ]),
         // "classic" and any unknown preset fall back to the classic table.
         _ => m(&[
@@ -353,6 +387,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("italic",        &["ctrl+i"]),
             ("underline",     &["ctrl+u"]),
             ("strikethrough", &["ctrl+shift+x"]),
+            ("promote_subtree", &["shift+alt+ArrowLeft"]),
+            ("demote_subtree",  &["shift+alt+ArrowRight"]),
         ]),
     }
 }
@@ -385,6 +421,26 @@ mod tests {
                 assert!(EditorAction::from_id(id).is_some(), "{preset}: {id}");
             }
         }
+    }
+
+    #[test]
+    fn preset_bindings_are_canonical() {
+        for preset in EDITOR_PRESETS {
+            for b in preset_app(preset).values().chain(preset_editor(preset).values()).flatten() {
+                assert_eq!(&canonical(b), b, "{preset}");
+            }
+        }
+        assert_eq!(canonical("alt+shift+<"), "shift+alt+<");
+        assert_eq!(canonical("ctrl+c ctrl+x ctrl+f shift++"), "ctrl+c ctrl+x ctrl+f shift++");
+        assert_eq!(canonical("alt+ctrl+x"), "ctrl+alt+x");
+
+        let mut kb = Keybindings::defaults();
+        kb.profiles.push(Profile {
+            id: "c1".into(), name: "Mine".into(), editor_preset: "emacs".into(),
+            app: Bindings::new(), editor: m(&[("replace", &["alt+shift+%"])]),
+        });
+        kb.upgrade();
+        assert_eq!(kb.profiles[0].editor["replace"], vec!["shift+alt+%"]);
     }
 
     #[test]

@@ -141,6 +141,11 @@ pair of markers with the cursor between them.
 The "New heading" shortcut (Shift+Enter; also Alt+Enter in Emacs) inserts, below
 the current line, a headline of the same level as the current one.
 
+** Headline level
+On a headline, Alt+Shift+→ moves it one level down and Alt+Shift+← one level up,
+together with its sub-headlines, as Emacs' =M-S-<right>= / =M-S-<left>= do
+(=org-demote-subtree= / =org-promote-subtree=). A first-level headline doesn't go up.
+
 ** Find and replace
 - Find in the page: Enter for the next match, Shift+Enter for the previous one,
   Escape to close.
@@ -337,6 +342,7 @@ profile gets those of the actions it didn't know.
 | Underline                      | Ctrl+U              | Ctrl+C Ctrl+X Ctrl+F _        |
 | Strikethrough                  | Ctrl+Shift+X        | Ctrl+C Ctrl+X Ctrl+F +        |
 | Next / previous TODO state     | —                   | Shift+→ / Shift+←             |
+| Headline level down / up       | Alt+Shift+→ / ←     | Alt+Shift+→ / ←               |
 | Set mark / cancel              | —                   | Ctrl+Space / Ctrl+G           |
 | Start / end of line            | —                   | Ctrl+A / Ctrl+E               |
 | Next / previous character      | —                   | Ctrl+F / Ctrl+B               |
