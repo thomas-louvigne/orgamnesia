@@ -1,0 +1,402 @@
+#+TITLE: Orgamnesia — toutes les fonctionnalités
+
+Ce document décrit en détail ce que fait Orgamnesia. Pour l'installation et une
+vue d'ensemble, voir le [[file:../readme.fr.org][readme]]. Une version anglaise, avec
+des captures d'écran, est dans [[file:features.org][features.org]].
+
+* Sommaire                                                         :noexport:
+- [[*Projets et pages][Projets et pages]]
+- [[*Éditeur][Éditeur]]
+- [[*Liens et tags][Liens et tags]]
+- [[*États TODO][États TODO]]
+- [[*Tableaux][Tableaux]]
+- [[*Fenêtre][Fenêtre]]
+- [[*Panneau de droite][Panneau de droite]]
+- [[*Corbeille][Corbeille]]
+- [[*Raccourcis clavier][Raccourcis clavier]]
+- [[*Extensions][Extensions]]
+- [[*Préférences][Préférences]]
+- [[*Fichiers][Fichiers]]
+
+* Projets et pages
+
+** Projet
+Un projet est un dossier de pages =.org= liées entre elles.
+
+- Si le dossier contient un sous-dossier =pages/=, les pages y sont ; sinon, si le
+  dossier contient déjà des fichiers =.org=, il est utilisé tel quel. Un dossier
+  vide reçoit =pages/= et =assets/=.
+- Le nom du projet, en haut de la liste des pages, ouvre le menu des projets :
+  ouvrir un autre dossier, revenir à un projet récent, retirer un projet de la
+  liste (le dossier n'est pas touché).
+- Changer de projet avec des onglets non sauvegardés demande confirmation.
+- Sans projet ouvert, l'écran d'accueil propose d'en ouvrir un et liste les
+  projets récents.
+
+** Pages
+- *Créer* : bouton =+= de la liste des pages, raccourci « Nouvelle page », ou clic
+  droit dans la liste. Une nouvelle page commence par son titre (=* Nom=).
+- *Ouvrir* : clic dans la liste, ouverture rapide, ou Ctrl+clic sur un lien.
+- *Filtrer* : le champ « Filtrer la liste… » en haut de la liste des pages ne garde
+  que les pages dont le nom contient le texte tapé (sans tenir compte de la casse
+  ni des accents).
+- *Renommer* : clic droit sur la page (liste ou onglet), double-clic sur l'onglet,
+  ou clic droit sur le titre de la page. Les liens vers la page dans les autres
+  pages sont réécrits (réglable).
+- *Supprimer* : clic droit sur la page (liste ou onglet), en dernier dans le menu.
+  La page va dans la [[*Corbeille][corbeille]] du projet.
+
+** Ouverture rapide
+Le raccourci « Ouverture rapide » (Ctrl+K en Classique, Ctrl+X B ou Alt+X en Emacs)
+ouvre un champ qui cherche, sans tenir compte de la casse ni des accents :
+- les onglets ouverts ;
+- les pages du projet ;
+- les tags (choisir un tag l'affiche dans le cadre des tags) ;
+- et propose de créer la page si le nom tapé n'existe pas.
+
+** Sauvegarde et fichiers modifiés ailleurs
+- La sauvegarde est automatique à chaque frappe (désactivable) ; sinon, le
+  raccourci « Sauvegarder ». Un onglet non sauvegardé est marqué.
+- Les pages modifiées ou supprimées par un autre programme (synchronisation, git,
+  autre éditeur) sont rechargées. Un onglet avec des modifications non
+  sauvegardées n'est pas écrasé : un message le signale.
+- Quitter avec des pages non sauvegardées demande confirmation.
+
+** Nettoyage en quittant
+Deux options (désactivées par défaut) suppriment en quittant :
+- les pages vides (seulement des espaces, tabulations, retours à la ligne ou =*=) ;
+- les pages qui ne contiennent que leur titre (=* Nom=), comme une page créée puis
+  jamais remplie.
+
+Ces pages sont effacées définitivement, sans passer par la corbeille.
+
+** Session
+Au démarrage, les onglets et les volets ouverts à la fermeture sont rouverts
+(désactivable).
+
+* Éditeur
+
+** Coloration org-mode
+- Titres =*=, =**=… colorés par niveau, étoiles atténuées.
+- =*gras*=, =/italique/=, =_souligné_=, =+barré+= (pas au milieu d'un mot : =1+2+3=
+  reste tel quel).
+- Liens =[[page]]= et =[[page][texte]]=, =#mots-clés=, =:tags:=.
+- =#+TITLE:= et =#+FILETAGS:= : le mot-clé atténué, la valeur mise en valeur.
+- Tableaux, avec leurs lignes d'en-tête en gras.
+- Mots-clés TODO (voir [[*États TODO][États TODO]]).
+
+** Titre de la page
+Au-dessus de l'éditeur, en grand : le =#+TITLE:= de la page s'il en a un, sinon son
+nom. Clic droit dessus : renommer le fichier, ajouter ou modifier le =#+TITLE:=.
+Masquable dans les préférences.
+
+** Plier les titres
+Tab sur un titre le plie et le déplie comme dans org-mode :
+1. replié (tout ce qu'il contient est caché) ;
+2. seulement ses sous-titres, repliés ;
+3. tout affiché.
+
+Un titre plié se termine par =…=. Sans rien en dessous, un message l'indique.
+Retour arrière ou Suppr à côté du =…= déplie le titre au lieu d'effacer le texte
+caché. Désactivable (Tab fait alors comme ailleurs).
+
+** Indentation sous les titres
+Le texte sous un titre est décalé à la colonne du texte du titre, comme
+=org-indent-mode= d'Emacs. C'est un affichage seulement : le fichier ne contient pas
+ces espaces. Désactivable.
+
+** Numéros de ligne
+En option, dans la marge. Ils suivent les lignes du fichier, même quand un tableau
+est dessiné ou un titre plié.
+
+** Complétion
+Pendant la frappe, une liste propose :
+- les noms de pages après =[[= (accepter ferme le lien avec =]]=) ;
+- les noms de pages après =#= ;
+- les tags existants dans les tags d'un titre (=* Titre :pro=), dans =#+FILETAGS:= ou
+  après =:= dans le texte (accepter ajoute le =:= final).
+
+Flèches haut et bas (ou Ctrl+N / Ctrl+P) pour choisir, Entrée ou Tab pour accepter,
+Échap (ou Ctrl+G) pour fermer. La recherche ignore la casse et les accents.
+
+** Paires et mode électrique
+- Taper =(=, =[=, ={= ou ="= insère aussi le caractère fermant.
+- Mode électrique (activé par défaut) : taper =( ) [ ] { } " '= sur un texte
+  sélectionné l'entoure de la paire.
+
+** Mise en forme
+Gras, italique, souligné et barré par raccourci : sur une sélection, l'entoure
+des marqueurs (ou les retire s'ils y sont déjà) ; sans sélection, insère une paire
+de marqueurs avec le curseur au milieu.
+
+** Nouveau titre
+Le raccourci « Nouveau titre » (Maj+Entrée ; aussi Alt+Entrée en Emacs) insère, sous
+la ligne courante, un titre du même niveau que le titre en cours.
+
+** Recherche et remplacement
+- Rechercher dans la page : Entrée pour l'occurrence suivante, Maj+Entrée pour la
+  précédente, Échap pour fermer.
+- Le remplacement s'affiche avec son propre raccourci ou le bouton de la barre :
+  « Remplacer » (l'occurrence courante) ou « Tout ».
+- Par défaut, la recherche ignore la casse et les accents (« regle » trouve
+  « Règle ») ; un bouton, ou une préférence, la rend exacte.
+- Pendant la recherche, les tableaux sont affichés en texte.
+
+** Commandes Emacs
+Avec le profil Emacs : déplacements (caractère, mot, ligne, phrase, paragraphe,
+titre, début et fin de document, page), couper jusqu'à la fin de ligne, couper un
+mot, kill ring (couper puis coller avec Ctrl+Y), marqueur de sélection.
+
+*** Marqueur de sélection
+Ctrl+Espace pose une marque : la sélection suit ensuite le curseur, comme la région
+d'Emacs. Ctrl+Espace deux fois au même endroit, ou Ctrl+G, l'annule. Couper ou
+copier la région (Ctrl+W, Alt+W) la termine. Désactivable.
+
+*** Combinaisons en plusieurs touches
+Les raccourcis peuvent enchaîner plusieurs touches (=Ctrl+X Ctrl+S=). Les touches
+déjà tapées s'affichent dans la barre d'état ; Échap annule, et la combinaison est
+abandonnée après 4 secondes. On peut garder Ctrl enfoncé pour la deuxième touche
+(=Ctrl+X Ctrl+O= vaut =Ctrl+X O=).
+
+* Liens et tags
+
+** Liens entre pages
+- =[[Page]]= ou =[[Page][texte affiché]]= : lien vers une page.
+- =#mot-clé= : lien vers la page du même nom (désactivable). Les tirets sont acceptés
+  par défaut (=#mon-tag=) ; décoché, =#mon-tag= est lu comme =#mon=, comme org-mode.
+- Ctrl+clic, ou le raccourci « Suivre le lien » (Ctrl+Entrée en Classique,
+  Ctrl+C Ctrl+O en Emacs), ouvre la page du lien sous le curseur et la crée si elle
+  n'existe pas.
+- Par défaut, les liens ignorent la casse et les accents : =[[élody]]= mène à
+  =Elody=.
+
+** Tags org-mode
+- =#+FILETAGS: :a:b:= tague toute la page ; =* Titre :a:b:= tague un titre (et ses
+  sous-titres en héritent dans la recherche).
+- =:exemple:= dans le texte est aussi lu comme un tag.
+- Les tags sont des liens vers la page du même nom (désactivable).
+- Lettres, chiffres, =_ @ # %= seulement, comme org-mode ; les tirets sont en option.
+
+** Recherche de tags
+Dans le cadre des tags, avec la syntaxe d'org-mode :
+- =a+b= : a et b ; =a-b= : a sans b ; =a|b= : a ou b ;
+- avec les tirets autorisés dans les tags, écrire =a -b= pour exclure b.
+
+La casse compte. Les résultats sont les pages (par =#+FILETAGS:=) et les titres qui
+correspondent ; un clic ouvre la page à la bonne ligne. Le champ complète les
+noms de tags.
+
+* États TODO
+Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
+
+#+BEGIN_SRC org
+,* TODO Écrire la doc
+,** DOING Relire
+,* DONE Publier
+#+END_SRC
+
+- *Changer d'état* : sur une ligne de titre, quelle que soit la position du curseur,
+  « État TODO suivant » / « État TODO précédent » parcourt (rien) → TODO → DOING →
+  HANGUP → DONE → (rien). Raccourcis par défaut : Maj+→ et Maj+← dans le profil
+  Emacs, aucun dans le profil Classique (à attribuer dans les préférences). Hors
+  d'un titre, le raccourci fait ce qu'il fait d'habitude (Maj+flèches sélectionne).
+- *Affichage* : les états en cours en rouge, les états terminés en vert ; un titre
+  terminé est atténué.
+- *Liste des états* : dans les préférences, au format Emacs =TODO DOING HANGUP | DONE=.
+  Les états après le =|= sont les états terminés ; sans =|=, seul le dernier l'est.
+  Les suffixes Emacs (=TODO(t)=, =DONE(d!)=) sont acceptés et ignorés.
+- *Par page* : une ligne =#+TODO:= (ou =#+SEQ_TODO:=, =#+TYP_TODO:=) donne à la page
+  ses propres états. Plusieurs lignes font plusieurs suites : le cycle reste dans
+  la suite du mot-clé en cours.
+- *Vue d'ensemble* : le cadre « À faire » du panneau de droite.
+- Toute la fonction se désactive dans les préférences.
+
+* Tableaux
+- Un tableau org (=| a | b |=) est dessiné comme un vrai tableau tant que le curseur
+  n'est pas dedans ; il redevient du texte pour l'éditer.
+- Tab et Maj+Tab passent à la cellule suivante ou précédente et réalignent le
+  tableau, comme org-mode. Tab après la dernière cellule ajoute une ligne.
+- =|-= puis Tab trace la ligne de séparation ; les lignes au-dessus de la première
+  séparation sont l'en-tête.
+
+* Fenêtre
+
+** Onglets
+Chaque volet a ses onglets. Clic pour activer, double-clic pour renommer la page,
+clic droit pour renommer ou supprimer, =×= pour fermer.
+
+** Deux volets
+Comme les fenêtres d'Emacs : séparer l'éditeur côte à côte ou l'un au-dessus de
+l'autre, passer d'un volet à l'autre, fermer le volet courant ou ne garder que
+lui. Il faut une page ouverte pour séparer.
+
+** Historique des pages
+« Revenir à la page précédente » et « Aller à la page suivante » (Alt+← et Alt+→)
+parcourent les pages affichées dans le volet, comme un navigateur.
+
+** Zones de la fenêtre
+F6 et Maj+F6 passent des pages à l'éditeur et au panneau de droite. Les listes se
+parcourent au clavier.
+
+** Écran d'accueil
+Sans page ouverte : un bouton pour aller à une page et les raccourcis essentiels.
+
+** Barre d'état
+En bas de la fenêtre : messages (page enregistrée, erreur, combinaison en cours…).
+Après une suppression, elle propose « Annuler ». =×= la ferme.
+
+* Panneau de droite
+Chaque cadre se masque dans Préférences > Affichage ; le panneau disparaît quand
+tous le sont. Sa largeur se règle à la souris.
+
+- *Liens entrants* : les pages qui ont un lien vers la page affichée.
+- *Tags* : tous les tags du projet avec leur nombre, et la recherche de tags.
+  Le =+= de l'en-tête ajoute un tag à la page affichée (dans =#+FILETAGS:=) ; le =+=
+  d'un tag de la liste l'y ajoute directement.
+- *À faire* : les titres TODO de tout le projet, regroupés par page. Le filtre
+  affiche les titres en cours (par défaut), terminés, tous, ou un seul état. Un
+  clic ouvre la page sur le titre.
+- *Pages non créées* : les liens vers des pages qui n'existent pas, les plus
+  utilisés en premier. Clic : visite tour à tour les pages qui les utilisent ;
+  clic droit : créer la page, ou aller au lien dans une page précise. La hauteur
+  du cadre se règle à la souris.
+
+* Corbeille
+- Une page supprimée va dans le dossier =.trash/= du projet, sous le nom
+  =<heure>-<page>.org=. Ce dossier contient un =.gitignore= qui le garde hors de git.
+- La suppression demande confirmation (bouton rouge, focus sur Annuler : Entrée
+  n'efface pas).
+- Juste après, « Annuler » dans la barre d'état remet la page en place et la
+  rouvre si elle était ouverte. Si une page du même nom a été créée entre-temps,
+  la restauration est refusée.
+- Préférences > Édition > Corbeille :
+  - le nombre de pages dans la corbeille et un bouton « Vider la corbeille »
+    (définitif, avec confirmation) ;
+  - « Vider la corbeille automatiquement » (désactivé par défaut) : à l'ouverture
+    d'un projet, efface les pages gardées plus longtemps que la durée choisie
+    (30 jours par défaut), puis les plus anciennes tant que la corbeille dépasse le
+    poids maximum (10 000 000 octets par défaut). 0 = pas de limite pour ce critère.
+- L'âge d'une page vient de l'heure inscrite dans son nom. Un fichier déposé à la
+  main sans ce préfixe compte comme tout juste supprimé.
+
+* Raccourcis clavier
+
+** Profils
+Deux profils intégrés, *Classique* et *Emacs*, s'appliquent à toute l'application.
+Modifier un raccourci crée un profil personnalisé (renommable, duplicable,
+supprimable). Chaque action accepte deux raccourcis. Un conflit (même combinaison
+pour deux actions) est signalé et empêche d'enregistrer.
+
+Les profils intégrés reçoivent automatiquement les nouveaux raccourcis des
+versions suivantes ; un profil personnalisé reçoit ceux des actions qu'il ne
+connaissait pas.
+
+** Raccourcis par défaut
+
+*** Application
+| Action                      | Classique        | Emacs                     |
+|-----------------------------+------------------+---------------------------|
+| Nouvelle page               | Ctrl+N           | Ctrl+X Ctrl+F             |
+| Sauvegarder                 | Ctrl+S           | Ctrl+X Ctrl+S             |
+| Ouvrir les paramètres       | Ctrl+,           | Ctrl+,                    |
+| Ouverture rapide            | Ctrl+K           | Ctrl+X B, Alt+X           |
+| Fermer l'onglet             | Ctrl+W           | Ctrl+X K                  |
+| Onglet suivant / précédent  | Ctrl+Tab / +Maj  | Ctrl+X → / Ctrl+X ←       |
+| Page précédente / suivante  | Alt+← / Alt+→    | Alt+← / Alt+→             |
+| Séparer côte à côte         | Ctrl+Alt+V       | Ctrl+X 3                  |
+| Séparer haut / bas          | Ctrl+Alt+H       | Ctrl+X 2                  |
+| Fermer le volet             | Ctrl+Alt+W       | Ctrl+X 0                  |
+| Garder seulement ce volet   | Ctrl+Alt+O       | Ctrl+X 1                  |
+| Autre volet                 | Ctrl+O           | Ctrl+X O, Ctrl+O          |
+| Zone suivante / précédente  | F6 / Maj+F6      | F6 / Maj+F6               |
+| Quitter                     | Ctrl+Q           | Ctrl+X Ctrl+C             |
+
+*** Éditeur
+| Action                       | Classique          | Emacs                       |
+|------------------------------+--------------------+-----------------------------|
+| Copier / couper / coller     | Ctrl+C / X / V     | Alt+W / Ctrl+W / Ctrl+Y     |
+| Tout sélectionner            | Ctrl+A             | —                           |
+| Annuler / rétablir           | Ctrl+Z / Ctrl+Y    | Ctrl+/, Ctrl+X U / —        |
+| Nouveau titre                | Maj+Entrée         | Alt+Entrée, Maj+Entrée      |
+| Suivre le lien               | Ctrl+Entrée        | Ctrl+C Ctrl+O               |
+| Rechercher / précédent       | Ctrl+F, F3 / Maj+F3 | Ctrl+S / Ctrl+R            |
+| Remplacer                    | Ctrl+H             | Alt+%                       |
+| Cellule suivante / précédente | Tab / Maj+Tab     | Tab / Maj+Tab               |
+| Gras                         | Ctrl+B             | Ctrl+C Ctrl+X Ctrl+F *      |
+| Italique                     | Ctrl+I             | Ctrl+C Ctrl+X Ctrl+F /      |
+| Souligné                     | Ctrl+U             | Ctrl+C Ctrl+X Ctrl+F _      |
+| Barré                        | Ctrl+Maj+X         | Ctrl+C Ctrl+X Ctrl+F +      |
+| État TODO suivant / précédent | —                 | Maj+→ / Maj+←               |
+| Marqueur / annuler           | —                  | Ctrl+Espace / Ctrl+G        |
+| Début / fin de ligne         | —                  | Ctrl+A / Ctrl+E             |
+| Caractère suivant / précédent | —                 | Ctrl+F / Ctrl+B             |
+| Ligne suivante / précédente  | —                  | Ctrl+N / Ctrl+P             |
+| Mot suivant / précédent      | —                  | Alt+F / Alt+B               |
+| Phrase : fin / début         | —                  | Alt+E / Alt+A               |
+| Paragraphe : fin / début     | —                  | Alt+} / Alt+{ (Ctrl+↓ / ↑)  |
+| Premier caractère non blanc  | —                  | Alt+M                       |
+| Titre suivant / précédent    | —                  | Ctrl+C Ctrl+N / Ctrl+C Ctrl+P |
+| Début / fin du document      | —                  | Alt+< / Alt+>               |
+| Page suivante / précédente   | —                  | Ctrl+V / Alt+V              |
+| Couper jusqu'à fin de ligne  | —                  | Ctrl+K                      |
+| Couper le mot suivant / préc. | —                 | Alt+D / Alt+Retour arrière  |
+| Supprimer le caractère suivant | —                | Ctrl+D                      |
+
+En Classique, les déplacements et la sélection restent ceux du système (flèches,
+Origine, Fin, Maj+flèches…). Dans un profil, les raccourcis d'édition du navigateur
+qui ne sont pas attribués (par exemple Ctrl+C en Emacs) ne font rien.
+
+* Extensions
+
+** Git
+Sous le nom du projet : sa branche et ce qu'il reste à commiter, à pousser ou à
+récupérer (« À jour », « pas de branche distante », « détachée »…). Nécessite
+git ; les commits à récupérer sont comptés depuis le dernier =git fetch= (pas de
+fetch automatique). L'état se met à jour quand le dépôt change. Activé par défaut.
+
+** Export avec logseq-site-builder
+Désactivé par défaut. Activé, un bouton « Exporter » lance
+=logseq-site-builder build <projet>= (chemin du programme réglable) et affiche le
+résultat.
+
+* Préférences
+La fenêtre des préférences (Ctrl+,) se déplace et se redimensionne. « Appliquer »
+enregistre les changements sans fermer (un point signale qu'il y en a),
+« Sauvegarder » enregistre et ferme, « Annuler » ferme sans enregistrer.
+
+** Général
+- Dossier du projet par défaut.
+- Rouvrir les pages et les volets au démarrage.
+- Liens insensibles à la casse et aux accents.
+- =#mots-clés= comme liens, avec ou sans tirets.
+- =:tags:= comme liens, avec ou sans tirets.
+- Mettre à jour les liens quand on renomme une page.
+- Langue : français ou anglais.
+
+** Édition
+- Sauvegarde automatique.
+- Mode électrique.
+- Recherche exacte (casse et accents) par défaut.
+- Indenter le texte sous les titres.
+- Tab sur un titre le plie / déplie.
+- États TODO sur les titres, et la liste des états.
+- Supprimer en quittant les pages vides / les pages avec seulement leur titre.
+- Corbeille : la vider, la vider automatiquement, durée et poids maximum.
+
+** Affichage
+- Apparence : nom et logo, titre de la page, bouton pour quitter, numéros de ligne.
+- Cadres : menu des pages, liens entrants, tags, pages non créées, à faire.
+
+** Extensions
+- logseq-site-builder et son chemin.
+- Git.
+
+** Raccourcis
+Profil, raccourcis de l'application, des volets, de l'éditeur, du marqueur de
+sélection (avec son option) et des états TODO (avec leur option).
+
+* Fichiers
+- Les pages restent de simples fichiers =.org=, lisibles et modifiables avec Emacs
+  ou tout autre éditeur.
+- Réglages : =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=).
+- Corbeille : =<projet>/.trash/=.

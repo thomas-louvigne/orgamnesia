@@ -120,7 +120,7 @@ pub enum EditorAction {
     BackwardSentence, ForwardSentence, BackwardParagraph, ForwardParagraph,
     BackToIndentation, PreviousHeading, NextHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell,
-    Bold, Italic, Underline, Strikethrough,
+    Bold, Italic, Underline, Strikethrough, TodoNext, TodoPrev,
 }
 
 impl AppAction {
@@ -203,6 +203,8 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Italic, id: "italic",              label_key: "shortcut_italic" },
     ActionDef { action: EditorAction::Underline, id: "underline",           label_key: "shortcut_underline" },
     ActionDef { action: EditorAction::Strikethrough, id: "strikethrough",       label_key: "shortcut_strikethrough" },
+    ActionDef { action: EditorAction::TodoNext, id: "todo_next",           label_key: "shortcut_todo_next" },
+    ActionDef { action: EditorAction::TodoPrev, id: "todo_prev",           label_key: "shortcut_todo_prev" },
 ];
 
 /// Preset ids available in the UI (VI intentionally left as a future addition).
@@ -328,6 +330,9 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("italic",              &["ctrl+c ctrl+x ctrl+f /", "ctrl+c ctrl+x ctrl+f shift+/"]),
             ("underline",           &["ctrl+c ctrl+x ctrl+f _", "ctrl+c ctrl+x ctrl+f shift+_"]),
             ("strikethrough",       &["ctrl+c ctrl+x ctrl+f +", "ctrl+c ctrl+x ctrl+f shift++"]),
+            // org-shiftright / org-shiftleft on a headline (elsewhere, Shift+arrows select)
+            ("todo_next",           &["shift+ArrowRight"]),
+            ("todo_prev",           &["shift+ArrowLeft"]),
         ]),
         // "classic" and any unknown preset fall back to the classic table.
         _ => m(&[

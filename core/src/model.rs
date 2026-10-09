@@ -56,6 +56,20 @@ pub struct TagHit {
     pub tags: Vec<String>,
 }
 
+/// A headline with a TODO keyword, somewhere in the project.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TodoHit {
+    pub page: String,
+    pub path: String,
+    pub keyword: String,
+    pub done: bool,
+    /// The title after the keyword, without its tags.
+    pub title: String,
+    pub level: usize,
+    /// Line of the headline in the page (0-based).
+    pub line: usize,
+}
+
 /// Pages changed on disk by another program since the last look.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VaultChanges {

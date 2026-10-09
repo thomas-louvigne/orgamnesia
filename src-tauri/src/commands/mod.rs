@@ -1,7 +1,7 @@
 //! The commands the interface calls. Each one only hands the request to the
 //! project (`project.rs`), the settings or a tool, and returns its result.
 
-use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, TagCount, TagHit};
+use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, TagCount, TagHit, TodoHit};
 use tauri::{AppHandle, Manager, State};
 
 use crate::{
@@ -71,6 +71,11 @@ pub async fn set_keybindings(app: AppHandle, keybindings: keybindings::Keybindin
 pub async fn open_vault(state: State<'_, AppState>, app: AppHandle, path: String) -> Cmd<Vec<FileEntry>> {
     let project = Project::open(&path, state.prefs().tags())?;
     let files = project.files();
+    let prefs = state.prefs();
+    if prefs.trash_auto_empty {
+        let keep = (prefs.trash_keep_days > 0).then_some(prefs.trash_keep_days);
+        let _ = project.prune_trash(keep, prefs.trash_max_bytes);
+    }
 
     // Remember it as the open project, first of the list
     let mut s = state.settings();
@@ -114,10 +119,29 @@ pub async fn create_page(state: State<'_, AppState>, page_name: String) -> Cmd<F
     state.with_project(|p| p.create(&page_name, tags))
 }
 
-/// Delete a page of the open project (irreversible).
+/// Delete a page of the open project: it goes to the project's trash. Returns its path there.
 #[tauri::command]
-pub async fn delete_page(state: State<'_, AppState>, path: String) -> Cmd<()> {
+pub async fn delete_page(state: State<'_, AppState>, path: String) -> Cmd<String> {
     state.with_project(|p| p.delete(&path))
+}
+
+/// Number of pages in the project's trash.
+#[tauri::command]
+pub async fn trash_count(state: State<'_, AppState>) -> Cmd<usize> {
+    state.with_project(|p| p.trash_count())
+}
+
+/// Delete for good every page in the project's trash; returns how many.
+#[tauri::command]
+pub async fn empty_trash(state: State<'_, AppState>) -> Cmd<usize> {
+    state.with_project(|p| p.empty_trash())
+}
+
+/// Bring back a deleted page from the project's trash.
+#[tauri::command]
+pub async fn restore_page(state: State<'_, AppState>, trashed: String) -> Cmd<FileEntry> {
+    let tags = state.prefs().tags();
+    state.with_project(|p| p.restore(&trashed, tags))
 }
 
 #[tauri::command]
@@ -150,6 +174,13 @@ pub async fn list_tags(state: State<'_, AppState>) -> Cmd<Vec<TagCount>> {
 pub async fn search_tags(state: State<'_, AppState>, query: String) -> Cmd<Vec<TagHit>> {
     let org = state.prefs().tags().org;
     state.with_project(|p| Ok(p.search_tags(&query, org)))
+}
+
+/// Headlines of the project with a TODO keyword; none when TODO keywords are off.
+#[tauri::command]
+pub async fn list_todos(state: State<'_, AppState>) -> Cmd<Vec<TodoHit>> {
+    let Some(keywords) = state.prefs().todo() else { return Ok(vec![]) };
+    state.with_project(|p| Ok(p.todos(&keywords)))
 }
 
 // ─── Extensions ──────────────────────────────────────────────────────────────

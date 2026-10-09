@@ -4,7 +4,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use orgamnesia_core::{BrokenLink, FileEntry, OrgTags, Prefs, TagCount, TagHit, TagSyntax, VaultChanges};
+use orgamnesia_core::{BrokenLink, FileEntry, OrgTags, Prefs, TagCount, TagHit, TagSyntax, TodoHit, TodoKeywords, VaultChanges};
 
 use crate::{error::AppError, index::backlinks::BacklinkIndex, parser, tags, vault};
 
@@ -89,12 +89,93 @@ impl Project {
         Ok(FileEntry { name, path })
     }
 
-    /// Delete a page (irreversible).
-    pub fn delete(&mut self, path: &str) -> Result<(), AppError> {
+    /// Delete a page: it goes to the project's trash (`.trash/`, named
+    /// `<time>-<page>.org`), from where `restore` brings it back. Returns its path there.
+    pub fn delete(&mut self, path: &str) -> Result<String, AppError> {
         self.check_page(path)?;
-        std::fs::remove_file(path)?;
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+        let to = self.trash_dir()?.join(format!("{stamp}-{}.org", vault::page_name(path)));
+        std::fs::rename(path, &to)?;
         self.forget(path);
-        Ok(())
+        Ok(to.to_string_lossy().to_string())
+    }
+
+    /// Bring back a page `delete` put in the trash, under its name.
+    pub fn restore(&mut self, trashed: &str, tags: TagSyntax) -> Result<FileEntry, AppError> {
+        let p = Path::new(trashed);
+        let in_trash = p.parent().and_then(|d| std::fs::canonicalize(d).ok())
+            == std::fs::canonicalize(self.trash_dir()?).ok();
+        let name = p.file_stem().and_then(|s| s.to_str()).and_then(|s| s.split_once('-')).map(|(_, n)| n);
+        let (Some(name), true) = (name, in_trash && p.extension().and_then(|e| e.to_str()) == Some("org")) else {
+            return Err(AppError::NotAPage(trashed.to_string()));
+        };
+        let path = vault::page_path(&self.path, name);
+        if path.exists() {
+            return Err(AppError::PageExists(name.to_string()));
+        }
+        std::fs::rename(p, &path)?;
+        let path = path.to_string_lossy().to_string();
+        self.store(&path, std::fs::read_to_string(&path).unwrap_or_default(), tags);
+        self.remember(&path);
+        Ok(FileEntry { name: name.to_string(), path })
+    }
+
+    /// Number of pages in the trash.
+    pub fn trash_count(&self) -> Result<usize, AppError> {
+        Ok(self.trashed()?.len())
+    }
+
+    /// Delete for good every page in the trash. Returns how many went.
+    pub fn empty_trash(&self) -> Result<usize, AppError> {
+        self.prune_trash(Some(0), 0)
+    }
+
+    /// Delete for good the pages of the trash deleted more than `keep_days` days
+    /// ago (`Some(0)`: all of them; `None`: no limit), then the oldest ones while
+    /// the trash holds more than `max_bytes` bytes (0: no limit). Returns how many went.
+    pub fn prune_trash(&self, keep_days: Option<u64>, max_bytes: u64) -> Result<usize, AppError> {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+        let limit = keep_days.map(|d| now.saturating_sub(u128::from(d) * 86_400_000));
+        let mut pages = self.trashed()?;
+        // Oldest first; a page with no time in its name counts as just deleted
+        pages.sort_by_key(|p| p.deleted_at.unwrap_or(now));
+        let mut size: u64 = pages.iter().map(|p| p.size).sum();
+        let mut gone = 0;
+        for p in pages {
+            let too_old = limit.is_some_and(|l| p.deleted_at.unwrap_or(now) <= l);
+            let too_big = max_bytes > 0 && size > max_bytes;
+            if !too_old && !too_big { continue; }
+            std::fs::remove_file(&p.path)?;
+            size -= p.size;
+            gone += 1;
+        }
+        Ok(gone)
+    }
+
+    /// The pages in the trash.
+    fn trashed(&self) -> Result<Vec<Trashed>, AppError> {
+        Ok(std::fs::read_dir(self.trash_dir()?)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|e| e.to_str()) == Some("org"))
+            .map(|e| {
+                let path = e.path();
+                let deleted_at = path.file_stem().and_then(|s| s.to_str()).and_then(|s| s.split_once('-'))
+                    .and_then(|(t, _)| t.parse().ok());
+                Trashed { size: e.metadata().map_or(0, |m| m.len()), path, deleted_at }
+            })
+            .collect())
+    }
+
+    /// The trash folder of the project, created if needed, with a `.gitignore`
+    /// keeping it out of git.
+    fn trash_dir(&self) -> Result<PathBuf, AppError> {
+        let dir = Path::new(&self.path).join(".trash");
+        std::fs::create_dir_all(&dir)?;
+        let ignore = dir.join(".gitignore");
+        if !ignore.exists() {
+            std::fs::write(ignore, "*\n")?;
+        }
+        Ok(dir)
     }
 
     /// Rename a page; when the settings say so, the links to it in every page follow.
@@ -225,6 +306,23 @@ impl Project {
         }).collect()
     }
 
+    /// Every headline of the project with a TODO keyword (`keywords`: those of the
+    /// settings, which a page's `#+TODO:` lines replace), by page then line.
+    pub fn todos(&self, keywords: &TodoKeywords) -> Vec<TodoHit> {
+        self.files().into_iter().flat_map(|f| {
+            let content = self.pages.get(&f.path).map(String::as_str).unwrap_or("");
+            orgamnesia_core::todo::headlines(content, keywords).into_iter().map(move |h| TodoHit {
+                page: f.name.clone(),
+                path: f.path.clone(),
+                keyword: h.keyword,
+                done: h.done,
+                title: h.title,
+                level: h.level,
+                line: h.line,
+            }).collect::<Vec<_>>()
+        }).collect()
+    }
+
     fn store(&mut self, path: &str, content: String, tags: TagSyntax) {
         self.links.index_file(&vault::page_name(path), &parser::extract_links(&content, tags));
         self.pages.insert(path.to_string(), content);
@@ -243,6 +341,14 @@ impl Project {
             self.snapshot.insert(path.to_string(), s);
         }
     }
+}
+
+/// A page in the trash.
+struct Trashed {
+    path: PathBuf,
+    /// When it was deleted (ms since 1970), from its name.
+    deleted_at: Option<u128>,
+    size: u64,
 }
 
 /// `name` trimmed, if it can be a page name (and so a file name).
@@ -302,6 +408,53 @@ mod tests {
 
         p.delete(&path_of(&p, "b")).unwrap();
         assert_eq!(p.files().len(), 1);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn deleted_pages_go_to_the_trash_and_come_back() {
+        let (dir, mut p) = project("trash", &[("a", "* a\n"), ("b", "[[a]]\n")]);
+        let trashed = p.delete(&path_of(&p, "a")).unwrap();
+        assert_eq!(p.files().len(), 1);
+        assert!(Path::new(&trashed).exists() && trashed.ends_with("-a.org"));
+        assert!(dir.join(".trash/.gitignore").exists());
+        assert_eq!(p.broken_links(false).len(), 1);
+
+        let back = p.restore(&trashed, Hashtags::Dashes.into()).unwrap();
+        assert_eq!(back.name, "a");
+        assert_eq!(p.read(&back.path).unwrap(), "* a\n");
+        assert!(p.broken_links(false).is_empty());
+        // Only from the trash, and not over a page of the same name
+        assert!(matches!(p.restore(&back.path, Hashtags::Dashes.into()), Err(AppError::NotAPage(_))));
+        let again = p.delete(&back.path).unwrap();
+        p.create("a", Hashtags::Dashes.into()).unwrap();
+        assert!(matches!(p.restore(&again, Hashtags::Dashes.into()), Err(AppError::PageExists(_))));
+
+        // Emptying: the old ones, then the oldest beyond the size, then all
+        std::fs::write(dir.join(".trash/1000-vieux.org"), "").unwrap();
+        std::fs::write(dir.join(".trash/2000-moins-vieux.org"), "x".repeat(100)).unwrap();
+        std::fs::write(dir.join(".trash/3000-recent.org"), "x".repeat(100)).unwrap();
+        let recent = format!("{}-neuf.org", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        std::fs::write(dir.join(".trash").join(recent), "x".repeat(10)).unwrap();
+        assert_eq!(p.trash_count().unwrap(), 5);
+        // No limit at all: nothing goes
+        assert_eq!(p.prune_trash(None, 0).unwrap(), 0);
+        // Over 150 bytes (214 here): the oldest go until it fits, whatever their size
+        assert_eq!(p.prune_trash(None, 150).unwrap(), 2);
+        assert!(dir.join(".trash/3000-recent.org").exists() && !dir.join(".trash/2000-moins-vieux.org").exists());
+        assert_eq!(p.prune_trash(Some(30), 0).unwrap(), 1);
+        assert_eq!(p.empty_trash().unwrap(), 2);
+        assert_eq!(p.trash_count().unwrap(), 0);
+        assert!(dir.join(".trash/.gitignore").exists());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn lists_the_todos_of_every_page() {
+        let (dir, p) = project("todos", &[("a", "* TODO un\n** DONE deux\n"), ("b", "#+TODO: A | B\n* A trois\n* TODO pas ici\n")]);
+        let todos = p.todos(&TodoKeywords::parse("TODO | DONE"));
+        let seen: Vec<(&str, &str, bool, usize)> = todos.iter().map(|t| (t.page.as_str(), t.title.as_str(), t.done, t.line)).collect();
+        assert_eq!(seen, vec![("a", "un", false, 0), ("a", "deux", true, 1), ("b", "trois", false, 1)]);
         std::fs::remove_dir_all(dir).unwrap();
     }
 

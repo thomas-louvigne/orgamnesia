@@ -139,14 +139,7 @@ pub fn Sidebar() -> impl IntoView {
                     type="text"
                     class="search-input"
                     aria-label={move || t("filter_hint", ctx.lang.get())}
-                    placeholder={move || {
-                        // With the shortcut of the quick open (search any page), discreetly
-                        let hint = t("filter_hint", ctx.lang.get());
-                        match ctx.keybindings.with(|kb| kb.app_binds("quick_open").first().cloned()) {
-                            Some(b) => format!("{hint}   {}", crate::keybindings::display(&b)),
-                            None => hint.to_string(),
-                        }
-                    }}
+                    placeholder={move || t("filter_hint", ctx.lang.get())}
                     prop:value=move || filter.get()
                     on:input=move |e| filter.set(event_target_value(&e))
                 />
@@ -236,23 +229,14 @@ pub fn Sidebar() -> impl IntoView {
                         }
                     />
                     <div class="ctx-menu" style=format!("left:{x}px;top:{y}px")>
-                        {target.map(|f| {
-                            let f_del = f.clone();
-                            view! {
-                                <button class="ctx-menu-item" on:click=move |_| {
-                                    close();
-                                    rename_value.set(f.name.clone());
-                                    renaming.set(Some(f.path.clone()));
-                                }>
-                                    {move || t("rename", ctx.lang.get())}
-                                </button>
-                                <button class="ctx-menu-item ctx-menu-danger" on:click=move |_| {
-                                    close();
-                                    actions::delete_page(ctx, f_del.clone());
-                                }>
-                                    {move || t("delete_page", ctx.lang.get())}
-                                </button>
-                            }
+                        {target.clone().map(|f| view! {
+                            <button class="ctx-menu-item" on:click=move |_| {
+                                close();
+                                rename_value.set(f.name.clone());
+                                renaming.set(Some(f.path.clone()));
+                            }>
+                                {move || t("rename", ctx.lang.get())}
+                            </button>
                         })}
                         <button class="ctx-menu-item" on:click=move |_| {
                             close();
@@ -260,6 +244,16 @@ pub fn Sidebar() -> impl IntoView {
                         }>
                             {move || t("new_page_title", ctx.lang.get())}
                         </button>
+                        // Deleting comes last, set apart
+                        {target.map(|f| view! {
+                            <div class="ctx-menu-sep" role="separator" />
+                            <button class="ctx-menu-item ctx-menu-danger" on:click=move |_| {
+                                close();
+                                actions::delete_page(ctx, f.clone());
+                            }>
+                                {move || t("delete_page", ctx.lang.get())}
+                            </button>
+                        })}
                     </div>
                 }
             })}

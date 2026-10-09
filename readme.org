@@ -29,9 +29,18 @@ an AI. Review the code with the same critical eye as any other contribution.
   split in two panes, Emacs or Classic keybindings (configurable).
 - *Tables*: drawn as real tables; Tab / Shift+Tab move between cells and realign
   the table as in Emacs; =|-= + Tab draws the header rule.
+- *TODO states* on headlines (=* TODO Title=): highlighted, and stepped through
+  with Shift+←/→ in the Emacs keybindings. The states are set in the settings
+  (=TODO DOING HANGUP | DONE=) or by a =#+TODO:= line in the page. The "To do"
+  frame gathers the TODO headlines of the whole project.
+- *Trash*: a deleted page goes to the project's =.trash= folder; "Undo" in the
+  status bar brings it back. The settings empty it, by hand or automatically
+  (maximum age and size can be set).
 - *Extensions*: git state of the project, export to a website with
   =logseq-site-builder=.
 - Pages changed by another program (sync, git…) are reloaded. French and English.
+
+Every feature is described in detail, with screenshots, in [[file:docs/features.org][docs/features.org]].
 
 * Installation (Linux)
 

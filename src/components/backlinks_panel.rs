@@ -6,7 +6,7 @@ use crate::{
     i18n::t,
     invoke,
     keybindings::after_ms,
-    state::{AppCtx, BrokenLink, Drag, Goto, TagHit},
+    state::{AppCtx, BrokenLink, Drag, Goto, TagHit, TodoHit},
 };
 
 #[component]
@@ -102,6 +102,38 @@ pub fn BacklinksPanel() -> impl IntoView {
             });
         });
     });
+
+    // Headlines of the project with a TODO keyword. Refreshed (debounced) like the tags.
+    let todos = RwSignal::new(Vec::<TodoHit>::new());
+    let todos_seq = StoredValue::new(0u32);
+    let show_todos = move || ctx.pref(|p| p.show_todos && p.todo_enabled);
+    Effect::new(move |_| {
+        ctx.project.files.track();
+        ctx.project.links_version.track();
+        ctx.pref(|p| p.todo_keywords.clone());
+        if ctx.project.vault_path.get().is_none() || !show_todos() {
+            todos.set(vec![]);
+            return;
+        }
+        let seq = todos_seq.get_value() + 1;
+        todos_seq.set_value(seq);
+        after_ms(400, move || {
+            if todos_seq.try_get_value() != Some(seq) { return; }
+            spawn_local(async move {
+                if let Ok(list) = invoke::list_todos().await
+                    && todos.try_get_untracked().is_some_and(|t| t != list) { todos.set(list); }
+            });
+        });
+    });
+    // Which ones are shown: "open" (not done), "done", "all", or one keyword
+    let todo_filter = RwSignal::new("open".to_string());
+    let todo_keywords = move || -> Vec<String> {
+        let mut seen: Vec<String> = Vec::new();
+        todos.with(|list| for h in list {
+            if !seen.contains(&h.keyword) { seen.push(h.keyword.clone()); }
+        });
+        seen
+    };
 
     // Open the page called `name`; with `target`, also move the cursor there.
     let open_page = move |name: String, target: Option<Goto>| actions::open_page_named(ctx, &name, target);
@@ -360,8 +392,63 @@ pub fn BacklinksPanel() -> impl IntoView {
                     </div>
                 </div>
             })}
+            {move || show_todos().then(|| view! {
+                <div class="panel-section">
+                    <div class="panel-header panel-header-row">
+                        <span>{move || t("todo_panel", ctx.lang.get())}</span>
+                        <select
+                            class="todo-filter"
+                            aria-label=move || t("todo_filter", ctx.lang.get())
+                            prop:value=move || todo_filter.get()
+                            on:change=move |e| todo_filter.set(event_target_value(&e))
+                        >
+                            <option value="open">{move || t("todo_filter_open", ctx.lang.get())}</option>
+                            <option value="done">{move || t("todo_filter_done", ctx.lang.get())}</option>
+                            <option value="all">{move || t("todo_filter_all", ctx.lang.get())}</option>
+                            {move || todo_keywords().into_iter().map(|k| view! {
+                                <option value=k.clone() selected=move || todo_filter.get() == k>{k.clone()}</option>
+                            }).collect_view()}
+                        </select>
+                    </div>
+                    <div class="panel-body">
+                        {move || {
+                            let filter = todo_filter.get();
+                            let list: Vec<TodoHit> = todos.get().into_iter().filter(|h| match filter.as_str() {
+                                "open" => !h.done,
+                                "done" => h.done,
+                                "all" => true,
+                                k => h.keyword == k,
+                            }).collect();
+                            if list.is_empty() {
+                                return view! { <p class="no-backlinks">{t("no_todos", ctx.lang.get())}</p> }.into_any();
+                            }
+                            // By page, in the order of the pages
+                            let mut last_page = String::new();
+                            list.into_iter().map(|h| {
+                                let page_title = (h.page != last_page).then(|| {
+                                    last_page = h.page.clone();
+                                    view! { <div class="todo-page">{h.page.clone()}</div> }
+                                });
+                                let (page, line) = (h.page.clone(), h.line);
+                                let class = if h.done { "backlink-item todo-item list-item is-done" } else { "backlink-item todo-item list-item" };
+                                let tip = format!("{} — {} {}", h.page, "*".repeat(h.level), h.title);
+                                view! {
+                                    {page_title}
+                                    <div class=class title=tip role="button" tabindex="0"
+                                        on:keydown=crate::a11y::list_item_keys
+                                        on:click=move |_| open_page(page.clone(), Some(Goto::Line(line)))
+                                    >
+                                        <span class=if h.done { "done" } else { "todo" }>{h.keyword.clone()}</span>
+                                        <span class="todo-item-title">{h.title.clone()}</span>
+                                    </div>
+                                }
+                            }).collect_view().into_any()
+                        }}
+                    </div>
+                </div>
+            })}
             // The bar resizes the block below; alone in the panel, the block fills it
-            {move || (ctx.pref(|p| p.show_broken_links) && (ctx.pref(|p| p.show_backlinks) || ctx.pref(|p| p.show_tags)))
+            {move || (ctx.pref(|p| p.show_broken_links) && (ctx.pref(|p| p.show_backlinks) || ctx.pref(|p| p.show_tags) || show_todos()))
                 .then(|| view! {
                     <div class="resizer-h" on:mousedown=move |e: web_sys::MouseEvent| {
                         e.prevent_default();

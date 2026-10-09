@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, GitStatus, TagCount, TagHit}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, GitStatus, TagCount, TagHit, TodoHit}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -85,8 +85,26 @@ pub async fn rename_page(old_path: &str, new_name: &str) -> Result<FileEntry, St
     call("rename_page", serde_json::json!({ "oldPath": old_path, "newName": new_name })).await
 }
 
-pub async fn delete_page(path: &str) -> Result<(), String> {
+/// Returns the path of the page in the project's trash.
+pub async fn delete_page(path: &str) -> Result<String, String> {
     call("delete_page", serde_json::json!({ "path": path })).await
+}
+
+pub async fn restore_page(trashed: &str) -> Result<FileEntry, String> {
+    call("restore_page", serde_json::json!({ "trashed": trashed })).await
+}
+
+pub async fn trash_count() -> Result<usize, String> {
+    call("trash_count", serde_json::json!({})).await
+}
+
+/// Returns how many pages were deleted.
+pub async fn empty_trash() -> Result<usize, String> {
+    call("empty_trash", serde_json::json!({})).await
+}
+
+pub async fn list_todos() -> Result<Vec<TodoHit>, String> {
+    call("list_todos", serde_json::json!({})).await
 }
 
 pub async fn get_backlinks(page: &str) -> Result<Vec<String>, String> {

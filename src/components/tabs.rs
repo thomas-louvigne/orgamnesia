@@ -156,6 +156,7 @@ fn TabItem(
                             >
                                 {move || t("rename", ctx.lang.get())}
                             </button>
+                            <div class="ctx-menu-sep" role="separator" />
                             <button
                                 class="ctx-menu-item ctx-menu-danger"
                                 on:click=move |_| {

@@ -2,7 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Hashtags, OrgTags, TagSyntax};
+use crate::{Hashtags, OrgTags, TagSyntax, TodoKeywords};
+
+/// The TODO keywords when none are set (Emacs style: done states after the `|`).
+pub const DEFAULT_TODO_KEYWORDS: &str = "TODO DOING HANGUP | DONE";
 
 /// `settings.json`. A missing value (older file, or never set) means the
 /// default: see `Prefs`, the only place defaults are decided.
@@ -29,6 +32,10 @@ pub struct Settings {
     pub indent_headings: Option<bool>,
     /// Tab on a headline folds / unfolds it (org-mode cycle).
     pub tab_folds: Option<bool>,
+    /// TODO keywords on headlines (`* TODO Titre`), stepped through with a shortcut.
+    pub todo_enabled: Option<bool>,
+    /// The TODO keywords, as in Emacs: `TODO DOING | DONE`.
+    pub todo_keywords: Option<String>,
     /// Emacs mark: Ctrl+Space starts a region that follows the cursor.
     pub emacs_mark: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
@@ -39,6 +46,13 @@ pub struct Settings {
     pub delete_empty_pages: Option<bool>,
     /// On quit, delete pages holding only their `* Title` heading.
     pub delete_title_only_pages: Option<bool>,
+    /// On opening a project, empty its trash of the pages deleted for too long, or
+    /// beyond its size (see the two below).
+    pub trash_auto_empty: Option<bool>,
+    /// Days a deleted page stays in the trash (0: no limit).
+    pub trash_keep_days: Option<u64>,
+    /// Size of the trash in bytes beyond which its oldest pages go (0: no limit).
+    pub trash_max_bytes: Option<u64>,
     /// On start, show again the pages and panes open when the app was quit.
     pub restore_session: Option<bool>,
     /// App name and logo at the top left of the window.
@@ -54,6 +68,8 @@ pub struct Settings {
     pub show_backlinks: Option<bool>,
     pub show_tags: Option<bool>,
     pub show_broken_links: Option<bool>,
+    /// "To do" frame: the headlines of the project with a TODO keyword.
+    pub show_todos: Option<bool>,
     /// Enable the logseq-site-builder extension (Export button).
     pub site_builder_enabled: Option<bool>,
     /// Git extension: show the git state of the project under its name.
@@ -112,6 +128,9 @@ pub struct Prefs {
     pub autosave: bool,
     pub delete_empty: bool,
     pub delete_title_only: bool,
+    pub trash_auto_empty: bool,
+    pub trash_keep_days: u64,
+    pub trash_max_bytes: u64,
     pub restore_session: bool,
     pub show_brand: bool,
     pub show_page_title: bool,
@@ -121,6 +140,7 @@ pub struct Prefs {
     pub show_backlinks: bool,
     pub show_tags: bool,
     pub show_broken_links: bool,
+    pub show_todos: bool,
     pub site_builder: bool,
     pub git_ext: bool,
     pub case_insensitive_links: bool,
@@ -131,6 +151,8 @@ pub struct Prefs {
     pub find_match_case: bool,
     pub indent_headings: bool,
     pub tab_folds: bool,
+    pub todo_enabled: bool,
+    pub todo_keywords: String,
     pub emacs_mark: bool,
     pub electric_mode: bool,
 }
@@ -151,6 +173,9 @@ impl Prefs {
             autosave: s.autosave.unwrap_or(true),
             delete_empty: s.delete_empty_pages.unwrap_or(false),
             delete_title_only: s.delete_title_only_pages.unwrap_or(false),
+            trash_auto_empty: s.trash_auto_empty.unwrap_or(false),
+            trash_keep_days: s.trash_keep_days.unwrap_or(30),
+            trash_max_bytes: s.trash_max_bytes.unwrap_or(10_000_000),
             restore_session: s.restore_session.unwrap_or(true),
             show_brand: s.show_brand.unwrap_or(true),
             show_page_title: s.show_page_title.unwrap_or(true),
@@ -160,6 +185,7 @@ impl Prefs {
             show_backlinks: s.show_backlinks.unwrap_or(true),
             show_tags: s.show_tags.unwrap_or(true),
             show_broken_links: s.show_broken_links.unwrap_or(true),
+            show_todos: s.show_todos.unwrap_or(true),
             site_builder: s.site_builder_enabled.unwrap_or(false),
             git_ext: s.git_status_enabled.unwrap_or(true),
             case_insensitive_links: s.case_insensitive_links.unwrap_or(true),
@@ -170,6 +196,9 @@ impl Prefs {
             find_match_case: s.find_match_case.unwrap_or(false),
             indent_headings: s.indent_headings.unwrap_or(true),
             tab_folds: s.tab_folds.unwrap_or(true),
+            todo_enabled: s.todo_enabled.unwrap_or(true),
+            todo_keywords: s.todo_keywords.clone().filter(|k| !k.trim().is_empty())
+                .unwrap_or_else(|| DEFAULT_TODO_KEYWORDS.to_string()),
             emacs_mark: s.emacs_mark.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
         }
@@ -190,11 +219,16 @@ impl Prefs {
             find_match_case: Some(self.find_match_case),
             indent_headings: Some(self.indent_headings),
             tab_folds: Some(self.tab_folds),
+            todo_enabled: Some(self.todo_enabled),
+            todo_keywords: Some(self.todo_keywords.clone()),
             emacs_mark: Some(self.emacs_mark),
             electric_mode: Some(self.electric_mode),
             autosave: Some(self.autosave),
             delete_empty_pages: Some(self.delete_empty),
             delete_title_only_pages: Some(self.delete_title_only),
+            trash_auto_empty: Some(self.trash_auto_empty),
+            trash_keep_days: Some(self.trash_keep_days),
+            trash_max_bytes: Some(self.trash_max_bytes),
             restore_session: Some(self.restore_session),
             show_brand: Some(self.show_brand),
             show_page_title: Some(self.show_page_title),
@@ -204,6 +238,7 @@ impl Prefs {
             show_backlinks: Some(self.show_backlinks),
             show_tags: Some(self.show_tags),
             show_broken_links: Some(self.show_broken_links),
+            show_todos: Some(self.show_todos),
             site_builder_enabled: Some(self.site_builder),
             git_status_enabled: Some(self.git_ext),
             projects,
@@ -218,6 +253,11 @@ impl Prefs {
             org: OrgTags { links: self.org_tag_links, dashes: self.org_tag_dashes },
         }
     }
+
+    /// The TODO keywords of the settings; `None` when they are off.
+    pub fn todo(&self) -> Option<TodoKeywords> {
+        self.todo_enabled.then(|| TodoKeywords::parse(&self.todo_keywords))
+    }
 }
 
 #[cfg(test)]
@@ -229,6 +269,9 @@ mod tests {
         let p = Settings::default().prefs();
         assert!(p.autosave && p.git_ext && !p.site_builder && !p.delete_empty && p.restore_session);
         assert_eq!(p.lang, "fr");
+        assert_eq!(p.todo(), Some(TodoKeywords::parse(DEFAULT_TODO_KEYWORDS)));
+        let blank = Settings { todo_keywords: Some(" ".into()), ..Settings::default() };
+        assert_eq!(blank.prefs().todo_keywords, DEFAULT_TODO_KEYWORDS);
         assert_eq!(p.tags(), TagSyntax { hashtags: Hashtags::Dashes, org: OrgTags::default() });
     }
 

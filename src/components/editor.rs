@@ -351,6 +351,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         completion.set(Some(PageCompletion { start, caret, kind, items, selected: 0, x, y }));
     };
     let (content_sig, dirty_sig) = (tab.content, tab.dirty);
+    // TODO keywords of the page (its `#+TODO:` lines, else the settings'); None when off
+    let todo_keywords = Memo::new(move |_| {
+        ctx.pref(|p| p.todo()).map(|d| content_sig.with(|c| orgamnesia_core::TodoKeywords::for_page(c, &d)))
+    });
 
     // ── Tables drawn as tables (see `tables`) ─────────────────────────────────
     // The textarea holds a view of the page where the tables are drawn, but the
@@ -809,6 +813,28 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             track_caret(&el);
             return;
         }
+        // On a headline, the TODO keyword goes to its next / previous state (org-mode
+        // Shift+arrows); elsewhere, or with TODO keywords off, the key does what it usually does
+        if matches!(action, EditorAction::TodoNext | EditorAction::TodoPrev) {
+            let Some(keywords) = todo_keywords.get_untracked() else { return };
+            let chars: Vec<char> = el.value().chars().collect();
+            let (_, end) = get_pos(&el);
+            let (ls, le) = edit::line_bounds(&chars, end);
+            // The view may indent the line, and ends a folded headline with its fold character
+            let ls = ls + chars[ls..le].iter().take_while(|&&c| c == tables::INDENT).count();
+            let le = if le > ls && tables::fold_index(chars[le - 1]).is_some() { le - 1 } else { le };
+            let forward = action == EditorAction::TodoNext;
+            let Some((a, b, with)) = keywords.cycle(&chars[ls..le], forward) else { return };
+            e.prevent_default();
+            e.stop_propagation();
+            let (a, b) = (ls + a, ls + b);
+            let new_b = splice(&el, a, b, &with);
+            // The caret keeps its place in the title
+            set_cursor(&el, if end >= b { end + new_b - b } else { end.min(a) });
+            commit(&el);
+            track_caret(&el);
+            return;
+        }
         e.prevent_default();
         e.stop_propagation();
 
@@ -987,7 +1013,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         }
     });
 
-    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.tags(), ctx.pref(|p| p.show_line_numbers)));
+    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.tags(), todo_keywords.get(), ctx.pref(|p| p.show_line_numbers)));
     let region_html = move || {
         if !ctx.pref(|p| p.emacs_mark) { return String::new(); }
         mark.get().map(|m| {

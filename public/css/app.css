@@ -653,6 +653,10 @@ kbd {
 .h5 { color: var(--cyan);   font-weight: bold; }
 .h6 { color: var(--purple); font-weight: bold; }
 .h-stars { opacity: 0.5; }
+/* TODO keywords (org-mode): no padding, the text must stay on the textarea's columns */
+.todo  { color: var(--red);   background: color-mix(in srgb, var(--red) 16%, transparent);   border-radius: 3px; }
+.done  { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); border-radius: 3px; }
+.h-done { color: var(--fg-dim); }
 
 .tags  { color: var(--purple); }
 .tbl   { color: var(--cyan); }
@@ -749,6 +753,20 @@ kbd {
 .tag-hit-page { overflow: hidden; text-overflow: ellipsis; }
 .tag-hit-heading { color: var(--fg-dim); font-size: var(--fs-meta); overflow: hidden; text-overflow: ellipsis; }
 
+/* "To do": the TODO headlines of the project, by page */
+.todo-filter {
+    background: var(--bg); color: var(--fg-dim); border: 1px solid var(--border);
+    border-radius: 4px; font: inherit; font-size: var(--fs-meta); font-weight: normal; padding: 1px 4px;
+}
+.todo-page {
+    padding: 8px 12px 2px; color: var(--fg-dim); font-size: var(--fs-meta);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.todo-item { display: flex; gap: 6px; align-items: baseline; }
+.todo-item .todo, .todo-item .done { font-size: var(--fs-meta); font-weight: 600; padding: 0 4px; flex-shrink: 0; }
+.todo-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-item.is-done .todo-item-title { color: var(--fg-dim); }
+
 /* ── Status bar ────────────────────────────────────────────── */
 .status-bar {
     display: flex;
@@ -772,6 +790,11 @@ kbd {
     margin-left: 12px;
 }
 .status-close:hover { color: #fff; }
+.status-undo {
+    margin-left: auto; background: rgba(0, 0, 0, .2); border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 4px; color: #fff; font: inherit; font-weight: 600; padding: 1px 10px; cursor: pointer;
+}
+.status-undo:hover { background: rgba(0, 0, 0, .35); }
 
 /* ── Context menu ──────────────────────────────────────────── */
 .ctx-overlay {
@@ -803,6 +826,7 @@ kbd {
     cursor: pointer;
 }
 .ctx-menu-danger { color: var(--red); }
+.ctx-menu-sep { height: 1px; margin: 4px 0; background: var(--border); }
 .ctx-menu-item:hover { background: var(--accent); color: #fff; }
 
 /* ── Modal ─────────────────────────────────────────────────── */
@@ -893,7 +917,11 @@ kbd {
 }
 
 .setting-row { display: flex; flex-direction: column; gap: 6px; }
-.setting-hint { font-size: var(--fs-meta); color: var(--fg-dim); }
+/* Explanations under a setting: read as help, not as another setting */
+.setting-hint {
+    font-size: var(--fs-meta); font-style: italic; color: var(--fg-dim);
+    line-height: 1.45; padding-left: 10px; border-left: 2px solid var(--border);
+}
 .setting-row label { font-size: var(--fs-meta); color: var(--fg-dim); }
 
 .setting-sub { padding-left: 24px; }
@@ -937,6 +965,20 @@ kbd {
     font-size: var(--fs-ui); cursor: pointer;
 }
 .btn-secondary:hover { border-color: var(--fg-dim); }
+
+.btn-danger {
+    background: var(--red); border: none; border-radius: 4px;
+    color: #fff; padding: 7px 20px; font-size: var(--fs-ui); cursor: pointer;
+}
+.btn-danger:hover { opacity: .9; }
+.btn-pick-danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 50%, var(--border)); }
+.btn-pick-danger:hover:not(:disabled) { color: #fff; background: var(--red); border-color: var(--red); }
+.btn-pick-danger:disabled { opacity: .4; cursor: not-allowed; }
+.number-row { align-items: center; }
+.setting-number { max-width: 160px; font-variant-numeric: tabular-nums; }
+.setting-unit { font-size: var(--fs-meta); color: var(--fg-dim); white-space: nowrap; }
+.trash-row { align-items: center; justify-content: space-between; font-size: var(--fs-ui); }
+.btn-secondary:focus-visible, .btn-danger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ── Keybinding editor ─────────────────────────────────────── */
 .setting-section-title {

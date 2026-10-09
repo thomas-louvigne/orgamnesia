@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::{i18n::{t, Lang}, keybindings::Keybindings};
 
-pub use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, Prefs, Session, Settings, SplitKind, TagCount, TagHit, VaultChanges};
+pub use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, Prefs, Session, Settings, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
 
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +39,8 @@ impl Tab {
 pub struct ConfirmReq {
     pub message: String,
     pub on_yes: Callback<()>,
+    /// A destructive action: the label key of its (red) button, and Cancel has the focus.
+    pub danger: Option<&'static str>,
 }
 
 /// Which resize bar is being dragged.
@@ -106,6 +108,9 @@ pub struct Ui {
     pub confirm: RwSignal<Option<ConfirmReq>>,
     /// Message of the status bar.
     pub status: RwSignal<Option<String>>,
+    /// A message of the status bar with an "Undo" button, and what the button does.
+    /// The button shows while the status bar shows that message.
+    pub status_undo: RwSignal<Option<(String, Callback<()>)>>,
     /// Resize bar being dragged.
     pub drag: RwSignal<Option<Drag>>,
 }
@@ -158,6 +163,7 @@ impl AppCtx {
                 show_quick_open: RwSignal::new(false),
                 confirm: RwSignal::new(None),
                 status: RwSignal::new(None),
+                status_undo: RwSignal::new(None),
                 drag: RwSignal::new(None),
             },
         }
@@ -207,7 +213,7 @@ impl AppCtx {
 
     /// Whether the right-hand panel has any frame to show.
     pub fn has_right_panel(&self) -> bool {
-        self.pref(|p| p.show_backlinks || p.show_tags || p.show_broken_links)
+        self.pref(|p| p.show_backlinks || p.show_tags || p.show_broken_links || (p.show_todos && p.todo_enabled))
     }
 
     /// How `#tags` and `:tags:` are read, from the settings (tracked: re-runs effects
@@ -237,12 +243,24 @@ impl AppCtx {
 
     /// Ask the user to confirm; `on_yes` runs only if they accept.
     pub fn ask_confirm(&self, message: String, on_yes: impl Fn() + Send + Sync + 'static) {
-        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()) }));
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: None }));
+    }
+
+    /// Ask the user to confirm a destructive action, done by the button `button` (label key).
+    pub fn ask_confirm_danger(&self, message: String, button: &'static str, on_yes: impl Fn() + Send + Sync + 'static) {
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: Some(button) }));
     }
 
     /// Show a message in the status bar.
     pub fn notify(&self, msg: impl Into<String>) {
         self.ui.status.set(Some(msg.into()));
+    }
+
+    /// Show a message in the status bar with an "Undo" button running `undo`.
+    pub fn notify_undo(&self, msg: impl Into<String>, undo: impl Fn() + Send + Sync + 'static) {
+        let msg = msg.into();
+        self.ui.status_undo.set(Some((msg.clone(), Callback::new(move |_| undo()))));
+        self.notify(msg);
     }
 
     /// Show the text of `key`, followed by `detail` (a page name…).

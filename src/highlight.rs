@@ -1,4 +1,5 @@
 use crate::motion::{Hashtags, OrgTags, TagSyntax};
+use orgamnesia_core::TodoKeywords;
 
 thread_local! {
     /// How `#tags` and `:tags:` are drawn as links (set by `render_view`, read while
@@ -11,6 +12,11 @@ thread_local! {
 
 fn tags() -> TagSyntax {
     TAGS.with(|t| t.get())
+}
+
+thread_local! {
+    /// The TODO keywords of the page, `None` when they are off (set by `render_view`).
+    static TODO: std::cell::RefCell<Option<TodoKeywords>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Plain-text copy of the document with the char range `start..end` wrapped in
@@ -28,8 +34,10 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
 /// (see `tables`): the first line of a collapsed table draws the whole table,
 /// over the empty lines that follow it.
 /// With `numbers`, each line of the page starts with its number, drawn in the margin.
-pub fn render_view(view: &crate::tables::View, tags: TagSyntax, numbers: bool) -> String {
+/// `todo`: the TODO keywords drawn on headlines (`None` when they are off).
+pub fn render_view(view: &crate::tables::View, tags: TagSyntax, todo: Option<TodoKeywords>, numbers: bool) -> String {
     TAGS.with(|t| t.set(tags));
+    TODO.with(|t| *t.borrow_mut() = todo);
     let mut out = String::with_capacity(view.text.len() * 2);
     let lines: Vec<&str> = view.text.split('\n').collect();
     let heads = header_lines(&lines);
@@ -125,17 +133,26 @@ fn highlight_line(line: &str) -> String {
     let stars = line.bytes().take_while(|&b| b == b'*').count();
     if stars > 0 && matches!(line.as_bytes().get(stars), Some(b' ') | None) {
         let level = stars.min(6);
-        let title_start = (stars + 1).min(chars.len());
+        // `TODO`, `DONE`…: drawn on their own, the title after them
+        let keyword = TODO.with(|t| t.borrow().as_ref().and_then(|k| k.keyword(&chars)));
+        let (keyword_html, title_start) = match keyword {
+            Some(k) => (
+                format!("<span class='{}'>{}</span>", if k.done { "done" } else { "todo" }, escape(&text(k.start, k.end))),
+                k.end,
+            ),
+            None => (String::new(), (stars + 1).min(chars.len())),
+        };
         let (title, tags_html) = match crate::motion::headline_tags_range(&chars, tags().org) {
-            Some((a, b)) => (text(title_start, a), format!(
+            Some((a, b)) if a >= title_start => (text(title_start, a), format!(
                 "<span class='tags'>{}</span>{}", tag_links(&text(a, b)), escape(&text(b, chars.len())))),
-            None => (text(title_start, chars.len()), String::new()),
+            _ => (text(title_start, chars.len()), String::new()),
         };
         return format!(
-            "<span class='h{level}'>\
+            "<span class='h{level}{}'>\
              <span class='h-stars'>{}</span>{}\
-             {}{}\
+             {keyword_html}{}{}\
              </span>",
+            if keyword.is_some_and(|k| k.done) { " h-done" } else { "" },
             "*".repeat(stars),
             if stars < chars.len() { " " } else { "" },
             inline_html(&title),
@@ -424,11 +441,11 @@ mod tests {
     #[test]
     fn org_tags_in_text_drawn_as_links() {
         let v = crate::tables::View { text: "voir :ex: à 10:30:".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
-        let html = render_view(&v, Hashtags::Off.into(), false);
+        let html = render_view(&v, Hashtags::Off.into(), None, false);
         assert!(html.contains(":<span class='tag-t'>ex</span>:"));
         assert!(!html.contains("30</span>"));
         let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
-        assert!(!render_view(&v, off, false).contains("tag-t"));
+        assert!(!render_view(&v, off, None, false).contains("tag-t"));
     }
 
     #[test]
@@ -436,10 +453,10 @@ mod tests {
         // A collapsed table of 3 rows takes 4 lines of the view, numbered as its 3 lines
         let page = "a\n| x |\n|---|\n| y |\nb";
         let v = crate::tables::View::build(page, None, 80, |_| 4, true, false, &[]);
-        let html = render_view(&v, Hashtags::Off.into(), true);
+        let html = render_view(&v, Hashtags::Off.into(), None, true);
         let nums: Vec<&str> = html.split("<span class='ln'>").skip(1).map(|s| &s[..s.find('<').unwrap()]).collect();
         assert_eq!(nums, vec!["1", "2", "5"]);
-        assert!(!render_view(&v, Hashtags::Off.into(), false).contains("class='ln'"));
+        assert!(!render_view(&v, Hashtags::Off.into(), None, false).contains("class='ln'"));
     }
 
     #[test]
@@ -449,9 +466,21 @@ mod tests {
     }
 
     #[test]
+    fn todo_keywords_on_headlines() {
+        let v = crate::tables::View { text: "** TODO a :x:\n* DONE b\n* TODOS c".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
+        let kw = Some(TodoKeywords::parse("TODO | DONE"));
+        let html = render_view(&v, Hashtags::Off.into(), kw, false);
+        assert!(html.contains("<span class='h-stars'>**</span> <span class='todo'>TODO</span> a <span class='tags'>"));
+        assert!(html.contains("<span class='h1 h-done'><span class='h-stars'>*</span> <span class='done'>DONE</span> b"));
+        assert!(!html.contains("TODOS</span>"));
+        // Off: plain titles
+        assert!(!render_view(&v, Hashtags::Off.into(), None, false).contains("class='todo'"));
+    }
+
+    #[test]
     fn table_header_bold_while_edited() {
         let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
-        let html = render_view(&v, Hashtags::Off.into(), false);
+        let html = render_view(&v, Hashtags::Off.into(), None, false);
         assert!(html.contains("<span class='tbl tbl-head'>| a | b |</span>"));
         assert!(!html.contains("tbl-head'>| c"));
     }

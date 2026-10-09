@@ -31,9 +31,18 @@ que n'importe quelle contribution.
   (configurables).
 - *Tableaux* : dessinés comme de vrais tableaux ; Tab / Maj+Tab passent d'une cellule
   à l'autre et réalignent le tableau comme dans Emacs ; =|-= + Tab trace la ligne d'en-tête.
+- *États TODO* sur les titres (=* TODO Titre=) : mis en valeur, et changés avec
+  Maj+←/→ dans les raccourcis Emacs. Les états se règlent dans les préférences
+  (=TODO DOING HANGUP | DONE=) ou par une ligne =#+TODO:= dans la page. Le cadre
+  « À faire » rassemble les titres TODO de tout le projet.
+- *Corbeille* : une page supprimée va dans le dossier =.trash= du projet ; « Annuler »
+  dans la barre d'état la remet en place. Les préférences la vident, à la main ou
+  automatiquement (durée et poids maximum réglables).
 - *Extensions* : état git du projet, export en site web avec =logseq-site-builder=.
 - Les pages modifiées par un autre programme (synchro, git…) sont rechargées.
   Français et anglais.
+
+Le détail de toutes les fonctionnalités est dans [[file:docs/fonctionnalites.org][docs/fonctionnalites.org]].
 
 * Installation (Linux)
 

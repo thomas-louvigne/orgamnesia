@@ -64,6 +64,112 @@ fn Check(
     }
 }
 
+/// The project's trash: how many pages it holds, a button to empty it, and the
+/// setting to empty it automatically.
+#[component]
+fn TrashSettings(draft: RwSignal<Prefs>) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    // None: no project open
+    let count = RwSignal::new(None::<usize>);
+    Effect::new(move |_| {
+        if ctx.project.vault_path.get().is_none() { count.set(None); return; }
+        spawn_local(async move {
+            if let Ok(n) = invoke::trash_count().await { let _ = count.try_set(Some(n)); }
+        });
+    });
+    let empty = move |_| {
+        let Some(n) = count.get_untracked().filter(|&n| n > 0) else { return };
+        let l = ctx.lang.get_untracked();
+        let msg = format!("{} {n} {}", t("trash_empty_confirm", l), t("trash_empty_confirm_end", l));
+        ctx.ask_confirm_danger(msg, "trash_empty", move || {
+            spawn_local(async move {
+                match invoke::empty_trash().await {
+                    Ok(gone) => {
+                        let _ = count.try_set(Some(0));
+                        ctx.notify_t("trash_emptied", &gone.to_string());
+                    }
+                    Err(e) => ctx.error("trash_empty_error", &e),
+                }
+            });
+        });
+    };
+    view! {
+        <div class="setting-section-title">{move || t("trash_section", lang())}</div>
+        {move || count.get().map(|n| view! {
+            <div class="setting-row">
+                <div class="setting-input-row trash-row">
+                    <span>{move || format!("{} {n}", t("trash_count", lang()))}</span>
+                    <button class="btn-pick btn-pick-danger" prop:disabled=n == 0 on:click=empty>
+                        {move || t("trash_empty", lang())}
+                    </button>
+                </div>
+            </div>
+        })}
+        <Check draft get=|p| p.trash_auto_empty set=|p, v| p.trash_auto_empty = v
+            label="trash_auto_empty" hint="trash_auto_empty_hint" />
+        <NumberField draft get=|p| p.trash_keep_days set=|p, v| p.trash_keep_days = v
+            label="trash_keep_days" hint="trash_keep_days_hint" />
+        <NumberField draft get=|p| p.trash_max_bytes set=|p, v| p.trash_max_bytes = v
+            label="trash_max_bytes" hint="trash_max_bytes_hint" readable=true />
+    }
+}
+
+/// A whole number setting of the trash, greyed out while it is not emptied automatically.
+/// With `readable`, the size in bytes is also given in kB / MB.
+#[component]
+fn NumberField(
+    draft: RwSignal<Prefs>,
+    get: fn(&Prefs) -> u64,
+    set: fn(&mut Prefs, u64),
+    label: &'static str,
+    hint: &'static str,
+    #[prop(optional)] readable: bool,
+) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    view! {
+        <div class="setting-row setting-sub">
+            <label>{move || t(label, lang())}</label>
+            <div class="setting-input-row number-row">
+                <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    class="setting-input setting-number"
+                    prop:disabled=move || !draft.with(|p| p.trash_auto_empty)
+                    prop:value=move || draft.with(get).to_string()
+                    on:input=move |e| {
+                        // A field left empty or invalid counts as 0 (no limit)
+                        let v = event_target_value(&e).trim().parse().unwrap_or(0);
+                        draft.update(|p| set(p, v));
+                    }
+                />
+                {readable.then(|| view! {
+                    <span class="setting-unit">{move || readable_size(draft.with(get), lang())}</span>
+                })}
+            </div>
+            <span class="setting-hint">{move || t(hint, lang())}</span>
+        </div>
+    }
+}
+
+/// `10000000` → "≈ 10 Mo" / "≈ 10 MB" (decimal units, as file managers show them); "" for 0.
+fn readable_size(bytes: u64, lang: Lang) -> String {
+    let fr = lang == Lang::Fr;
+    let units = if fr { ["o", "ko", "Mo", "Go"] } else { ["B", "kB", "MB", "GB"] };
+    let (value, unit) = match bytes {
+        0 => return String::new(),
+        b if b >= 1_000_000_000 => (b as f64 / 1e9, units[3]),
+        b if b >= 1_000_000 => (b as f64 / 1e6, units[2]),
+        b if b >= 1_000 => (b as f64 / 1e3, units[1]),
+        b => return format!("{b} {}", units[0]),
+    };
+    let text = format!("{value:.1}").replace(".0", "");
+    let text = if fr { text.replace('.', ",") } else { text };
+    format!("≈ {text} {unit}")
+}
+
 /// A folder path field with its "Browse…" button.
 #[component]
 fn PathField(
@@ -108,6 +214,9 @@ const SPLIT_ACTIONS: &[AppAction] = &[
 
 /// Editor actions of the selection marker; shown in their own section.
 const MARK_ACTIONS: &[EditorAction] = &[EditorAction::SetMark, EditorAction::KeyboardQuit];
+
+/// Editor actions of the TODO states; shown in their own section.
+const TODO_ACTIONS: &[EditorAction] = &[EditorAction::TodoNext, EditorAction::TodoPrev];
 
 /// Combinations bound to more than one action, with the label keys of those actions.
 type Conflicts = Vec<(String, Vec<&'static str>)>;
@@ -523,8 +632,24 @@ pub fn SettingsModal() -> impl IntoView {
                                 label="indent_headings" hint="indent_headings_hint" />
                             <Check draft get=|p| p.tab_folds set=|p, v| p.tab_folds = v
                                 label="tab_folds" hint="tab_folds_hint" />
+                            <Check draft get=|p| p.todo_enabled set=|p, v| p.todo_enabled = v
+                                label="todo_enabled" hint="todo_enabled_hint" />
+                            <div class="setting-row setting-sub">
+                                <label>{move || t("todo_keywords", lang())}</label>
+                                <input
+                                    type="text"
+                                    class="setting-input"
+                                    spellcheck="false"
+                                    prop:disabled=move || !draft.with(|p| p.todo_enabled)
+                                    placeholder=orgamnesia_core::settings::DEFAULT_TODO_KEYWORDS
+                                    prop:value=move || draft.with(|p| p.todo_keywords.clone())
+                                    on:input=move |e| draft.update(|p| p.todo_keywords = event_target_value(&e))
+                                />
+                                <span class="setting-hint">{move || t("todo_keywords_hint", lang())}</span>
+                            </div>
                             <Check draft get=|p| p.delete_empty set=|p, v| p.delete_empty = v label="delete_empty_pages" />
                             <Check draft get=|p| p.delete_title_only set=|p, v| p.delete_title_only = v label="delete_title_only_pages" />
+                            <TrashSettings draft />
                         </div>
                     })}
 
@@ -548,6 +673,8 @@ pub fn SettingsModal() -> impl IntoView {
                             <Check draft get=|p| p.show_backlinks set=|p, v| p.show_backlinks = v label="show_backlinks" />
                             <Check draft get=|p| p.show_tags set=|p, v| p.show_tags = v label="show_tags" />
                             <Check draft get=|p| p.show_broken_links set=|p, v| p.show_broken_links = v label="show_broken_links" />
+                            <Check draft get=|p| p.show_todos set=|p, v| p.show_todos = v label="show_todos"
+                                disabled=|p| !p.todo_enabled />
                         </div>
                     })}
 
@@ -652,7 +779,7 @@ pub fn SettingsModal() -> impl IntoView {
                             </div>
                             <KeybindingHeader lang=ctx.lang />
                             {keybindings::EDITOR_ACTIONS.iter()
-                                .filter(|a| !MARK_ACTIONS.contains(&a.action))
+                                .filter(|a| !MARK_ACTIONS.contains(&a.action) && !TODO_ACTIONS.contains(&a.action))
                                 .map(|a| view! {
                                     <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
                                 }).collect_view()}
@@ -664,6 +791,17 @@ pub fn SettingsModal() -> impl IntoView {
                             <KeybindingHeader lang=ctx.lang />
                             {keybindings::EDITOR_ACTIONS.iter()
                                 .filter(|a| MARK_ACTIONS.contains(&a.action))
+                                .map(|a| view! {
+                                    <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
+                                }).collect_view()}
+
+                            <div class="setting-section-title">
+                                {move || t("todo_section", lang())}
+                            </div>
+                            <Check draft get=|p| p.todo_enabled set=|p, v| p.todo_enabled = v label="todo_enabled" />
+                            <KeybindingHeader lang=ctx.lang />
+                            {keybindings::EDITOR_ACTIONS.iter()
+                                .filter(|a| TODO_ACTIONS.contains(&a.action))
                                 .map(|a| view! {
                                     <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
                                 }).collect_view()}
@@ -869,5 +1007,20 @@ fn KeybindingSlot(
                 on:click=clear
             >"×"</button>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::readable_size;
+    use crate::i18n::Lang;
+
+    #[test]
+    fn sizes_read_in_decimal_units() {
+        assert_eq!(readable_size(0, Lang::Fr), "");
+        assert_eq!(readable_size(512, Lang::Fr), "512 o");
+        assert_eq!(readable_size(1_500, Lang::Fr), "≈ 1,5 ko");
+        assert_eq!(readable_size(10_000_000, Lang::Fr), "≈ 10 Mo");
+        assert_eq!(readable_size(2_340_000_000, Lang::En), "≈ 2.3 GB");
     }
 }

@@ -281,23 +281,46 @@ pub fn rename_page(ctx: AppCtx, old_path: String, new_name: String) {
     });
 }
 
-/// Delete a page after confirmation, and close its tab if open.
+/// Delete a page after confirmation, and close its tab if open. The page goes to
+/// the project's trash: the status bar offers to undo.
 pub fn delete_page(ctx: AppCtx, file: FileEntry) {
     let lang = ctx.lang.get_untracked();
-    let msg = format!("{} « {} » ?", t("delete_confirm", lang), file.name);
-    ctx.ask_confirm(msg, move || {
+    let msg = format!("{} « {} » ? {}", t("delete_confirm", lang), file.name, t("delete_confirm_trash", lang));
+    ctx.ask_confirm_danger(msg, "delete_page_button", move || {
         let file = file.clone();
         spawn_local(async move {
             match invoke::delete_page(&file.path).await {
-                Ok(()) => {
+                Ok(trashed) => {
+                    let was_open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().any(|t| t.path == file.path));
                     ctx.project.files.update(|fs| fs.retain(|f| f.path != file.path));
                     close_tab_of(ctx, &file.path);
                     ctx.bump_links();
-                    ctx.ui.status.set(Some(format!("{} {}", t("deleted", lang), file.name)));
+                    ctx.notify_undo(format!("{} {}", t("deleted", lang), file.name), move || {
+                        restore_page(ctx, trashed.clone(), was_open);
+                    });
                 }
                 Err(e) => ctx.error("delete_error", &e),
             }
         });
+    });
+}
+
+/// Bring back the page deleted to `trashed`; reopen it when it was open.
+fn restore_page(ctx: AppCtx, trashed: String, reopen: bool) {
+    spawn_local(async move {
+        match invoke::restore_page(&trashed).await {
+            Ok(file) => {
+                let name = file.name.clone();
+                ctx.project.files.update(|fs| {
+                    fs.push(file);
+                    fs.sort_by(|a, b| a.name.cmp(&b.name));
+                });
+                ctx.bump_links();
+                if reopen { open_page_named(ctx, &name, None); }
+                ctx.notify_t("restored", &name);
+            }
+            Err(e) => ctx.error("restore_error", &e),
+        }
     });
 }
 

@@ -56,22 +56,30 @@ fn ConfirmDialog() -> impl IntoView {
             req.on_yes.run(());
         }
     };
+    // A destructive action is not done by Enter: Cancel has the focus, Enter presses it
+    let danger = ctx.ui.confirm.get_untracked().and_then(|r| r.danger);
     let keys = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
         match e.key().as_str() {
             "Escape" => { e.stop_propagation(); close(); }
-            "Enter"  => { e.stop_propagation(); accept(); }
+            "Enter" if danger.is_none() => { e.stop_propagation(); accept(); }
             _ => {}
         }
     });
     on_cleanup(move || keys.remove());
+    let cancel_ref = NodeRef::<leptos::html::Button>::new();
+    Effect::new(move |_| {
+        if danger.is_some() && let Some(b) = cancel_ref.get() { let _ = b.focus(); }
+    });
 
     view! {
         <div class="alert-overlay" on:click=move |_| close()>
             <div class="alert-box confirm" role="alertdialog" on:click=|e| e.stop_propagation()>
                 <p>{move || ctx.ui.confirm.get().map(|r| r.message).unwrap_or_default()}</p>
                 <div class="alert-buttons">
-                    <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
-                    <button class="btn-primary" on:click=move |_| accept()>{move || t("confirm", lang())}</button>
+                    <button class="btn-secondary" node_ref=cancel_ref on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                    <button class=if danger.is_some() { "btn-danger" } else { "btn-primary" } on:click=move |_| accept()>
+                        {move || t(danger.unwrap_or("confirm"), lang())}
+                    </button>
                 </div>
             </div>
         </div>
@@ -417,12 +425,22 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.show_settings.get().then(|| view! { <SettingsModal /> })}
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <ConfirmDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
-            {move || ctx.ui.status.get().map(|msg| view! {
+            {move || ctx.ui.status.get().map(|msg| {
+                // The "Undo" button of this message, if it has one
+                let undo = ctx.ui.status_undo.get().filter(|(m, _)| *m == msg).map(|(_, f)| f);
+                view! {
                 <div class="status-bar">
                     <span>{msg}</span>
+                    {undo.map(|f| view! {
+                        <button class="status-undo" on:click=move |_| {
+                            ctx.ui.status_undo.set(None);
+                            ctx.ui.status.set(None);
+                            f.run(());
+                        }>{move || t("undo", ctx.lang.get())}</button>
+                    })}
                     <button class="status-close" aria-label=move || t("close", ctx.lang.get()) on:click=move |_| ctx.ui.status.set(None)>"×"</button>
                 </div>
-            })}
+            }})}
         </div>
     }
 }
