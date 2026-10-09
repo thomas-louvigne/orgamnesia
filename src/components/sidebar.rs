@@ -375,24 +375,45 @@ fn GitButtons() -> impl IntoView {
         }
     };
     let button = move |op: GitOp, label: &'static str, id: &'static str, icon: &'static str,
-                       enabled: fn(&orgamnesia_core::GitStatus) -> bool, run: fn(AppCtx)| view! {
-        <button
-            class=move || if busy() == Some(op) { "git-btn running" } else { "git-btn" }
-            title=move || tip(label, id)
-            aria-label=move || tip(label, id)
-            prop:disabled=move || busy().is_some() || !enabled(&git())
-            on:click=move |_| run(ctx)
-        >
-            <span aria-hidden="true">{icon}</span>
-            {move || t(label, lang())}
-        </button>
+                       enabled: fn(&orgamnesia_core::GitStatus) -> bool,
+                       waiting: fn(&orgamnesia_core::GitStatus) -> u32, run: fn(AppCtx)| {
+    // Commits waiting for this button (the ones to push): it stands out, with their count
+    let waiting = move || if busy().is_some() { 0 } else { waiting(&git()) };
+    let tip = move || match waiting() {
+        0 => tip(label, id),
+        n => format!("{} — {n} {}", tip(label, id), t("git_to_push", lang())),
     };
     view! {
+        <button
+            class=move || match (busy() == Some(op), waiting() > 0) {
+                (true, _) => "git-btn running",
+                (_, true) => "git-btn ready",
+                _ => "git-btn",
+            }
+            title=tip
+            aria-label=tip
+            prop:disabled=move || busy().is_some() || !enabled(&git())
+            aria-busy=move || (busy() == Some(op)).then_some("true")
+            on:click=move |_| run(ctx)
+        >
+            // While it runs (a push can take a while): a spinner in place of its icon
+            {move || if busy() == Some(op) {
+                view! { <span class="git-spinner" aria-hidden="true"></span> }.into_any()
+            } else {
+                view! { <span aria-hidden="true">{icon}</span> }.into_any()
+            }}
+            {move || t(label, lang())}
+            {move || (waiting() > 0).then(|| view! {
+                <span class="git-count" aria-hidden="true">{waiting()}</span>
+            })}
+        </button>
+    }};
+    view! {
         <div class="git-buttons">
-            {button(GitOp::Pull, "git_pull", "git_pull", "↓", |g| g.upstream, crate::git::pull)}
+            {button(GitOp::Pull, "git_pull", "git_pull", "↓", |g| g.upstream, |_| 0, crate::git::pull)}
             // Also with no change seen yet: unsaved pages are saved first
-            {button(GitOp::Commit, "git_commit", "git_commit", "●", |_| true, crate::git::open_commit)}
-            {button(GitOp::Push, "git_push", "git_push", "↑", |g| g.ahead > 0 || !g.upstream, crate::git::push)}
+            {button(GitOp::Commit, "git_commit", "git_commit", "●", |_| true, |_| 0, crate::git::open_commit)}
+            {button(GitOp::Push, "git_push", "git_push", "↑", |g| g.ahead > 0 || !g.upstream, |g| g.ahead, crate::git::push)}
         </div>
     }
 }

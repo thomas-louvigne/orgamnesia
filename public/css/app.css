@@ -841,7 +841,23 @@ kbd {
 }
 .git-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--fg-dim); }
 .git-btn:disabled { opacity: .4; cursor: default; }
-.git-btn.running { color: var(--accent); border-color: var(--accent); opacity: 1; }
+.git-btn.ready { color: var(--accent2); border-color: var(--accent); }
+.git-btn.ready:hover:not(:disabled) { color: var(--fg); border-color: var(--accent2); }
+.git-count {
+    min-width: 14px; padding: 0 4px; border-radius: 7px; line-height: 14px; text-align: center;
+    background: var(--accent); color: var(--bg); font-size: .85em; font-weight: 600;
+}
+.git-btn.running { color: var(--accent2); border-color: var(--accent); opacity: 1; cursor: progress; }
+.git-spinner {
+    width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%;
+    border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
+    animation: git-spin .8s linear infinite;
+}
+@keyframes git-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .git-spinner { animation-duration: 2.4s; }
+}
 .commit-modal { width: 600px; }
 .commit-body { display: flex; flex-direction: column; gap: 8px; }
 .commit-files-title, .commit-label { font-size: var(--fs-meta); color: var(--fg-dim); }
