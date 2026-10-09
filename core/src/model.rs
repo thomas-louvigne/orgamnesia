@@ -36,6 +36,18 @@ pub struct GitStatus {
     pub behind: u32,
 }
 
+/// What happened to a file of the project since the last commit.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum GitChangeKind { Added, Modified, Deleted, Renamed }
+
+/// A file of the project changed since the last commit (`git status`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GitChange {
+    /// Path relative to the root of the repository.
+    pub path: String,
+    pub kind: GitChangeKind,
+}
+
 /// An org-mode tag of the project and how many pages and headlines carry it.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TagCount {

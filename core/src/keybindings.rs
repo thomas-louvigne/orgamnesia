@@ -135,6 +135,7 @@ pub struct ActionDef<A: 'static> {
 pub enum AppAction {
     NewPage, Save, OpenSettings, QuickOpen, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
+    GitCommit, GitPull, GitPush,
 }
 
 /// Editor actions.
@@ -182,6 +183,9 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::NextRegion, id: "next_region",      label_key: "shortcut_next_region" },
     ActionDef { action: AppAction::PrevRegion, id: "prev_region",      label_key: "shortcut_prev_region" },
     ActionDef { action: AppAction::Quit, id: "quit",             label_key: "shortcut_quit" },
+    ActionDef { action: AppAction::GitCommit, id: "git_commit",  label_key: "shortcut_git_commit" },
+    ActionDef { action: AppAction::GitPull, id: "git_pull",      label_key: "shortcut_git_pull" },
+    ActionDef { action: AppAction::GitPush, id: "git_push",      label_key: "shortcut_git_push" },
 ];
 
 /// Every editor action, whatever the profile: a profile simply leaves the ones
@@ -275,6 +279,9 @@ pub fn default_app() -> Bindings {
         ("next_region",      &["F6"]),
         ("prev_region",      &["shift+F6"]),
         ("quit",             &["ctrl+q"]),
+        ("git_commit",       &["ctrl+shift+g"]),
+        ("git_pull",         &["ctrl+shift+u"]),
+        ("git_push",         &["ctrl+shift+p"]),
     ])
 }
 
@@ -309,6 +316,10 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("next_region",      &["F6"]),
             ("prev_region",      &["shift+F6"]),
             ("quit",             &["ctrl+x ctrl+c"]),
+            // Magit: `C-x g` (magit-status), then `c c` (commit), `F p` (pull), `P p` (push)
+            ("git_commit",       &["ctrl+x g c c"]),
+            ("git_pull",         &["ctrl+x g shift+f p"]),
+            ("git_push",         &["ctrl+x g shift+p p"]),
         ]),
         _ => default_app(),
     }

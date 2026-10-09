@@ -4,6 +4,7 @@ mod app;
 mod components;
 mod edit;
 mod folding;
+mod git;
 mod highlight;
 pub mod i18n;
 mod invoke;

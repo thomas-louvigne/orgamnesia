@@ -21,6 +21,8 @@ pub enum AppError {
     Settings(String),
     /// The folder picker could not be shown.
     Dialog,
+    /// A git command failed; what it said.
+    Git(String),
 }
 
 impl std::fmt::Display for AppError {
@@ -35,6 +37,7 @@ impl std::fmt::Display for AppError {
             Self::Export(e)        => write!(f, "Export failed: {e}"),
             Self::Settings(e)      => write!(f, "Settings error: {e}"),
             Self::Dialog           => write!(f, "The folder picker could not be shown"),
+            Self::Git(e)           => write!(f, "{e}"),
         }
     }
 }

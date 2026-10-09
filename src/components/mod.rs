@@ -1,4 +1,5 @@
 pub mod backlinks_panel;
+pub mod commit_modal;
 pub mod editor;
 pub mod empty_state;
 pub mod page_title;

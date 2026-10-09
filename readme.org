@@ -2,8 +2,7 @@
 
 #+HTML: <p align="center"><img src="src-tauri/icons/app-icon.svg" alt="Orgamnesia" width="128"></p>
 
-A personal wiki in =org-mode= files: a lite Obsidian with an Emacs flavour,
-with links between pages and backlinks.
+*A personal wiki, =org-mode= style: the essentials of Obsidian, lighter.*
 
 /[[file:readme.fr.org][🇫🇷 Version française]]/
 

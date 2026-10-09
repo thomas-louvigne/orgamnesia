@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::{i18n::{t, Lang}, keybindings::Keybindings};
 
-pub use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, Prefs, Session, Settings, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
+pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitStatus, Prefs, Session, Settings, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
 
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
@@ -43,6 +43,10 @@ pub struct ConfirmReq {
     pub danger: Option<&'static str>,
 }
 
+/// A git command of the git extension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitOp { Pull, Commit, Push }
+
 /// Which resize bar is being dragged.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Drag {
@@ -70,6 +74,8 @@ pub struct ProjectState {
     pub tag_query: RwSignal<String>,
     /// Last git state read for the project; `None` until read or when git is missing.
     pub git: RwSignal<Option<GitStatus>>,
+    /// The git command running (pull, commit, push): one at a time.
+    pub git_busy: RwSignal<Option<GitOp>>,
     /// Bumped after every write to disk, so link-derived views can refresh.
     pub links_version: RwSignal<u32>,
 }
@@ -104,6 +110,7 @@ pub struct Ui {
     pub show_settings: RwSignal<bool>,
     pub show_new_page: RwSignal<bool>,
     pub show_quick_open: RwSignal<bool>,
+    pub show_commit: RwSignal<bool>,
     /// Pending confirmation (the webview's own `window.confirm` shows nothing here).
     pub confirm: RwSignal<Option<ConfirmReq>>,
     /// Message of the status bar.
@@ -142,6 +149,7 @@ impl AppCtx {
                 tags: RwSignal::new(vec![]),
                 tag_query: RwSignal::new(String::new()),
                 git: RwSignal::new(None),
+                git_busy: RwSignal::new(None),
                 links_version: RwSignal::new(0),
             },
             work: Workspace {
@@ -161,6 +169,7 @@ impl AppCtx {
                 show_settings: RwSignal::new(false),
                 show_new_page: RwSignal::new(false),
                 show_quick_open: RwSignal::new(false),
+                show_commit: RwSignal::new(false),
                 confirm: RwSignal::new(None),
                 status: RwSignal::new(None),
                 status_undo: RwSignal::new(None),

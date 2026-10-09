@@ -170,19 +170,25 @@ fn readable_size(bytes: u64, lang: Lang) -> String {
     format!("≈ {text} {unit}")
 }
 
-/// A folder path field with its "Browse…" button.
+/// A folder (or file) path field with its "Browse…" button.
 #[component]
 fn PathField(
     value: Signal<String>,
     on_change: Callback<String>,
     #[prop(optional)] placeholder: Option<Signal<String>>,
     #[prop(optional, into)] disabled: Option<Signal<bool>>,
+    /// Pick a file (opening in this folder) instead of a folder.
+    #[prop(optional)] file_in: Option<&'static str>,
 ) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     let disabled = move || disabled.is_some_and(|d| d.get());
     let pick = move |_| {
         spawn_local(async move {
-            match invoke::pick_folder().await {
+            let picked = match file_in {
+                Some(dir) => invoke::pick_file(Some(dir)).await,
+                None => invoke::pick_folder().await,
+            };
+            match picked {
                 Ok(Some(path)) => on_change.run(path),
                 Ok(None) => {}
                 Err(e) => ctx.error("error", &e),
@@ -214,6 +220,9 @@ const SPLIT_ACTIONS: &[AppAction] = &[
 
 /// Editor actions of the selection marker; shown in their own section.
 const MARK_ACTIONS: &[EditorAction] = &[EditorAction::SetMark, EditorAction::KeyboardQuit];
+
+/// Application actions of the git extension; shown in their own section.
+const GIT_ACTIONS: &[AppAction] = &[AppAction::GitCommit, AppAction::GitPull, AppAction::GitPush];
 
 /// Editor actions of the TODO states; shown in their own section.
 const TODO_ACTIONS: &[EditorAction] = &[EditorAction::TodoNext, EditorAction::TodoPrev];
@@ -692,6 +701,25 @@ pub fn SettingsModal() -> impl IntoView {
                             </div>
                             <Check draft get=|p| p.git_ext set=|p, v| p.git_ext = v
                                 label="git_ext_enabled" hint="git_ext_hint" />
+                            <div class="setting-row setting-sub">
+                                <label>{move || t("git_ssh_key", lang())}</label>
+                                <PathField
+                                    value=Signal::derive(move || draft.with(|p| p.git_ssh_key.clone()))
+                                    on_change=Callback::new(move |v| draft.update(|p| p.git_ssh_key = v))
+                                    placeholder=Signal::derive(move || t("git_ssh_key_ph", lang()).to_string())
+                                    disabled=Signal::derive(move || !draft.with(|p| p.git_ext))
+                                    file_in="~/.ssh"
+                                />
+                                <div class="setting-hint ssh-help">
+                                    <p>{move || t("git_ssh_help_where", lang())}</p>
+                                    <p>{move || t("git_ssh_help_create", lang())}</p>
+                                    <code>"ssh-keygen -t ed25519 -C \"you@example.com\""</code>
+                                    <p>{move || t("git_ssh_help_add", lang())}</p>
+                                    <p>{move || t("git_ssh_help_agent", lang())}</p>
+                                    <code>"ssh-add ~/.ssh/id_ed25519"</code>
+                                    <p>{move || t("git_ssh_help_https", lang())}</p>
+                                </div>
+                            </div>
                         </div>
                     })}
 
@@ -759,7 +787,7 @@ pub fn SettingsModal() -> impl IntoView {
                             </div>
                             <KeybindingHeader lang=ctx.lang />
                             {keybindings::APP_ACTIONS.iter()
-                                .filter(|a| !SPLIT_ACTIONS.contains(&a.action))
+                                .filter(|a| !SPLIT_ACTIONS.contains(&a.action) && !GIT_ACTIONS.contains(&a.action))
                                 .map(|a| view! {
                                     <KeybindingRow map=app_work id=a.id label_key=a.label_key lang=ctx.lang />
                                 }).collect_view()}
@@ -793,6 +821,16 @@ pub fn SettingsModal() -> impl IntoView {
                                 .filter(|a| MARK_ACTIONS.contains(&a.action))
                                 .map(|a| view! {
                                     <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
+                                }).collect_view()}
+
+                            <div class="setting-section-title">
+                                {move || t("git_section", lang())}
+                            </div>
+                            <KeybindingHeader lang=ctx.lang />
+                            {keybindings::APP_ACTIONS.iter()
+                                .filter(|a| GIT_ACTIONS.contains(&a.action))
+                                .map(|a| view! {
+                                    <KeybindingRow map=app_work id=a.id label_key=a.label_key lang=ctx.lang />
                                 }).collect_view()}
 
                             <div class="setting-section-title">

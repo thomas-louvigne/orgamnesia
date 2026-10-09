@@ -1,7 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Orgamnesia
-Comment=Personal wiki in org-mode files
+Comment=A personal wiki, org-mode style: the essentials of Obsidian, lighter.
+Comment[fr]=Un wiki perso à la sauce org-mode : l'essentiel d'Obsidian en plus léger.
 Exec=orgamnesia
 Icon=orgamnesia
 Categories=Office;Utility;TextEditor;

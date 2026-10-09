@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, GitStatus, TagCount, TagHit, TodoHit}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, GitChange, GitStatus, TagCount, TagHit, TodoHit}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -145,4 +145,26 @@ pub async fn quit_app() -> Result<(), String> {
 
 pub async fn git_status(path: &str) -> Result<Option<GitStatus>, String> {
     call("git_status", serde_json::json!({ "path": path })).await
+}
+
+pub async fn git_changes() -> Result<Vec<GitChange>, String> {
+    call("git_changes", serde_json::json!({})).await
+}
+
+/// Each returns what git says.
+pub async fn git_commit(message: &str) -> Result<String, String> {
+    call("git_commit", serde_json::json!({ "message": message })).await
+}
+
+pub async fn git_pull() -> Result<String, String> {
+    call("git_pull", serde_json::json!({})).await
+}
+
+pub async fn git_push() -> Result<String, String> {
+    call("git_push", serde_json::json!({})).await
+}
+
+/// A file picker opening in `start`.
+pub async fn pick_file(start: Option<&str>) -> Result<Option<String>, String> {
+    call("pick_file", serde_json::json!({ "start": start })).await
 }

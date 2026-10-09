@@ -2,8 +2,7 @@
 
 #+HTML: <p align="center"><img src="src-tauri/icons/app-icon.svg" alt="Orgamnesia" width="128"></p>
 
-Un wiki personnel en fichiers =org-mode= : un Obsidian léger à la saveur Emacs,
-avec des liens entre pages et des liens entrants.
+*Un wiki perso à la sauce =org-mode= : l'essentiel d'Obsidian en plus léger.*
 
 #+BEGIN_QUOTE
 *Version bêta.* Le projet est en cours de développement : des bugs sont probables,

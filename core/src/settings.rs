@@ -74,6 +74,8 @@ pub struct Settings {
     pub site_builder_enabled: Option<bool>,
     /// Git extension: show the git state of the project under its name.
     pub git_status_enabled: Option<bool>,
+    /// Private SSH key used by git pull / push (empty: the system's SSH setup).
+    pub git_ssh_key: Option<String>,
     /// Every project (folder) the user has opened, most recent first.
     #[serde(default)]
     pub projects: Vec<String>,
@@ -143,6 +145,7 @@ pub struct Prefs {
     pub show_todos: bool,
     pub site_builder: bool,
     pub git_ext: bool,
+    pub git_ssh_key: String,
     pub case_insensitive_links: bool,
     pub hashtag_links: bool,
     pub hashtag_dashes: bool,
@@ -188,6 +191,7 @@ impl Prefs {
             show_todos: s.show_todos.unwrap_or(true),
             site_builder: s.site_builder_enabled.unwrap_or(false),
             git_ext: s.git_status_enabled.unwrap_or(true),
+            git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
             case_insensitive_links: s.case_insensitive_links.unwrap_or(true),
             hashtag_links: s.hashtag_links.unwrap_or(true),
             hashtag_dashes: s.hashtag_dashes.unwrap_or(true),
@@ -241,6 +245,7 @@ impl Prefs {
             show_todos: Some(self.show_todos),
             site_builder_enabled: Some(self.site_builder),
             git_status_enabled: Some(self.git_ext),
+            git_ssh_key: some(&self.git_ssh_key),
             projects,
             session: None,
         }

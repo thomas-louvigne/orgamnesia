@@ -37,6 +37,11 @@ fn main() {
             commands::export_vault,
             commands::pick_folder,
             commands::git_status,
+            commands::git_changes,
+            commands::git_commit,
+            commands::git_pull,
+            commands::git_push,
+            commands::pick_file,
             commands::quit_app,
             commands::set_session,
         ])

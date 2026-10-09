@@ -790,6 +790,38 @@ kbd {
     margin-left: 12px;
 }
 .status-close:hover { color: #fff; }
+
+/* ── Git extension: buttons under the project's state, commit window ── */
+.git-buttons { display: flex; gap: 4px; margin-top: 6px; }
+.git-btn {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    background: none; border: 1px solid var(--border); border-radius: 4px;
+    color: var(--fg-dim); font: inherit; font-size: var(--fs-meta); padding: 2px 4px; cursor: pointer;
+}
+.git-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--fg-dim); }
+.git-btn:disabled { opacity: .4; cursor: default; }
+.git-btn.running { color: var(--accent); border-color: var(--accent); opacity: 1; }
+.commit-modal { width: 600px; }
+.commit-body { display: flex; flex-direction: column; gap: 8px; }
+.commit-files-title, .commit-label { font-size: var(--fs-meta); color: var(--fg-dim); }
+.commit-files {
+    list-style: none; margin: 0; padding: 6px 0; max-height: 150px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
+}
+.commit-files li { display: flex; gap: 8px; align-items: baseline; padding: 2px 10px; font-size: var(--fs-meta); }
+.commit-kind { flex-shrink: 0; min-width: 70px; font-weight: 600; }
+.commit-added { color: var(--green); }
+.commit-modified { color: var(--orange); }
+.commit-deleted { color: var(--red); }
+.commit-renamed { color: var(--cyan); }
+.commit-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace); }
+.commit-message { min-height: 150px; resize: vertical; font-family: var(--font-mono, monospace); line-height: 1.5; }
+.ssh-help { display: flex; flex-direction: column; gap: 4px; }
+.ssh-help p { margin: 0; }
+.ssh-help code {
+    font-style: normal; font-family: var(--font-mono, monospace); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; align-self: flex-start; user-select: all;
+}
 .status-undo {
     margin-left: auto; background: rgba(0, 0, 0, .2); border: 1px solid rgba(255, 255, 255, .35);
     border-radius: 4px; color: #fff; font: inherit; font-weight: 600; padding: 1px 10px; cursor: pointer;

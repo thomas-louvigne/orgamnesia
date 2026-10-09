@@ -358,6 +358,45 @@ fn GitIcon() -> impl IntoView {
     }
 }
 
+/// Pull, commit and push buttons of the git extension, with their shortcuts in
+/// their tooltips.
+#[component]
+fn GitButtons() -> impl IntoView {
+    use crate::state::GitOp;
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    let busy = move || ctx.project.git_busy.get();
+    let git = move || ctx.project.git.get().unwrap_or_default();
+    let tip = move |label: &'static str, id: &'static str| {
+        let keys = ctx.keybindings.with(|kb| kb.app_binds(id).first().cloned());
+        match keys {
+            Some(k) => format!("{} ({})", t(label, lang()), crate::keybindings::display(&k)),
+            None => t(label, lang()).to_string(),
+        }
+    };
+    let button = move |op: GitOp, label: &'static str, id: &'static str, icon: &'static str,
+                       enabled: fn(&orgamnesia_core::GitStatus) -> bool, run: fn(AppCtx)| view! {
+        <button
+            class=move || if busy() == Some(op) { "git-btn running" } else { "git-btn" }
+            title=move || tip(label, id)
+            aria-label=move || tip(label, id)
+            prop:disabled=move || busy().is_some() || !enabled(&git())
+            on:click=move |_| run(ctx)
+        >
+            <span aria-hidden="true">{icon}</span>
+            {move || t(label, lang())}
+        </button>
+    };
+    view! {
+        <div class="git-buttons">
+            {button(GitOp::Pull, "git_pull", "git_pull", "↓", |g| g.upstream, crate::git::pull)}
+            // Also with no change seen yet: unsaved pages are saved first
+            {button(GitOp::Commit, "git_commit", "git_commit", "●", |_| true, crate::git::open_commit)}
+            {button(GitOp::Push, "git_push", "git_push", "↑", |g| g.ahead > 0 || !g.upstream, crate::git::push)}
+        </div>
+    }
+}
+
 /// Git state of the open project, under its name (git extension).
 #[component]
 fn GitLine() -> impl IntoView {
@@ -392,6 +431,7 @@ fn GitLine() -> impl IntoView {
                         <span class=format!("git-item {cls}")>{text}</span>
                     }).collect_view()}
                 </div>
+                <GitButtons />
             </div>
         }.into_any())
     }

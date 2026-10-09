@@ -232,6 +232,26 @@ pub fn save_tab(ctx: AppCtx, tab: Tab) {
     });
 }
 
+/// Write every page with unsaved changes. False (and the error shown) when one
+/// could not be written.
+pub async fn save_dirty_tabs(ctx: AppCtx) -> bool {
+    let mut saved = false;
+    for tab in ctx.work.tabs.get_untracked() {
+        if !tab.dirty.get_untracked() { continue; }
+        let content = tab.content.get_untracked();
+        match invoke::write_file(&tab.path, &content).await {
+            Ok(_) => if tab.content.get_untracked() == content { tab.dirty.set(false) },
+            Err(e) => {
+                ctx.error("save_error", &e);
+                return false;
+            }
+        }
+        saved = true;
+    }
+    if saved { ctx.bump_links(); }
+    true
+}
+
 // ─── Pages ───────────────────────────────────────────────────────────────────
 
 /// Rename the page at `old_path`; the backend also rewrites the links to it.
@@ -246,17 +266,7 @@ pub fn rename_page(ctx: AppCtx, old_path: String, new_name: String) {
     spawn_local(async move {
         // The backend rewrites the links on disk: first write the pages with
         // unsaved changes, else their next save would bring the old links back.
-        for tab in ctx.work.tabs.get_untracked() {
-            if !tab.dirty.get_untracked() { continue; }
-            let content = tab.content.get_untracked();
-            match invoke::write_file(&tab.path, &content).await {
-                Ok(_) => if tab.content.get_untracked() == content { tab.dirty.set(false) },
-                Err(e) => {
-                    ctx.error("save_error", &e);
-                    return;
-                }
-            }
-        }
+        if !save_dirty_tabs(ctx).await { return; }
         match invoke::rename_page(&old_path, &new_name).await {
             Ok(nf) => {
                 ctx.work.tabs.update(|tabs| {

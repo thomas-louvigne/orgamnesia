@@ -1,7 +1,7 @@
 //! The commands the interface calls. Each one only hands the request to the
 //! project (`project.rs`), the settings or a tool, and returns its result.
 
-use orgamnesia_core::{BrokenLink, FileEntry, GitStatus, TagCount, TagHit, TodoHit};
+use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitStatus, TagCount, TagHit, TodoHit};
 use tauri::{AppHandle, Manager, State};
 
 use crate::{
@@ -208,6 +208,41 @@ pub async fn git_status(path: String) -> Cmd<Option<GitStatus>> {
     Ok(crate::git::status(&path))
 }
 
+/// Run a git command on the open project, away from the async runtime (it may
+/// wait for the network).
+async fn with_git<T: Send + 'static>(
+    state: &State<'_, AppState>,
+    f: impl FnOnce(&str, &str) -> Result<T, AppError> + Send + 'static,
+) -> Cmd<T> {
+    let path = state.with_project(|p| Ok(p.path.clone()))?;
+    let key = state.prefs().git_ssh_key;
+    tauri::async_runtime::spawn_blocking(move || f(&path, &key))
+        .await
+        .map_err(|e| AppError::Git(e.to_string()))?
+}
+
+/// Files of the open project changed since the last commit.
+#[tauri::command]
+pub async fn git_changes(state: State<'_, AppState>) -> Cmd<Vec<GitChange>> {
+    with_git(&state, |path, _| crate::git::changes(path)).await
+}
+
+/// Commit every change of the open project with `message`.
+#[tauri::command]
+pub async fn git_commit(state: State<'_, AppState>, message: String) -> Cmd<String> {
+    with_git(&state, move |path, _| crate::git::commit(path, &message)).await
+}
+
+#[tauri::command]
+pub async fn git_pull(state: State<'_, AppState>) -> Cmd<String> {
+    with_git(&state, crate::git::pull).await
+}
+
+#[tauri::command]
+pub async fn git_push(state: State<'_, AppState>) -> Cmd<String> {
+    with_git(&state, crate::git::push).await
+}
+
 // ─── Application ─────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -216,6 +251,23 @@ pub async fn pick_folder(app: AppHandle) -> Cmd<Option<String>> {
     let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
     app.dialog().file().pick_folder(move |folder| {
         let _ = tx.send(folder.map(|f| f.to_string()));
+    });
+    rx.await.map_err(|_| AppError::Dialog)
+}
+
+/// File picker (for the SSH key), opening in `start` when it exists.
+#[tauri::command]
+pub async fn pick_file(app: AppHandle, start: Option<String>) -> Cmd<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
+    let mut dialog = app.dialog().file();
+    let home = std::env::var("HOME").unwrap_or_default();
+    let start = start.map(|d| match d.strip_prefix("~/") { Some(rest) => format!("{home}/{rest}"), None => d });
+    if let Some(dir) = start.filter(|d| std::path::Path::new(d).is_dir()) {
+        dialog = dialog.set_directory(dir);
+    }
+    dialog.pick_file(move |file| {
+        let _ = tx.send(file.map(|f| f.to_string()));
     });
     rx.await.map_err(|_| AppError::Dialog)
 }

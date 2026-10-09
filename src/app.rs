@@ -224,6 +224,9 @@ fn run_app_action(ctx: AppCtx, action: AppAction) {
         AppAction::OtherWindow     => ctx.work.other_window(),
         AppAction::NextRegion      => crate::a11y::cycle_region(true),
         AppAction::PrevRegion      => crate::a11y::cycle_region(false),
+        AppAction::GitCommit       => crate::git::open_commit(ctx),
+        AppAction::GitPull         => crate::git::pull(ctx),
+        AppAction::GitPush         => crate::git::push(ctx),
         AppAction::Quit => {
             let quit = move || spawn_local(async move {
                 if let Err(err) = invoke::quit_app().await {
@@ -425,6 +428,7 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.show_settings.get().then(|| view! { <SettingsModal /> })}
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <ConfirmDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
+            {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_modal::CommitModal /> })}
             {move || ctx.ui.status.get().map(|msg| {
                 // The "Undo" button of this message, if it has one
                 let undo = ctx.ui.status_undo.get().filter(|(m, _)| *m == msg).map(|(_, f)| f);
