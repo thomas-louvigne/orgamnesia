@@ -27,6 +27,8 @@ an AI. Review the code with the same critical eye as any other contribution.
 - *Quick open* (Ctrl+K): any page, open tab or tag.
 - *Editor*: org-mode highlighting, page title on top, find & replace, autosave,
   split in two panes, Emacs or Classic keybindings (configurable).
+- *Headline level*: Alt+Shift+→ / ← move a headline one level down or up, with
+  its sub-headlines, as in Emacs (see [[file:docs/features.org#headline-level][Headline level]]).
 - *Tables*: drawn as real tables; Tab / Shift+Tab move between cells and realign
   the table as in Emacs; =|-= + Tab draws the header rule.
 - *TODO states* on headlines (=* TODO Title=): highlighted, and stepped through

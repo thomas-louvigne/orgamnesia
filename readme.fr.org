@@ -29,6 +29,8 @@ que n'importe quelle contribution.
 - *Éditeur* : coloration org-mode, titre de la page en haut, recherche et
   remplacement, sauvegarde automatique, deux volets, raccourcis Emacs ou Classique
   (configurables).
+- *Niveau des titres* : Alt+Maj+→ / ← descendent ou remontent un titre d'un niveau,
+  avec ses sous-titres, comme dans Emacs (voir [[file:docs/fonctionnalites.org#niveau-des-titres][Niveau des titres]]).
 - *Tableaux* : dessinés comme de vrais tableaux ; Tab / Maj+Tab passent d'une cellule
   à l'autre et réalignent le tableau comme dans Emacs ; =|-= + Tab trace la ligne d'en-tête.
 - *États TODO* sur les titres (=* TODO Titre=) : mis en valeur, et changés avec
