@@ -846,4 +846,32 @@ mod tests {
             .collect();
         assert!(missing.is_empty(), "untranslated: {missing:?}");
     }
+
+    /// Every key of the dictionary is used somewhere: a text no one shows is dead.
+    #[test]
+    fn every_key_is_used() {
+        fn sources(dir: &std::path::Path, out: &mut String) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    sources(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") && !path.ends_with("src/i18n.rs") {
+                    out.push_str(&std::fs::read_to_string(&path).unwrap());
+                }
+            }
+        }
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut code = String::new();
+        sources(&root.join("src"), &mut code);
+        sources(&root.join("core/src"), &mut code);
+        let dictionary = include_str!("i18n.rs");
+        let mut keys: Vec<&str> = dictionary.lines()
+            .filter_map(|l| l.trim_start().strip_prefix("(\""))
+            .filter_map(|l| l.split_once('"').filter(|(_, rest)| rest.trim_start().starts_with(", Lang::")).map(|(k, _)| k))
+            .collect();
+        keys.dedup();
+        assert!(keys.len() > 100);
+        let unused: Vec<&&str> = keys.iter().filter(|k| !code.contains(&format!("\"{k}\""))).collect();
+        assert!(unused.is_empty(), "unused: {unused:?}");
+    }
 }

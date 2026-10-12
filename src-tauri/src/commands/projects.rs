@@ -24,11 +24,11 @@ pub async fn open_vault(state: State<'_, AppState>, app: AppHandle, path: String
     s.projects.insert(0, path.clone());
     store_settings(&state, &app, s)?;
 
-    *state.project.lock().unwrap() = Some(project);
+    *crate::lock(&state.project) = Some(project);
     // The images of its pages are shown from the disk
     let _ = app.asset_protocol_scope().allow_directory(&path, true);
     // Without watching, outside changes are only seen when the project is reopened
-    *state.watcher.lock().unwrap() = watch::watch(app.clone(), &path).ok();
+    *crate::lock(&state.watcher) = watch::watch(app.clone(), &path).ok();
     Ok(files)
 }
 

@@ -70,7 +70,7 @@ pub fn quit_app(app: AppHandle) {
 pub fn on_exit(app: &AppHandle) {
     let state = app.state::<AppState>();
     let prefs = state.prefs();
-    let path = state.project.lock().unwrap().as_ref().map(|p| p.path.clone());
+    let path = crate::lock(&state.project).as_ref().map(|p| p.path.clone());
     if let Some(path) = path {
         crate::vault::delete_blank_pages(&path, prefs.delete_empty, prefs.delete_title_only);
     }

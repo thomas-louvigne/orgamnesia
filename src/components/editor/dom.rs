@@ -7,18 +7,25 @@ use crate::{keybindings::after_ms, tables};
 
 pub type Textarea = web_sys::HtmlTextAreaElement;
 
-fn exec_insert(text: &str) {
-    if let Ok(encoded) = serde_json::to_string(text) {
-        let _ = js_sys::eval(&format!("document.execCommand('insertText',false,{})", encoded));
+/// Run an editing command of the document: done this way, the edit goes in the
+/// browser's undo stack (Ctrl+Z).
+fn exec(command: &str, value: &str) {
+    let doc = web_sys::window().and_then(|w| w.document()).and_then(|d| d.dyn_into::<web_sys::HtmlDocument>().ok());
+    if let Some(doc) = doc {
+        let _ = doc.exec_command_with_show_ui_and_value(command, false, value);
     }
 }
 
+fn exec_insert(text: &str) {
+    exec("insertText", text);
+}
+
 pub fn exec_undo() {
-    let _ = js_sys::eval("document.execCommand('undo')");
+    exec("undo", "");
 }
 
 pub fn exec_redo() {
-    let _ = js_sys::eval("document.execCommand('redo')");
+    exec("redo", "");
 }
 
 // ─── Clipboard (system) ──────────────────────────────────────────────────────

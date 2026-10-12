@@ -257,7 +257,7 @@ fn SiteFolder(draft: RwSignal<Prefs>) -> impl IntoView {
                         {t(if exists { "bloom_no_output_dir" } else { "bloom_no_config" }, lang())}
                         " " <code>{config}</code>
                         <br />
-                        <code>"[site]"</code> " " <code>"output_dir = \"../mon-site\""</code>
+                        <code>"[site]"</code> " " <code>"output_dir = \"../site\""</code>
                     </div>
                 }.into_any(),
             }}

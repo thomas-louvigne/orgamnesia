@@ -39,7 +39,7 @@ fn swallow(e: &web_sys::KeyboardEvent) {
 
 pub fn on_keydown(pane: Pane, completion: Completion, find: Find, e: web_sys::KeyboardEvent) {
     let ctx = pane.ctx;
-    let el: Textarea = e.target().unwrap().dyn_into().unwrap();
+    let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
     {
         let el = el.clone();
         after_tick(move || pane.track_caret(&el));

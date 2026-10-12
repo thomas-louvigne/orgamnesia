@@ -29,7 +29,7 @@ pub fn watch(app: AppHandle, path: &str) -> Result<Watcher, AppError> {
         if pages {
             let state = app.state::<AppState>();
             let tags = state.prefs().tags();
-            let changes = state.project.lock().unwrap().as_mut()
+            let changes = crate::lock(&state.project).as_mut()
                 // Another project may have been opened meanwhile
                 .filter(|p| p.path == project_path)
                 .and_then(|p| p.refresh(tags).ok().flatten());

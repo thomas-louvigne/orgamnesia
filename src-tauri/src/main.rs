@@ -10,7 +10,7 @@ fn main() {
             use tauri::Manager;
             if let Ok(dir) = app.path().app_config_dir() {
                 orgamnesia_lib::settings::migrate_legacy_config(&dir);
-                *app.state::<AppState>().settings.lock().unwrap() = orgamnesia_lib::settings::load(&dir);
+                *orgamnesia_lib::lock(&app.state::<AppState>().settings) = orgamnesia_lib::settings::load(&dir);
             }
             Ok(())
         })

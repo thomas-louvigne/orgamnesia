@@ -11,7 +11,13 @@ pub mod tags;
 pub mod vault;
 pub mod watch;
 
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
+
+/// Lock `m`, even when a command panicked while holding it: the state it guards
+/// is still usable, and every later command would panic too otherwise.
+pub fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 use error::AppError;
 use project::Project;
@@ -36,16 +42,16 @@ impl AppState {
     }
 
     pub fn settings(&self) -> Settings {
-        self.settings.lock().unwrap().clone()
+        lock(&self.settings).clone()
     }
 
     pub fn prefs(&self) -> Prefs {
-        self.settings.lock().unwrap().prefs()
+        lock(&self.settings).prefs()
     }
 
     /// Run `f` on the open project.
     pub fn with_project<T>(&self, f: impl FnOnce(&mut Project) -> Result<T, AppError>) -> Result<T, AppError> {
-        let mut project = self.project.lock().unwrap();
+        let mut project = lock(&self.project);
         f(project.as_mut().ok_or(AppError::NoProject)?)
     }
 }

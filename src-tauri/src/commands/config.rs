@@ -23,7 +23,7 @@ pub async fn set_settings(state: State<'_, AppState>, app: AppHandle, mut settin
     store_settings(&state, &app, settings)?;
     // `#tags` or `:tags:` are read differently (as links or not, with or without `-`):
     // read the links again
-    if tags_changed && let Some(p) = state.project.lock().unwrap().as_mut() {
+    if tags_changed && let Some(p) = crate::lock(&state.project).as_mut() {
         p.reindex(tags);
     }
     Ok(())
@@ -33,7 +33,7 @@ pub async fn set_settings(state: State<'_, AppState>, app: AppHandle, mut settin
 /// Not async: calls run in order, so the last state sent is the one kept.
 #[tauri::command]
 pub fn set_session(state: State<'_, AppState>, session: Option<Session>) {
-    state.settings.lock().unwrap().session = session;
+    crate::lock(&state.settings).session = session;
 }
 
 #[tauri::command]

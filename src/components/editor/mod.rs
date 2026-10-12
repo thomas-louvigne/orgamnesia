@@ -131,7 +131,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     goto_target(pane, tab.clone(), second);
 
     let on_input = move |e: web_sys::Event| {
-        let el = e.target().unwrap().dyn_into::<Textarea>().unwrap();
+        let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
         // Typing ends the region
         pane.mark.set(None);
         pane.commit(&el);

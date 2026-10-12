@@ -26,6 +26,6 @@ fn config_dir(app: &AppHandle) -> Cmd<std::path::PathBuf> {
 /// Write `settings` to `settings.json` and keep them as the ones in effect.
 fn store_settings(state: &AppState, app: &AppHandle, settings: Settings) -> Cmd<()> {
     settings::save(&config_dir(app)?, &settings)?;
-    *state.settings.lock().unwrap() = settings;
+    *crate::lock(&state.settings) = settings;
     Ok(())
 }
