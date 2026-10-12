@@ -5,11 +5,11 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     actions,
     components::{
-        columns::Column,
+        frames::Column,
         editor::EditorSplit,
         quick_open::QuickOpenModal,
-        settings_modal::SettingsModal,
-        sidebar::NewPageModal,
+        settings::SettingsModal,
+        new_page_modal::NewPageModal,
         tabs::TabBar,
     },
     i18n::t,
@@ -44,7 +44,7 @@ fn Resizer(which: Drag) -> impl IntoView {
     }
 }
 
-/// In-app yes/no dialog driven by `ctx.ui.confirm`.
+/// In-app yes/no dialog (or message with OK) driven by `ctx.ui.confirm`.
 #[component]
 fn ConfirmDialog() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
@@ -58,6 +58,7 @@ fn ConfirmDialog() -> impl IntoView {
     };
     // A destructive action is not done by Enter: Cancel has the focus, Enter presses it
     let danger = ctx.ui.confirm.get_untracked().and_then(|r| r.danger);
+    let info = ctx.ui.confirm.get_untracked().is_some_and(|r| r.info);
     let keys = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
         match e.key().as_str() {
             "Escape" => { e.stop_propagation(); close(); }
@@ -76,9 +77,11 @@ fn ConfirmDialog() -> impl IntoView {
             <div class="alert-box confirm" role="alertdialog" on:click=|e| e.stop_propagation()>
                 <p>{move || ctx.ui.confirm.get().map(|r| r.message).unwrap_or_default()}</p>
                 <div class="alert-buttons">
-                    <button class="btn-secondary" node_ref=cancel_ref on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                    {(!info).then(|| view! {
+                        <button class="btn-secondary" node_ref=cancel_ref on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                    })}
                     <button class=if danger.is_some() { "btn-danger" } else { "btn-primary" } on:click=move |_| accept()>
-                        {move || t(danger.unwrap_or("confirm"), lang())}
+                        {move || t(if info { "ok" } else { danger.unwrap_or("confirm") }, lang())}
                     </button>
                 </div>
             </div>
@@ -289,6 +292,8 @@ fn cycle(active: Option<usize>, count: usize, step: isize) -> Option<usize> {
 pub fn App() -> impl IntoView {
     let ctx = AppCtx::new();
     provide_context(ctx);
+    // The backend's errors and the crash message are worded in the chosen language
+    Effect::new(move |_| crate::i18n::set_current(ctx.lang.get()));
 
     // Sizes of the side menus and of the "pages not created" block, remembered between runs
     let sidebar_w = RwSignal::new(load_size(SIDEBAR_KEY, 220));

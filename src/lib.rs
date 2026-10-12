@@ -27,7 +27,8 @@ pub fn run() {
     std::panic::set_hook(Box::new(|info| {
         console_error_panic_hook::hook(info);
         if let Some(w) = web_sys::window() {
-            let _ = w.alert_with_message(&format!("Orgamnesia a planté, merci de copier ce message :\n\n{info}"));
+            let crash = i18n::t("crash", i18n::current());
+            let _ = w.alert_with_message(&format!("{crash}\n\n{info}"));
         }
     }));
     mount_to_body(App);

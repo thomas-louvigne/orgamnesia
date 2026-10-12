@@ -20,6 +20,20 @@ impl Lang {
     }
 }
 
+thread_local! {
+    /// The language of the interface, for what is worded outside the components
+    /// (the backend's errors, the crash message). Kept by `App`.
+    static CURRENT: std::cell::Cell<Lang> = std::cell::Cell::new(Lang::default());
+}
+
+pub fn set_current(lang: Lang) {
+    CURRENT.with(|c| c.set(lang));
+}
+
+pub fn current() -> Lang {
+    CURRENT.with(|c| c.get())
+}
+
 pub fn t(key: &'static str, lang: Lang) -> &'static str {
     match (key, lang) {
         // Sidebar
@@ -29,8 +43,6 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("filter_hint",      Lang::Fr) => "Filtrer la liste…",
         ("new_page_title",   Lang::En) => "New page",
         ("new_page_title",   Lang::Fr) => "Nouvelle page",
-        ("new_page_prompt",  Lang::En) => "New page name:",
-        ("new_page_prompt",  Lang::Fr) => "Nom de la nouvelle page :",
         ("new_page_ph",      Lang::En) => "Page name...",
         ("new_page_ph",      Lang::Fr) => "Nom de la page...",
         ("create",           Lang::En) => "Create",
@@ -261,8 +273,6 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("tab_extensions", Lang::En) => "Extensions",
         ("tab_extensions", Lang::Fr) => "Extensions",
         // Keyboard shortcuts section
-        ("shortcuts",         Lang::En) => "Keyboard shortcuts",
-        ("shortcuts",         Lang::Fr) => "Raccourcis clavier",
         ("shortcut_new_page", Lang::En) => "New page",
         ("shortcut_new_page", Lang::Fr) => "Nouvelle page",
         ("shortcut_save",     Lang::En) => "Save",
@@ -290,8 +300,6 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("shortcut_section_editor",Lang::En) => "Editor",
         ("shortcut_section_editor",Lang::Fr) => "Éditeur",
         // Editor preset selector
-        ("editor_preset",          Lang::En) => "Preset",
-        ("editor_preset",          Lang::Fr) => "Préréglage",
         ("kb_profile",             Lang::En) => "Shortcut profile",
         ("kb_profile",             Lang::Fr) => "Profil de raccourcis",
         ("profile_custom",         Lang::En) => "Custom",
@@ -308,12 +316,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("kb_col2",                Lang::Fr) => "Raccourci 2",
         ("conflict_title",         Lang::En) => "Shortcut conflict",
         ("conflict_title",         Lang::Fr) => "Conflit de raccourcis",
-        ("conflict_msg",           Lang::En) => "This combination is used by several actions:",
-        ("conflict_msg",           Lang::Fr) => "Cette combinaison est utilisée par plusieurs actions :",
         ("conflict_blocked",       Lang::En) => "Fix the conflicts to be able to save.",
         ("conflict_blocked",       Lang::Fr) => "Corrigez les conflits pour pouvoir enregistrer.",
-        ("ok",                     Lang::En) => "OK",
-        ("ok",                     Lang::Fr) => "OK",
         ("emacs_mark",             Lang::En) => "Enable the selection marker (Emacs style)",
         ("emacs_mark",             Lang::Fr) => "Activer le marqueur de sélection (style Emacs)",
         ("shortcut_open_link",     Lang::En) => "Follow link",
@@ -598,8 +602,6 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("shortcut_prev_region",      Lang::Fr) => "Zone précédente de la fenêtre",
         ("close",                     Lang::En) => "Close",
         ("close",                     Lang::Fr) => "Fermer",
-        ("side_panel",                Lang::En) => "Backlinks, tags and pages not created",
-        ("side_panel",                Lang::Fr) => "Liens entrants, tags et pages non créées",
         ("editor_label",              Lang::En) => "Text of the page",
         ("editor_label",              Lang::Fr) => "Texte de la page",
         ("shortcut_quit",             Lang::En) => "Quit Orgamnesia",
@@ -737,6 +739,18 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("bloom_done",         Lang::Fr) => "Site construit :",
         ("bloom_error",        Lang::En) => "org-bloom failed",
         ("bloom_error",        Lang::Fr) => "Échec d'org-bloom",
+        ("bloom_mark_built",   Lang::En) => "Site built",
+        ("bloom_mark_built",   Lang::Fr) => "Site construit",
+        ("bloom_mark_stale",   Lang::En) => "Site not built for a long time",
+        ("bloom_mark_stale",   Lang::Fr) => "Site pas construit depuis longtemps",
+        ("bloom_mark_never",   Lang::En) => "Site never built",
+        ("bloom_mark_never",   Lang::Fr) => "Site jamais construit",
+        ("bloom_age_now",      Lang::En) => "just now",
+        ("bloom_age_now",      Lang::Fr) => "à l'instant",
+        ("bloom_age_ago",      Lang::En) => "{} ago",
+        ("bloom_age_ago",      Lang::Fr) => "il y a {}",
+        ("bloom_age_days",     Lang::En) => "d",
+        ("bloom_age_days",     Lang::Fr) => "j",
         ("keybindings_error",  Lang::En) => "Could not save the shortcuts",
         ("keybindings_error",  Lang::Fr) => "Échec de l'enregistrement des raccourcis",
         ("split_needs_page",   Lang::En) => "Open a page before splitting the editor",
@@ -745,6 +759,39 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("history_empty",      Lang::Fr) => "Pas d'autre page dans l'historique",
         ("quit_error",         Lang::En) => "Could not quit",
         ("quit_error",         Lang::Fr) => "Échec de la fermeture",
+        // Errors of the backend (see `invoke::error_text`)
+        ("err_no_project",       Lang::En) => "No project open",
+        ("err_no_project",       Lang::Fr) => "Aucun projet ouvert",
+        ("err_vault_not_found",  Lang::En) => "Project folder not found:",
+        ("err_vault_not_found",  Lang::Fr) => "Dossier de projet introuvable :",
+        ("err_not_a_folder",     Lang::En) => "Not a folder:",
+        ("err_not_a_folder",     Lang::Fr) => "Ce n'est pas un dossier :",
+        ("err_not_a_page",       Lang::En) => "Not a page of the open project:",
+        ("err_not_a_page",       Lang::Fr) => "Pas une page du projet ouvert :",
+        ("err_page_exists",      Lang::En) => "This page already exists:",
+        ("err_page_exists",      Lang::Fr) => "Cette page existe déjà :",
+        ("err_invalid_name",     Lang::En) => "Invalid page name:",
+        ("err_invalid_name",     Lang::Fr) => "Nom de page invalide :",
+        ("err_org_bloom_not_found", Lang::En) => "org-bloom not found (install it, or set its path in the settings):",
+        ("err_org_bloom_not_found", Lang::Fr) => "org-bloom introuvable (installez-le, ou indiquez son chemin dans les réglages) :",
+        ("err_cannot_run",       Lang::En) => "Cannot run",
+        ("err_cannot_run",       Lang::Fr) => "Impossible de lancer",
+        ("err_folder_not_found", Lang::En) => "Folder not found:",
+        ("err_folder_not_found", Lang::Fr) => "Dossier introuvable :",
+        ("err_settings",         Lang::En) => "Settings error:",
+        ("err_settings",         Lang::Fr) => "Erreur des réglages :",
+        ("err_dialog",           Lang::En) => "The file picker could not be shown",
+        ("err_dialog",           Lang::Fr) => "Impossible d'afficher le sélecteur de fichiers",
+        ("err_no_remote",        Lang::En) => "No remote: add one with git remote add origin <url>",
+        ("err_no_remote",        Lang::Fr) => "Pas de dépôt distant : ajoutez-en un avec git remote add origin <url>",
+        ("err_not_an_image",     Lang::En) => "Not an image:",
+        ("err_not_an_image",     Lang::Fr) => "Ce n'est pas une image :",
+        ("ok",                   Lang::En) => "OK",
+        ("ok",                   Lang::Fr) => "OK",
+        ("git_merge_outside",    Lang::En) => "The pull was not done: your pages and the remote repository have diverged (or a merge with conflicts is in progress). Orgamnesia never merges: do the merge outside the app, in a terminal or a git tool, then come back.",
+        ("git_merge_outside",    Lang::Fr) => "Le pull n'a pas été fait : vos pages et le dépôt distant ont divergé (ou une fusion avec des conflits est en cours). Orgamnesia ne fusionne jamais : faites la fusion en dehors du programme, dans un terminal ou un outil git, puis revenez.",
+        ("crash",                Lang::En) => "Orgamnesia crashed, please copy this message:",
+        ("crash",                Lang::Fr) => "Orgamnesia a planté, merci de copier ce message :",
         _ => key,
     }
 }
@@ -758,9 +805,21 @@ mod tests {
     fn every_key_is_translated() {
         let sources = [
             include_str!("app.rs"), include_str!("actions.rs"), include_str!("state.rs"),
-            include_str!("components/backlinks_panel.rs"), include_str!("components/editor.rs"),
-            include_str!("components/quick_open.rs"), include_str!("components/settings_modal.rs"),
-            include_str!("components/sidebar.rs"), include_str!("components/tabs.rs"),
+            include_str!("invoke.rs"), include_str!("lib.rs"), include_str!("org_bloom.rs"),
+            include_str!("components/editor/mod.rs"), include_str!("components/editor/find.rs"),
+            include_str!("components/editor/images.rs"), include_str!("components/editor/keys.rs"),
+            include_str!("components/editor/pane.rs"),
+            include_str!("components/settings/mod.rs"), include_str!("components/settings/fields.rs"),
+            include_str!("components/settings/layout.rs"), include_str!("components/settings/shortcuts.rs"),
+            include_str!("components/settings/tabs.rs"),
+            include_str!("components/frames/mod.rs"), include_str!("components/frames/backlinks.rs"),
+            include_str!("components/frames/broken.rs"), include_str!("components/frames/buttons.rs"),
+            include_str!("components/frames/git.rs"), include_str!("components/frames/org_bloom.rs"),
+            include_str!("components/frames/pages.rs"), include_str!("components/frames/project.rs"),
+            include_str!("components/frames/tags.rs"), include_str!("components/frames/todos.rs"),
+            include_str!("components/new_page_modal.rs"), include_str!("components/commit_modal.rs"),
+            include_str!("components/quick_open.rs"), include_str!("components/tabs.rs"),
+            include_str!("components/page_title.rs"), include_str!("components/empty_state.rs"),
         ];
         let mut keys: Vec<String> = Vec::new();
         for src in sources {

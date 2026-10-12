@@ -839,9 +839,16 @@ kbd {
 .bloom-frame { padding: 8px 8px 8px 12px; display: flex; }
 .bloom-btn { padding: 4px; font-size: var(--fs-ui); }
 .bloom-btn:hover:not(:disabled) { color: var(--accent2); border-color: var(--accent); }
+/* Marker of the site: built (green), being built (pulsing), old or never built (orange ring) */
+.bloom-mark { width: 7px; height: 7px; flex-shrink: 0; margin-left: 2px; border-radius: 50%; box-sizing: border-box; }
+.bloom-mark.built { background: var(--green); }
+.bloom-mark.running { background: var(--accent2); animation: bloom-pulse 1.2s ease-in-out infinite; }
+.bloom-mark.stale { border: 2px solid var(--orange); }
+@keyframes bloom-pulse { 50% { opacity: .25; } }
 @keyframes git-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
     .git-spinner { animation-duration: 2.4s; }
+    .bloom-mark.running { animation: none; }
 }
 .commit-modal { width: 600px; }
 .commit-body { display: flex; flex-direction: column; gap: 8px; }

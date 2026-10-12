@@ -1,0 +1,391 @@
+//! Keys pressed in the editor: the completion popup and the find bar first,
+//! then the chords, the keys the drawn view handles itself (folds, indentation),
+//! auto-pairing, and at last the editor actions of the keybindings.
+
+use leptos::prelude::*;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::{spawn_local, JsFuture};
+
+use super::{
+    completion::Completion,
+    dom::{after_tick, caret, clipboard, clipboard_write, exec_redo, exec_undo, get_pos, set_cursor, set_selection, splice, Textarea},
+    find::Find,
+    pane::Pane,
+};
+use crate::{
+    actions::follow_link,
+    edit,
+    folding,
+    keybindings::{EditorAction, Resolution, Scope},
+    tables,
+};
+
+/// Shortcuts a textarea handles natively; they only work when the active profile binds them.
+const NATIVE_EDIT_SHORTCUTS: &[&str] = &[
+    "ctrl+c", "ctrl+x", "ctrl+v", "ctrl+a", "ctrl+z", "ctrl+y", "ctrl+shift+z",
+    "ctrl+Insert", "shift+Insert", "shift+Delete",
+];
+
+/// Whether the key is pressed without Ctrl, Alt or Meta.
+fn unmodified(e: &web_sys::KeyboardEvent) -> bool {
+    !e.ctrl_key() && !e.alt_key() && !e.meta_key()
+}
+
+/// The key is handled here: the browser and the app don't see it.
+fn swallow(e: &web_sys::KeyboardEvent) {
+    e.prevent_default();
+    e.stop_propagation();
+}
+
+pub fn on_keydown(pane: Pane, completion: Completion, find: Find, e: web_sys::KeyboardEvent) {
+    let ctx = pane.ctx;
+    let el: Textarea = e.target().unwrap().dyn_into().unwrap();
+    {
+        let el = el.clone();
+        after_tick(move || pane.track_caret(&el));
+    }
+
+    if completion.on_keydown(&e, &el) { return; }
+
+    if find.is_open() && e.key() == "Escape" && unmodified(&e) && !e.shift_key() {
+        e.prevent_default();
+        find.close();
+        return;
+    }
+
+    // Multi-key chords ("ctrl+x ctrl+s"): swallow the keys of a chord in progress
+    let resolution = crate::keybindings::resolve(&ctx.keybindings.get(), &e);
+    match &resolution {
+        Resolution::Pending(keys) => {
+            swallow(&e);
+            ctx.set_chord_status(keys);
+            return;
+        }
+        Resolution::Aborted => {
+            swallow(&e);
+            ctx.clear_chord_status();
+            return;
+        }
+        _ => ctx.clear_chord_status(),
+    }
+
+    // With a mark set, the region follows the caret after each key press
+    if pane.mark.get_untracked().is_some() {
+        let el = el.clone();
+        after_tick(move || pane.point.set(caret(&el)));
+    }
+
+    if view_keys(pane, &e, &el) || auto_pair(pane, &e, &el) { return; }
+
+    // ── Configured editor action (classic or emacs preset) ────────────────────
+    let action = match resolution {
+        Resolution::Action(Scope::Editor, id) => EditorAction::from_id(&id),
+        other => {
+            // Not an editor shortcut of this profile: the browser's built-in
+            // clipboard/undo shortcuts must not work either (unless the
+            // combination belongs to an application shortcut).
+            if other == Resolution::None
+                && NATIVE_EDIT_SHORTCUTS.iter().any(|b| crate::keybindings::key_matches(&e, b))
+            {
+                e.prevent_default();
+            }
+            return;
+        }
+    };
+    let Some(action) = action else { return };
+    // These only act in some places (a table, a headline); elsewhere the key does what it usually does
+    match action {
+        EditorAction::TableNextCell | EditorAction::TablePrevCell => table_cell(pane, &e, &el, action),
+        EditorAction::TodoNext | EditorAction::TodoPrev => todo_cycle(pane, &e, &el, action),
+        EditorAction::PromoteSubtree | EditorAction::DemoteSubtree => shift_subtree(pane, &e, &el, action),
+        _ => {
+            swallow(&e);
+            run_action(pane, find, &el, action);
+        }
+    }
+}
+
+/// Keys the drawn view handles itself, as the page would have them; true when
+/// the key was one of them.
+fn view_keys(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) -> bool {
+    let key = e.key();
+    // The fold character of a folded headline is not deleted on its own (that would
+    // delete the hidden text): Backspace or Delete next to it unfolds the headline
+    if matches!(key.as_str(), "Backspace" | "Delete") && unmodified(e) {
+        let (start, end) = get_pos(el);
+        let chars: Vec<char> = el.value().chars().collect();
+        let at = if key == "Delete" { start } else { start.wrapping_sub(1) };
+        if start == end && chars.get(at).is_some_and(|&c| tables::fold_index(c).is_some()) {
+            e.prevent_default();
+            let pos = pane.page_pos(el, at);
+            pane.folds.update(|f| f.retain(|&(a, _)| a != pos));
+            return true;
+        }
+    }
+    // Enter at the end of a folded headline: the new line comes after the hidden text
+    if key == "Enter" && unmodified(e) && !e.shift_key() {
+        let (start, end) = get_pos(el);
+        if start == end && el.value().chars().nth(start).is_some_and(|c| tables::fold_index(c).is_some()) {
+            set_cursor(el, start + 1);
+        }
+    }
+    // Backspace at the start of an indented line joins it to the line above
+    // (the indentation is not in the page: deleting it would change nothing)
+    if key == "Backspace" && unmodified(e) {
+        let (start, end) = get_pos(el);
+        let text = el.value();
+        if start == end && let Some((a, b)) = pane.shown.with_value(|v| v.indent_run(&text, start)) {
+            e.prevent_default();
+            if a > 0 {
+                let cursor = splice(el, a - 1, b, "");
+                set_cursor(el, cursor);
+                pane.commit(el);
+            }
+            return true;
+        }
+    }
+    false
+}
+
+/// Auto-pairing / electric wrapping: without a selection, ( [ { and " insert
+/// their closing character too; with a selection, electric mode wraps it in the
+/// typed pair. True when the key did so.
+fn auto_pair(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) -> bool {
+    let key = e.key();
+    let (start, end) = get_pos(el);
+    let Some((open, close)) = edit::pair_of(&key) else { return false };
+    if start != end {
+        if !pane.ctx.pref_untracked(|p| p.electric_mode) { return false; }
+        e.prevent_default();
+        let selected: String = el.value().chars().skip(start).take(end - start).collect();
+        let new_end = splice(el, start, end, &format!("{open}{selected}{close}"));
+        set_selection(el, start + 1, new_end - 1);
+    } else {
+        if !edit::auto_closes(&key) { return false; }
+        e.prevent_default();
+        let cursor = splice(el, start, start, &format!("{open}{close}"));
+        set_cursor(el, cursor - 1);
+    }
+    pane.commit(el);
+    true
+}
+
+/// Tab / Shift+Tab move between the cells of a table; Tab on a headline folds /
+/// unfolds it (org-mode cycle), when the settings say so.
+fn table_cell(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: EditorAction) {
+    let ctx = pane.ctx;
+    let chars: Vec<char> = el.value().chars().collect();
+    let forward = action == EditorAction::TableNextCell;
+    let Some(to) = tables::move_cell(&chars, caret(el), forward) else {
+        if !forward || !ctx.pref_untracked(|p| p.tab_folds) { return; }
+        let pos = pane.page_pos(el, caret(el));
+        let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+        let line = folding::line_start(&page, pos);
+        if !folding::is_headline(&page, line) { return; }
+        // On a headline, Tab never leaves the editor: with nothing under it, say so (Emacs: EMPTY ENTRY)
+        swallow(e);
+        let Some(next) = pane.folds.with_untracked(|f| folding::cycle(&page, line, f)) else {
+            ctx.notify_t("fold_empty", "");
+            return;
+        };
+        // The caret stays on the headline
+        pane.focus_pos.set(Some(pos.min(page[line..].iter().position(|&c| c == '\n').map_or(page.len(), |p| line + p))));
+        pane.folds.set(next);
+        return;
+    };
+    swallow(e);
+    match to {
+        tables::CellMove::Caret(p) => set_cursor(el, p),
+        tables::CellMove::Edit { from, to, text, caret } => {
+            splice(el, from, to, &text);
+            set_cursor(el, caret);
+            pane.commit(el);
+        }
+    }
+    pane.track_caret(el);
+}
+
+/// On a headline, the TODO keyword goes to its next / previous state (org-mode
+/// Shift+arrows), when TODO keywords are on.
+fn todo_cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: EditorAction) {
+    let Some(keywords) = pane.todo_keywords.get_untracked() else { return };
+    let chars: Vec<char> = el.value().chars().collect();
+    let (_, end) = get_pos(el);
+    let (ls, le) = edit::line_bounds(&chars, end);
+    // The view may indent the line, and ends a folded headline with its fold character
+    let ls = ls + chars[ls..le].iter().take_while(|&&c| c == tables::INDENT).count();
+    let le = if le > ls && tables::fold_index(chars[le - 1]).is_some() { le - 1 } else { le };
+    let forward = action == EditorAction::TodoNext;
+    let Some((a, b, with)) = keywords.cycle(&chars[ls..le], forward) else { return };
+    swallow(e);
+    let (a, b) = (ls + a, ls + b);
+    let new_b = splice(el, a, b, &with);
+    // The caret keeps its place in the title
+    set_cursor(el, if end >= b { end + new_b - b } else { end.min(a) });
+    pane.commit(el);
+    pane.track_caret(el);
+}
+
+/// On a headline, the headline and its sub-headlines go one level up / down
+/// (org-mode M-S-<left> / M-S-<right>).
+fn shift_subtree(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: EditorAction) {
+    let (_, end) = get_pos(el);
+    let pos = pane.page_pos(el, end);
+    let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+    let demote = action == EditorAction::DemoteSubtree;
+    let lines = match folding::shift_subtree(&page, folding::line_start(&page, pos), demote) {
+        Ok(lines) => lines,
+        Err(folding::ShiftError::NotHeadline) => return,
+        Err(folding::ShiftError::TopLevel) => {
+            swallow(e);
+            pane.ctx.notify_t("promote_top_level", "");
+            return;
+        }
+    };
+    swallow(e);
+    let folded = pane.folds.get_untracked();
+    if !lines.iter().any(|&l| folded.iter().any(|&(a, b)| a < l && l <= b)) {
+        // All the headlines are shown: edit the textarea, so the change can be undone
+        let at: Vec<usize> = lines.iter().map(|&l| pane.view_pos(l)).collect();
+        for &p in at.iter().rev() {
+            if demote { splice(el, p, p, "*"); } else { splice(el, p, p + 1, ""); }
+        }
+        set_cursor(el, folding::caret_after_shift(end, &at, demote));
+        pane.commit(el);
+        pane.track_caret(el);
+    } else {
+        // Some are hidden in a fold: change the page, the folds keep their place
+        let (out, moved) = folding::shift_page(&page, &lines, demote, &folded);
+        pane.folds.set(moved);
+        pane.set_page(out, folding::caret_after_shift(pos, &lines, demote));
+    }
+}
+
+/// An editor action of the keybindings: motions, clipboard, emphasis, Emacs editing…
+fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
+    let ctx = pane.ctx;
+    let chars: Vec<char> = el.value().chars().collect();
+    let text = |a: usize, b: usize| -> String { pane.page_text(el, a, b) };
+    // Replace a..b with `with`, caret after it; the page has changed
+    let replace = |a: usize, b: usize, with: &str| {
+        let cursor = splice(el, a, b, with);
+        set_cursor(el, cursor);
+        pane.commit(el);
+    };
+
+    if let Some(target) = edit::motion_target(action, &chars, caret(el)) {
+        set_cursor(el, target);
+        return;
+    }
+    let (start, end) = get_pos(el);
+    match action {
+        // ── Classic clipboard / editing ───────────────────────────────────────
+        EditorAction::Copy if start < end => {
+            clipboard_write(&text(start, end));
+            set_selection(el, start, end); // keep the selection
+        }
+        EditorAction::Cut if start < end => {
+            clipboard_write(&text(start, end));
+            replace(start, end, "");
+        }
+        EditorAction::Paste => {
+            let el = el.clone();
+            if let Some(cb) = clipboard() {
+                let promise = cb.read_text();
+                spawn_local(async move {
+                    let pasted = JsFuture::from(promise).await.ok().and_then(|v| v.as_string());
+                    if let Some(pasted) = pasted.filter(|p| !p.is_empty()) {
+                        let (start, end) = get_pos(&el);
+                        let cursor = splice(&el, start, end, &pasted);
+                        set_cursor(&el, cursor);
+                        pane.commit(&el);
+                    }
+                });
+            }
+        }
+        EditorAction::SelectAll => el.select(),
+        EditorAction::Undo => exec_undo(),
+        EditorAction::Redo => exec_redo(),
+
+        // ── Org emphasis: *bold*, /italic/, _underline_, +strikethrough+ ──────
+        EditorAction::Bold | EditorAction::Italic | EditorAction::Underline | EditorAction::Strikethrough => {
+            let marker = match action {
+                EditorAction::Bold => '*',
+                EditorAction::Italic => '/',
+                EditorAction::Underline => '_',
+                _ => '+',
+            };
+            let (a, b, with, sel_start, sel_end) = edit::toggle_emphasis(&chars, start, end, marker);
+            splice(el, a, b, &with);
+            set_selection(el, sel_start, sel_end);
+            pane.commit(el);
+        }
+
+        // ── Org: new heading at the same level as the current one ─────────────
+        EditorAction::NewHeading => {
+            let (at, heading) = edit::new_heading(&chars, end);
+            replace(at, at, &heading);
+        }
+        EditorAction::OpenLink => {
+            if let Some(name) = edit::link_at(&chars, start, ctx.tags_untracked()) {
+                follow_link(ctx, name);
+            }
+        }
+
+        // ── Emacs editing ─────────────────────────────────────────────────────
+        EditorAction::KillLine => {
+            let (a, b) = edit::kill_line_range(&chars, start);
+            ctx.work.kill_ring.set(text(a, b));
+            replace(a, b, "");
+        }
+        EditorAction::KillWordForward => {
+            let b = edit::word_end_forward(&chars, start);
+            ctx.work.kill_ring.set(text(start, b));
+            replace(start, b, "");
+        }
+        EditorAction::KillWordBackward => {
+            let a = edit::word_start_backward(&chars, start);
+            ctx.work.kill_ring.set(text(a, start));
+            replace(a, start, "");
+        }
+        EditorAction::KillRegion | EditorAction::CopyRegion => {
+            let (a, b) = pane.region_of(el);
+            if a < b {
+                ctx.work.kill_ring.set(text(a, b));
+                if action == EditorAction::KillRegion {
+                    replace(a, b, "");
+                } else if pane.mark.get_untracked().is_none() {
+                    set_selection(el, a, b); // keep the native selection
+                }
+            }
+            pane.mark.set(None);
+        }
+        EditorAction::Yank => {
+            let killed = ctx.work.kill_ring.get_untracked();
+            if !killed.is_empty() { replace(start, end, &killed); }
+        }
+        EditorAction::DeleteCharForward => {
+            let (a, b) = edit::delete_forward_range(&chars, start, end);
+            replace(a, b, "");
+        }
+        EditorAction::SetMark => {
+            if ctx.pref_untracked(|p| p.emacs_mark) {
+                let c = caret(el);
+                if pane.mark.get_untracked() == Some(c) {
+                    pane.mark.set(None); // Ctrl+Space twice at the same spot cancels
+                } else {
+                    pane.mark.set(Some(c));
+                    pane.point.set(c);
+                }
+            }
+        }
+        EditorAction::KeyboardQuit => {
+            pane.mark.set(None);
+            if find.is_open() { find.close(); }
+        }
+        EditorAction::Find | EditorAction::FindPrevious => find.open(false, el),
+        EditorAction::Replace => find.open(true, el),
+        // Movements are handled above; copy / cut without a selection do nothing
+        _ => {}
+    }
+}

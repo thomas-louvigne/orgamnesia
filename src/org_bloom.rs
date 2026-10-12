@@ -15,10 +15,23 @@ pub fn build(ctx: AppCtx) {
         if actions::save_dirty_tabs(ctx).await {
             ctx.notify_t("bloom_running", "");
             match invoke::build_site().await {
-                Ok(folder) => ctx.notify_t("bloom_done", &folder),
+                Ok(folder) => {
+                    ctx.notify_t("bloom_done", &folder);
+                    read_built(ctx).await;
+                }
                 Err(e) => ctx.notify(format!("{} : {e}", t("bloom_error", ctx.lang.get_untracked()))),
             }
         }
         ctx.project.bloom_busy.set(false);
     });
+}
+
+/// Read when the site of the open project was last built.
+pub async fn read_built(ctx: AppCtx) {
+    let path = ctx.project.vault_path.get_untracked();
+    let built = invoke::site_config().await.ok().flatten().and_then(|s| s.built_at);
+    // Another project may have been opened meanwhile
+    if ctx.project.vault_path.get_untracked() == path {
+        ctx.project.bloom_built.set(built);
+    }
 }

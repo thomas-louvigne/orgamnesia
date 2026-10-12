@@ -103,6 +103,30 @@ pub fn shift_subtree(chars: &[char], ls: usize, demote: bool) -> Result<Vec<usiz
     Ok(lines)
 }
 
+/// Where the caret at `pos` goes when the headlines starting at `lines` are
+/// shifted: only the star of the first one (the caret's) moves it.
+pub fn caret_after_shift(pos: usize, lines: &[usize], demote: bool) -> usize {
+    if demote { pos + 1 } else if pos > lines[0] { pos - 1 } else { pos }
+}
+
+/// The page with a star added to (`demote`) or removed from the start of each
+/// line of `lines` (see `shift_subtree`), and the `folds` moved with the text.
+pub fn shift_page(page: &[char], lines: &[usize], demote: bool, folds: &[(usize, usize)]) -> (String, Vec<(usize, usize)>) {
+    let shift = |p: usize| -> usize {
+        let n = lines.iter().take_while(|&&l| l < p).count();
+        if demote { p + n } else { p - n }
+    };
+    let mut out = String::with_capacity(page.len() + lines.len());
+    let mut next = lines.iter().peekable();
+    for (i, &c) in page.iter().enumerate() {
+        if next.next_if(|&&l| l == i).is_some() {
+            if demote { out.push('*'); } else { continue; }
+        }
+        out.push(c);
+    }
+    (out, folds.iter().map(|&(a, b)| (shift(a), shift(b))).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,6 +143,24 @@ mod tests {
         assert_eq!(shift_subtree(&t, 0, false), Err(ShiftError::TopLevel));
         assert_eq!(shift_subtree(&t, 9, true), Err(ShiftError::NotHeadline));
         assert_eq!(shift_subtree(&t, 26, true), Ok(vec![26, 30]));
+    }
+
+    #[test]
+    fn shifted_page_keeps_its_folds_in_place() {
+        let t = c("* A\n** B\ntexte\n*** C\n** D\n");
+        let lines = shift_subtree(&t, 4, true).unwrap();
+        // `** B` folded: from the end of its line to the end of `*** C`
+        let (page, folds) = shift_page(&t, &lines, true, &[(8, 20)]);
+        assert_eq!(page, "* A\n*** B\ntexte\n**** C\n** D\n");
+        assert_eq!(folds, vec![(9, 22)]);
+        let page = c(&page);
+        let (back, folds) = shift_page(&page, &shift_subtree(&page, 4, false).unwrap(), false, &folds);
+        assert_eq!(back, t.iter().collect::<String>());
+        assert_eq!(folds, vec![(8, 20)]);
+        // The caret on the headline moves with its own star only
+        assert_eq!(caret_after_shift(6, &lines, true), 7);
+        assert_eq!(caret_after_shift(6, &lines, false), 5);
+        assert_eq!(caret_after_shift(4, &lines, false), 4);
     }
 
     #[test]

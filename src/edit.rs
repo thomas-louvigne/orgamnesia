@@ -204,6 +204,19 @@ fn wiki_link_at(chars: &[char], pos: usize, hashtags: Hashtags) -> Option<String
 }
 
 /// Char ranges of the occurrences of `query` in `chars`, without overlap.
+/// `chars` with each of the `ranges` (sorted, not overlapping) replaced by `with`.
+pub fn replace_ranges(chars: &[char], ranges: &[(usize, usize)], with: &str) -> String {
+    let mut out = String::new();
+    let mut at = 0;
+    for &(a, b) in ranges {
+        out.extend(&chars[at..a]);
+        out.push_str(with);
+        at = b;
+    }
+    out.extend(&chars[at..]);
+    out
+}
+
 /// Without `match_case`, case and accents are ignored ("regle" finds "Règle").
 pub fn find_all(chars: &[char], query: &str, match_case: bool) -> Vec<(usize, usize)> {
     let norm = |c: char| if match_case { c } else { orgamnesia_core::names::fold_char(c) };
@@ -327,5 +340,13 @@ mod tests {
         let c: Vec<char> = "La règle, les Règles, regle".chars().collect();
         assert_eq!(find_all(&c, "regle", false), vec![(3, 8), (14, 19), (22, 27)]);
         assert_eq!(find_all(&c, "regle", true), vec![(22, 27)]);
+    }
+
+    #[test]
+    fn replace_ranges_replaces_every_match() {
+        let c: Vec<char> = "un chat, deux chats".chars().collect();
+        assert_eq!(replace_ranges(&c, &[(3, 7), (14, 18)], "chien"), "un chien, deux chiens");
+        assert_eq!(replace_ranges(&c, &[], "x"), "un chat, deux chats");
+        assert_eq!(replace_ranges(&c, &[(0, 3)], ""), "chat, deux chats");
     }
 }

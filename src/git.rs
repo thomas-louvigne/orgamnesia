@@ -57,11 +57,19 @@ pub fn hint(err: &str) -> Option<&'static str> {
         "git_hint_local_changes"
     } else if e.contains("tell me who you are") || e.contains("user.email") {
         "git_hint_identity"
-    } else if e.contains("no remote") || e.contains("no configured push destination") {
+    } else if e.contains("no configured push destination") {
         "git_hint_no_remote"
     } else {
         return None;
     })
+}
+
+/// The pull was refused because the history diverged from the remote, or a merge
+/// is in progress with conflicts: the app never merges, it is to be done elsewhere.
+pub fn needs_merge(err: &str) -> bool {
+    let e = err.to_lowercase();
+    hint(err) == Some("git_hint_diverged")
+        || ["unmerged", "conflict", "merge_head", "conclude your merge"].iter().any(|w| e.contains(w))
 }
 
 /// Report a failed git command in the status bar, with a hint when there is one.
@@ -101,7 +109,10 @@ pub fn pull(ctx: AppCtx) {
         match invoke::git_pull().await {
             Ok(out) if out.contains("Already up to date") => ctx.notify_t("git_pull_up_to_date", ""),
             Ok(_) => ctx.notify_t("git_pulled", ""),
-            Err(e) => report(ctx, "git_pull_error", &e),
+            Err(e) => {
+                report(ctx, "git_pull_error", &e);
+                if needs_merge(&e) { ctx.alert(t("git_merge_outside", ctx.lang.get_untracked()).to_string()); }
+            }
         }
     });
 }
@@ -171,5 +182,9 @@ mod tests {
         assert_eq!(hint(" ! [rejected]        main -> main (fetch first)"), Some("git_hint_pull_first"));
         assert_eq!(hint("git@github.com: Permission denied (publickey)."), Some("git_hint_ssh"));
         assert_eq!(hint("something else"), None);
+        assert!(needs_merge("fatal: Not possible to fast-forward, aborting."));
+        assert!(needs_merge("error: Pulling is not possible because you have unmerged files."));
+        assert!(needs_merge("fatal: You have not concluded your merge (MERGE_HEAD exists)."));
+        assert!(!needs_merge("git@github.com: Permission denied (publickey)."));
     }
 }

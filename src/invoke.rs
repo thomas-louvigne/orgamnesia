@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit}};
+use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -53,6 +53,40 @@ pub fn listen<T: for<'de> Deserialize<'de> + 'static>(event: &str, mut f: impl F
     handler.forget();
 }
 
+/// An error of the backend (`src-tauri/src/error.rs`): a code, the detail that
+/// goes with it, and for `cannot_run` the cause.
+#[derive(Debug, Deserialize)]
+struct BackendError {
+    code: String,
+    detail: Option<String>,
+    cause: Option<String>,
+}
+
+/// What a backend error says, in `lang`.
+fn error_text(err: &BackendError, lang: Lang) -> String {
+    let key = match err.code.as_str() {
+        "no_project" => "err_no_project",
+        "vault_not_found" => "err_vault_not_found",
+        "not_a_folder" => "err_not_a_folder",
+        "not_a_page" => "err_not_a_page",
+        "page_exists" => "err_page_exists",
+        "invalid_name" => "err_invalid_name",
+        "org_bloom_not_found" => "err_org_bloom_not_found",
+        "cannot_run" => "err_cannot_run",
+        "folder_not_found" => "err_folder_not_found",
+        "settings" => "err_settings",
+        "dialog" => "err_dialog",
+        "no_remote" => "err_no_remote",
+        "not_an_image" => "err_not_an_image",
+        // What a tool or the system said: shown as it is
+        _ => return err.detail.clone().unwrap_or_else(|| err.code.clone()),
+    };
+    let mut text = t(key, lang).to_string();
+    if let Some(detail) = &err.detail { text = format!("{text} {detail}"); }
+    if let Some(cause) = &err.cause { text = format!("{text} : {cause}"); }
+    text
+}
+
 async fn call<A, R>(cmd: &str, args: A) -> Result<R, String>
 where
     A: Serialize,
@@ -61,9 +95,10 @@ where
     let js_args = serde_wasm_bindgen::to_value(&args)
         .map_err(|e| format!("serialize: {e}"))?;
     let promise = tauri_invoke_raw(cmd, js_args);
-    let value = JsFuture::from(promise).await
-        // The backend's errors arrive as their message
-        .map_err(|e| e.as_string().unwrap_or_else(|| format!("{cmd}: {e:?}")))?;
+    let value = JsFuture::from(promise).await.map_err(|e| match serde_wasm_bindgen::from_value::<BackendError>(e.clone()) {
+        Ok(err) => error_text(&err, crate::i18n::current()),
+        Err(_) => e.as_string().unwrap_or_else(|| format!("{cmd}: {e:?}")),
+    })?;
     serde_wasm_bindgen::from_value(value)
         .map_err(|e| format!("deserialize: {e}"))
 }

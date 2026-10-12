@@ -22,9 +22,7 @@ fn has_org_files(dir: &Path) -> bool {
 pub fn list_org_files(vault_path: &str) -> Result<Vec<FileEntry>, AppError> {
     let pages = pages_dir(vault_path);
     if !pages.exists() {
-        return Err(AppError::VaultNotFound(format!(
-            "{vault_path} not found"
-        )));
+        return Err(AppError::VaultNotFound(vault_path.to_string()));
     }
     let mut files: Vec<FileEntry> = std::fs::read_dir(&pages)?
         .filter_map(|entry| entry.ok())
@@ -67,8 +65,11 @@ pub fn diff(old: &Snapshot, new: &Snapshot) -> (Vec<String>, Vec<String>) {
 /// plain directory of `.org` files (then it is used as is).
 pub fn ensure_structure(vault_path: &str) -> Result<(), AppError> {
     let base = Path::new(vault_path);
+    if !base.exists() {
+        return Err(AppError::VaultNotFound(vault_path.to_string()));
+    }
     if !base.is_dir() {
-        return Err(AppError::VaultNotFound(format!("{vault_path} is not a folder")));
+        return Err(AppError::NotAFolder(vault_path.to_string()));
     }
     if !base.join("pages").is_dir() && has_org_files(base) {
         return Ok(());

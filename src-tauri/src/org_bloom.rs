@@ -42,11 +42,11 @@ pub fn build(project: &str, command: &str, options: &[&str]) -> Result<String, A
                 });
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => last_err = Some(bin),
-            Err(e) => return Err(AppError::OrgBloom(format!("cannot run '{}': {e}", bin.display()))),
+            Err(e) => return Err(AppError::CannotRun { program: bin.display().to_string(), error: e.to_string() }),
         }
     }
     let tried = last_err.map(|b| b.display().to_string()).unwrap_or_else(|| command.to_string());
-    Err(AppError::OrgBloom(format!("'{tried}' not found: install org-bloom, or set its path in the settings")))
+    Err(AppError::OrgBloomNotFound(tried))
 }
 
 /// Where org-bloom builds the site of the project: the `output_dir` of the
@@ -62,7 +62,16 @@ pub fn site_config(project: &str) -> SiteConfig {
     let output_dir = text.as_deref().and_then(output_dir_of).map(|dir| {
         resolve(&dir, project, std::env::var_os("HOME").map(PathBuf::from)).display().to_string()
     });
-    SiteConfig { config: config.display().to_string(), exists: text.is_some(), output_dir }
+    let built_at = output_dir.as_deref().and_then(built_at);
+    SiteConfig { config: config.display().to_string(), exists: text.is_some(), output_dir, built_at }
+}
+
+/// When the site in `dir` was built: the last change of the folder, which
+/// org-bloom wipes and fills again on every build.
+fn built_at(dir: &str) -> Option<u64> {
+    let meta = std::fs::metadata(dir).ok().filter(|m| m.is_dir())?;
+    let time = meta.modified().ok()?;
+    time.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_secs())
 }
 
 /// `output_dir` of the `[site]` table of a config file.
@@ -93,11 +102,11 @@ fn resolve(dir: &str, project: &Path, home: Option<PathBuf>) -> PathBuf {
 /// Show a folder in the file manager.
 pub fn open_folder(path: &str) -> Result<(), AppError> {
     if !Path::new(path).is_dir() {
-        return Err(AppError::OrgBloom(path.to_string()));
+        return Err(AppError::FolderNotFound(path.to_string()));
     }
     Command::new("xdg-open").arg(path).spawn()
         .map(|_| ())
-        .map_err(|e| AppError::OrgBloom(format!("cannot run 'xdg-open': {e}")))
+        .map_err(|e| AppError::CannotRun { program: "xdg-open".into(), error: e.to_string() })
 }
 
 /// The PATH given to org-bloom: `~/.local/bin` first, so that the tools it

@@ -41,6 +41,8 @@ pub struct ConfirmReq {
     pub on_yes: Callback<()>,
     /// A destructive action: the label key of its (red) button, and Cancel has the focus.
     pub danger: Option<&'static str>,
+    /// Only a message to read: a single OK button, nothing to confirm.
+    pub info: bool,
 }
 
 /// A git command of the git extension.
@@ -78,6 +80,9 @@ pub struct ProjectState {
     pub git_busy: RwSignal<Option<GitOp>>,
     /// Org-bloom is building the site.
     pub bloom_busy: RwSignal<bool>,
+    /// When the site of the project was last built (seconds since the epoch);
+    /// `None` when it never was.
+    pub bloom_built: RwSignal<Option<u64>>,
     /// Bumped after every write to disk, so link-derived views can refresh.
     pub links_version: RwSignal<u32>,
 }
@@ -156,6 +161,7 @@ impl AppCtx {
                 git: RwSignal::new(None),
                 git_busy: RwSignal::new(None),
                 bloom_busy: RwSignal::new(false),
+                bloom_built: RwSignal::new(None),
                 links_version: RwSignal::new(0),
             },
             work: Workspace {
@@ -254,12 +260,17 @@ impl AppCtx {
 
     /// Ask the user to confirm; `on_yes` runs only if they accept.
     pub fn ask_confirm(&self, message: String, on_yes: impl Fn() + Send + Sync + 'static) {
-        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: None }));
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: None, info: false }));
+    }
+
+    /// Show a message in a dialog the user closes with OK.
+    pub fn alert(&self, message: String) {
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(|_| ()), danger: None, info: true }));
     }
 
     /// Ask the user to confirm a destructive action, done by the button `button` (label key).
     pub fn ask_confirm_danger(&self, message: String, button: &'static str, on_yes: impl Fn() + Send + Sync + 'static) {
-        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: Some(button) }));
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: Some(button), info: false }));
     }
 
     /// Show a message in the status bar.

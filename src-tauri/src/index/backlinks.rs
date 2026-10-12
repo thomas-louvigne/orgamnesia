@@ -91,19 +91,6 @@ impl BacklinkIndex {
         v.dedup();
         v
     }
-
-    /// Rebuild the whole index from scratch.
-    pub fn rebuild<'a>(&mut self, entries: impl IntoIterator<Item = (&'a str, Vec<String>)>) {
-        self.reverse_map.clear();
-        self.forward_map.clear();
-        for (source, links) in entries {
-            self.index_file(source, &links);
-        }
-    }
-
-    pub fn page_count(&self) -> usize {
-        self.forward_map.len()
-    }
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -184,15 +171,6 @@ mod tests {
     }
 
     #[test]
-    fn rebuild_resets_state() {
-        let mut b = idx(&[("x", &["y"])]);
-        b.rebuild([("new", vec!["z".to_string()])]);
-        assert!(b.get_backlinks("y").is_empty());
-        assert_eq!(b.get_backlinks("z"), vec!["new"]);
-        assert_eq!(b.page_count(), 1);
-    }
-
-    #[test]
     fn duplicate_links_deduplicated() {
         let b = idx(&[("a", &["b", "b", "b"])]);
         assert_eq!(b.get_backlinks("b"), vec!["a"]);
@@ -202,12 +180,6 @@ mod tests {
     fn backlinks_sorted() {
         let b = idx(&[("z", &["x"]), ("a", &["x"]), ("m", &["x"])]);
         assert_eq!(b.get_backlinks("x"), vec!["a", "m", "z"]);
-    }
-
-    #[test]
-    fn page_count() {
-        let b = idx(&[("a", &["b"]), ("c", &["d"])]);
-        assert_eq!(b.page_count(), 2);
     }
 
     #[test]

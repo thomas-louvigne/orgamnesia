@@ -46,6 +46,10 @@ pub struct SiteConfig {
     /// The `output_dir` of its `[site]` table, as an absolute path; `None`
     /// when not set.
     pub output_dir: Option<String>,
+    /// When the site was last built (last change of that folder, in seconds
+    /// since the epoch); `None` when it has never been built.
+    #[serde(default)]
+    pub built_at: Option<u64>,
 }
 
 /// What happened to a file of the project since the last commit.

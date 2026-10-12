@@ -74,7 +74,7 @@ pub fn push(path: &str, ssh_key: &str) -> Result<String, AppError> {
     let remotes = run(git(path).arg("remote"))?;
     let names: Vec<&str> = remotes.lines().map(str::trim).filter(|r| !r.is_empty()).collect();
     let Some(name) = names.iter().find(|&&r| r == "origin").or(names.first()) else {
-        return Err(AppError::Git("no remote: add one with git remote add origin <url>".into()));
+        return Err(AppError::NoRemote);
     };
     run(remote(git(path), path, ssh_key).args(["push", "--set-upstream", name, "HEAD"]))
 }

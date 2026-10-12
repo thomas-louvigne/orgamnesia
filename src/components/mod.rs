@@ -1,11 +1,9 @@
-pub mod backlinks_panel;
-pub mod columns;
 pub mod commit_modal;
 pub mod editor;
 pub mod empty_state;
-pub mod org_bloom;
+pub mod frames;
+pub mod new_page_modal;
 pub mod page_title;
 pub mod quick_open;
-pub mod settings_modal;
-pub mod sidebar;
+pub mod settings;
 pub mod tabs;
