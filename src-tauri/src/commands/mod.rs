@@ -1,7 +1,7 @@
 //! The commands the interface calls. Each one only hands the request to the
 //! project (`project.rs`), the settings or a tool, and returns its result.
 
-use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitStatus, TagCount, TagHit, TodoHit};
+use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitStatus, SiteConfig, TagCount, TagHit, TodoHit};
 use tauri::{AppHandle, Manager, State};
 
 use crate::{
@@ -187,21 +187,34 @@ pub async fn list_todos(state: State<'_, AppState>) -> Cmd<Vec<TodoHit>> {
 
 // ─── Extensions ──────────────────────────────────────────────────────────────
 
-/// Build the site with logseq-site-builder; returns its output.
+/// Build the site of the open project with org-bloom, away from the async
+/// runtime (it takes a while); returns the folder the site was written to.
 #[tauri::command]
-pub async fn export_vault(state: State<'_, AppState>) -> Cmd<String> {
-    let vault_path = state.with_project(|p| Ok(p.path.clone()))?;
-    let bin = state.settings().logseq_site_builder_path
-        .unwrap_or_else(|| "logseq-site-builder".to_string());
-    let out = std::process::Command::new(&bin)
-        .arg("build")
-        .arg(&vault_path)
-        .output()
-        .map_err(|e| AppError::Export(format!("cannot run '{bin}': {e}")))?;
-    if !out.status.success() {
-        return Err(AppError::Export(String::from_utf8_lossy(&out.stderr).to_string()));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+pub async fn build_site(state: State<'_, AppState>) -> Cmd<String> {
+    let path = state.with_project(|p| Ok(p.path.clone()))?;
+    let prefs = state.prefs();
+    let options: Vec<&str> = [(prefs.org_bloom_zip, "--zip"), (prefs.org_bloom_no_external_deps, "--no-external-deps")]
+        .into_iter()
+        .filter_map(|(on, flag)| on.then_some(flag))
+        .collect();
+    let command = prefs.org_bloom_path;
+    tauri::async_runtime::spawn_blocking(move || crate::org_bloom::build(&path, &command, &options))
+        .await
+        .map_err(|e| AppError::OrgBloom(e.to_string()))?
+}
+
+/// Where org-bloom builds the site of the open project, read from its
+/// `org-bloom.toml`; `None` when no project is open.
+#[tauri::command]
+pub fn site_config(state: State<'_, AppState>) -> Cmd<Option<SiteConfig>> {
+    let Ok(path) = state.with_project(|p| Ok(p.path.clone())) else { return Ok(None) };
+    Ok(Some(crate::org_bloom::site_config(&path)))
+}
+
+/// Show a folder in the file manager.
+#[tauri::command]
+pub fn open_folder(path: String) -> Cmd<()> {
+    crate::org_bloom::open_folder(&path)
 }
 
 /// Git state of a project folder (git extension); `None` when git can't be run.

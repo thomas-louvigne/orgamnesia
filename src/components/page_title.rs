@@ -44,7 +44,8 @@ enum EditMode {
 }
 
 /// Name of the page in large type above the editor: its `#+TITLE:` when it
-/// has one, else its name. Right-click to rename the file or set the title.
+/// has one, else its name. Double-click to rename the file, right-click to
+/// rename it or set the title.
 #[component]
 pub fn PageTitle(tab: Tab) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
@@ -88,6 +89,7 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
         editing.set(Some(mode));
     };
     let start_rename = start.clone();
+    let start_dbl = start.clone();
     let shown = {
         let name = tab.name.clone();
         move || title.get().unwrap_or_else(|| name.clone())
@@ -123,7 +125,13 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
                     />
                 }.into_any()
             } else {
-                view! { <h1 class="page-title-text">{shown.clone()}</h1> }.into_any()
+                // Double click: rename the file (the links to it follow)
+                let start_dbl = start_dbl.clone();
+                view! {
+                    <h1 class="page-title-text" on:dblclick=move |_| start_dbl(EditMode::Rename)>
+                        {shown.clone()}
+                    </h1>
+                }.into_any()
             }}
             {move || menu.get().map(|(x, y)| {
                 let start_rename = start_rename.clone();

@@ -9,6 +9,7 @@ use crate::{
     state::{AppCtx, Prefs},
     storage,
 };
+use orgamnesia_core::{Frame, Layout, Move, SiteConfig};
 
 /// Everything the settings window edits, to tell whether there is anything to apply.
 #[derive(Clone, PartialEq)]
@@ -60,6 +61,128 @@ fn Check(
                 {move || t(label, lang())}
             </label>
             {hint.map(|h| view! { <span class="setting-hint">{move || t(h, lang())}</span> })}
+        </div>
+    }
+}
+
+/// Name of the setting showing `frame`, also its label.
+fn frame_label(frame: Frame) -> &'static str {
+    match frame {
+        Frame::Brand => "show_brand",
+        Frame::Project => "show_project",
+        Frame::Git => "show_git",
+        Frame::Pages => "show_pages",
+        Frame::Settings => "show_settings_button",
+        Frame::Backlinks => "show_backlinks",
+        Frame::Tags => "show_tags",
+        Frame::Todos => "show_todos",
+        Frame::Broken => "show_broken_links",
+        Frame::Quit => "show_quit_button",
+        Frame::OrgBloom => "show_org_bloom",
+    }
+}
+
+/// Whether the layout editor leaves `frame` out: the frame of an extension that
+/// is off (org-bloom).
+fn unlisted(p: &Prefs, frame: Frame) -> bool {
+    frame == Frame::OrgBloom && !p.org_bloom
+}
+
+/// Where the frames go around the editor: the two columns, each with its frames
+/// top to bottom, a box to show each one and arrows to move it.
+#[component]
+fn LayoutEditor(draft: RwSignal<Prefs>) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    let listed = move |right: bool| draft.with(|p| {
+        p.layout.column(right).iter().copied().filter(|f| !unlisted(p, *f)).collect::<Vec<_>>()
+    });
+    let column = move |right: bool| view! {
+        <div class="layout-col" role="group"
+            aria-label=move || t(if right { "layout_right" } else { "layout_left" }, lang())>
+            <div class="layout-col-title">
+                {move || t(if right { "layout_right" } else { "layout_left" }, lang())}
+            </div>
+            {move || listed(right).is_empty().then(|| view! {
+                <div class="layout-empty">{move || t("layout_empty", lang())}</div>
+            })}
+            <For each=move || listed(right) key=|f| *f let:frame>
+                <LayoutFrame draft frame />
+            </For>
+        </div>
+    };
+    view! {
+        <div class="setting-row">
+            <span class="setting-hint">{move || t("layout_hint", lang())}</span>
+        </div>
+        <div class="layout-editor">
+            {column(false)}
+            <div class="layout-editor-center" aria-hidden="true">{move || t("layout_editor", lang())}</div>
+            {column(true)}
+        </div>
+        <div class="setting-row">
+            <button
+                class="btn-pick layout-reset"
+                prop:disabled=move || draft.with(|p| p.layout == Layout::default())
+                on:click=move |_| draft.update(|p| p.layout = Layout::default())
+            >{move || t("layout_reset", lang())}</button>
+        </div>
+    }
+}
+
+/// One frame in the layout editor: its box and its arrows.
+#[component]
+fn LayoutFrame(draft: RwSignal<Prefs>, frame: Frame) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    let label = frame_label(frame);
+    // Shown only with the feature it belongs to
+    let needs = move || draft.with(|p| match frame {
+        Frame::Git if !p.git_ext => Some("layout_needs_git"),
+        Frame::Todos if !p.todo_enabled => Some("layout_needs_todo"),
+        _ => None,
+    });
+    // Its column, and its place among the frames listed there
+    let place = move || draft.with(|p| {
+        let right = p.layout.find(frame).is_some_and(|(r, _)| r);
+        let listed: Vec<Frame> = p.layout.column(right).iter().copied().filter(|f| !unlisted(p, *f)).collect();
+        (right, listed.iter().position(|f| *f == frame).unwrap_or(0), listed.len())
+    });
+    let move_it = move |how: Move| draft.update(|p| {
+        let shown = p.clone();
+        p.layout.move_frame(frame, how, |f| unlisted(&shown, f));
+    });
+    let arrow = move |how: Move, icon: &'static str, key: Signal<&'static str>, disabled: Signal<bool>| view! {
+        <button
+            class="btn-icon layout-arrow"
+            title=move || t(key.get(), lang())
+            aria-label=move || format!("{} — {}", t(key.get(), lang()), t(label, lang()))
+            prop:disabled=move || disabled.get()
+            on:click=move |_| move_it(how)
+        >{icon}</button>
+    };
+    view! {
+        <div class=move || if draft.with(|p| p.frame_shown(frame)) { "layout-frame" } else { "layout-frame off" }>
+            <label class="setting-check" title=move || needs().map(|k| t(k, lang())).unwrap_or_default()>
+                <input
+                    type="checkbox"
+                    prop:disabled=move || needs().is_some()
+                    prop:checked=move || draft.with(|p| p.frame_on(frame))
+                    on:change=move |e| draft.update(|p| *p.frame_setting(frame) = event_target_checked(&e))
+                />
+                {move || t(label, lang())}
+            </label>
+            <div class="layout-arrows">
+                {arrow(Move::Up, "↑", Signal::stored("layout_up"), Signal::derive(move || place().1 == 0))}
+                {arrow(Move::Down, "↓", Signal::stored("layout_down"),
+                    Signal::derive(move || { let (_, i, n) = place(); i + 1 >= n }))}
+                {move || {
+                    let right = place().0;
+                    arrow(Move::OtherColumn, if right { "←" } else { "→" },
+                        Signal::stored(if right { "layout_to_left" } else { "layout_to_right" }),
+                        Signal::stored(false))
+                }}
+            </div>
         </div>
     }
 }
@@ -208,6 +331,45 @@ fn PathField(
             <button class="btn-pick" prop:disabled=disabled on:click=pick>
                 {move || t("browse", ctx.lang.get())}
             </button>
+        </div>
+    }
+}
+
+/// Where org-bloom builds the site of the open project, as its `org-bloom.toml`
+/// says; the folder opens in the file manager.
+#[component]
+fn SiteFolder(draft: RwSignal<Prefs>) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    let site = RwSignal::new(None::<SiteConfig>);
+    spawn_local(async move {
+        if let Ok(found) = invoke::site_config().await { site.set(found); }
+    });
+    let open = move |dir: String| spawn_local(async move {
+        if let Err(e) = invoke::open_folder(&dir).await { ctx.error("bloom_folder_missing", &e); }
+    });
+    view! {
+        <div class="setting-row setting-sub bloom-site" class:off=move || !draft.with(|p| p.org_bloom)>
+            <label>{move || t("bloom_folder", lang())}</label>
+            {move || match site.get() {
+                None => view! { <div class="setting-hint">{t("bloom_no_project", lang())}</div> }.into_any(),
+                Some(SiteConfig { output_dir: Some(dir), config, .. }) => view! {
+                    <button class="bloom-folder" title=move || t("bloom_open_folder", lang())
+                        on:click={ let dir = dir.clone(); move |_| open(dir.clone()) }>
+                        <span aria-hidden="true">"📂"</span>
+                        <span class="bloom-folder-path">{dir.clone()}</span>
+                    </button>
+                    <div class="setting-hint">{t("bloom_folder_from", lang())} " " <code>{config}</code></div>
+                }.into_any(),
+                Some(SiteConfig { config, exists, .. }) => view! {
+                    <div class="setting-hint">
+                        {t(if exists { "bloom_no_output_dir" } else { "bloom_no_config" }, lang())}
+                        " " <code>{config}</code>
+                        <br />
+                        <code>"[site]"</code> " " <code>"output_dir = \"../mon-site\""</code>
+                    </div>
+                }.into_any(),
+            }}
         </div>
     }
 }
@@ -667,11 +829,8 @@ pub fn SettingsModal() -> impl IntoView {
                             <div class="setting-section-title">
                                 {move || t("display_appearance", lang())}
                             </div>
-                            <Check draft get=|p| p.show_brand set=|p, v| p.show_brand = v label="show_brand" />
                             <Check draft get=|p| p.show_page_title set=|p, v| p.show_page_title = v
                                 label="show_page_title" hint="show_page_title_hint" />
-                            <Check draft get=|p| p.show_quit_button set=|p, v| p.show_quit_button = v
-                                label="show_quit_button" />
                             <Check draft get=|p| p.show_line_numbers set=|p, v| p.show_line_numbers = v
                                 label="show_line_numbers" />
                             <Check draft get=|p| p.mark_broken_links set=|p, v| p.mark_broken_links = v
@@ -694,28 +853,32 @@ pub fn SettingsModal() -> impl IntoView {
                             <div class="setting-section-title">
                                 {move || t("display_frames", lang())}
                             </div>
-                            <Check draft get=|p| p.show_pages set=|p, v| p.show_pages = v
-                                label="show_pages" hint="show_pages_hint" />
-                            <Check draft get=|p| p.show_backlinks set=|p, v| p.show_backlinks = v label="show_backlinks" />
-                            <Check draft get=|p| p.show_tags set=|p, v| p.show_tags = v label="show_tags" />
-                            <Check draft get=|p| p.show_broken_links set=|p, v| p.show_broken_links = v label="show_broken_links" />
-                            <Check draft get=|p| p.show_todos set=|p, v| p.show_todos = v label="show_todos"
-                                disabled=|p| !p.todo_enabled />
+                            <LayoutEditor draft />
                         </div>
                     })}
 
                     {move || (panel.get() == 2).then(|| view! {
                         <div class="tab-content">
-                            <Check draft get=|p| p.site_builder set=|p, v| p.site_builder = v label="site_builder_enabled" />
+                            <Check draft get=|p| p.org_bloom set=|p, v| p.org_bloom = v
+                                label="org_bloom_enabled" hint="org_bloom_hint" />
                             <div class="setting-row setting-sub">
-                                <label>{move || t("builder_path", lang())}</label>
+                                <label>{move || t("org_bloom_path", lang())}</label>
                                 <PathField
-                                    value=Signal::derive(move || draft.with(|p| p.builder.clone()))
-                                    on_change=Callback::new(move |v| draft.update(|p| p.builder = v))
-                                    placeholder=Signal::derive(|| "logseq-site-builder".to_string())
-                                    disabled=Signal::derive(move || !draft.with(|p| p.site_builder))
+                                    value=Signal::derive(move || draft.with(|p| p.org_bloom_path.clone()))
+                                    on_change=Callback::new(move |v| draft.update(|p| p.org_bloom_path = v))
+                                    placeholder=Signal::derive(|| "org-bloom".to_string())
+                                    disabled=Signal::derive(move || !draft.with(|p| p.org_bloom))
+                                    file_in="~/.local/bin"
                                 />
                             </div>
+                            <Check draft get=|p| p.org_bloom_zip set=|p, v| p.org_bloom_zip = v
+                                label="org_bloom_zip" hint="org_bloom_zip_hint" sub=true
+                                disabled=|p| !p.org_bloom />
+                            <Check draft get=|p| p.org_bloom_no_external_deps set=|p, v| p.org_bloom_no_external_deps = v
+                                label="org_bloom_no_external_deps" hint="org_bloom_no_external_deps_hint" sub=true
+                                disabled=|p| !p.org_bloom />
+                            <SiteFolder draft />
+                            <hr class="setting-separator" />
                             <Check draft get=|p| p.git_ext set=|p, v| p.git_ext = v
                                 label="git_ext_enabled" hint="git_ext_hint" />
                             <div class="setting-row setting-sub">

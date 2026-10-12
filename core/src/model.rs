@@ -36,6 +36,18 @@ pub struct GitStatus {
     pub behind: u32,
 }
 
+/// Where org-bloom builds the site of a project, as its config file says.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct SiteConfig {
+    /// The config file read: `org-bloom.toml` at the root of the project.
+    pub config: String,
+    /// The file exists.
+    pub exists: bool,
+    /// The `output_dir` of its `[site]` table, as an absolute path; `None`
+    /// when not set.
+    pub output_dir: Option<String>,
+}
+
 /// What happened to a file of the project since the last commit.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum GitChangeKind { Added, Modified, Deleted, Renamed }

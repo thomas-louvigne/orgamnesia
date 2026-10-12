@@ -5,14 +5,14 @@ use wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlElement, KeyboardEvent};
 
 /// The regions F6 cycles through, in the order of the window.
-const REGIONS: &str = ".sidebar, .editor-area, .backlinks-panel";
+const REGIONS: &str = ".side-column, .editor-area";
 
 /// What takes the focus when a region is entered: the open page in the list, else
 /// the first item, the editor's text, or the first field.
 const ENTRY: &[&str] = &[".file-item.active", "textarea", ".list-item", "input", "button"];
 
-/// Give the focus to the next (or previous) region of the window: the pages, each
-/// editor pane, the side panel.
+/// Give the focus to the next (or previous) region of the window: the left column,
+/// each editor pane, the right column.
 pub fn cycle_region(forward: bool) {
     let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return };
     let Ok(list) = doc.query_selector_all(REGIONS) else { return };

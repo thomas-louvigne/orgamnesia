@@ -72,10 +72,35 @@ pub fn NewPageModal() -> impl IntoView {
     }
 }
 
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
+// ─── Frames of the pages menu ────────────────────────────────────────────────
 
+/// Name and logo of the app.
 #[component]
-pub fn Sidebar() -> impl IntoView {
+pub fn Brand() -> impl IntoView {
+    view! {
+        <div class="frame app-brand">
+            <img class="app-brand-logo" src="app-icon.svg" alt="" />
+            <span class="app-brand-name">"Orgamnesia"</span>
+        </div>
+    }
+}
+
+/// Button opening the settings.
+#[component]
+pub fn SettingsButton() -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    view! {
+        <div class="frame sidebar-footer">
+            <button class="btn-settings" on:click=move |_| ctx.ui.show_settings.set(true)>
+                {move || t("settings_btn", ctx.lang.get())}
+            </button>
+        </div>
+    }
+}
+
+/// The pages of the project, with their filter.
+#[component]
+pub fn PagesFrame() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     let filter = RwSignal::new(String::new());
     // Right-click menu: position, and the file clicked (None = click on empty area)
@@ -116,15 +141,7 @@ pub fn Sidebar() -> impl IntoView {
     };
 
     view! {
-        <nav class="sidebar" aria-label=move || t("pages", ctx.lang.get())>
-            {move || ctx.pref(|p| p.show_brand).then(|| view! {
-                <div class="app-brand">
-                    <img class="app-brand-logo" src="app-icon.svg" alt="" />
-                    <span class="app-brand-name">"Orgamnesia"</span>
-                </div>
-            })}
-            <ProjectSwitcher />
-            {move || ctx.pref(|p| p.git_ext).then(|| view! { <GitLine /> })}
+        <nav class="frame frame-grow pages-frame" aria-label=move || t("pages", ctx.lang.get())>
             <div class="sidebar-header">
                 <span class="sidebar-title">{move || t("pages", ctx.lang.get())}</span>
                 <button
@@ -211,11 +228,6 @@ pub fn Sidebar() -> impl IntoView {
                     }
                 </For>
             </div>
-            <div class="sidebar-footer">
-                <button class="btn-settings" on:click=move |_| ctx.ui.show_settings.set(true)>
-                    {move || t("settings_btn", ctx.lang.get())}
-                </button>
-            </div>
 
             {move || ctx_menu.get().map(|(x, y, target)| {
                 let close = move || ctx_menu.set(None);
@@ -236,6 +248,18 @@ pub fn Sidebar() -> impl IntoView {
                                 renaming.set(Some(f.path.clone()));
                             }>
                                 {move || t("rename", ctx.lang.get())}
+                            </button>
+                        })}
+                        {target.clone().map(|f| view! {
+                            <button
+                                class="ctx-menu-item"
+                                title=move || t("no_export_title", ctx.lang.get())
+                                on:click=move |_| {
+                                    close();
+                                    actions::tag_page(ctx, f.clone(), "noexport");
+                                }
+                            >
+                                {move || t("no_export", ctx.lang.get())}
                             </button>
                         })}
                         <button class="ctx-menu-item" on:click=move |_| {
@@ -263,10 +287,10 @@ pub fn Sidebar() -> impl IntoView {
 
 /// Name of the open project, with the menu of the known projects.
 #[component]
-fn ProjectSwitcher() -> impl IntoView {
+pub fn ProjectSwitcher() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     view! {
-        <div class="project-switcher">
+        <div class="frame project-switcher">
             <button
                 class="project-current"
                 title=move || ctx.project.vault_path.get().unwrap_or_default()
@@ -418,42 +442,50 @@ fn GitButtons() -> impl IntoView {
     }
 }
 
-/// Git state of the open project, under its name (git extension).
+/// Git state of the open project (git extension).
 #[component]
-fn GitLine() -> impl IntoView {
+pub fn GitLine() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     let lang = move || ctx.lang.get();
-    move || {
-        let st = ctx.project.git.get()?;
-        ctx.project.vault_path.get()?;
-        if !st.repo {
-            return Some(view! {
-                <div class="git-status git-off">
-                    <GitIcon />
-                    <span class="git-branch">{move || t("git_no_repo", lang())}</span>
-                </div>
-            }.into_any());
-        }
-        let branch = st.branch.clone().unwrap_or_else(|| t("git_detached", lang()).to_string());
+    // Built again only when the project becomes, or stops being, a repository: a
+    // new state only updates the branch and the counts, so the buttons stay the
+    // same elements (one replaced between the press and the release of the mouse
+    // gets no click)
+    let repo = Memo::new(move |_| {
+        ctx.project.vault_path.with(Option::is_some).then(|| ctx.project.git.with(|g| g.as_ref().map(|g| g.repo))).flatten()
+    });
+    let git = move || ctx.project.git.get().unwrap_or_default();
+    let branch = move || git().branch.unwrap_or_else(|| t("git_detached", lang()).to_string());
+    let items = move || {
+        let st = git();
         let mut items: Vec<(&'static str, String)> = vec![];
         if st.changes > 0 { items.push(("git-dirty", format!("● {} {}", st.changes, t("git_to_commit", lang())))); }
         if st.ahead > 0 { items.push(("git-ahead", format!("↑ {} {}", st.ahead, t("git_to_push", lang())))); }
         if st.behind > 0 { items.push(("git-behind", format!("↓ {} {}", st.behind, t("git_to_pull", lang())))); }
         if !st.upstream { items.push(("git-local", t("git_no_upstream", lang()).to_string())); }
         if items.is_empty() { items.push(("git-clean", format!("✓ {}", t("git_up_to_date", lang())))); }
-        Some(view! {
-            <div class="git-status">
+        items
+    };
+    move || match repo.get()? {
+        false => Some(view! {
+            <div class="frame git-status git-off">
+                <GitIcon />
+                <span class="git-branch">{move || t("git_no_repo", lang())}</span>
+            </div>
+        }.into_any()),
+        true => Some(view! {
+            <div class="frame git-status">
                 <div class="git-head">
                     <GitIcon />
-                    <span class="git-branch" title=branch.clone()>{branch.clone()}</span>
+                    <span class="git-branch" title=branch>{branch}</span>
                 </div>
                 <div class="git-items">
-                    {items.into_iter().map(|(cls, text)| view! {
+                    {move || items().into_iter().map(|(cls, text)| view! {
                         <span class=format!("git-item {cls}")>{text}</span>
                     }).collect_view()}
                 </div>
                 <GitButtons />
             </div>
-        }.into_any())
+        }.into_any()),
     }
 }

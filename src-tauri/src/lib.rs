@@ -3,6 +3,7 @@ pub mod error;
 pub mod git;
 pub mod index;
 pub mod keybindings;
+pub mod org_bloom;
 pub mod parser;
 pub mod project;
 pub mod settings;

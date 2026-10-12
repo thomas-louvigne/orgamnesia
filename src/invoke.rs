@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, GitChange, GitStatus, TagCount, TagHit, TodoHit}};
+use crate::{keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -143,8 +143,19 @@ pub async fn search_tags(query: &str) -> Result<Vec<TagHit>, String> {
     call("search_tags", serde_json::json!({ "query": query })).await
 }
 
-pub async fn export_vault() -> Result<String, String> {
-    call("export_vault", serde_json::json!({})).await
+/// Build the site of the project with org-bloom; the folder it was written to.
+pub async fn build_site() -> Result<String, String> {
+    call("build_site", serde_json::json!({})).await
+}
+
+/// Where org-bloom builds the site of the open project; `None` without a project.
+pub async fn site_config() -> Result<Option<SiteConfig>, String> {
+    call("site_config", serde_json::json!({})).await
+}
+
+/// Show a folder in the file manager.
+pub async fn open_folder(path: &str) -> Result<(), String> {
+    call("open_folder", serde_json::json!({ "path": path })).await
 }
 
 pub async fn pick_folder() -> Result<Option<String>, String> {

@@ -10,6 +10,7 @@ mod images;
 pub mod i18n;
 mod invoke;
 mod links;
+mod org_bloom;
 pub mod keybindings;
 pub mod motion;
 mod state;

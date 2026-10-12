@@ -15,8 +15,8 @@ pub enum AppError {
     PageExists(String),
     /// A page name must be non-empty and hold no `/` or `\`.
     InvalidName(String),
-    /// The export tool failed or could not be run.
-    Export(String),
+    /// Org-bloom failed or could not be run.
+    OrgBloom(String),
     /// `settings.json` / `keybindings.json` could not be written.
     Settings(String),
     /// The folder picker could not be shown.
@@ -36,7 +36,7 @@ impl std::fmt::Display for AppError {
             Self::NotAPage(p)      => write!(f, "Not a page of the open project: {p}"),
             Self::PageExists(n)    => write!(f, "Page '{n}' already exists"),
             Self::InvalidName(n)   => write!(f, "Invalid page name: '{n}'"),
-            Self::Export(e)        => write!(f, "Export failed: {e}"),
+            Self::OrgBloom(e)      => write!(f, "{e}"),
             Self::Settings(e)      => write!(f, "Settings error: {e}"),
             Self::Dialog           => write!(f, "The folder picker could not be shown"),
             Self::Git(e)           => write!(f, "{e}"),

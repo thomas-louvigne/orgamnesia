@@ -12,7 +12,7 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 - [[*Tableaux][Tableaux]]
 - [[*Images][Images]]
 - [[*Fenêtre][Fenêtre]]
-- [[*Panneau de droite][Panneau de droite]]
+- [[*Colonnes de gauche et de droite][Colonnes de gauche et de droite]]
 - [[*Corbeille][Corbeille]]
 - [[*Raccourcis clavier][Raccourcis clavier]]
 - [[*Extensions][Extensions]]
@@ -42,8 +42,10 @@ Un projet est un dossier de pages =.org= liées entre elles.
   que les pages dont le nom contient le texte tapé (sans tenir compte de la casse
   ni des accents).
 - *Renommer* : clic droit sur la page (liste ou onglet), double-clic sur l'onglet,
-  ou clic droit sur le titre de la page. Les liens vers la page dans les autres
-  pages sont réécrits (réglable).
+  double-clic ou clic droit sur le titre de la page. Les liens vers la page dans
+  les autres pages sont réécrits (réglable).
+- *Ne pas exporter* : clic droit sur la page dans la liste ajoute le tag
+  =:noexport:= à son =#+FILETAGS:= (la ligne est créée si besoin).
 - *Supprimer* : clic droit sur la page (liste ou onglet), en dernier dans le menu.
   La page va dans la [[*Corbeille][corbeille]] du projet.
 
@@ -223,7 +225,7 @@ Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
 - *Par page* : une ligne =#+TODO:= (ou =#+SEQ_TODO:=, =#+TYP_TODO:=) donne à la page
   ses propres états. Plusieurs lignes font plusieurs suites : le cycle reste dans
   la suite du mot-clé en cours.
-- *Vue d'ensemble* : le cadre « À faire » du panneau de droite.
+- *Vue d'ensemble* : le cadre « À faire » (colonne de droite par défaut).
 - Toute la fonction se désactive dans les préférences.
 
 * Tableaux
@@ -258,14 +260,15 @@ clic droit pour renommer ou supprimer, =×= pour fermer.
 ** Deux volets
 Comme les fenêtres d'Emacs : séparer l'éditeur côte à côte ou l'un au-dessus de
 l'autre, passer d'un volet à l'autre, fermer le volet courant ou ne garder que
-lui. Il faut une page ouverte pour séparer.
+lui. Il faut une page ouverte pour séparer. Avec un seul volet, fermer le volet
+ferme l'onglet.
 
 ** Historique des pages
 « Revenir à la page précédente » et « Aller à la page suivante » (Alt+← et Alt+→)
 parcourent les pages affichées dans le volet, comme un navigateur.
 
 ** Zones de la fenêtre
-F6 et Maj+F6 passent des pages à l'éditeur et au panneau de droite. Les listes se
+F6 et Maj+F6 passent de la colonne de gauche à l'éditeur et à la colonne de droite. Les listes se
 parcourent au clavier.
 
 ** Écran d'accueil
@@ -275,9 +278,15 @@ Sans page ouverte : un bouton pour aller à une page et les raccourcis essentiel
 En bas de la fenêtre : messages (page enregistrée, erreur, combinaison en cours…).
 Après une suppression, elle propose « Annuler ». =×= la ferme.
 
-* Panneau de droite
-Chaque cadre se masque dans Préférences > Affichage ; le panneau disparaît quand
-tous le sont. Sa largeur se règle à la souris.
+* Colonnes de gauche et de droite
+L'éditeur est entre deux colonnes de cadres. Dans Préférences > Affichage, chaque
+cadre s'affiche ou se masque, et ses flèches le placent au-dessus ou en dessous d'un
+autre cadre, ou dans l'autre colonne : nom et logo, projet ouvert, état git, menu
+des pages, bouton Paramètres, bouton pour quitter, bouton org-bloom, liens entrants,
+tags, à faire, pages non créées. Une colonne sans cadre affiché disparaît. Leur
+largeur se règle à la souris. Par défaut, à gauche : nom, projet, git, org-bloom,
+pages, Paramètres ; à droite : quitter, liens entrants, tags, à faire, pages non
+créées.
 
 - *Liens entrants* : les pages qui ont un lien vers la page affichée.
 - *Tags* : tous les tags du projet avec leur nombre, et la recherche de tags.
@@ -288,8 +297,8 @@ tous le sont. Sa largeur se règle à la souris.
   clic ouvre la page sur le titre.
 - *Pages non créées* : les liens vers des pages qui n'existent pas, les plus
   utilisés en premier. Clic : visite tour à tour les pages qui les utilisent ;
-  clic droit : créer la page, ou aller au lien dans une page précise. La hauteur
-  du cadre se règle à la souris.
+  clic droit : créer la page, ou aller au lien dans une page précise. Avec une
+  autre liste dans sa colonne, sa hauteur se règle à la souris ; seul, il la remplit.
 
 * Corbeille
 - Une page supprimée va dans le dossier =.trash/= du projet, sous le nom
@@ -385,10 +394,24 @@ récupérer (« À jour », « pas de branche distante », « détachée »…).
 git ; les commits à récupérer sont comptés depuis le dernier =git fetch= (pas de
 fetch automatique). L'état se met à jour quand le dépôt change. Activé par défaut.
 
-** Export avec logseq-site-builder
-Désactivé par défaut. Activé, un bouton « Exporter » lance
-=logseq-site-builder build <projet>= (chemin du programme réglable) et affiche le
-résultat.
+** org-bloom : le site du projet
+[[https://github.com/thomas-louvigne/org-bloom][org-bloom]] (anciennement logseq-site-builder) transforme le projet en site
+web statique. Désactivé par défaut. Activé, un bouton « org-bloom » (placé comme les
+autres cadres, dans Préférences > Affichage) enregistre les pages puis lance
+=org-bloom build <projet>= ; la barre d'état affiche le dossier du site, ou l'erreur.
+
+- Le site va dans l'=output_dir= de la table =[site]= de =org-bloom.toml=, à la racine
+  du projet (créé à la première construction). Ce dossier est vidé à chaque
+  construction. Paramètres > Extensions montre ce dossier, lu dans le fichier ; un
+  clic l'ouvre dans le gestionnaire de fichiers.
+- « Zipper aussi le site » : org-bloom met alors le site dans =<dossier>.zip=, à côté
+  (=--zip=).
+- « Désactiver les dépendances extérieures » (décoché par défaut) : org-bloom laisse de côté les
+  =external_static_dirs= et les sous-dossiers de =pages/= contenant du HTML ; les
+  liens vers eux mènent à la page 404 (=--no-external-deps=).
+- La commande est réglable ; vide, =org-bloom= est cherché dans le PATH, puis dans
+  =~/.local/bin= (une application lancée depuis le menu peut ne pas l'avoir dans son
+  PATH).
 
 * Préférences
 La fenêtre des préférences (Ctrl+,) se déplace et se redimensionne. « Appliquer »
@@ -415,14 +438,15 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 - Corbeille : la vider, la vider automatiquement, durée et poids maximum.
 
 ** Affichage
-- Apparence : nom et logo, titre de la page, bouton pour quitter, numéros de ligne,
-  étoiles des titres masquées sauf la dernière.
+- Apparence : titre de la page, numéros de ligne, étoiles des titres masquées sauf
+  la dernière.
 - Signaler les liens cassés.
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
-- Cadres : menu des pages, liens entrants, tags, pages non créées, à faire.
+- Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans
+  quel ordre (voir [[*Colonnes de gauche et de droite]]).
 
 ** Extensions
-- logseq-site-builder et son chemin.
+- org-bloom et sa commande.
 - Git.
 
 ** Raccourcis

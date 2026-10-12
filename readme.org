@@ -21,8 +21,9 @@ an AI. Review the code with the same critical eye as any other contribution.
 - *Pages and links*: =[[Page]]= links, =#keywords= and org-mode =:tags:=, with
   completion while typing. Ctrl+click opens a page (and creates it if needed);
   renaming a page rewrites the links to it.
-- *Right-hand panel*: backlinks, tags (search in org syntax: =a+b-c=, =a|b=) and
-  pages not created yet.
+- *Frames around the editor*: pages, backlinks, tags (search in org syntax:
+  =a+b-c=, =a|b=), to do, pages not created yet, git… each one shown or hidden, in
+  the left or right column, in the order you choose.
 - *Quick open* (Ctrl+K): any page, open tab or tag.
 - *Editor*: org-mode highlighting, page title on top, find & replace, autosave,
   split in two panes, Emacs or Classic keybindings (configurable).
@@ -37,8 +38,8 @@ an AI. Review the code with the same critical eye as any other contribution.
 - *Trash*: a deleted page goes to the project's =.trash= folder; "Undo" in the
   status bar brings it back. The settings empty it, by hand or automatically
   (maximum age and size can be set).
-- *Extensions*: git state of the project, export to a website with
-  =logseq-site-builder=.
+- *Extensions*: git state of the project, static website of the project with
+  [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
 - Pages changed by another program (sync, git…) are reloaded. French and English.
 
 Every feature is described in detail, with screenshots, in [[file:docs/features.org][docs/features.org]].

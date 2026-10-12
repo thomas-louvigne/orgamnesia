@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::{i18n::{t, Lang}, keybindings::Keybindings};
 
-pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitStatus, Prefs, Session, Settings, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
+pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitStatus, Prefs, Session, Settings, SiteConfig, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
 
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,12 +50,12 @@ pub enum GitOp { Pull, Commit, Push }
 /// Which resize bar is being dragged.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Drag {
-    /// Width of the pages menu (left).
+    /// Width of the left column.
     Sidebar,
-    /// Width of the backlinks panel (right).
+    /// Width of the right column.
     Panel,
-    /// Height of the "pages not created" block.
-    Broken,
+    /// Height of the "pages not created" block; `above`: its bar is above it.
+    Broken { above: bool },
 }
 
 const CHORD_MARK: &str = "⌨ ";
@@ -76,6 +76,8 @@ pub struct ProjectState {
     pub git: RwSignal<Option<GitStatus>>,
     /// The git command running (pull, commit, push): one at a time.
     pub git_busy: RwSignal<Option<GitOp>>,
+    /// Org-bloom is building the site.
+    pub bloom_busy: RwSignal<bool>,
     /// Bumped after every write to disk, so link-derived views can refresh.
     pub links_version: RwSignal<u32>,
 }
@@ -153,6 +155,7 @@ impl AppCtx {
                 tag_query: RwSignal::new(String::new()),
                 git: RwSignal::new(None),
                 git_busy: RwSignal::new(None),
+                bloom_busy: RwSignal::new(false),
                 links_version: RwSignal::new(0),
             },
             work: Workspace {
@@ -222,11 +225,6 @@ impl AppCtx {
     /// Show the pages and headlines tagged `tag` in the tags frame.
     pub fn show_tag(&self, tag: String) {
         self.project.tag_query.set(tag);
-    }
-
-    /// Whether the right-hand panel has any frame to show.
-    pub fn has_right_panel(&self) -> bool {
-        self.pref(|p| p.show_backlinks || p.show_tags || p.show_broken_links || (p.show_todos && p.todo_enabled))
     }
 
     /// How `#tags` and `:tags:` are read, from the settings (tracked: re-runs effects

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Hashtags, OrgTags, TagSyntax, TodoKeywords};
+use crate::{Frame, Hashtags, Layout, OrgTags, TagSyntax, TodoKeywords};
 
 /// The TODO keywords when none are set (Emacs style: done states after the `|`).
 pub const DEFAULT_TODO_KEYWORDS: &str = "TODO DOING HANGUP | DONE";
@@ -12,7 +12,8 @@ pub const DEFAULT_TODO_KEYWORDS: &str = "TODO DOING HANGUP | DONE";
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Settings {
     pub vault_path: Option<String>,
-    pub logseq_site_builder_path: Option<String>,
+    /// Command building the site (org-bloom extension); empty: `org-bloom`.
+    pub org_bloom_path: Option<String>,
     pub language: Option<String>,
     /// Rewrite `[[links]]` in other pages when a page is renamed.
     pub update_links_on_rename: Option<bool>,
@@ -66,11 +67,11 @@ pub struct Settings {
     pub trash_max_bytes: Option<u64>,
     /// On start, show again the pages and panes open when the app was quit.
     pub restore_session: Option<bool>,
-    /// App name and logo at the top left of the window.
+    /// App name and logo.
     pub show_brand: Option<bool>,
     /// Title of the page (its `#+TITLE:`, or its name) in large type above the editor.
     pub show_page_title: Option<bool>,
-    /// Quit button in the top right corner of the window.
+    /// Quit button.
     pub show_quit_button: Option<bool>,
     /// Line numbers in the margin of the editor.
     pub show_line_numbers: Option<bool>,
@@ -81,8 +82,26 @@ pub struct Settings {
     pub show_broken_links: Option<bool>,
     /// "To do" frame: the headlines of the project with a TODO keyword.
     pub show_todos: Option<bool>,
-    /// Enable the logseq-site-builder extension (Export button).
-    pub site_builder_enabled: Option<bool>,
+    /// Name of the open project, with the menu of the projects.
+    pub show_project: Option<bool>,
+    /// Git state of the project (when the git extension is on).
+    pub show_git: Option<bool>,
+    /// Button opening the settings.
+    pub show_settings_button: Option<bool>,
+    /// Frames of the column left of the editor, top to bottom, by name (see
+    /// `Frame::id`); the others are in the right column.
+    pub frames_left: Option<Vec<String>>,
+    /// Frames of the column right of the editor.
+    pub frames_right: Option<Vec<String>>,
+    /// Enable the org-bloom extension: a button building the site of the project.
+    pub org_bloom_enabled: Option<bool>,
+    /// Org-bloom button (when the extension is on).
+    pub show_org_bloom: Option<bool>,
+    /// Org-bloom also zips the site, into `<output_dir>.zip`.
+    pub org_bloom_zip: Option<bool>,
+    /// Org-bloom builds without the hand-made web folders of the project
+    /// (`--no-external-deps`).
+    pub org_bloom_no_external_deps: Option<bool>,
     /// Git extension: show the git state of the project under its name.
     pub git_status_enabled: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
@@ -134,7 +153,8 @@ impl Settings {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Prefs {
     pub vault: String,
-    pub builder: String,
+    /// Command running org-bloom; empty: `org-bloom`.
+    pub org_bloom_path: String,
     /// Interface language code (`fr`, `en`).
     pub lang: String,
     pub update_links: bool,
@@ -154,7 +174,15 @@ pub struct Prefs {
     pub show_tags: bool,
     pub show_broken_links: bool,
     pub show_todos: bool,
-    pub site_builder: bool,
+    pub show_project: bool,
+    pub show_git: bool,
+    pub show_settings_button: bool,
+    /// Where the frames are, shown or not.
+    pub layout: Layout,
+    pub org_bloom: bool,
+    pub show_org_bloom: bool,
+    pub org_bloom_zip: bool,
+    pub org_bloom_no_external_deps: bool,
     pub git_ext: bool,
     pub git_ssh_key: String,
     pub case_insensitive_links: bool,
@@ -186,7 +214,7 @@ impl Prefs {
     pub fn from_settings(s: &Settings) -> Self {
         Self {
             vault: s.vault_path.clone().unwrap_or_default(),
-            builder: s.logseq_site_builder_path.clone().unwrap_or_default(),
+            org_bloom_path: s.org_bloom_path.clone().unwrap_or_default(),
             lang: s.language.clone().unwrap_or_else(|| "fr".to_string()),
             update_links: s.update_links_on_rename.unwrap_or(true),
             autosave: s.autosave.unwrap_or(true),
@@ -205,7 +233,14 @@ impl Prefs {
             show_tags: s.show_tags.unwrap_or(true),
             show_broken_links: s.show_broken_links.unwrap_or(true),
             show_todos: s.show_todos.unwrap_or(true),
-            site_builder: s.site_builder_enabled.unwrap_or(false),
+            show_project: s.show_project.unwrap_or(true),
+            show_git: s.show_git.unwrap_or(true),
+            show_settings_button: s.show_settings_button.unwrap_or(true),
+            layout: Layout::from_ids(s.frames_left.as_deref(), s.frames_right.as_deref()),
+            org_bloom: s.org_bloom_enabled.unwrap_or(false),
+            show_org_bloom: s.show_org_bloom.unwrap_or(true),
+            org_bloom_zip: s.org_bloom_zip.unwrap_or(false),
+            org_bloom_no_external_deps: s.org_bloom_no_external_deps.unwrap_or(false),
             git_ext: s.git_status_enabled.unwrap_or(true),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
             case_insensitive_links: s.case_insensitive_links.unwrap_or(true),
@@ -233,7 +268,7 @@ impl Prefs {
         let some = |s: &str| (!s.is_empty()).then(|| s.to_string());
         Settings {
             vault_path: some(&self.vault),
-            logseq_site_builder_path: some(&self.builder),
+            org_bloom_path: some(&self.org_bloom_path),
             language: Some(self.lang.clone()),
             update_links_on_rename: Some(self.update_links),
             case_insensitive_links: Some(self.case_insensitive_links),
@@ -268,7 +303,15 @@ impl Prefs {
             show_tags: Some(self.show_tags),
             show_broken_links: Some(self.show_broken_links),
             show_todos: Some(self.show_todos),
-            site_builder_enabled: Some(self.site_builder),
+            show_project: Some(self.show_project),
+            show_git: Some(self.show_git),
+            show_settings_button: Some(self.show_settings_button),
+            frames_left: Some(Layout::ids(&self.layout.left)),
+            frames_right: Some(Layout::ids(&self.layout.right)),
+            org_bloom_enabled: Some(self.org_bloom),
+            show_org_bloom: Some(self.show_org_bloom),
+            org_bloom_zip: Some(self.org_bloom_zip),
+            org_bloom_no_external_deps: Some(self.org_bloom_no_external_deps),
             git_status_enabled: Some(self.git_ext),
             git_ssh_key: some(&self.git_ssh_key),
             projects,
@@ -284,6 +327,55 @@ impl Prefs {
         }
     }
 
+    /// Whether `frame` is shown: its own setting, and the feature it belongs to.
+    pub fn frame_shown(&self, frame: Frame) -> bool {
+        self.frame_on(frame) && match frame {
+            Frame::Git => self.git_ext,
+            Frame::Todos => self.todo_enabled,
+            Frame::OrgBloom => self.org_bloom,
+            _ => true,
+        }
+    }
+
+    /// The setting of `frame` alone (not the feature it belongs to).
+    pub fn frame_on(&self, frame: Frame) -> bool {
+        match frame {
+            Frame::Brand => self.show_brand,
+            Frame::Project => self.show_project,
+            Frame::Git => self.show_git,
+            Frame::Pages => self.show_pages,
+            Frame::Settings => self.show_settings_button,
+            Frame::Backlinks => self.show_backlinks,
+            Frame::Tags => self.show_tags,
+            Frame::Todos => self.show_todos,
+            Frame::Broken => self.show_broken_links,
+            Frame::Quit => self.show_quit_button,
+            Frame::OrgBloom => self.show_org_bloom,
+        }
+    }
+
+    /// The setting of `frame`, to change it.
+    pub fn frame_setting(&mut self, frame: Frame) -> &mut bool {
+        match frame {
+            Frame::Brand => &mut self.show_brand,
+            Frame::Project => &mut self.show_project,
+            Frame::Git => &mut self.show_git,
+            Frame::Pages => &mut self.show_pages,
+            Frame::Settings => &mut self.show_settings_button,
+            Frame::Backlinks => &mut self.show_backlinks,
+            Frame::Tags => &mut self.show_tags,
+            Frame::Todos => &mut self.show_todos,
+            Frame::Broken => &mut self.show_broken_links,
+            Frame::Quit => &mut self.show_quit_button,
+            Frame::OrgBloom => &mut self.show_org_bloom,
+        }
+    }
+
+    /// The frames shown in a column (true: the right one), top to bottom.
+    pub fn column(&self, right: bool) -> Vec<Frame> {
+        self.layout.column(right).iter().copied().filter(|f| self.frame_shown(*f)).collect()
+    }
+
     /// The TODO keywords of the settings; `None` when they are off.
     pub fn todo(&self) -> Option<TodoKeywords> {
         self.todo_enabled.then(|| TodoKeywords::parse(&self.todo_keywords))
@@ -297,7 +389,7 @@ mod tests {
     #[test]
     fn missing_values_take_their_default() {
         let p = Settings::default().prefs();
-        assert!(p.autosave && p.git_ext && !p.site_builder && !p.delete_empty && p.restore_session);
+        assert!(p.autosave && p.git_ext && !p.org_bloom && !p.delete_empty && p.restore_session);
         assert_eq!(p.lang, "fr");
         assert_eq!(p.image_size_format, "org");
         assert_eq!(p.todo(), Some(TodoKeywords::parse(DEFAULT_TODO_KEYWORDS)));
@@ -308,7 +400,8 @@ mod tests {
 
     #[test]
     fn prefs_round_trip_through_settings() {
-        let p = Prefs { vault: "/x".into(), autosave: false, git_ext: false, ..Prefs::default() };
+        let mut p = Prefs { vault: "/x".into(), autosave: false, git_ext: false, ..Prefs::default() };
+        p.layout.move_frame(Frame::Git, crate::Move::OtherColumn, |_| false);
         let s = p.to_settings(vec!["/x".into()]);
         assert_eq!(s.prefs(), p);
         assert_eq!(s.projects, vec!["/x".to_string()]);

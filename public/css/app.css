@@ -115,19 +115,16 @@ html, body { height: 100%; overflow: hidden; }
     overflow: hidden;
 }
 
-/* Quit button, in the top right corner of the window, over whatever is there:
-   the first header of the right panel, else the tab bar, keep room for it */
+/* Quit button, a frame of its own: at the outer edge of its column */
+.quit-frame { display: flex; justify-content: flex-end; padding: 6px 8px; }
+.side-column.left .quit-frame { justify-content: flex-start; }
 .btn-quit {
-    position: fixed; top: 6px; right: 8px; z-index: 120;
     width: 26px; height: 26px; padding: 0;
     display: flex; align-items: center; justify-content: center;
     background: var(--bg2); color: var(--fg-dim);
     border: 1px solid var(--border); border-radius: 5px; cursor: pointer;
 }
 .btn-quit:hover { color: #fff; background: var(--red); border-color: var(--red); }
-.app:has(.btn-quit) .backlinks-panel > :first-child > :first-child { padding-right: 44px; }
-.app:has(.btn-quit) .app-main:not(:has(.backlinks-panel)) .workspace-topbar { padding-right: 40px; }
-.app:has(.btn-quit) .app-main:not(:has(.backlinks-panel)) .editor-split.vertical .editor-area:last-child .pane-tab { padding-right: 44px; }
 
 /* Draggable bars between the side menus and the workspace */
 .resizer { width: 5px; margin: 0 -2px; z-index: 5; cursor: col-resize; flex-shrink: 0; background: transparent; }
@@ -136,18 +133,25 @@ html, body { height: 100%; overflow: hidden; }
 .resizer-h { height: 5px; margin: -2px 0; z-index: 5; cursor: row-resize; flex-shrink: 0; background: transparent; }
 .resizer-h:hover { background: var(--accent); opacity: .5; }
 
-/* ── Sidebar ───────────────────────────────────────────────── */
-.sidebar {
-    width: var(--sidebar-w, 220px);
+/* ── Side columns ──────────────────────────────────────────── */
+/* The frames of a column, one above the other (Display settings): the lists
+   share its height, the others take what their content needs */
+.side-column {
     min-width: 140px;
     max-width: 50vw;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     background: var(--bg2);
-    border-right: 1px solid var(--border);
     user-select: none;
 }
+.side-column.left { width: var(--sidebar-w, 220px); border-right: 1px solid var(--border); }
+.side-column.right { width: var(--panel-w, 200px); border-left: 1px solid var(--border); }
+.side-column > .frame { flex-shrink: 0; }
+.side-column > .frame ~ .frame { border-top: 1px solid var(--border); }
+/* The name of the app reads as the title of what follows it */
+.side-column > .app-brand + .frame { border-top: none; }
+.side-column > .frame-grow { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 
 .app-brand {
     display: flex;
@@ -169,7 +173,6 @@ html, body { height: 100%; overflow: hidden; }
     align-items: center;
     gap: 4px;
     padding: 8px 8px 8px 12px;
-    border-bottom: 1px solid var(--border);
 }
 .project-current {
     flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between;
@@ -181,7 +184,6 @@ html, body { height: 100%; overflow: hidden; }
 .git-status {
     display: flex; flex-direction: column; gap: 6px;
     padding: 8px 8px 8px 12px;
-    border-bottom: 1px solid var(--border);
     font-size: var(--fs-meta); color: var(--fg-dim);
 }
 .git-status.git-off { flex-direction: row; align-items: center; gap: 6px; font-style: italic; }
@@ -252,7 +254,7 @@ html, body { height: 100%; overflow: hidden; }
 }
 .search-input:focus { border-color: var(--accent); }
 
-.sidebar-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.sidebar-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0; }
 
 .file-item {
     padding: 5px 16px;
@@ -271,7 +273,10 @@ html, body { height: 100%; overflow: hidden; }
     border-left-color: var(--accent);
 }
 
-.broken-links { border-top: 1px solid var(--border); display: flex; flex-direction: column; }
+.side-column > .broken-links { display: flex; flex-direction: column; }
+/* Alone in its column with no other list: it fills it */
+.side-column > .broken-links.fill { flex: 1 1 0; min-height: 0; }
+.broken-links.fill .broken-links-list { flex: 1; height: auto; }
 .broken-links-header {
     display: flex; justify-content: space-between; align-items: center;
     background: none; border: none; color: var(--fg-dim); cursor: pointer;
@@ -291,10 +296,7 @@ html, body { height: 100%; overflow: hidden; }
 .broken-link-item:hover { background: var(--bg3); color: var(--accent2); }
 .broken-links-empty { padding: 4px 16px; font-size: var(--fs-meta); color: var(--fg-dim); }
 
-.sidebar-footer {
-    padding: 8px 12px;
-    border-top: 1px solid var(--border);
-}
+.sidebar-footer { padding: 8px 12px; }
 .btn-settings {
     width: 100%; background: none; border: none; color: var(--fg-dim);
     cursor: pointer; text-align: left; font-size: var(--fs-ui); padding: 4px 0;
@@ -369,12 +371,6 @@ html, body { height: 100%; overflow: hidden; }
     max-width: 150px;
 }
 
-.btn-export {
-    margin-left: auto;
-    background: none; border: none; border-left: 1px solid var(--border);
-    color: var(--fg-dim); cursor: pointer; padding: 0 14px; font-size: var(--fs-ui);
-}
-.btn-export:hover { color: var(--green); background: var(--bg3); }
 
 /* ── Editor area ───────────────────────────────────────────── */
 .editor-split { flex: 1; display: flex; overflow: hidden; min-height: 0; }
@@ -713,17 +709,7 @@ kbd {
 .broken-mark::before { content: "❌"; font-size: 10px; }
 .editor-wrap.line-numbers .broken-mark { margin-left: calc(-0.9ch - 6px); }
 
-/* ── Backlinks panel ───────────────────────────────────────── */
-.backlinks-panel {
-    width: var(--panel-w, 200px);
-    min-width: 140px;
-    max-width: 50vw;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg2);
-    border-left: 1px solid var(--border);
-}
+/* ── Backlinks, tags, to do ────────────────────────────────── */
 
 .panel-header {
     padding: 10px 12px;
@@ -768,11 +754,6 @@ kbd {
     border-left-color: var(--accent);
 }
 
-/* Backlinks and Tags frames, one above the other */
-.panel-section { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.panel-section + .panel-section { border-top: 1px solid var(--border); }
-.backlinks-panel > .broken-links:first-child { flex: 1; min-height: 0; border-top: none; }
-.backlinks-panel > .broken-links:first-child .broken-links-list { flex: 1; height: auto; }
 
 .tag-search { padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .tag-item { display: flex; justify-content: space-between; gap: 8px; }
@@ -854,6 +835,10 @@ kbd {
     border-top-color: currentColor;
     animation: git-spin .8s linear infinite;
 }
+/* Org-bloom extension: the button building the site */
+.bloom-frame { padding: 8px 8px 8px 12px; display: flex; }
+.bloom-btn { padding: 4px; font-size: var(--fs-ui); }
+.bloom-btn:hover:not(:disabled) { color: var(--accent2); border-color: var(--accent); }
 @keyframes git-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
     .git-spinner { animation-duration: 2.4s; }
@@ -873,6 +858,16 @@ kbd {
 .commit-renamed { color: var(--cyan); }
 .commit-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace); }
 .commit-message { min-height: 150px; resize: vertical; font-family: var(--font-mono, monospace); line-height: 1.5; }
+/* Site folder of org-bloom: a link opening it */
+.bloom-site.off { opacity: 0.5; }
+.bloom-site code { font-style: normal; font-family: var(--font-mono, monospace); }
+.bloom-folder {
+    display: flex; align-items: center; gap: 8px; align-self: flex-start; max-width: 100%;
+    background: none; border: none; padding: 0; cursor: pointer;
+    color: var(--accent); font: inherit; font-size: var(--fs-ui); text-align: left;
+}
+.bloom-folder-path { text-decoration: underline; overflow-wrap: anywhere; }
+.bloom-folder:hover .bloom-folder-path { text-decoration-thickness: 2px; }
 .ssh-help { display: flex; flex-direction: column; gap: 4px; }
 .ssh-help p { margin: 0; }
 .ssh-help code {
@@ -1014,6 +1009,8 @@ kbd {
 .setting-row label { font-size: var(--fs-meta); color: var(--fg-dim); }
 
 .setting-sub { padding-left: 24px; }
+/* Between two groups of settings (one extension and the next) */
+.setting-separator { border: none; border-top: 1px solid var(--border); margin: 4px 0; width: 100%; }
 .setting-sub:has(input:disabled) { opacity: 0.5; }
 
 .setting-check { display: flex !important; flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
@@ -1068,6 +1065,39 @@ kbd {
 .setting-unit { font-size: var(--fs-meta); color: var(--fg-dim); white-space: nowrap; }
 .trash-row { align-items: center; justify-content: space-between; font-size: var(--fs-ui); }
 .btn-secondary:focus-visible, .btn-danger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Frame layout editor (Display settings) ────────────────── */
+/* The two columns as they stand beside the editor */
+.layout-editor { display: flex; gap: 8px; align-items: stretch; }
+.layout-col {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 6px;
+}
+.layout-col-title {
+    font-size: var(--fs-label); font-weight: 600; color: var(--fg-dim);
+    text-transform: uppercase; letter-spacing: .05em; padding: 2px 4px 6px;
+}
+.layout-editor-center {
+    width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    writing-mode: vertical-rl; font-size: var(--fs-meta); color: var(--fg-dim);
+    border: 1px dashed var(--border); border-radius: 6px;
+}
+.layout-empty { padding: 6px 4px; font-size: var(--fs-meta); font-style: italic; color: var(--fg-dim); }
+.layout-frame {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding: 4px 4px 4px 6px; border-radius: 4px; background: var(--bg2);
+    border: 1px solid var(--border); font-size: var(--fs-ui);
+}
+.layout-frame .setting-check { min-width: 0; color: var(--fg); font-size: var(--fs-ui); }
+.layout-frame.off .setting-check { color: var(--fg-dim); }
+.layout-frame .setting-check:has(input:disabled) { opacity: .5; cursor: help; }
+.layout-arrows { display: flex; flex-shrink: 0; }
+.layout-arrow { font-size: var(--fs-ui); padding: 2px 5px; border-radius: 3px; }
+.layout-arrow:hover:not(:disabled) { background: var(--bg3); color: var(--accent2); }
+.layout-arrow:disabled { opacity: .3; cursor: default; }
+.layout-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.layout-reset { align-self: flex-start; }
+.layout-reset:disabled { opacity: .5; cursor: default; }
 
 /* ── Keybinding editor ─────────────────────────────────────── */
 .setting-section-title {

@@ -5,11 +5,11 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     actions,
     components::{
-        backlinks_panel::BacklinksPanel,
+        columns::Column,
         editor::EditorSplit,
         quick_open::QuickOpenModal,
         settings_modal::SettingsModal,
-        sidebar::{NewPageModal, Sidebar},
+        sidebar::NewPageModal,
         tabs::TabBar,
     },
     i18n::t,
@@ -29,7 +29,7 @@ fn load_size(key: &str, default: i32) -> i32 {
     storage::load(key).and_then(|v| v.parse().ok()).unwrap_or(default)
 }
 
-/// Draggable bar between the pages menu / backlinks panel and the workspace.
+/// Draggable bar between a side column and the workspace.
 #[component]
 fn Resizer(which: Drag) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
@@ -187,7 +187,10 @@ fn watch_git(ctx: AppCtx) {
                 again.set_value(false);
                 let st = invoke::git_status(&path).await.ok().flatten();
                 // Another project may have been opened meanwhile
-                if ctx.project.vault_path.get_untracked().as_deref() == Some(path.as_str()) {
+                // Unchanged, it isn't set again: the git frame would be updated for nothing
+                if ctx.project.vault_path.get_untracked().as_deref() == Some(path.as_str())
+                    && ctx.project.git.with_untracked(|g| *g != st)
+                {
                     ctx.project.git.set(st);
                 }
                 if !again.get_value() { break; }
@@ -206,8 +209,31 @@ fn watch_git(ctx: AppCtx) {
     invoke::listen(invoke::GIT_CHANGED, move |()| refresh());
 }
 
+/// Org-mode tags of the project, for the tags frame and the completion of
+/// `:tags:`. Refreshed (debounced) when the project, its pages or their links change.
+fn watch_tags(ctx: AppCtx) {
+    let seq = StoredValue::new(0u32);
+    Effect::new(move |_| {
+        ctx.project.files.track();
+        ctx.project.links_version.track();
+        if ctx.project.vault_path.get().is_none() {
+            ctx.project.tags.set(vec![]);
+            return;
+        }
+        let n = seq.get_value() + 1;
+        seq.set_value(n);
+        crate::keybindings::after_ms(400, move || {
+            if seq.try_get_value() != Some(n) { return; }
+            spawn_local(async move {
+                if let Ok(list) = invoke::list_tags().await
+                    && ctx.project.tags.get_untracked() != list { ctx.project.tags.set(list); }
+            });
+        });
+    });
+}
+
 /// Run an application action (shortcut).
-fn run_app_action(ctx: AppCtx, action: AppAction) {
+pub fn run_app_action(ctx: AppCtx, action: AppAction) {
     let tab_count = ctx.work.tabs.with_untracked(|t| t.len());
     let active = ctx.work.active_tab.get_untracked();
     match action {
@@ -224,7 +250,12 @@ fn run_app_action(ctx: AppCtx, action: AppAction) {
         AppAction::PageForward     => actions::history_step(ctx, false),
         AppAction::SplitVertical   => ctx.split_window(SplitKind::Vertical),
         AppAction::SplitHorizontal => ctx.split_window(SplitKind::Horizontal),
-        AppAction::CloseSplit      => ctx.work.close_window(),
+        // With a single pane, closes the tab instead
+        AppAction::CloseSplit => if ctx.work.split.get_untracked().is_some() {
+            ctx.work.close_window()
+        } else if let Some(idx) = active {
+            actions::close_tab(ctx, idx)
+        },
         AppAction::SingleWindow    => ctx.work.single_window(),
         AppAction::OtherWindow     => ctx.work.other_window(),
         AppAction::NextRegion      => crate::a11y::cycle_region(true),
@@ -273,13 +304,17 @@ pub fn App() -> impl IntoView {
         match which {
             Drag::Sidebar => sidebar_w.set(e.client_x().clamp(MIN_SIDE, (win_w / 2).max(MIN_SIDE))),
             Drag::Panel => panel_w.set((win_w - e.client_x()).clamp(MIN_SIDE, (win_w / 2).max(MIN_SIDE))),
-            Drag::Broken => {
-                // Height of the list = what is left under the bar, minus the block's title
-                let header = win.as_ref().and_then(|w| w.document())
-                    .and_then(|d| d.query_selector(".broken-links-header").ok().flatten())
+            Drag::Broken { above } => {
+                // Height of the list = from the bar to the other edge of the block, minus its title
+                let doc = win.as_ref().and_then(|w| w.document());
+                let find = |sel: &str| doc.as_ref().and_then(|d| d.query_selector(sel).ok().flatten());
+                let Some(block) = find(".broken-links") else { return };
+                let header = find(".broken-links-header")
                     .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
                     .map(|el| el.offset_height()).unwrap_or(30);
-                broken_h.set((win_h - e.client_y() - header).clamp(MIN_BROKEN, (win_h * 7 / 10).max(MIN_BROKEN)));
+                let rect = block.get_bounding_client_rect();
+                let h = if above { rect.bottom() as i32 - e.client_y() } else { e.client_y() - rect.top() as i32 };
+                broken_h.set((h - header).clamp(MIN_BROKEN, (win_h * 7 / 10).max(MIN_BROKEN)));
             }
         }
     });
@@ -288,7 +323,7 @@ pub fn App() -> impl IntoView {
         let (key, size) = match which {
             Drag::Sidebar => (SIDEBAR_KEY, sidebar_w),
             Drag::Panel => (PANEL_KEY, panel_w),
-            Drag::Broken => (BROKEN_KEY, broken_h),
+            Drag::Broken { .. } => (BROKEN_KEY, broken_h),
         };
         storage::store(key, &size.get_untracked().to_string());
         ctx.ui.drag.set(None);
@@ -298,6 +333,7 @@ pub fn App() -> impl IntoView {
     spawn_local(load_startup(ctx, Owner::current().expect("App owner")));
     watch_disk(ctx);
     watch_git(ctx);
+    watch_tags(ctx);
 
     // Page history: each time the focused pane shows another page, the one it
     // left is recorded (not when the focus only moves to the other pane).
@@ -355,15 +391,11 @@ pub fn App() -> impl IntoView {
     });
     on_cleanup(move || ctx_menu_handle.remove());
 
-    let export = move |_| {
-        spawn_local(async move {
-            ctx.notify_t("export_running", "");
-            match invoke::export_vault().await {
-                Ok(_) => ctx.notify_t("export_done", ""),
-                Err(e) => ctx.error("export_error", &e),
-            }
-        });
-    };
+    // Whether a column has a frame to show; a Memo, so that the column isn't
+    // mounted again on every change of the settings
+    let left = Memo::new(move |_| !ctx.pref(|p| p.column(false)).is_empty());
+    let right = Memo::new(move |_| !ctx.pref(|p| p.column(true)).is_empty());
+    let has_column = move |r: bool| if r { right.get() } else { left.get() };
 
     view! {
         <div class=move || if ctx.ui.drag.get().is_some() { "app resizing" } else { "app" }>
@@ -374,61 +406,30 @@ pub fn App() -> impl IntoView {
                     sidebar_w.get(), panel_w.get(), broken_h.get()
                 )
             >
-                {move || ctx.pref(|p| p.show_pages).then(|| view! {
-                    <Sidebar />
+                {move || has_column(false).then(|| view! {
+                    <Column right=false />
                     <Resizer which=Drag::Sidebar />
                 })}
                 <main class="workspace">
                     // Side by side, each pane has its own tabs under its title (see EditorArea)
                     {move || {
                         let split = ctx.work.split.get();
-                        (split != Some(SplitKind::Vertical) || ctx.pref(|p| p.site_builder)).then(|| view! {
+                        (split != Some(SplitKind::Vertical)).then(|| view! {
                             <div class="workspace-topbar">
                                 {match split {
                                     None => view! { <TabBar /> }.into_any(),
-                                    Some(SplitKind::Horizontal) => view! { <TabBar pane=false /> }.into_any(),
-                                    Some(SplitKind::Vertical) => ().into_any(),
+                                    _ => view! { <TabBar pane=false /> }.into_any(),
                                 }}
-                                {move || ctx.pref(|p| p.site_builder).then(|| view! {
-                                    <button
-                                        class="btn-export"
-                                        title={move || t("export_title", ctx.lang.get())}
-                                        on:click=export
-                                    >
-                                        {move || t("export", ctx.lang.get())}
-                                    </button>
-                                })}
                             </div>
                         })
                     }}
                     <EditorSplit />
                 </main>
-                {move || ctx.has_right_panel().then(|| view! {
+                {move || has_column(true).then(|| view! {
                     <Resizer which=Drag::Panel />
-                    <BacklinksPanel />
+                    <Column right=true />
                 })}
             </div>
-            // Quit, in the top right corner of the window (Display setting)
-            {move || ctx.pref(|p| p.show_quit_button).then(|| view! {
-                <button
-                    class="btn-quit"
-                    aria-label=move || t("quit_button_title", ctx.lang.get())
-                    title=move || {
-                        let label = t("quit_button_title", ctx.lang.get());
-                        match ctx.keybindings.with(|kb| kb.app_binds("quit").first().cloned()) {
-                            Some(b) => format!("{label} ({})", crate::keybindings::display(&b)),
-                            None => label.to_string(),
-                        }
-                    }
-                    on:click=move |_| run_app_action(ctx, AppAction::Quit)
-                >
-                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
-                        stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
-                        <path d="M12 3v8" />
-                        <path d="M6.3 6.8a8 8 0 1 0 11.4 0" />
-                    </svg>
-                </button>
-            })}
             {move || ctx.ui.show_quick_open.get().then(|| view! { <QuickOpenModal /> })}
             {move || ctx.ui.show_settings.get().then(|| view! { <SettingsModal /> })}
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <ConfirmDialog /> })}

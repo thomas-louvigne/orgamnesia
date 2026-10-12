@@ -17,7 +17,7 @@ keybindings.
 - [[*Tables][Tables]]
 - [[*Images][Images]]
 - [[*Window][Window]]
-- [[*Side panel][Side panel]]
+- [[*Left and right columns][Left and right columns]]
 - [[*Trash][Trash]]
 - [[*Keyboard shortcuts][Keyboard shortcuts]]
 - [[*Extensions][Extensions]]
@@ -47,9 +47,11 @@ A project is a folder of =.org= pages linked to each other.
 - *Open*: click in the list, quick open, or Ctrl+click on a link.
 - *Filter*: the "Filter the list…" field above the list of pages keeps the pages
   whose name contains the text typed (ignoring case and accents).
-- *Rename*: right click on the page (list or tab), double click on the tab, or right
-  click on the page title. Links to the page in the other pages are rewritten
-  (can be turned off).
+- *Rename*: right click on the page (list or tab), double click on the tab, double
+  click or right click on the page title. Links to the page in the other pages are
+  rewritten (can be turned off).
+- *No export*: right click on the page in the list adds the =:noexport:= tag to
+  its =#+FILETAGS:= (the line is created when missing).
 - *Delete*: right click on the page (list or tab), last in the menu. The page goes
   to the project's [[*Trash][trash]].
 
@@ -225,7 +227,7 @@ As in org-mode, a keyword after the stars of a headline gives its state.
 - *Per page*: a =#+TODO:= line (or =#+SEQ_TODO:=, =#+TYP_TODO:=) gives the page its own
   states. Several lines make several sequences: the cycle stays in the sequence of
   the current keyword.
-- *Overview*: the "To do" frame of the side panel.
+- *Overview*: the "To do" frame (right column by default).
 - The whole feature can be turned off in the settings.
 
 * Tables
@@ -260,7 +262,7 @@ right click to rename or delete, =×= to close.
 ** Two panes
 Like Emacs windows: split the editor side by side or one above the other, move to
 the other pane, close the current pane or keep only it. A page must be open to
-split.
+split. With a single pane, closing the pane closes the tab.
 
 [[file:images/split.png]]
 
@@ -269,7 +271,7 @@ split.
 pages shown in the pane, like a web browser.
 
 ** Window regions
-F6 and Shift+F6 move between the pages, the editor and the side panel. Lists can be
+F6 and Shift+F6 move between the left column, the editor and the right column. Lists can be
 browsed with the keyboard.
 
 ** Empty editor
@@ -279,9 +281,14 @@ With no page open: a button to go to a page and the essential shortcuts.
 At the bottom of the window: messages (page saved, error, keys of a shortcut being
 typed…). After a deletion, it offers "Undo". =×= closes it.
 
-* Side panel
-Each frame can be hidden in Settings > Display; the panel goes away when all of them
-are. Its width can be changed with the mouse.
+* Left and right columns
+The editor stands between two columns of frames. In Settings > Display, each frame
+can be shown or hidden, and its arrows put it above or below another frame, or in
+the other column: app name and logo, open project, git state, pages menu, Settings
+button, quit button, org-bloom button, backlinks, tags, to do, pages not created. A
+column with no frame shown goes away. Their width can be changed with the mouse. By
+default, on the left: name, project, git, org-bloom, pages, Settings; on the right:
+quit, backlinks, tags, to do, pages not created.
 
 [[file:images/side-panel.png]]
 
@@ -294,7 +301,8 @@ are. Its width can be changed with the mouse.
   page on the headline.
 - *Pages not created*: links to pages that don't exist, most used first. Click:
   visits in turn the pages using the link; right click: create the page, or go to
-  the link in a given page. The height of the frame can be changed with the mouse.
+  the link in a given page. With another list in its column, its height can be
+  changed with the mouse; alone, it fills the column.
 
 * Trash
 - A deleted page goes to the project's =.trash/= folder, named =<time>-<page>.org=.
@@ -395,9 +403,23 @@ repository changes. On by default.
 
 [[file:images/git-status.png]]
 
-** Export with logseq-site-builder
-Off by default. When on, an "Export" button runs =logseq-site-builder build <project>=
-(the path of the program can be set) and says when it is done.
+** org-bloom: the site of the project
+[[https://github.com/thomas-louvigne/org-bloom][org-bloom]] (formerly logseq-site-builder) turns the project into a static
+website. Off by default. When on, an "org-bloom" button (placed like the other frames,
+in Settings > Display) saves the pages, then runs =org-bloom build <project>=; the
+status bar shows the folder of the site, or what went wrong.
+
+- The site goes to the =output_dir= of the =[site]= table of =org-bloom.toml=, at the
+  root of the project (created by the first build). This folder is wiped on every
+  build. Settings > Extensions shows this folder, read from the file; a click opens
+  it in the file manager.
+- "Also zip the site": org-bloom then puts the site in =<folder>.zip=, beside it
+  (=--zip=).
+- "Disable external dependencies" (off by default): org-bloom leaves out the
+  =external_static_dirs= and the =pages/= subfolders holding HTML; links to them
+  lead to the 404 page (=--no-external-deps=).
+- The command can be set; empty, =org-bloom= is looked for on the PATH, then in
+  =~/.local/bin= (an app started from the menu may not have it on its PATH).
 
 * Settings
 The settings window (Ctrl+,) can be moved and resized. "Apply" saves the changes
@@ -426,14 +448,14 @@ closes without saving. The explanations under a setting are in italics.
 - Trash: empty it, empty it automatically, maximum time and size.
 
 ** Display
-- Appearance: app name and logo, page title, quit button, line numbers,
-  headline stars hidden but the last.
+- Appearance: page title, line numbers, headline stars hidden but the last.
 - Mark the broken links.
 - Images: show them, and the format of their size (org-mode or Logseq).
-- Frames: list of pages, backlinks, tags, pages not created, to do.
+- Frames around the editor: which are shown, in which column and in which order
+  (see [[*Left and right columns]]).
 
 ** Extensions
-- logseq-site-builder and its path.
+- org-bloom and its command.
 - Git.
 
 ** Shortcuts

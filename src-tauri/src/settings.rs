@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn frontend_payload_is_accepted() {
         // What the settings window sends on Apply/Save
-        let json = r#"{"vault_path":"/x","logseq_site_builder_path":null,"language":"fr",
+        let json = r#"{"vault_path":"/x","org_bloom_path":null,"language":"fr",
             "update_links_on_rename":true,"case_insensitive_links":true,"emacs_mark":true,
             "electric_mode":false,"autosave":true,"projects":["/x"]}"#;
         let s: Settings = serde_json::from_str(json).unwrap();
