@@ -21,9 +21,14 @@ const DEFAULT_COMMAND: &str = "org-bloom";
 /// project's `org-bloom.toml`) and the archive, or what org-bloom said.
 pub fn build(project: &str, command: &str, options: &[&str]) -> Result<String, AppError> {
     let mut last_err = None;
-    for bin in candidates(command, std::env::var_os("HOME").map(PathBuf::from)) {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let path = child_path(home.as_deref(), std::env::var_os("PATH"));
+    for bin in candidates(command, home) {
         let mut cmd = Command::new(&bin);
         cmd.arg("build").arg(project).args(options).current_dir(project);
+        if let Some(path) = &path {
+            cmd.env("PATH", path);
+        }
         match cmd.output() {
             Ok(out) => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -95,6 +100,18 @@ pub fn open_folder(path: &str) -> Result<(), AppError> {
         .map_err(|e| AppError::OrgBloom(format!("cannot run 'xdg-open': {e}")))
 }
 
+/// The PATH given to org-bloom: `~/.local/bin` first, so that the tools it
+/// runs (pandoc) are the ones installed there, not the older ones of the
+/// system that an app started from the desktop menu would find instead.
+fn child_path(home: Option<&Path>, path: Option<std::ffi::OsString>) -> Option<std::ffi::OsString> {
+    let local = home?.join(".local/bin");
+    let mut dirs = vec![local.clone()];
+    if let Some(path) = path {
+        dirs.extend(std::env::split_paths(&path).filter(|d| *d != local));
+    }
+    std::env::join_paths(dirs).ok()
+}
+
 /// The commands to try: the one set, else `org-bloom` from the PATH, then from
 /// `~/.local/bin` (where `pip install --user` puts it, and which an app started
 /// from the desktop menu may not have on its PATH).
@@ -139,6 +156,13 @@ fn failure(stderr: &str, stdout: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_bin_first_in_path() {
+        let path = child_path(Some(Path::new("/home/me")), Some("/usr/bin:/home/me/.local/bin:/bin".into())).unwrap();
+        assert_eq!(path, "/home/me/.local/bin:/usr/bin:/bin");
+        assert_eq!(child_path(None, Some("/usr/bin".into())), None);
+    }
 
     #[test]
     fn commands_tried() {
