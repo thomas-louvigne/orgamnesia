@@ -1,0 +1,5 @@
+# makepkg artifacts
+/src/
+/pkg/
+/orgamnesia/
+*.pkg.tar.*

@@ -1,0 +1,51 @@
+# Maintainer: Thomas L <zobi8225@gmail.com>
+#
+# Builds the released version `v$pkgver`, where packaging/arch builds the latest
+# main. The release workflow sets pkgver to the version it publishes.
+pkgname=orgamnesia
+pkgver=0.14.0
+pkgrel=1
+pkgdesc="A personal wiki, org-mode style: the essentials of Obsidian, lighter."
+arch=('x86_64' 'aarch64')
+url="https://github.com/thomas-louvigne/orgamnesia"
+license=('GPL-3.0-or-later')
+depends=('webkit2gtk-4.1' 'gtk3' 'glib2' 'gdk-pixbuf2' 'cairo' 'libsoup3' 'dbus'
+         'glibc' 'libgcc' 'hicolor-icon-theme')
+makedepends=('git' 'rust' 'rust-wasm' 'trunk' 'cargo-tauri')
+conflicts=('orgamnesia-git')
+options=('!lto' '!debug')
+source=("$pkgname::git+$url.git#tag=v$pkgver")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked
+  cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+}
+
+build() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  # Builds the Leptos frontend with Trunk (beforeBuildCommand), then the
+  # Tauri binary with the frontend embedded. No bundle: pacman packages it.
+  cargo tauri build --no-bundle
+}
+
+package() {
+  cd "$pkgname"
+  install -Dm755 src-tauri/target/release/$pkgname "$pkgdir/usr/bin/$pkgname"
+  install -Dm644 packaging/arch/$pkgname.desktop "$pkgdir/usr/share/applications/$pkgname.desktop"
+
+  local size
+  for size in 32 64 128; do
+    install -Dm644 src-tauri/icons/${size}x${size}.png \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/$pkgname.png"
+  done
+  install -Dm644 src-tauri/icons/128x128@2x.png \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/$pkgname.png"
+  install -Dm644 src-tauri/icons/icon.png \
+    "$pkgdir/usr/share/icons/hicolor/512x512/apps/$pkgname.png"
+  install -Dm644 src-tauri/icons/app-icon.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/$pkgname.svg"
+}

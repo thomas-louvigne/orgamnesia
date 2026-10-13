@@ -1,32 +1,61 @@
 name: Release
 
-# Pushing a tag `vX.Y.Z` builds the Linux packages and publishes them in a
-# GitHub release of the same name.
+# A version bump in tauri.conf.json pushed on main builds the Linux packages and
+# publishes them in a GitHub release `vX.Y.Z`, creating the tag. Pushing a tag
+# `vX.Y.Z` by hand, or running the workflow from the Actions tab, does the same.
 on:
   push:
+    branches: [main]
+    paths: [src-tauri/tauri.conf.json]
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  version:
+    name: Version to release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"([^"]+)",?/\1/')
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$tag" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME but tauri.conf.json says $version"
+            exit 1
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $tag already published, nothing to do"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   linux:
     name: Linux packages (.deb, AppImage)
+    needs: version
+    if: needs.version.outputs.release == 'true'
     # The oldest supported runner: the packages then run on older distributions too
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Tag matches the app version
-        run: |
-          version=$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"([^"]+)",?/\1/')
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::tag $GITHUB_REF_NAME but tauri.conf.json says $version"
-            exit 1
-          fi
 
       - name: System libraries
         run: |
@@ -50,8 +79,40 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: Orgamnesia ${{ github.ref_name }}
+          tag_name: ${{ needs.version.outputs.tag }}
+          # On main the tag does not exist yet: it is created on this commit
+          target_commitish: ${{ github.sha }}
+          name: Orgamnesia ${{ needs.version.outputs.tag }}
           generate_release_notes: true
           files: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
+
+  arch:
+    name: Arch Linux package (.pkg.tar.zst)
+    # Builds the tag that the linux job has just created
+    needs: [version, linux]
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build with makepkg
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          pacman -Syu --noconfirm git
+          # makepkg refuses to run as root: a build user who may install the dependencies
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          cp -r packaging/arch-release /home/builder/build
+          sed -i "s/^pkgver=.*/pkgver=${TAG#v}/" /home/builder/build/PKGBUILD
+          chown -R builder: /home/builder/build
+          cd /home/builder/build
+          sudo -u builder makepkg -s --noconfirm
+          mv ./*.pkg.tar.zst "$GITHUB_WORKSPACE/"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          files: ./*.pkg.tar.zst

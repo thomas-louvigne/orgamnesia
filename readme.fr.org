@@ -49,18 +49,72 @@ Le détail de toutes les fonctionnalités est dans [[file:docs/fonctionnalites.o
 
 * Installation (Linux)
 
-Télécharger le =.deb= (Debian, Ubuntu, Mint…) ou l'=.AppImage= (autres distributions)
-sur la [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]].
-Sous Arch Linux, un =PKGBUILD= est dans =packaging/arch= (=makepkg -si=).
+** Debian, Ubuntu, Mint… et autres distributions
 
-Pour compiler depuis les sources, installer les
-[[https://v2.tauri.app/start/prerequisites/#linux][prérequis de Tauri]] et Rust, puis :
+Télécharger le =.deb= (Debian, Ubuntu, Mint…) ou l'=.AppImage= (toutes distributions)
+sur la [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]].
 
 #+BEGIN_SRC sh
+sudo apt install ./Orgamnesia_*.deb   # .deb
+chmod +x Orgamnesia_*.AppImage        # .AppImage : le rendre exécutable,
+./Orgamnesia_*.AppImage               # puis le lancer
+#+END_SRC
+
+** Arch Linux
+
+*** Paquet tout prêt (le plus rapide)
+
+Télécharger le fichier =orgamnesia-X.Y.Z-1-x86_64.pkg.tar.zst= sur la
+[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]],
+puis l'installer avec pacman, qui installe aussi les dépendances :
+
+#+BEGIN_SRC sh
+sudo pacman -U orgamnesia-*-x86_64.pkg.tar.zst
+#+END_SRC
+
+Orgamnesia apparaît ensuite dans le menu des applications, ou se lance avec
+=orgamnesia=. Pour mettre à jour, refaire la même chose avec le fichier de la
+nouvelle version ; pour désinstaller : =sudo pacman -R orgamnesia=.
+
+*** Compiler la dernière version de =main=
+
+Pour avoir les nouveautés pas encore publiées. Le =PKGBUILD= de =packaging/arch=
+compile la branche =main= et l'installe avec pacman. Il se lance *depuis ce
+dossier*, qui contient aussi le fichier =.desktop= dont il a besoin :
+
+#+BEGIN_SRC sh
+sudo pacman -S --needed base-devel git
+git clone https://github.com/thomas-louvigne/orgamnesia.git
+cd orgamnesia/packaging/arch
+makepkg -si
+#+END_SRC
+
+=makepkg -si= installe les dépendances (=rust=, =rust-wasm=, =trunk=, =cargo-tauri=,
+=webkit2gtk-4.1=…), compile (quelques minutes) puis installe le paquet. Orgamnesia
+apparaît ensuite dans le menu des applications, ou se lance avec =orgamnesia=.
+
+- *Mettre à jour* : dans =orgamnesia/packaging/arch=, =git pull= puis =makepkg -si=.
+- *Avec rustup* : le paquet =rust= entre en conflit avec =rustup=. Garder =rustup=
+  et lancer =rustup target add wasm32-unknown-unknown= avant =makepkg -si=.
+- *Désinstaller* : =sudo pacman -R orgamnesia-git=.
+
+** Depuis les sources (toutes distributions)
+
+Installer les [[https://v2.tauri.app/start/prerequisites/#linux][prérequis de Tauri]]
+et Rust (via [[https://rustup.rs][rustup]]), puis :
+
+#+BEGIN_SRC sh
+git clone https://github.com/thomas-louvigne/orgamnesia.git
+cd orgamnesia
 rustup target add wasm32-unknown-unknown
 cargo install trunk tauri-cli --locked
 cargo tauri build --bundles deb   # ou --no-bundle
 #+END_SRC
+
+Le =.deb= est produit dans =src-tauri/target/release/bundle/deb/= ; avec
+=--no-bundle=, le programme seul est =src-tauri/target/release/orgamnesia=.
+
+** Données
 
 Les pages restent de simples fichiers =.org= dans le dossier choisi ; les réglages
 sont dans =~/.config/com.orgamnesia.app/=.
