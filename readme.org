@@ -80,18 +80,28 @@ To get what is not released yet. The =PKGBUILD= in =packaging/arch= builds the
 holds the =.desktop= file it needs:
 
 #+BEGIN_SRC sh
-sudo pacman -S --needed base-devel git
+sudo pacman -S --needed base-devel git webkit2gtk-4.1 \
+  rust rust-wasm trunk cargo-tauri
 git clone https://github.com/thomas-louvigne/orgamnesia.git
 cd orgamnesia/packaging/arch
 makepkg -si
 #+END_SRC
 
-=makepkg -si= installs the dependencies (=rust=, =rust-wasm=, =trunk=, =cargo-tauri=,
-=webkit2gtk-4.1=…), builds (a few minutes), then installs the package. Orgamnesia
-then shows up in the applications menu, or runs with =orgamnesia=.
+The first line installs what the build needs; if one is missing, =makepkg=
+stops on it:
+
+- =webkit2gtk-4.1=: the web engine the window is drawn with;
+- =rust=: the compiler;
+- =rust-wasm=: the WebAssembly target, for the interface;
+- =trunk=: builds the interface;
+- =cargo-tauri=: builds the application.
+
+=makepkg -si= then builds (a few minutes) and installs the package. Orgamnesia
+shows up in the applications menu, or runs with =orgamnesia=.
 
 - *Update*: in =orgamnesia/packaging/arch=, =git pull= then =makepkg -si=.
-- *With rustup*: the =rust= package conflicts with =rustup=. Keep =rustup= and run
+- *With rustup*: the =rust= package conflicts with =rustup=. Keep =rustup=, drop
+  =rust= and =rust-wasm= from the first line, and run
   =rustup target add wasm32-unknown-unknown= before =makepkg -si=.
 - *Uninstall*: =sudo pacman -R orgamnesia-git=.
 

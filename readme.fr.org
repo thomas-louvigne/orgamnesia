@@ -83,19 +83,29 @@ compile la branche =main= et l'installe avec pacman. Il se lance *depuis ce
 dossier*, qui contient aussi le fichier =.desktop= dont il a besoin :
 
 #+BEGIN_SRC sh
-sudo pacman -S --needed base-devel git
+sudo pacman -S --needed base-devel git webkit2gtk-4.1 \
+  rust rust-wasm trunk cargo-tauri
 git clone https://github.com/thomas-louvigne/orgamnesia.git
 cd orgamnesia/packaging/arch
 makepkg -si
 #+END_SRC
 
-=makepkg -si= installe les dépendances (=rust=, =rust-wasm=, =trunk=, =cargo-tauri=,
-=webkit2gtk-4.1=…), compile (quelques minutes) puis installe le paquet. Orgamnesia
-apparaît ensuite dans le menu des applications, ou se lance avec =orgamnesia=.
+La première ligne installe ce dont la compilation a besoin ; s'il en manque un,
+=makepkg= s'arrête dessus :
+
+- =webkit2gtk-4.1= : le moteur web qui dessine la fenêtre ;
+- =rust= : le compilateur ;
+- =rust-wasm= : la cible WebAssembly, pour l'interface ;
+- =trunk= : compile l'interface ;
+- =cargo-tauri= : compile l'application.
+
+=makepkg -si= compile ensuite (quelques minutes) puis installe le paquet. Orgamnesia
+apparaît dans le menu des applications, ou se lance avec =orgamnesia=.
 
 - *Mettre à jour* : dans =orgamnesia/packaging/arch=, =git pull= puis =makepkg -si=.
-- *Avec rustup* : le paquet =rust= entre en conflit avec =rustup=. Garder =rustup=
-  et lancer =rustup target add wasm32-unknown-unknown= avant =makepkg -si=.
+- *Avec rustup* : le paquet =rust= entre en conflit avec =rustup=. Garder =rustup=,
+  retirer =rust= et =rust-wasm= de la première ligne, et lancer
+  =rustup target add wasm32-unknown-unknown= avant =makepkg -si=.
 - *Désinstaller* : =sudo pacman -R orgamnesia-git=.
 
 ** Depuis les sources (toutes distributions)

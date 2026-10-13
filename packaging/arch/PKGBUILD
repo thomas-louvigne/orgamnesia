@@ -36,6 +36,12 @@ prepare() {
 build() {
   cd "$_pkgname"
   export RUSTUP_TOOLCHAIN=stable
+  # The RUSTFLAGS of makepkg.conf are made for the machine's processor: given to
+  # the WebAssembly build too, wasm-bindgen then fails. They go to the native
+  # target only.
+  local triple=${CARCH^^}_UNKNOWN_LINUX_GNU
+  export CARGO_TARGET_${triple}_RUSTFLAGS="$RUSTFLAGS"
+  unset RUSTFLAGS
   # Builds the Leptos frontend with Trunk (beforeBuildCommand), then the
   # Tauri binary with the frontend embedded. No bundle: pacman packages it.
   cargo tauri build --no-bundle
