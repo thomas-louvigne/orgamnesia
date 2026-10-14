@@ -261,6 +261,30 @@ fn shift_subtree(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: 
     }
 }
 
+/// Move the line of the caret, or the lines of the selection, one line up or down.
+fn move_line(pane: Pane, el: &Textarea, up: bool) {
+    let (start, end) = get_pos(el);
+    let (start, end) = (pane.page_pos(el, start), pane.page_pos(el, end));
+    let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+    let Some(m) = edit::move_line(&page, start, end, up) else { return };
+    // Not across a fold: the hidden text would be moved with no sight of it
+    if pane.folds.with_untracked(|f| f.iter().any(|&(a, b)| a < m.b && m.a <= b)) { return; }
+    let (va, vb) = (pane.view_pos(m.a), pane.view_pos(m.b));
+    let shown: String = el.value().chars().skip(va).take(vb.saturating_sub(va)).collect();
+    let page_span: String = page[m.a..m.b].iter().collect();
+    if shown == page_span {
+        // The lines are shown as they are: edit the textarea, so the move can be undone
+        splice(el, va, vb, &m.text);
+        set_selection(el, pane.view_pos(m.sel.0), pane.view_pos(m.sel.1));
+        pane.commit(el);
+        pane.track_caret(el);
+    } else {
+        // A table drawn among them: change the page
+        let (before, after): (String, String) = (page[..m.a].iter().collect(), page[m.b..].iter().collect());
+        pane.set_page(format!("{before}{}{after}", m.text), m.sel.1);
+    }
+}
+
 /// An editor action of the keybindings: motions, clipboard, emphasis, Emacs editing…
 fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
     let ctx = pane.ctx;
@@ -335,23 +359,23 @@ fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
         // ── Emacs editing ─────────────────────────────────────────────────────
         EditorAction::KillLine => {
             let (a, b) = edit::kill_line_range(&chars, start);
-            ctx.work.kill_ring.set(text(a, b));
+            crate::kill_ring::kill(ctx, text(a, b));
             replace(a, b, "");
         }
         EditorAction::KillWordForward => {
             let b = edit::word_end_forward(&chars, start);
-            ctx.work.kill_ring.set(text(start, b));
+            crate::kill_ring::kill(ctx, text(start, b));
             replace(start, b, "");
         }
         EditorAction::KillWordBackward => {
             let a = edit::word_start_backward(&chars, start);
-            ctx.work.kill_ring.set(text(a, start));
+            crate::kill_ring::kill(ctx, text(a, start));
             replace(a, start, "");
         }
         EditorAction::KillRegion | EditorAction::CopyRegion => {
             let (a, b) = pane.region_of(el);
             if a < b {
-                ctx.work.kill_ring.set(text(a, b));
+                crate::kill_ring::kill(ctx, text(a, b));
                 if action == EditorAction::KillRegion {
                     replace(a, b, "");
                 } else if pane.mark.get_untracked().is_none() {
@@ -361,8 +385,16 @@ fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
             pane.mark.set(None);
         }
         EditorAction::Yank => {
-            let killed = ctx.work.kill_ring.get_untracked();
-            if !killed.is_empty() { replace(start, end, &killed); }
+            let el = el.clone();
+            crate::kill_ring::yank(ctx, move |text| {
+                let (start, end) = get_pos(&el);
+                let cursor = splice(&el, start, end, &text);
+                set_cursor(&el, cursor);
+                pane.commit(&el);
+            });
+        }
+        EditorAction::MoveLineUp | EditorAction::MoveLineDown => {
+            move_line(pane, el, action == EditorAction::MoveLineUp);
         }
         EditorAction::DeleteCharForward => {
             let (a, b) = edit::delete_forward_range(&chars, start, end);

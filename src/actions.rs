@@ -374,7 +374,7 @@ fn restore_page(ctx: AppCtx, trashed: String, reopen: bool) {
 
 /// Reload the content of open tabs without unsaved changes (after links were
 /// rewritten on disk by a rename: every tab, as the rename saves them first).
-async fn reload_clean_tabs(ctx: AppCtx) {
+pub async fn reload_clean_tabs(ctx: AppCtx) {
     for tab in ctx.work.tabs.get_untracked() {
         if tab.dirty.get_untracked() { continue; }
         if let Ok(content) = invoke::read_file(&tab.path).await && content != tab.content.get_untracked() {

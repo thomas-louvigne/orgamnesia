@@ -15,6 +15,39 @@ pub fn line_bounds(chars: &[char], pos: usize) -> (usize, usize) {
     (start, end)
 }
 
+/// A move of lines one line up or down: the char range `a..b` becomes `text`,
+/// and the selection is now `sel`.
+#[derive(Debug, PartialEq)]
+pub struct LineMove {
+    pub a: usize,
+    pub b: usize,
+    pub text: String,
+    pub sel: (usize, usize),
+}
+
+/// Move the lines of the selection `start..end` above the line before them (`up`)
+/// or below the line after them; `None` at the top or the bottom of the text.
+pub fn move_line(chars: &[char], start: usize, end: usize, up: bool) -> Option<LineMove> {
+    // A selection ending at the start of a line doesn't take that line
+    let last = if end > start && end > 0 && chars[end - 1] == '\n' { end - 1 } else { end };
+    let (first, _) = line_bounds(chars, start);
+    let (_, block_end) = line_bounds(chars, last.max(start));
+    let block: String = chars[first..block_end].iter().collect();
+    if up {
+        if first == 0 { return None; }
+        let (prev, _) = line_bounds(chars, first - 1);
+        let above: String = chars[prev..first - 1].iter().collect();
+        let shift = first - prev;
+        Some(LineMove { a: prev, b: block_end, text: format!("{block}\n{above}"), sel: (start - shift, end - shift) })
+    } else {
+        if block_end >= chars.len() { return None; }
+        let (_, next_end) = line_bounds(chars, block_end + 1);
+        let below: String = chars[block_end + 1..next_end].iter().collect();
+        let shift = next_end - block_end;
+        Some(LineMove { a: first, b: next_end, text: format!("{below}\n{block}"), sel: (start + shift, end + shift) })
+    }
+}
+
 /// Position `delta` lines down (negative: up) keeping the column when possible.
 pub fn move_lines(chars: &[char], pos: usize, delta: i32) -> usize {
     let (mut start, _) = line_bounds(chars, pos);
@@ -203,36 +236,12 @@ fn wiki_link_at(chars: &[char], pos: usize, hashtags: Hashtags) -> Option<String
     None
 }
 
-/// Char ranges of the occurrences of `query` in `chars`, without overlap.
-/// `chars` with each of the `ranges` (sorted, not overlapping) replaced by `with`.
-pub fn replace_ranges(chars: &[char], ranges: &[(usize, usize)], with: &str) -> String {
-    let mut out = String::new();
-    let mut at = 0;
-    for &(a, b) in ranges {
-        out.extend(&chars[at..a]);
-        out.push_str(with);
-        at = b;
-    }
-    out.extend(&chars[at..]);
-    out
-}
+pub use orgamnesia_core::search::replace_ranges;
 
 /// Without `match_case`, case and accents are ignored ("regle" finds "Règle").
 pub fn find_all(chars: &[char], query: &str, match_case: bool) -> Vec<(usize, usize)> {
-    let norm = |c: char| if match_case { c } else { orgamnesia_core::names::fold_char(c) };
-    let q: Vec<char> = query.chars().map(norm).collect();
-    let mut found = Vec::new();
-    if q.is_empty() { return found; }
-    let mut i = 0;
-    while i + q.len() <= chars.len() {
-        if chars[i..i + q.len()].iter().zip(&q).all(|(&c, &k)| norm(c) == k) {
-            found.push((i, i + q.len()));
-            i += q.len();
-        } else {
-            i += 1;
-        }
-    }
-    found
+    let opts = orgamnesia_core::SearchOptions { match_case, whole_word: false };
+    orgamnesia_core::search::find_all(chars, query, opts)
 }
 
 #[cfg(test)]
@@ -252,6 +261,22 @@ mod tests {
         assert_eq!(move_lines(&t, 0, 50), t.len());
         assert_eq!(line_start(&t, 2), 7);
         assert_eq!(line_start(&t, 9), t.len());
+    }
+
+    #[test]
+    fn moves_lines() {
+        let t = c("un\ndeux\ntrois");
+        // The caret in "deux", moved up: before "un"
+        let m = move_line(&t, 4, 4, true).unwrap();
+        assert_eq!((m.a, m.b, m.text.as_str(), m.sel), (0, 7, "deux\nun", (1, 1)));
+        // Down: after "trois", the last line (no line break after it)
+        let m = move_line(&t, 4, 4, false).unwrap();
+        assert_eq!((m.a, m.b, m.text.as_str(), m.sel), (3, 13, "trois\ndeux", (10, 10)));
+        assert!(move_line(&t, 1, 1, true).is_none());
+        assert!(move_line(&t, 9, 9, false).is_none());
+        // Two lines selected (ending at the start of the third): both move, not the third
+        let m = move_line(&t, 0, 8, false).unwrap();
+        assert_eq!((m.a, m.b, m.text.as_str(), m.sel), (0, 13, "trois\nun\ndeux", (6, 14)));
     }
 
     #[test]
@@ -340,13 +365,5 @@ mod tests {
         let c: Vec<char> = "La règle, les Règles, regle".chars().collect();
         assert_eq!(find_all(&c, "regle", false), vec![(3, 8), (14, 19), (22, 27)]);
         assert_eq!(find_all(&c, "regle", true), vec![(22, 27)]);
-    }
-
-    #[test]
-    fn replace_ranges_replaces_every_match() {
-        let c: Vec<char> = "un chat, deux chats".chars().collect();
-        assert_eq!(replace_ranges(&c, &[(3, 7), (14, 18)], "chien"), "un chien, deux chiens");
-        assert_eq!(replace_ranges(&c, &[], "x"), "un chat, deux chats");
-        assert_eq!(replace_ranges(&c, &[(0, 3)], ""), "chat, deux chats");
     }
 }

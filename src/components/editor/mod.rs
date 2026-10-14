@@ -14,7 +14,7 @@ use wasm_bindgen::JsCast;
 
 use crate::{
     actions::follow_link,
-    components::{empty_state::EmptyState, page_title::PageTitle, tabs::TabBar},
+    components::{empty_state::EmptyState, page_title::PageTitle, project_search::ProjectSearchPopin, frames::TagAddPopin, tabs::TabBar},
     edit,
     highlight,
     i18n::t,
@@ -52,6 +52,8 @@ pub fn EditorArea(second: bool) -> impl IntoView {
     // The focused pane shows the active tab, the other one `other_path`
     let path = Memo::new(move |_| ctx.work.pane_path(second));
     let focused = move || ctx.work.split.get().is_none() || ctx.work.focus_second.get() == second;
+    // Not `open` itself: showing the replace field must not mount the pop-in again
+    let searching = Memo::new(move |_| ctx.ui.search.open.get().is_some());
 
     // When this pane takes the focus (C-x o, C-o…), the keyboard must follow:
     // put the text cursor in its editor.
@@ -89,6 +91,9 @@ pub fn EditorArea(second: bool) -> impl IntoView {
                 (split == Some(SplitKind::Vertical) || (second && split == Some(SplitKind::Horizontal)))
                     .then(|| view! { <div class="pane-tabs"><TabBar pane=second /></div> })
             }}
+            // The project search, at the height of the page title
+            {move || (focused() && searching.get()).then(|| view! { <ProjectSearchPopin /> })}
+            {move || (focused() && ctx.ui.tag_add.get()).then(|| view! { <TagAddPopin /> })}
             {move || ctx.pref(|p| p.show_page_title).then(|| {
                 let p = path.try_get().flatten()?;
                 let tab = ctx.work.tabs.with(|tabs| tabs.iter().find(|t| t.path == p).cloned())?;
@@ -273,6 +278,7 @@ fn goto_target(pane: Pane, tab: Tab, second: bool) {
                 let start = edit::line_start(&chars, n);
                 Some((start, start))
             }
+            Goto::Range(a, b) => Some((a.min(chars.len()), b.min(chars.len()))),
         };
         if let Some((start, end)) = range {
             // Show the target's table as text first, if it is in one, and unfold it

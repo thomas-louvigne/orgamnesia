@@ -49,6 +49,10 @@ fn main() {
             commands::app::missing_files,
             commands::app::quit_app,
             commands::config::set_session,
+            commands::search::search_project,
+            commands::search::replace_in_project,
+            commands::search::undo_replace,
+            commands::search::can_undo_replace,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

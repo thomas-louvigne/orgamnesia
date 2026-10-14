@@ -14,9 +14,10 @@ use crate::{
     },
     i18n::t,
     invoke,
-    keybindings::{AppAction, Resolution, Scope},
+    keybindings::{AppAction, EditorAction, Resolution, Scope},
     state::{AppCtx, Drag, Session, SplitKind, Tab, VaultChanges},
     storage,
+    text_field,
 };
 
 const SIDEBAR_KEY: &str = "sidebar_width";
@@ -212,6 +213,17 @@ fn watch_git(ctx: AppCtx) {
     invoke::listen(invoke::GIT_CHANGED, move |()| refresh());
 }
 
+/// Another project: the project search starts afresh (its undo was the other project's).
+fn reset_search(ctx: AppCtx) {
+    Effect::new(move |_| {
+        ctx.project.vault_path.track();
+        let s = ctx.ui.search;
+        s.results.set(Default::default());
+        s.skip.set(Default::default());
+        s.can_undo.set(false);
+    });
+}
+
 /// Org-mode tags of the project, for the tags frame and the completion of
 /// `:tags:`. Refreshed (debounced) when the project, its pages or their links change.
 fn watch_tags(ctx: AppCtx) {
@@ -243,6 +255,13 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
         AppAction::NewPage      => ctx.ui.show_new_page.set(true),
         AppAction::OpenSettings => ctx.ui.show_settings.set(true),
         AppAction::QuickOpen    => ctx.ui.show_quick_open.set(true),
+        AppAction::ProjectSearch  => ctx.ui.search.open.set(Some(false)),
+        AppAction::ProjectReplace => ctx.ui.search.open.set(Some(true)),
+        AppAction::AddTag => if ctx.work.active_tab_data().is_some() {
+            ctx.ui.tag_add.set(true);
+        } else {
+            ctx.notify(t("tag_add_no_page", ctx.lang.get_untracked()));
+        },
         AppAction::CloseTab     => if let Some(idx) = active { actions::close_tab(ctx, idx) },
         AppAction::Save         => if let Some(tab) = ctx.work.active_tab_data() { actions::save_tab(ctx, tab) },
         AppAction::NextTab | AppAction::PrevTab => {
@@ -339,6 +358,7 @@ pub fn App() -> impl IntoView {
     watch_disk(ctx);
     watch_git(ctx);
     watch_tags(ctx);
+    reset_search(ctx);
 
     // Page history: each time the focused pane shows another page, the one it
     // left is recorded (not when the focus only moves to the other pane).
@@ -372,6 +392,13 @@ pub fn App() -> impl IntoView {
                 ctx.clear_chord_status();
                 e.prevent_default();
                 if let Some(action) = AppAction::from_id(&id) { run_app_action(ctx, action); }
+            }
+            // The editor runs its own; the other text fields get the ones that make sense there
+            Resolution::Action(Scope::Editor, id) => {
+                ctx.clear_chord_status();
+                if let Some(action) = EditorAction::from_id(&id) && text_field::run(ctx, &e, action) {
+                    e.prevent_default();
+                }
             }
             Resolution::Pending(keys) => {
                 e.prevent_default();

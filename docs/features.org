@@ -167,12 +167,34 @@ together with its sub-headlines, as Emacs' =M-S-<right>= / =M-S-<left>= do
   or a setting, makes it exact.
 - While finding, tables are shown as text.
 
+*** In the whole project
+"Search the project" (Ctrl+Shift+F, =C-x p g= in Emacs) opens a pop-in at the top of
+the pane, at the height of the page title. The results come while typing, grouped
+by page, with the line around each match; ↑ / ↓ pick one, Enter or a click opens
+the page on it. Pages with unsaved changes are searched in their current text.
+Options: match case and accents (Aa), whole words (ab).
+
+"Replace in the project" (Ctrl+Shift+H, =C-x p r=) adds the replace field: each match
+shows the old and the new text, and checkboxes leave a page or a match out. After
+confirmation, the pages with unsaved changes are saved, then the replacement is
+made. "Undo", in the status bar or the pop-in, puts the pages of the last
+replacement back as they were (but the ones changed since).
+
 [[file:images/find.png]]
 
 ** Emacs commands
 With the Emacs profile: movements (character, word, line, sentence, paragraph,
 headline, start and end of document, page), kill to end of line, kill a word, kill
 ring (kill then yank with Ctrl+Y), selection mark.
+
+The kill ring follows the system clipboard: what is killed (Ctrl+W, Ctrl+K…) is
+copied there, and Ctrl+Y yanks what it holds, even copied in another app. These
+commands work in the other fields of the app too (tags, search, title, commit
+message…).
+
+** Moving lines
+Alt+↑ / Alt+↓ move the line of the cursor, or the selected lines, up or down. Not
+across a folded headline.
 
 *** Selection mark
 Ctrl+Space sets a mark: the selection then follows the cursor, like Emacs' region.
@@ -208,6 +230,12 @@ In the tags frame, with the org-mode syntax:
 
 Case matters. The results are the pages (by =#+FILETAGS:=) and the headlines that
 match; a click opens the page at the right line. The field completes tag names.
+
+** Adding a tag to the page
+The =+= button of the tags frame, or the "Add a tag to the page" shortcut
+(Ctrl+Shift+T, =C-c C-q= in Emacs), which opens the field at the top of the pane
+even without the frame: the tag goes in =#+FILETAGS:=, with the tags of the
+project completed.
 
 * TODO states
 As in org-mode, a keyword after the stars of a headline gives its state.
@@ -346,6 +374,9 @@ profile gets those of the actions it didn't know.
 | Save                        | Ctrl+S           | Ctrl+X Ctrl+S             |
 | Open settings               | Ctrl+,           | Ctrl+,                    |
 | Quick open                  | Ctrl+K           | Ctrl+X B, Alt+X           |
+| Search the project          | Ctrl+Shift+F     | Ctrl+X P G, Ctrl+Shift+F  |
+| Replace in the project      | Ctrl+Shift+H     | Ctrl+X P R, Ctrl+Shift+H  |
+| Add a tag to the page       | Ctrl+Shift+T     | Ctrl+C Ctrl+Q             |
 | Close tab                   | Ctrl+W           | Ctrl+X K                  |
 | Next / previous tab         | Ctrl+Tab / +Shift | Ctrl+X → / Ctrl+X ←      |
 | Previous / next page        | Alt+← / Alt+→    | Alt+← / Alt+→             |
@@ -374,6 +405,7 @@ profile gets those of the actions it didn't know.
 | Strikethrough                  | Ctrl+Shift+X        | Ctrl+C Ctrl+X Ctrl+F +        |
 | Next / previous TODO state     | —                   | Shift+→ / Shift+←             |
 | Headline level down / up       | Alt+Shift+→ / ←     | Alt+Shift+→ / ←               |
+| Move the line up / down        | Alt+↑ / Alt+↓       | Alt+↑ / Alt+↓                 |
 | Set mark / cancel              | —                   | Ctrl+Space / Ctrl+G           |
 | Start / end of line            | —                   | Ctrl+A / Ctrl+E               |
 | Next / previous character      | —                   | Ctrl+F / Ctrl+B               |
@@ -460,7 +492,8 @@ closes without saving. The explanations under a setting are in italics.
 
 ** Shortcuts
 Profile, shortcuts of the application, the panes, the editor, the selection mark
-(with its setting) and the TODO states (with their setting).
+(with its setting) and the TODO states (with their setting). A field on top
+filters the actions by name or shortcut.
 
 * Files
 - Pages stay plain =.org= files, readable and editable with Emacs or any other

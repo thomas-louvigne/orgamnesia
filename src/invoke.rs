@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit}};
+use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -176,6 +176,26 @@ pub async fn list_tags() -> Result<Vec<TagCount>, String> {
 
 pub async fn search_tags(query: &str) -> Result<Vec<TagHit>, String> {
     call("search_tags", serde_json::json!({ "query": query })).await
+}
+
+/// The matches of `query` in the pages; `open`: the text of the pages being edited (path, text).
+pub async fn search_project(query: &str, options: SearchOptions, open: &[(String, String)]) -> Result<SearchResults, String> {
+    let open: std::collections::HashMap<&String, &String> = open.iter().map(|(p, t)| (p, t)).collect();
+    call("search_project", serde_json::json!({ "query": query, "options": options, "open": open })).await
+}
+
+pub async fn replace_in_project(query: &str, options: SearchOptions, replacement: &str, skip: &ReplaceSkip) -> Result<ReplaceOutcome, String> {
+    call("replace_in_project", serde_json::json!({
+        "query": query, "options": options, "replacement": replacement, "skip": skip,
+    })).await
+}
+
+pub async fn undo_replace() -> Result<ReplaceOutcome, String> {
+    call("undo_replace", serde_json::json!({})).await
+}
+
+pub async fn can_undo_replace() -> Result<bool, String> {
+    call("can_undo_replace", serde_json::json!({})).await
 }
 
 /// Build the site of the project with org-bloom; the folder it was written to.

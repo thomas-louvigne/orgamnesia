@@ -133,7 +133,7 @@ pub struct ActionDef<A: 'static> {
 /// Application actions (handled outside the editor).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppAction {
-    NewPage, Save, OpenSettings, QuickOpen, CloseTab, NextTab, PrevTab, PageBack, PageForward,
+    NewPage, Save, OpenSettings, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
     GitCommit, GitPull, GitPush,
 }
@@ -150,7 +150,7 @@ pub enum EditorAction {
     BackToIndentation, PreviousHeading, NextHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell,
     Bold, Italic, Underline, Strikethrough, TodoNext, TodoPrev,
-    PromoteSubtree, DemoteSubtree,
+    PromoteSubtree, DemoteSubtree, MoveLineUp, MoveLineDown,
 }
 
 impl AppAction {
@@ -170,6 +170,9 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::Save, id: "save",          label_key: "shortcut_save" },
     ActionDef { action: AppAction::OpenSettings, id: "open_settings", label_key: "shortcut_settings" },
     ActionDef { action: AppAction::QuickOpen, id: "quick_open",    label_key: "shortcut_quick_open" },
+    ActionDef { action: AppAction::ProjectSearch, id: "project_search",   label_key: "shortcut_project_search" },
+    ActionDef { action: AppAction::ProjectReplace, id: "project_replace", label_key: "shortcut_project_replace" },
+    ActionDef { action: AppAction::AddTag, id: "add_tag",                 label_key: "shortcut_add_tag" },
     ActionDef { action: AppAction::CloseTab, id: "close_tab",     label_key: "shortcut_close_tab" },
     ActionDef { action: AppAction::NextTab, id: "next_tab",      label_key: "shortcut_next_tab" },
     ActionDef { action: AppAction::PrevTab, id: "prev_tab",      label_key: "shortcut_prev_tab" },
@@ -240,6 +243,8 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::TodoPrev, id: "todo_prev",           label_key: "shortcut_todo_prev" },
     ActionDef { action: EditorAction::PromoteSubtree, id: "promote_subtree", label_key: "shortcut_promote_subtree" },
     ActionDef { action: EditorAction::DemoteSubtree, id: "demote_subtree",   label_key: "shortcut_demote_subtree" },
+    ActionDef { action: EditorAction::MoveLineUp, id: "move_line_up",       label_key: "shortcut_move_line_up" },
+    ActionDef { action: EditorAction::MoveLineDown, id: "move_line_down",   label_key: "shortcut_move_line_down" },
 ];
 
 /// Preset ids available in the UI (VI intentionally left as a future addition).
@@ -264,6 +269,9 @@ pub fn default_app() -> Bindings {
         ("save",          &["ctrl+s"]),
         ("open_settings", &["ctrl+,"]),
         ("quick_open",    &["ctrl+k", "ctrl+shift+k"]),
+        ("project_search",  &["ctrl+shift+f"]),
+        ("project_replace", &["ctrl+shift+h"]),
+        ("add_tag",         &["ctrl+shift+t"]),
         ("close_tab",     &["ctrl+w", "ctrl+shift+w"]),
         ("next_tab",      &["ctrl+Tab"]),
         ("prev_tab",      &["ctrl+shift+Tab"]),
@@ -302,6 +310,11 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("save",          &["ctrl+x ctrl+s"]),
             ("open_settings", &["ctrl+,"]),
             ("quick_open",    &["ctrl+x b", "alt+x"]),
+            // project.el: `C-x p g` (find regexp), `C-x p r` (query replace)
+            ("project_search",  &["ctrl+x p g", "ctrl+shift+f"]),
+            ("project_replace", &["ctrl+x p r", "ctrl+shift+h"]),
+            // Org: `C-c C-q` (org-set-tags-command)
+            ("add_tag",         &["ctrl+c ctrl+q"]),
             ("close_tab",     &["ctrl+x k"]),
             ("next_tab",      &["ctrl+x ArrowRight", "ctrl+Tab"]),
             ("prev_tab",      &["ctrl+x ArrowLeft", "ctrl+shift+Tab"]),
@@ -378,6 +391,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             // org-promote-subtree / org-demote-subtree (M-S-<left> / M-S-<right>)
             ("promote_subtree",     &["shift+alt+ArrowLeft"]),
             ("demote_subtree",      &["shift+alt+ArrowRight"]),
+            ("move_line_up",        &["alt+ArrowUp"]),
+            ("move_line_down",      &["alt+ArrowDown"]),
         ]),
         // "classic" and any unknown preset fall back to the classic table.
         _ => m(&[
@@ -400,6 +415,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("strikethrough", &["ctrl+shift+x"]),
             ("promote_subtree", &["shift+alt+ArrowLeft"]),
             ("demote_subtree",  &["shift+alt+ArrowRight"]),
+            ("move_line_up",    &["alt+ArrowUp"]),
+            ("move_line_down",  &["alt+ArrowDown"]),
         ]),
     }
 }

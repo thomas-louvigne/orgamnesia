@@ -73,7 +73,8 @@ pub fn CommitModal() -> impl IntoView {
             "escape" => close(),
             "enter" if ctrl_only => { e.prevent_default(); do_commit(false); }
             "c" if ctrl_only && emacs() => { e.prevent_default(); pending_c.set_value(true); }
-            _ => {}
+            // The Emacs kills and yank, the caret movements… as in the other fields
+            _ => { crate::text_field::on_keydown(ctx, &e); }
         }
     };
 

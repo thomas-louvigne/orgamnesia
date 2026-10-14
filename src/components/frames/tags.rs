@@ -10,6 +10,92 @@ use crate::{
 };
 use super::open_page;
 
+/// Add the file tag `tag` (`#+FILETAGS:`) to the page being edited.
+fn tag_active_page(ctx: AppCtx, tag: &str) {
+    let lang = ctx.lang.get_untracked();
+    let Some(tab) = ctx.work.active_tab_data() else {
+        ctx.ui.status.set(Some(t("tag_add_no_page", lang).to_string()));
+        return;
+    };
+    match crate::motion::add_filetag(&tab.content.get_untracked(), tag) {
+        Some(content) => {
+            // Like typing in the page: marked unsaved, then auto-saved if enabled
+            tab.dirty.set(true);
+            tab.content.set(content);
+            ctx.ui.status.set(Some(format!("{} :{tag}: → {}", t("tag_added", lang), tab.name)));
+        }
+        None => ctx.ui.status.set(Some(format!("{} :{tag}:", t("tag_exists", lang)))),
+    }
+}
+
+/// A field to add a file tag to the page being edited, proposing the tags of the
+/// project. `on_close` runs once a tag was added, or on Escape or leaving the field.
+#[component]
+pub fn TagAddField(list_id: &'static str, on_close: Callback<()>) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let new_tag = RwSignal::new(String::new());
+    let add_ref = NodeRef::<leptos::html::Input>::new();
+    Effect::new(move |_| {
+        if add_ref.get().is_some() {
+            crate::keybindings::after_ms(0, move || {
+                if let Some(el) = add_ref.try_get_untracked().flatten() { let _ = el.focus(); }
+            });
+        }
+    });
+    let add_tag = move || {
+        let tag = new_tag.get_untracked().trim().trim_matches(':').trim_start_matches('#').to_string();
+        if tag.is_empty() { on_close.run(()); return; }
+        let org = ctx.tags_untracked().org;
+        if !tag.chars().all(|c| org.is_tag_char(c)) {
+            ctx.ui.status.set(Some(t("tag_invalid", ctx.lang.get_untracked()).to_string()));
+            return;
+        }
+        tag_active_page(ctx, &tag);
+        new_tag.set(String::new());
+        on_close.run(());
+    };
+    view! {
+        <input
+            node_ref=add_ref
+            class="search-input"
+            type="text"
+            list=list_id
+            placeholder=move || format!("{} « {} »",
+                t("tag_add_ph", ctx.lang.get()),
+                ctx.work.active_tab_data().map(|t| t.name).unwrap_or_default())
+            prop:value=move || new_tag.get()
+            on:input=move |e| new_tag.set(event_target_value(&e))
+            on:keydown=move |e: web_sys::KeyboardEvent| match e.key().as_str() {
+                "Enter" => { e.stop_propagation(); add_tag(); }
+                "Escape" => { e.stop_propagation(); new_tag.set(String::new()); on_close.run(()); }
+                _ => {}
+            }
+            on:blur=move |_| on_close.run(())
+        />
+        <datalist id=list_id>
+            {move || ctx.project.tags.get().into_iter()
+                .map(|tag| view! { <option value=tag.name /> })
+                .collect_view()}
+        </datalist>
+    }
+}
+
+/// The field to add a tag, over the focused pane at the height of the page
+/// title: for the shortcut, whether the tags frame is shown or not.
+#[component]
+pub fn TagAddPopin() -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let close = Callback::new(move |_| {
+        ctx.ui.tag_add.set(false);
+        crate::components::project_search::focus_editor();
+    });
+    view! {
+        <div class="title-popin tag-popin" role="dialog" aria-label=move || t("shortcut_add_tag", ctx.lang.get())>
+            <TagAddField list_id="tag-popin-names" on_close=close />
+        </div>
+    }
+}
+
 /// The tags of the project, and the search of the pages and headlines by tag.
 #[component]
 pub fn TagsFrame() -> impl IntoView {
@@ -39,44 +125,6 @@ pub fn TagsFrame() -> impl IntoView {
 
     // `+` of the tags frame: a field to add a file tag to the active page
     let adding = RwSignal::new(false);
-    let new_tag = RwSignal::new(String::new());
-    let add_ref = NodeRef::<leptos::html::Input>::new();
-    Effect::new(move |_| {
-        if adding.get() {
-            crate::keybindings::after_ms(0, move || {
-                if let Some(el) = add_ref.try_get_untracked().flatten() { let _ = el.focus(); }
-            });
-        }
-    });
-    // Add the file tag `tag` to the page being edited
-    let tag_active_page = move |tag: &str| {
-        let lang = ctx.lang.get_untracked();
-        let Some(tab) = ctx.work.active_tab_data() else {
-            ctx.ui.status.set(Some(t("tag_add_no_page", lang).to_string()));
-            return;
-        };
-        match crate::motion::add_filetag(&tab.content.get_untracked(), tag) {
-            Some(content) => {
-                // Like typing in the page: marked unsaved, then auto-saved if enabled
-                tab.dirty.set(true);
-                tab.content.set(content);
-                ctx.ui.status.set(Some(format!("{} :{tag}: → {}", t("tag_added", lang), tab.name)));
-            }
-            None => ctx.ui.status.set(Some(format!("{} :{tag}:", t("tag_exists", lang)))),
-        }
-    };
-    let add_tag = move || {
-        let tag = new_tag.get_untracked().trim().trim_matches(':').trim_start_matches('#').to_string();
-        if tag.is_empty() { adding.set(false); return; }
-        let org = ctx.tags_untracked().org;
-        if !tag.chars().all(|c| org.is_tag_char(c)) {
-            ctx.ui.status.set(Some(t("tag_invalid", ctx.lang.get_untracked()).to_string()));
-            return;
-        }
-        tag_active_page(&tag);
-        new_tag.set(String::new());
-        adding.set(false);
-    };
 
     // Completion of the tag search: the tags starting with (or holding) the word
     // being typed, the last one of the query (after `+`, `-`, `|` or a space; when tags
@@ -125,28 +173,7 @@ pub fn TagsFrame() -> impl IntoView {
             </div>
             {move || adding.get().then(|| view! {
                 <div class="tag-search tag-add">
-                    <input
-                        node_ref=add_ref
-                        class="search-input"
-                        type="text"
-                        list="tag-add-names"
-                        placeholder=move || format!("{} « {} »",
-                            t("tag_add_ph", ctx.lang.get()),
-                            ctx.work.active_tab_data().map(|t| t.name).unwrap_or_default())
-                        prop:value=move || new_tag.get()
-                        on:input=move |e| new_tag.set(event_target_value(&e))
-                        on:keydown=move |e: web_sys::KeyboardEvent| match e.key().as_str() {
-                            "Enter" => { e.stop_propagation(); add_tag(); }
-                            "Escape" => { e.stop_propagation(); new_tag.set(String::new()); adding.set(false); }
-                            _ => {}
-                        }
-                        on:blur=move |_| adding.set(false)
-                    />
-                    <datalist id="tag-add-names">
-                        {move || ctx.project.tags.get().into_iter()
-                            .map(|tag| view! { <option value=tag.name /> })
-                            .collect_view()}
-                    </datalist>
+                    <TagAddField list_id="tag-add-names" on_close=Callback::new(move |_| adding.set(false)) />
                 </div>
             })}
             <div class="tag-search">
@@ -227,7 +254,7 @@ pub fn TagsFrame() -> impl IntoView {
                                             prop:disabled=move || ctx.work.active_tab.get().is_none()
                                             on:click=move |e: web_sys::MouseEvent| {
                                                 e.stop_propagation();
-                                                tag_active_page(&to_add);
+                                                tag_active_page(ctx, &to_add);
                                             }
                                         >"+"</button>
                                     </span>

@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::{i18n::{t, Lang}, keybindings::Keybindings};
 
-pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitStatus, Prefs, Session, Settings, SiteConfig, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
+pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitStatus, Prefs, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults, Session, Settings, SiteConfig, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
 
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
@@ -11,6 +11,23 @@ pub enum Goto {
     Link(String),
     /// Start of this line (0-based).
     Line(usize),
+    /// Select this char range (a match of the project search).
+    Range(usize, usize),
+}
+
+/// What the project search pop-in shows; kept while it is closed.
+#[derive(Clone, Copy)]
+pub struct ProjectSearch {
+    /// Open, and with the replace field (`Some(true)`).
+    pub open: RwSignal<Option<bool>>,
+    pub query: RwSignal<String>,
+    pub replacement: RwSignal<String>,
+    pub options: RwSignal<SearchOptions>,
+    pub results: RwSignal<SearchResults>,
+    /// Matches left out of the replacement: the pages, and single matches (path, start).
+    pub skip: RwSignal<ReplaceSkip>,
+    /// The last project replacement can be undone.
+    pub can_undo: RwSignal<bool>,
 }
 
 #[derive(Clone, Debug)]
@@ -118,6 +135,9 @@ pub struct Ui {
     pub show_new_page: RwSignal<bool>,
     pub show_quick_open: RwSignal<bool>,
     pub show_commit: RwSignal<bool>,
+    pub search: ProjectSearch,
+    /// The field to add a tag to the page, over the focused pane.
+    pub tag_add: RwSignal<bool>,
     /// Pending confirmation (the webview's own `window.confirm` shows nothing here).
     pub confirm: RwSignal<Option<ConfirmReq>>,
     /// Message of the status bar.
@@ -182,6 +202,16 @@ impl AppCtx {
                 show_new_page: RwSignal::new(false),
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
+                tag_add: RwSignal::new(false),
+                search: ProjectSearch {
+                    open: RwSignal::new(None),
+                    query: RwSignal::new(String::new()),
+                    replacement: RwSignal::new(String::new()),
+                    options: RwSignal::new(SearchOptions::default()),
+                    results: RwSignal::new(SearchResults::default()),
+                    skip: RwSignal::new(ReplaceSkip::default()),
+                    can_undo: RwSignal::new(false),
+                },
                 confirm: RwSignal::new(None),
                 status: RwSignal::new(None),
                 status_undo: RwSignal::new(None),

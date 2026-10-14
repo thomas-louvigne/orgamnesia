@@ -23,6 +23,7 @@ use org_bloom::OrgBloomFrame;
 use pages::PagesFrame;
 use project::ProjectSwitcher;
 use tags::TagsFrame;
+pub use tags::TagAddPopin;
 use todos::TodosFrame;
 
 /// The frames shown in the column left of the editor, or right of it.

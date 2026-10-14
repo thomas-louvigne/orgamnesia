@@ -25,6 +25,8 @@ an AI. Review the code with the same critical eye as any other contribution.
   =a+b-c=, =a|b=), to do, pages not created yet, git… each one shown or hidden, in
   the left or right column, in the order you choose.
 - *Quick open* (Ctrl+K): any page, open tab or tag.
+- *Project search* (Ctrl+Shift+F): every page, and replace (Ctrl+Shift+H) match by
+  match or all at once, with undo.
 - *Editor*: org-mode highlighting, page title on top, find & replace, autosave,
   split in two panes, Emacs or Classic keybindings (configurable).
 - *Headline level*: Alt+Shift+→ / ← move a headline one level down or up, with

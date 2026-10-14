@@ -26,6 +26,8 @@ que n'importe quelle contribution.
   org : =a+b-c=, =a|b=), à faire, pages pas encore créées, git… chacun affiché ou
   non, dans la colonne de gauche ou de droite, dans l'ordre choisi.
 - *Ouverture rapide* (Ctrl+K) : n'importe quelle page, onglet ouvert ou tag.
+- *Recherche dans le projet* (Ctrl+Maj+F) : toutes les pages, et remplacement
+  (Ctrl+Maj+H) occurrence par occurrence ou en bloc, annulable.
 - *Éditeur* : coloration org-mode, titre de la page en haut, recherche et
   remplacement, sauvegarde automatique, deux volets, raccourcis Emacs ou Classique
   (configurables).

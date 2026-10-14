@@ -9,6 +9,7 @@ mod highlight;
 mod images;
 pub mod i18n;
 mod invoke;
+mod kill_ring;
 mod links;
 mod org_bloom;
 pub mod keybindings;
@@ -16,6 +17,7 @@ pub mod motion;
 mod state;
 mod storage;
 mod tables;
+mod text_field;
 
 use app::App;
 use leptos::prelude::*;

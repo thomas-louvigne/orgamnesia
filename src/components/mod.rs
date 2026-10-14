@@ -4,6 +4,7 @@ pub mod empty_state;
 pub mod frames;
 pub mod new_page_modal;
 pub mod page_title;
+pub mod project_search;
 pub mod quick_open;
 pub mod settings;
 pub mod tabs;

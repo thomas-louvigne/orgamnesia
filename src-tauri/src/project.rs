@@ -8,6 +8,8 @@ use orgamnesia_core::{BrokenLink, FileEntry, OrgTags, Prefs, TagCount, TagHit, T
 
 use crate::{error::AppError, index::backlinks::BacklinkIndex, parser, tags, vault};
 
+mod search;
+
 pub struct Project {
     /// The folder chosen as the project.
     pub path: String,
@@ -17,6 +19,8 @@ pub struct Project {
     pages: HashMap<String, String>,
     links: BacklinkIndex,
     snapshot: vault::Snapshot,
+    /// The pages of the last project replacement, for its undo.
+    last_replace: Vec<search::Replaced>,
 }
 
 impl Project {
@@ -29,6 +33,7 @@ impl Project {
             pages: HashMap::new(),
             links: BacklinkIndex::new(),
             snapshot: vault::Snapshot::new(),
+            last_replace: Vec::new(),
         };
         let files = vault::list_org_files(path)?;
         for f in &files {
@@ -386,7 +391,7 @@ mod tests {
     use orgamnesia_core::Hashtags;
 
     /// A fresh project folder holding the given pages.
-    fn project(test: &str, pages: &[(&str, &str)]) -> (PathBuf, Project) {
+    pub(super) fn project(test: &str, pages: &[(&str, &str)]) -> (PathBuf, Project) {
         let dir = std::env::temp_dir().join(format!("orgamnesia-project-{test}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("pages")).unwrap();
@@ -412,7 +417,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
-    fn path_of(p: &Project, name: &str) -> String {
+    pub(super) fn path_of(p: &Project, name: &str) -> String {
         p.files().into_iter().find(|f| f.name == name).unwrap().path
     }
 

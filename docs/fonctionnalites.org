@@ -159,10 +159,34 @@ avec ses sous-titres, comme =M-S-<right>= / =M-S-<left>= dans Emacs
   « Règle ») ; un bouton, ou une préférence, la rend exacte.
 - Pendant la recherche, les tableaux sont affichés en texte.
 
+*** Dans tout le projet
+« Rechercher dans le projet » (Ctrl+Maj+F, =C-x p g= en Emacs) ouvre une fenêtre en
+haut du volet, au niveau du titre de la page. Les résultats arrivent pendant la
+frappe, groupés par page, avec la ligne autour de chaque occurrence ; ↑ / ↓ en
+choisissent un, Entrée ou un clic ouvre la page dessus. Les pages non enregistrées
+sont cherchées dans leur texte en cours. Options : respecter la casse et les
+accents (Aa), mots entiers (ab).
+
+« Remplacer dans le projet » (Ctrl+Maj+H, =C-x p r=) ajoute le champ de remplacement :
+chaque occurrence montre l'ancien et le nouveau texte, et des cases permettent de
+laisser de côté une page ou une occurrence. Après confirmation, les pages non
+enregistrées sont enregistrées puis le remplacement est fait. « Annuler », dans la
+barre d'état ou la fenêtre, remet les pages du dernier remplacement comme avant
+(sauf celles modifiées depuis).
+
 ** Commandes Emacs
 Avec le profil Emacs : déplacements (caractère, mot, ligne, phrase, paragraphe,
 titre, début et fin de document, page), couper jusqu'à la fin de ligne, couper un
 mot, kill ring (couper puis coller avec Ctrl+Y), marqueur de sélection.
+
+Le kill ring suit le presse-papier du système : ce qui est coupé (Ctrl+W, Ctrl+K…)
+y est copié, et Ctrl+Y colle ce qu'il contient, même copié dans une autre
+application. Ces commandes marchent aussi dans les autres champs de l'application
+(tags, recherche, titre, message de commit…).
+
+** Déplacer des lignes
+Alt+↑ / Alt+↓ montent ou descendent la ligne du curseur, ou les lignes
+sélectionnées. Pas à travers un titre plié.
 
 *** Marqueur de sélection
 Ctrl+Espace pose une marque : la sélection suit ensuite le curseur, comme la région
@@ -202,6 +226,11 @@ Dans le cadre des tags, avec la syntaxe d'org-mode :
 La casse compte. Les résultats sont les pages (par =#+FILETAGS:=) et les titres qui
 correspondent ; un clic ouvre la page à la bonne ligne. Le champ complète les
 noms de tags.
+
+** Ajouter un tag à la page
+Le bouton =+= du cadre des tags, ou le raccourci « Ajouter un tag à la page »
+(Ctrl+Maj+T, =C-c C-q= en Emacs) qui ouvre le champ en haut du volet même sans le
+cadre : le tag est ajouté à =#+FILETAGS:=, avec la complétion des tags du projet.
 
 * États TODO
 Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
@@ -339,6 +368,9 @@ connaissait pas.
 | Sauvegarder                 | Ctrl+S           | Ctrl+X Ctrl+S             |
 | Ouvrir les paramètres       | Ctrl+,           | Ctrl+,                    |
 | Ouverture rapide            | Ctrl+K           | Ctrl+X B, Alt+X           |
+| Rechercher dans le projet   | Ctrl+Maj+F       | Ctrl+X P G, Ctrl+Maj+F    |
+| Remplacer dans le projet    | Ctrl+Maj+H       | Ctrl+X P R, Ctrl+Maj+H    |
+| Ajouter un tag à la page    | Ctrl+Maj+T       | Ctrl+C Ctrl+Q             |
 | Fermer l'onglet             | Ctrl+W           | Ctrl+X K                  |
 | Onglet suivant / précédent  | Ctrl+Tab / +Maj  | Ctrl+X → / Ctrl+X ←       |
 | Page précédente / suivante  | Alt+← / Alt+→    | Alt+← / Alt+→             |
@@ -367,6 +399,7 @@ connaissait pas.
 | Barré                        | Ctrl+Maj+X         | Ctrl+C Ctrl+X Ctrl+F +      |
 | État TODO suivant / précédent | —                 | Maj+→ / Maj+←               |
 | Titre : descendre / remonter | Alt+Maj+→ / ←      | Alt+Maj+→ / ←               |
+| Monter / descendre la ligne  | Alt+↑ / Alt+↓      | Alt+↑ / Alt+↓               |
 | Marqueur / annuler           | —                  | Ctrl+Espace / Ctrl+G        |
 | Début / fin de ligne         | —                  | Ctrl+A / Ctrl+E             |
 | Caractère suivant / précédent | —                 | Ctrl+F / Ctrl+B             |
@@ -451,7 +484,8 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 
 ** Raccourcis
 Profil, raccourcis de l'application, des volets, de l'éditeur, du marqueur de
-sélection (avec son option) et des états TODO (avec leur option).
+sélection (avec son option) et des états TODO (avec leur option). Un champ en haut
+filtre les actions par leur nom ou leur raccourci.
 
 * Fichiers
 - Les pages restent de simples fichiers =.org=, lisibles et modifiables avec Emacs

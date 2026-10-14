@@ -246,6 +246,47 @@ pub fn ShortcutsTab(draft: RwSignal<Prefs>, kb: KbDraft) -> impl IntoView {
     let duplicate_profile = move |_| kb.duplicate_profile(ctx.lang.get_untracked());
     let delete_profile = move |_| kb.delete_profile();
     let rename_profile = move |e: web_sys::Event| kb.rename_profile(event_target_value(&e));
+
+    let query = RwSignal::new(String::new());
+    let search_ref = NodeRef::<html::Input>::new();
+    Effect::new(move |_| {
+        if let Some(el) = search_ref.get() { let _ = el.focus(); }
+    });
+    let app_rows = |keep: fn(&AppAction) -> bool| keybindings::APP_ACTIONS.iter()
+        .filter(|a| keep(&a.action))
+        .map(|a| Row { map: app_work, id: a.id, label_key: a.label_key })
+        .collect::<Vec<_>>();
+    let editor_rows = |keep: fn(&EditorAction) -> bool| keybindings::EDITOR_ACTIONS.iter()
+        .filter(|a| keep(&a.action))
+        .map(|a| Row { map: editor_work, id: a.id, label_key: a.label_key })
+        .collect::<Vec<_>>();
+    let sections = vec![
+        Section {
+            title: "shortcut_section_app", check: None,
+            rows: app_rows(|a| !SPLIT_ACTIONS.contains(a) && !GIT_ACTIONS.contains(a)),
+        },
+        Section { title: "shortcut_section_split", check: None, rows: app_rows(|a| SPLIT_ACTIONS.contains(a)) },
+        Section {
+            title: "shortcut_section_editor", check: None,
+            rows: editor_rows(|a| !MARK_ACTIONS.contains(a) && !TODO_ACTIONS.contains(a)),
+        },
+        Section {
+            title: "mark_section",
+            check: Some((|p| p.emacs_mark, |p, v| p.emacs_mark = v, "emacs_mark")),
+            rows: editor_rows(|a| MARK_ACTIONS.contains(a)),
+        },
+        Section { title: "git_section", check: None, rows: app_rows(|a| GIT_ACTIONS.contains(a)) },
+        Section {
+            title: "todo_section",
+            check: Some((|p| p.todo_enabled, |p, v| p.todo_enabled = v, "todo_enabled")),
+            rows: editor_rows(|a| TODO_ACTIONS.contains(a)),
+        },
+    ];
+    let all = sections.clone();
+    let nothing_found = move || {
+        let q = fold(&query.get());
+        !q.is_empty() && !all.iter().any(|s| s.matches(&q, lang()))
+    };
     view! {
         <div class="tab-content">
             <div class="setting-row">
@@ -305,67 +346,108 @@ pub fn ShortcutsTab(draft: RwSignal<Prefs>, kb: KbDraft) -> impl IntoView {
                     </div>
                 })
             }}
-            <div class="setting-section-title">
-                {move || t("shortcut_section_app", lang())}
+            <div class="shortcut-search">
+                <input
+                    node_ref=search_ref
+                    type="search"
+                    class="setting-input"
+                    placeholder=move || t("shortcut_search", lang())
+                    prop:value=move || query.get()
+                    on:input=move |e| query.set(event_target_value(&e))
+                    on:keydown=move |e: web_sys::KeyboardEvent| {
+                        // Escape first empties the search, then closes the window
+                        if e.key() == "Escape" && !query.get_untracked().is_empty() {
+                            e.stop_propagation();
+                            query.set(String::new());
+                        }
+                    }
+                />
             </div>
-            <KeybindingHeader lang=ctx.lang />
-            {keybindings::APP_ACTIONS.iter()
-                .filter(|a| !SPLIT_ACTIONS.contains(&a.action) && !GIT_ACTIONS.contains(&a.action))
-                .map(|a| view! {
-                    <KeybindingRow map=app_work id=a.id label_key=a.label_key lang=ctx.lang />
-                }).collect_view()}
+            {move || nothing_found().then(|| view! {
+                <div class="setting-hint">{move || t("shortcut_search_empty", lang())}</div>
+            })}
+            {sections.into_iter().map(|section| view! { <ShortcutSection draft section query /> }).collect_view()}
+        </div>
+    }
+}
 
-            <div class="setting-section-title">
-                {move || t("shortcut_section_split", lang())}
-            </div>
-            <KeybindingHeader lang=ctx.lang />
-            {keybindings::APP_ACTIONS.iter()
-                .filter(|a| SPLIT_ACTIONS.contains(&a.action))
-                .map(|a| view! {
-                    <KeybindingRow map=app_work id=a.id label_key=a.label_key lang=ctx.lang />
-                }).collect_view()}
+/// Lowercase, without accents: what the search compares.
+fn fold(s: &str) -> String {
+    s.trim().chars().map(orgamnesia_core::names::fold_char).collect()
+}
 
-            <div class="setting-section-title">
-                {move || t("shortcut_section_editor", lang())}
-            </div>
-            <KeybindingHeader lang=ctx.lang />
-            {keybindings::EDITOR_ACTIONS.iter()
-                .filter(|a| !MARK_ACTIONS.contains(&a.action) && !TODO_ACTIONS.contains(&a.action))
-                .map(|a| view! {
-                    <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
-                }).collect_view()}
+/// One action of the shortcuts tab: where its bindings are kept, its id and label.
+#[derive(Clone, Copy)]
+struct Row {
+    map: RwSignal<Bindings>,
+    id: &'static str,
+    label_key: &'static str,
+}
 
-            <div class="setting-section-title">
-                {move || t("mark_section", lang())}
-            </div>
-            <Check draft get=|p| p.emacs_mark set=|p, v| p.emacs_mark = v label="emacs_mark" />
-            <KeybindingHeader lang=ctx.lang />
-            {keybindings::EDITOR_ACTIONS.iter()
-                .filter(|a| MARK_ACTIONS.contains(&a.action))
-                .map(|a| view! {
-                    <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
-                }).collect_view()}
+impl Row {
+    /// Whether the folded search `q` is in the action's name or one of its shortcuts.
+    fn matches(&self, q: &str, lang: Lang) -> bool {
+        fold(t(self.label_key, lang)).contains(q)
+            || self.map.with(|m| m.get(self.id).into_iter().flatten()
+                .any(|b| !b.is_empty() && fold(&keybindings::display(b)).contains(q)))
+    }
+}
 
-            <div class="setting-section-title">
-                {move || t("git_section", lang())}
-            </div>
-            <KeybindingHeader lang=ctx.lang />
-            {keybindings::APP_ACTIONS.iter()
-                .filter(|a| GIT_ACTIONS.contains(&a.action))
-                .map(|a| view! {
-                    <KeybindingRow map=app_work id=a.id label_key=a.label_key lang=ctx.lang />
-                }).collect_view()}
+/// A setting shown as a checkbox: how to read it, how to set it, its label.
+type CheckDef = (fn(&Prefs) -> bool, fn(&mut Prefs, bool), &'static str);
 
-            <div class="setting-section-title">
-                {move || t("todo_section", lang())}
-            </div>
-            <Check draft get=|p| p.todo_enabled set=|p, v| p.todo_enabled = v label="todo_enabled" />
+/// A group of actions under a title, with the setting that goes with them.
+#[derive(Clone)]
+struct Section {
+    title: &'static str,
+    check: Option<CheckDef>,
+    rows: Vec<Row>,
+}
+
+impl Section {
+    /// A search on the section's title shows all of it.
+    fn title_matches(&self, q: &str, lang: Lang) -> bool {
+        fold(t(self.title, lang)).contains(q)
+    }
+
+    fn matches(&self, q: &str, lang: Lang) -> bool {
+        self.title_matches(q, lang) || self.rows.iter().any(|r| r.matches(q, lang))
+    }
+}
+
+/// A section of the shortcuts tab, hidden with its rows when the search leaves nothing of it.
+#[component]
+fn ShortcutSection(draft: RwSignal<Prefs>, section: Section, query: RwSignal<String>) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    let title = section.title;
+    let check = section.check;
+    let rows = section.rows.clone();
+    let shown = move || {
+        let q = fold(&query.get());
+        q.is_empty() || section.matches(&q, lang())
+    };
+    let whole = {
+        let section = Section { title, check, rows: vec![] };
+        move || {
+            let q = fold(&query.get());
+            q.is_empty() || section.title_matches(&q, lang())
+        }
+    };
+    view! {
+        <div class="shortcut-section" class:hidden=move || !shown()>
+            <div class="setting-section-title">{move || t(title, lang())}</div>
+            {check.map(|(get, set, label)| view! { <Check draft get set label /> })}
             <KeybindingHeader lang=ctx.lang />
-            {keybindings::EDITOR_ACTIONS.iter()
-                .filter(|a| TODO_ACTIONS.contains(&a.action))
-                .map(|a| view! {
-                    <KeybindingRow map=editor_work id=a.id label_key=a.label_key lang=ctx.lang />
-                }).collect_view()}
+            {rows.into_iter().map(|row| {
+                let whole = whole.clone();
+                let row_shown = move || whole() || row.matches(&fold(&query.get()), lang());
+                view! {
+                    <div class="shortcut-row" class:hidden=move || !row_shown()>
+                        <KeybindingRow map=row.map id=row.id label_key=row.label_key lang=ctx.lang />
+                    </div>
+                }
+            }).collect_view()}
         </div>
     }
 }
@@ -526,6 +608,7 @@ fn KeybindingSlot(
             } else {
                 view! {
                     <button
+                        title=move || keybindings::display(&current())
                         class=move || if in_conflict() { "keybinding-field conflict" } else { "keybinding-field" }
                         on:click=move |_| recording.set(true)
                     >
