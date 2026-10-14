@@ -107,6 +107,9 @@ pub fn run(ctx: AppCtx, e: &web_sys::KeyboardEvent, action: EditorAction) -> boo
         None => (start, end),
     };
 
+    // An Emacs kill of a..b: joins the kill just before it, if any
+    let kill_range = |a: usize, b: usize| crate::kill_ring::kill_range(ctx, field.element(), text(a, b), a, b, chars.len());
+
     let single_line = matches!(field, Field::Input(_));
     if single_line && matches!(action, NextLine | PreviousLine | ScrollDown | ScrollUp
         | ForwardParagraph | BackwardParagraph | NextHeading | PreviousHeading)
@@ -129,23 +132,23 @@ pub fn run(ctx: AppCtx, e: &web_sys::KeyboardEvent, action: EditorAction) -> boo
     match action {
         KillLine => {
             let (a, b) = edit::kill_line_range(&chars, caret);
-            crate::kill_ring::kill(ctx, text(a, b));
+            kill_range(a, b);
             replace(&field, &chars, a, b, "");
         }
         KillWordForward => {
             let b = edit::word_end_forward(&chars, caret);
-            crate::kill_ring::kill(ctx, text(caret, b));
+            kill_range(caret, b);
             replace(&field, &chars, caret, b, "");
         }
         KillWordBackward => {
             let a = edit::word_start_backward(&chars, caret);
-            crate::kill_ring::kill(ctx, text(a, caret));
+            kill_range(a, caret);
             replace(&field, &chars, a, caret, "");
         }
         KillRegion | CopyRegion => {
             let (a, b) = region();
             if a < b {
-                crate::kill_ring::kill(ctx, text(a, b));
+                if action == KillRegion { kill_range(a, b); } else { crate::kill_ring::kill(ctx, text(a, b)); }
                 if action == KillRegion {
                     replace(&field, &chars, a, b, "");
                 } else {

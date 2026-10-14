@@ -1,6 +1,6 @@
 //! Opening a project, and forgetting one.
 
-use orgamnesia_core::FileEntry;
+use orgamnesia_core::{FileEntry, VaultChanges};
 use tauri::{AppHandle, Manager, State};
 
 use super::{store_settings, Cmd};
@@ -30,6 +30,15 @@ pub async fn open_vault(state: State<'_, AppState>, app: AppHandle, path: String
     // Without watching, outside changes are only seen when the project is reopened
     *crate::lock(&state.watcher) = watch::watch(app.clone(), &path).ok();
     Ok(files)
+}
+
+/// The pages changed on disk by another program since the last look, if any:
+/// asked every second, in case the watcher misses a change (some sync tools,
+/// network folders). What it reports is not reported again by the watcher.
+#[tauri::command]
+pub async fn check_disk(state: State<'_, AppState>) -> Cmd<Option<VaultChanges>> {
+    let tags = state.prefs().tags();
+    state.with_project(|p| p.refresh(tags))
 }
 
 /// Forget a project (the folder itself is left untouched); returns the remaining list.

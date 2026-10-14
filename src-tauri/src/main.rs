@@ -21,6 +21,7 @@ fn main() {
             commands::config::set_keybindings,
             commands::projects::open_vault,
             commands::projects::remove_project,
+            commands::projects::check_disk,
             commands::pages::read_file,
             commands::pages::write_file,
             commands::pages::create_page,

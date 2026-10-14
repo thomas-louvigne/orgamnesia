@@ -372,6 +372,25 @@ fn restore_page(ctx: AppCtx, trashed: String, reopen: bool) {
     });
 }
 
+/// The first page of `Ui::disk_conflicts` keeps the text being edited (`take_disk`
+/// false: written to disk now when saving is automatic) or takes the one on disk.
+pub async fn settle_disk_conflict(ctx: AppCtx, take_disk: bool) {
+    let Some(path) = ctx.ui.disk_conflicts.with_untracked(|q| q.first().cloned()) else { return };
+    ctx.ui.disk_conflicts.update(|q| { q.remove(0); });
+    let Some(tab) = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| t.path == path).cloned()) else { return };
+    if take_disk {
+        match invoke::read_file(&path).await {
+            Ok(content) => {
+                tab.content.try_set(content);
+                tab.dirty.try_set(false);
+            }
+            Err(e) => ctx.error("error", &e),
+        }
+    } else if ctx.pref_untracked(|p| p.autosave) {
+        save_tab(ctx, tab);
+    }
+}
+
 /// Reload the content of open tabs without unsaved changes (after links were
 /// rewritten on disk by a rename: every tab, as the rename saves them first).
 pub async fn reload_clean_tabs(ctx: AppCtx) {
@@ -384,7 +403,8 @@ pub async fn reload_clean_tabs(ctx: AppCtx) {
 }
 
 /// Apply changes made to the project's pages by another program: refresh the
-/// page list, reload the open tabs without unsaved changes, warn about the others.
+/// page list, reload the open tabs without unsaved changes; for the others, ask
+/// which version to keep (unless the disk holds the same text).
 pub async fn apply_disk_changes(ctx: AppCtx, changes: VaultChanges) {
     if ctx.project.files.get_untracked() != changes.files {
         ctx.project.files.set(changes.files);
@@ -397,7 +417,13 @@ pub async fn apply_disk_changes(ctx: AppCtx, changes: VaultChanges) {
             ctx.ui.status.set(Some(format!("{} : {}", tab.name, t("deleted_on_disk", lang))));
         } else if changes.changed.contains(&tab.path) {
             if dirty() {
-                ctx.ui.status.set(Some(format!("{} : {}", tab.name, t("changed_on_disk", lang))));
+                if let Ok(content) = invoke::read_file(&tab.path).await {
+                    if tab.content.try_get_untracked().is_some_and(|c| c == content) {
+                        tab.dirty.try_set(false);
+                    } else {
+                        ctx.ui.disk_conflicts.update(|q| if !q.contains(&tab.path) { q.push(tab.path.clone()) });
+                    }
+                }
                 continue;
             }
             if let Ok(content) = invoke::read_file(&tab.path).await

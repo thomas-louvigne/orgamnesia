@@ -61,8 +61,10 @@ ouvre un champ qui cherche, sans tenir compte de la casse ni des accents :
 - La sauvegarde est automatique à chaque frappe (désactivable) ; sinon, le
   raccourci « Sauvegarder ». Un onglet non sauvegardé est marqué.
 - Les pages modifiées ou supprimées par un autre programme (synchronisation, git,
-  autre éditeur) sont rechargées. Un onglet avec des modifications non
-  sauvegardées n'est pas écrasé : un message le signale.
+  autre éditeur) sont rechargées ; le disque est vérifié toutes les secondes.
+  Si l'onglet a des modifications non sauvegardées, une fenêtre demande quelle
+  version garder : la sienne (enregistrée aussitôt avec la sauvegarde
+  automatique) ou celle du disque. Échap garde la sienne.
 - Quitter avec des pages non sauvegardées demande confirmation.
 
 ** Nettoyage en quittant
@@ -181,7 +183,9 @@ mot, kill ring (couper puis coller avec Ctrl+Y), marqueur de sélection.
 
 Le kill ring suit le presse-papier du système : ce qui est coupé (Ctrl+W, Ctrl+K…)
 y est copié, et Ctrl+Y colle ce qu'il contient, même copié dans une autre
-application. Ces commandes marchent aussi dans les autres champs de l'application
+application. Comme dans Emacs, des kills à la suite s'ajoutent les uns aux autres :
+Ctrl+K Ctrl+K Ctrl+K coupe trois lignes, que Ctrl+Y remet d'un coup. Ces commandes
+marchent aussi dans les autres champs de l'application
 (tags, recherche, titre, message de commit…).
 
 ** Déplacer des lignes

@@ -136,6 +136,9 @@ pub struct Ui {
     pub show_quick_open: RwSignal<bool>,
     pub show_commit: RwSignal<bool>,
     pub search: ProjectSearch,
+    /// Open pages changed on disk while they have unsaved changes: which version
+    /// to keep is asked for each, one after the other.
+    pub disk_conflicts: RwSignal<Vec<String>>,
     /// The field to add a tag to the page, over the focused pane.
     pub tag_add: RwSignal<bool>,
     /// Pending confirmation (the webview's own `window.confirm` shows nothing here).
@@ -203,6 +206,7 @@ impl AppCtx {
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
                 tag_add: RwSignal::new(false),
+                disk_conflicts: RwSignal::new(vec![]),
                 search: ProjectSearch {
                     open: RwSignal::new(None),
                     query: RwSignal::new(String::new()),

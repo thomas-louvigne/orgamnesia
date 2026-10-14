@@ -69,7 +69,9 @@ field that searches, ignoring case and accents:
 - Pages are saved on every keystroke (can be turned off); otherwise use the
   "Save" shortcut. An unsaved tab is marked.
 - Pages changed or deleted by another program (sync tool, git, another editor)
-  are reloaded. A tab with unsaved changes is not overwritten: a message says so.
+  are reloaded; the disk is checked every second. When the tab has unsaved
+  changes, a dialog asks which version to keep: yours (saved at once with
+  autosave) or the one on disk. Escape keeps yours.
 - Quitting with unsaved pages asks for confirmation.
 
 ** Cleanup on quit
@@ -188,7 +190,9 @@ headline, start and end of document, page), kill to end of line, kill a word, ki
 ring (kill then yank with Ctrl+Y), selection mark.
 
 The kill ring follows the system clipboard: what is killed (Ctrl+W, Ctrl+K…) is
-copied there, and Ctrl+Y yanks what it holds, even copied in another app. These
+copied there, and Ctrl+Y yanks what it holds, even copied in another app. As in
+Emacs, kills made one after the other add up: Ctrl+K Ctrl+K Ctrl+K kills three
+lines, which Ctrl+Y puts back at once. These
 commands work in the other fields of the app too (tags, search, title, commit
 message…).
 

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
+use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit, VaultChanges, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -114,6 +114,11 @@ pub async fn save_settings(s: &Settings) -> Result<(), String> {
 /// Tell the backend which pages and panes are open, to save them on quit.
 pub async fn set_session(session: Option<&Session>) -> Result<(), String> {
     call("set_session", serde_json::json!({ "session": session })).await
+}
+
+/// The pages changed on disk outside the app since the last look (or the watcher's).
+pub async fn check_disk() -> Result<Option<VaultChanges>, String> {
+    call("check_disk", serde_json::json!({})).await
 }
 
 pub async fn open_vault(path: &str) -> Result<Vec<FileEntry>, String> {

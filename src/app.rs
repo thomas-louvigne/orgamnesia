@@ -90,6 +90,41 @@ fn ConfirmDialog() -> impl IntoView {
     }
 }
 
+/// A page changed on disk while it has unsaved changes: keep the text being
+/// edited, or take the one on disk. Escape keeps the text being edited.
+#[component]
+fn DiskConflictDialog() -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    let settle = move |take_disk: bool| spawn_local(actions::settle_disk_conflict(ctx, take_disk));
+    let keys = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
+        if e.key() == "Escape" {
+            e.stop_propagation();
+            settle(false);
+        }
+    });
+    on_cleanup(move || keys.remove());
+    // The keyboard leaves the editor: typing on would change the text being decided on
+    let keep_ref = NodeRef::<leptos::html::Button>::new();
+    Effect::new(move |_| if let Some(b) = keep_ref.get() { let _ = b.focus(); });
+    let name = move || {
+        let path = ctx.ui.disk_conflicts.with(|q| q.first().cloned()).unwrap_or_default();
+        ctx.work.tabs.with(|tabs| tabs.iter().find(|t| t.path == path).map(|t| t.name.clone())).unwrap_or_default()
+    };
+    view! {
+        <div class="alert-overlay">
+            <div class="alert-box confirm" role="alertdialog">
+                <h3 class="disk-conflict-title">{move || t("disk_conflict_title", lang())}</h3>
+                <p>{move || format!("« {} » {}", name(), t("disk_conflict", lang()))}</p>
+                <div class="alert-buttons">
+                    <button class="btn-secondary" node_ref=keep_ref on:click=move |_| settle(false)>{move || t("disk_keep_mine", lang())}</button>
+                    <button class="btn-primary" on:click=move |_| settle(true)>{move || t("disk_take", lang())}</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
 /// Load the saved settings, project and keybindings, and the pages and panes
 /// open when the app was last quit. `owner` is the app's: the tabs' signals belong to it.
 async fn load_startup(ctx: AppCtx, owner: Owner) {
@@ -165,6 +200,18 @@ fn watch_disk(ctx: AppCtx) {
     invoke::listen(invoke::VAULT_CHANGED, move |changes: VaultChanges| {
         spawn_local(actions::apply_disk_changes(ctx, changes));
     });
+    // And a look every second, for the changes the watcher misses
+    fn poll(ctx: AppCtx) {
+        crate::keybindings::after_ms(1000, move || spawn_local(async move {
+            if ctx.project.vault_path.try_get_untracked().flatten().is_some()
+                && let Ok(Some(changes)) = invoke::check_disk().await
+            {
+                actions::apply_disk_changes(ctx, changes).await;
+            }
+            poll(ctx);
+        }));
+    }
+    poll(ctx);
     // Files dropped on the window: the editor under them adds the images
     invoke::listen(invoke::DRAG_DROP, move |d: invoke::Dropped| {
         let n = ctx.ui.dropped.with_untracked(|d| d.as_ref().map_or(0, |(n, _)| n + 1));
@@ -465,6 +512,7 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.show_quick_open.get().then(|| view! { <QuickOpenModal /> })}
             {move || ctx.ui.show_settings.get().then(|| view! { <SettingsModal /> })}
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <ConfirmDialog /> })}
+            {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <DiskConflictDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
             {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_modal::CommitModal /> })}
             {move || ctx.ui.status.get().map(|msg| {

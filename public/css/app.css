@@ -1229,6 +1229,7 @@ kbd {
     box-shadow: 0 8px 32px rgba(0,0,0,.6);
 }
 .alert-box h3 { color: var(--red); font-size: var(--fs-heading); }
+.alert-box h3.disk-conflict-title { color: var(--orange); }
 .alert-box p { font-size: var(--fs-ui); color: var(--fg); }
 .alert-list { font-family: inherit; font-size: var(--fs-ui); color: var(--red); white-space: pre-wrap; }
 .alert-box.confirm { border-color: var(--border); z-index: 500; }

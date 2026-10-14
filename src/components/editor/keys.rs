@@ -302,6 +302,8 @@ fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
         return;
     }
     let (start, end) = get_pos(el);
+    // An Emacs kill of a..b: joins the kill just before it, if any
+    let kill_range = |a: usize, b: usize| crate::kill_ring::kill_range(ctx, el, text(a, b), a, b, chars.len());
     match action {
         // ── Classic clipboard / editing ───────────────────────────────────────
         EditorAction::Copy if start < end => {
@@ -359,23 +361,23 @@ fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
         // ── Emacs editing ─────────────────────────────────────────────────────
         EditorAction::KillLine => {
             let (a, b) = edit::kill_line_range(&chars, start);
-            crate::kill_ring::kill(ctx, text(a, b));
+            kill_range(a, b);
             replace(a, b, "");
         }
         EditorAction::KillWordForward => {
             let b = edit::word_end_forward(&chars, start);
-            crate::kill_ring::kill(ctx, text(start, b));
+            kill_range(start, b);
             replace(start, b, "");
         }
         EditorAction::KillWordBackward => {
             let a = edit::word_start_backward(&chars, start);
-            crate::kill_ring::kill(ctx, text(a, start));
+            kill_range(a, start);
             replace(a, start, "");
         }
         EditorAction::KillRegion | EditorAction::CopyRegion => {
             let (a, b) = pane.region_of(el);
             if a < b {
-                crate::kill_ring::kill(ctx, text(a, b));
+                if action == EditorAction::KillRegion { kill_range(a, b); } else { crate::kill_ring::kill(ctx, text(a, b)); }
                 if action == EditorAction::KillRegion {
                     replace(a, b, "");
                 } else if pane.mark.get_untracked().is_none() {
