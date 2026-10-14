@@ -116,6 +116,17 @@ pub async fn set_session(session: Option<&Session>) -> Result<(), String> {
     call("set_session", serde_json::json!({ "session": session })).await
 }
 
+/// The text of the system clipboard, read by the backend (the webview doesn't let
+/// the page read a text copied in another application).
+pub async fn read_clipboard() -> Result<Option<String>, String> {
+    call("read_clipboard", serde_json::json!({})).await
+}
+
+/// Put `text` in the system clipboard; whether it went there.
+pub async fn write_clipboard(text: &str) -> Result<bool, String> {
+    call("write_clipboard", serde_json::json!({ "text": text })).await
+}
+
 /// The pages changed on disk outside the app since the last look (or the watcher's).
 pub async fn check_disk() -> Result<Option<VaultChanges>, String> {
     call("check_disk", serde_json::json!({})).await

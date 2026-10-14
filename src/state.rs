@@ -36,6 +36,8 @@ pub struct Tab {
     pub name: String,
     pub content: RwSignal<String>,
     pub dirty: RwSignal<bool>,
+    /// The page's undo history, kept by the editor (see `history`).
+    pub history: StoredValue<crate::history::History>,
 }
 
 impl Tab {
@@ -47,6 +49,7 @@ impl Tab {
             name: file.name.clone(),
             content: RwSignal::new(content),
             dirty: RwSignal::new(dirty),
+            history: StoredValue::new(Default::default()),
         }
     }
 }

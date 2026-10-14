@@ -181,6 +181,10 @@ Avec le profil Emacs : déplacements (caractère, mot, ligne, phrase, paragraphe
 titre, début et fin de document, page), couper jusqu'à la fin de ligne, couper un
 mot, kill ring (couper puis coller avec Ctrl+Y), marqueur de sélection.
 
+Ctrl+L (=recenter-top-bottom=) fait défiler la page pour mettre la ligne du curseur
+au milieu de l'éditeur ; appuyé de nouveau, en haut, puis en bas, puis de nouveau
+au milieu. Le curseur ne bouge pas.
+
 Le kill ring suit le presse-papier du système : ce qui est coupé (Ctrl+W, Ctrl+K…)
 y est copié, et Ctrl+Y colle ce qu'il contient, même copié dans une autre
 application. Comme dans Emacs, des kills à la suite s'ajoutent les uns aux autres :
@@ -415,6 +419,7 @@ connaissait pas.
 | Titre suivant / précédent    | —                  | Ctrl+C Ctrl+N / Ctrl+C Ctrl+P |
 | Début / fin du document      | —                  | Alt+< / Alt+>               |
 | Page suivante / précédente   | —                  | Ctrl+V / Alt+V              |
+| Centrer la vue               | —                  | Ctrl+L                      |
 | Couper jusqu'à fin de ligne  | —                  | Ctrl+K                      |
 | Couper le mot suivant / préc. | —                 | Alt+D / Alt+Retour arrière  |
 | Supprimer le caractère suivant | —                | Ctrl+D                      |

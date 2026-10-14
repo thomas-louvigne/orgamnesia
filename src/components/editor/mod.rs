@@ -218,6 +218,16 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 spellcheck=false
                 on:input=on_input
                 on:keydown=move |e| keys::on_keydown(pane, completion, find, e)
+                // Undo / redo from the context menu: the page's own history, as the keys
+                on:beforeinput=move |e: web_sys::InputEvent| {
+                    let redo = match e.input_type().as_str() {
+                        "historyUndo" => false,
+                        "historyRedo" => true,
+                        _ => return,
+                    };
+                    e.prevent_default();
+                    pane.undo(redo);
+                }
                 on:click=on_click
                 on:mouseup=on_pointer
                 on:mousedown=move |e: web_sys::MouseEvent| {

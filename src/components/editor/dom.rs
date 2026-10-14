@@ -20,24 +20,12 @@ fn exec_insert(text: &str) {
     exec("insertText", text);
 }
 
-pub fn exec_undo() {
-    exec("undo", "");
-}
-
-pub fn exec_redo() {
-    exec("redo", "");
-}
 
 // ─── Clipboard (system) ──────────────────────────────────────────────────────
 
-pub fn clipboard() -> Option<web_sys::Clipboard> {
-    web_sys::window().map(|w| w.navigator().clipboard())
-}
-
 pub fn clipboard_write(text: &str) {
-    if let Some(cb) = clipboard() {
-        let _ = cb.write_text(text);
-    }
+    let text = text.to_string();
+    wasm_bindgen_futures::spawn_local(async move { crate::kill_ring::write_clipboard(&text).await; });
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
@@ -137,11 +125,57 @@ pub fn caret_coords(el: &Textarea, chars: &[char], pos: usize) -> Option<(f64, f
     Some((x, top, bottom))
 }
 
+/// Where the view of a textarea scrolled by `scroll` goes so the line from `top`
+/// to `bottom` (relative to the view, `height` high) is in the middle (`step` 0),
+/// at the top (1) or at the bottom (2).
+fn recenter_scroll(scroll: f64, top: f64, bottom: f64, height: f64, step: u8) -> f64 {
+    let to = match step {
+        0 => scroll + (top + bottom - height) / 2.0,
+        1 => scroll + top,
+        _ => scroll + bottom - height,
+    };
+    to.max(0.0)
+}
+
+thread_local! {
+    /// The last recenter: the textarea, its caret, where it left the view, and its step.
+    static RECENTERED: std::cell::RefCell<Option<(Textarea, usize, i32, u8)>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Emacs's `recenter-top-bottom`: scroll the textarea so the line of the char at
+/// `pos` is in the middle; again (caret and view left as they were), at the top,
+/// then at the bottom, then in the middle again… The caret doesn't move.
+pub fn recenter(el: &Textarea, chars: &[char], pos: usize) {
+    let Some((_, top, bottom)) = caret_coords(el, chars, pos) else { return };
+    let step = RECENTERED.with(|r| match &*r.borrow() {
+        Some((field, at, scroll, step)) if field == el && *at == pos && *scroll == el.scroll_top() => (step + 1) % 3,
+        _ => 0,
+    });
+    let to = recenter_scroll(el.scroll_top() as f64, top, bottom, el.client_height() as f64, step);
+    el.set_scroll_top(to.round() as i32);
+    RECENTERED.with(|r| *r.borrow_mut() = Some((el.clone(), pos, el.scroll_top(), step)));
+}
+
 /// Scroll the textarea so the char at `pos` is in view (in the middle when it was not).
 pub fn reveal(el: &Textarea, chars: &[char], pos: usize) {
     let Some((_, top, bottom)) = caret_coords(el, chars, pos) else { return };
     let height = el.client_height() as f64;
     if top < 0.0 || bottom > height {
         el.set_scroll_top((el.scroll_top() as f64 + top - height / 2.0).max(0.0) as i32);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::recenter_scroll;
+
+    #[test]
+    fn recenter_puts_the_line_in_the_middle_then_top_then_bottom() {
+        // View 400 px high scrolled by 1000; the line is 20 px high, 300 px down the view
+        assert_eq!(recenter_scroll(1000.0, 300.0, 320.0, 400.0, 0), 1110.0);
+        assert_eq!(recenter_scroll(1000.0, 300.0, 320.0, 400.0, 1), 1300.0);
+        assert_eq!(recenter_scroll(1000.0, 300.0, 320.0, 400.0, 2), 920.0);
+        // Near the start of the page, the view doesn't go above it
+        assert_eq!(recenter_scroll(0.0, 20.0, 40.0, 400.0, 0), 0.0);
     }
 }

@@ -29,9 +29,10 @@ fn tag_active_page(ctx: AppCtx, tag: &str) {
 }
 
 /// A field to add a file tag to the page being edited, proposing the tags of the
-/// project. `on_close` runs once a tag was added, or on Escape or leaving the field.
+/// project as it is typed (↑/↓ to choose, Enter or Tab to take one). `on_close`
+/// runs once a tag was added, or on Escape or leaving the field.
 #[component]
-pub fn TagAddField(list_id: &'static str, on_close: Callback<()>) -> impl IntoView {
+pub fn TagAddField(on_close: Callback<()>) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     let new_tag = RwSignal::new(String::new());
     let add_ref = NodeRef::<leptos::html::Input>::new();
@@ -42,8 +43,8 @@ pub fn TagAddField(list_id: &'static str, on_close: Callback<()>) -> impl IntoVi
             });
         }
     });
-    let add_tag = move || {
-        let tag = new_tag.get_untracked().trim().trim_matches(':').trim_start_matches('#').to_string();
+    let add_tag = move |tag: String| {
+        let tag = tag.trim().trim_matches(':').trim_start_matches('#').to_string();
         if tag.is_empty() { on_close.run(()); return; }
         let org = ctx.tags_untracked().org;
         if !tag.chars().all(|c| org.is_tag_char(c)) {
@@ -54,29 +55,70 @@ pub fn TagAddField(list_id: &'static str, on_close: Callback<()>) -> impl IntoVi
         new_tag.set(String::new());
         on_close.run(());
     };
+    // The tags of the project matching what is typed. (Not a <datalist>: in the
+    // webview, Enter on one of its tags reaches the field before the tag does.)
+    let suggest_sel = RwSignal::new(0usize);
+    let suggestions = move || -> Vec<String> {
+        let word = new_tag.get().trim().trim_matches(':').trim_start_matches('#').to_string();
+        if word.is_empty() { return vec![]; }
+        let names: Vec<String> = ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect());
+        crate::motion::complete_page(&names, &word, None, 8)
+    };
     view! {
-        <input
-            node_ref=add_ref
-            class="search-input"
-            type="text"
-            list=list_id
-            placeholder=move || format!("{} « {} »",
-                t("tag_add_ph", ctx.lang.get()),
-                ctx.work.active_tab_data().map(|t| t.name).unwrap_or_default())
-            prop:value=move || new_tag.get()
-            on:input=move |e| new_tag.set(event_target_value(&e))
-            on:keydown=move |e: web_sys::KeyboardEvent| match e.key().as_str() {
-                "Enter" => { e.stop_propagation(); add_tag(); }
-                "Escape" => { e.stop_propagation(); new_tag.set(String::new()); on_close.run(()); }
-                _ => {}
-            }
-            on:blur=move |_| on_close.run(())
-        />
-        <datalist id=list_id>
-            {move || ctx.project.tags.get().into_iter()
-                .map(|tag| view! { <option value=tag.name /> })
-                .collect_view()}
-        </datalist>
+        <div class="tag-field">
+            <input
+                node_ref=add_ref
+                class="search-input"
+                type="text"
+                placeholder=move || format!("{} « {} »",
+                    t("tag_add_ph", ctx.lang.get()),
+                    ctx.work.active_tab_data().map(|t| t.name).unwrap_or_default())
+                prop:value=move || new_tag.get()
+                on:input=move |e| { new_tag.set(event_target_value(&e)); suggest_sel.set(0); }
+                on:keydown=move |e: web_sys::KeyboardEvent| {
+                    let list = suggestions();
+                    let n = list.len();
+                    match e.key().as_str() {
+                        "ArrowDown" if n > 0 => suggest_sel.update(|s| *s = (*s + 1) % n),
+                        "ArrowUp" if n > 0 => suggest_sel.update(|s| *s = (*s + n - 1) % n),
+                        "Tab" if n > 0 => {
+                            new_tag.set(list[suggest_sel.get_untracked().min(n - 1)].clone());
+                            suggest_sel.set(0);
+                        }
+                        // The tag chosen in the list, else the one typed
+                        "Enter" => add_tag(match n {
+                            0 => new_tag.get_untracked(),
+                            _ => list[suggest_sel.get_untracked().min(n - 1)].clone(),
+                        }),
+                        "Escape" => { new_tag.set(String::new()); on_close.run(()); }
+                        _ => return,
+                    }
+                    e.prevent_default();
+                    e.stop_propagation();
+                }
+                on:blur=move |_| on_close.run(())
+            />
+            {move || {
+                let list = suggestions();
+                (!list.is_empty()).then(|| view! {
+                    <ul class="tag-suggest">
+                        {list.into_iter().enumerate().map(|(i, tag)| {
+                            let pick = tag.clone();
+                            view! {
+                                <li
+                                    class=move || if suggest_sel.get() == i { "selected" } else { "" }
+                                    // mousedown + preventDefault keeps the focus in the field
+                                    on:mousedown=move |e: web_sys::MouseEvent| {
+                                        e.prevent_default();
+                                        add_tag(pick.clone());
+                                    }
+                                >{format!(":{tag}:")}</li>
+                            }
+                        }).collect_view()}
+                    </ul>
+                })
+            }}
+        </div>
     }
 }
 
@@ -91,7 +133,7 @@ pub fn TagAddPopin() -> impl IntoView {
     });
     view! {
         <div class="title-popin tag-popin" role="dialog" aria-label=move || t("shortcut_add_tag", ctx.lang.get())>
-            <TagAddField list_id="tag-popin-names" on_close=close />
+            <TagAddField on_close=close />
         </div>
     }
 }
@@ -173,7 +215,7 @@ pub fn TagsFrame() -> impl IntoView {
             </div>
             {move || adding.get().then(|| view! {
                 <div class="tag-search tag-add">
-                    <TagAddField list_id="tag-add-names" on_close=Callback::new(move |_| adding.set(false)) />
+                    <TagAddField on_close=Callback::new(move |_| adding.set(false)) />
                 </div>
             })}
             <div class="tag-search">

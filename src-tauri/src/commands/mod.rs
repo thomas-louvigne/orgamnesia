@@ -2,6 +2,7 @@
 //! project (`project.rs`), the settings or a tool, and returns its result.
 
 pub mod app;
+pub mod clipboard;
 pub mod config;
 pub mod git;
 pub mod links;

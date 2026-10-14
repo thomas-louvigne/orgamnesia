@@ -5,6 +5,7 @@ mod components;
 mod edit;
 mod folding;
 mod git;
+mod history;
 mod highlight;
 mod images;
 pub mod i18n;

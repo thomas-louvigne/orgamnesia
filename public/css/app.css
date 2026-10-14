@@ -814,6 +814,8 @@ kbd {
     list-style: none; padding: 4px 0; background: var(--bg2);
     border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.35);
 }
+.tag-field { position: relative; }
+.tag-field .tag-suggest { left: 0; right: 0; margin-top: 2px; }
 .tag-suggest li { padding: 3px 10px; cursor: pointer; color: var(--purple); font-size: var(--fs-ui); }
 .tag-suggest li.selected { background: var(--accent); color: #fff; }
 .tag-item { align-items: center; }

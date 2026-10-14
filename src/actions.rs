@@ -130,7 +130,7 @@ pub fn create_and_open_page(ctx: AppCtx, name: String) {
                     files.push(file.clone());
                     files.sort_by(|a, b| a.name.cmp(&b.name));
                 });
-                push_tab(ctx, Tab { path: file.path, name: file.name, content, dirty });
+                push_tab(ctx, Tab { path: file.path, name: file.name, content, dirty, history: StoredValue::new(Default::default()) });
             }
             Err(e) => ctx.error("error", &e),
         }

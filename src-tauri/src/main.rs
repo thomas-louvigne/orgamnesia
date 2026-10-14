@@ -49,6 +49,8 @@ fn main() {
             commands::app::import_image,
             commands::app::missing_files,
             commands::app::quit_app,
+            commands::clipboard::read_clipboard,
+            commands::clipboard::write_clipboard,
             commands::config::set_session,
             commands::search::search_project,
             commands::search::replace_in_project,

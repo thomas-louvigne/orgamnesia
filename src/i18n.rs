@@ -598,6 +598,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("shortcut_scroll_down",   Lang::Fr) => "Page suivante",
         ("shortcut_scroll_up",     Lang::En) => "Page up",
         ("shortcut_scroll_up",     Lang::Fr) => "Page précédente",
+        ("shortcut_recenter",      Lang::En) => "Recenter the view (middle, top, bottom)",
+        ("shortcut_recenter",      Lang::Fr) => "Centrer la vue (milieu, haut, bas)",
         ("shortcut_backward_sentence",   Lang::En) => "Beginning of sentence",
         ("shortcut_backward_sentence",   Lang::Fr) => "Début de phrase",
         ("shortcut_forward_sentence",    Lang::En) => "End of sentence",

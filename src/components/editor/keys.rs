@@ -4,11 +4,11 @@
 
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::spawn_local;
 
 use super::{
     completion::Completion,
-    dom::{after_tick, caret, clipboard, clipboard_write, exec_redo, exec_undo, get_pos, set_cursor, set_selection, splice, Textarea},
+    dom::{after_tick, caret, clipboard_write, get_pos, recenter, set_cursor, set_selection, splice, Textarea},
     find::Find,
     pane::Pane,
 };
@@ -302,8 +302,13 @@ fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
         return;
     }
     let (start, end) = get_pos(el);
-    // An Emacs kill of a..b: joins the kill just before it, if any
-    let kill_range = |a: usize, b: usize| crate::kill_ring::kill_range(ctx, el, text(a, b), a, b, chars.len());
+    // An Emacs kill of a..b: joins the kill just before it, if any. Compared in
+    // page positions: the view's (indentation under headlines…) changes with the kill.
+    let kill_range = |a: usize, b: usize| {
+        let (pa, pb) = (pane.page_pos(el, a), pane.page_pos(el, b));
+        let len = pane.content.with_untracked(|c| c.chars().count());
+        crate::kill_ring::kill_range(ctx, el, text(a, b), pa, pb, len);
+    };
     match action {
         // ── Classic clipboard / editing ───────────────────────────────────────
         EditorAction::Copy if start < end => {
@@ -316,22 +321,20 @@ fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
         }
         EditorAction::Paste => {
             let el = el.clone();
-            if let Some(cb) = clipboard() {
-                let promise = cb.read_text();
-                spawn_local(async move {
-                    let pasted = JsFuture::from(promise).await.ok().and_then(|v| v.as_string());
-                    if let Some(pasted) = pasted.filter(|p| !p.is_empty()) {
-                        let (start, end) = get_pos(&el);
-                        let cursor = splice(&el, start, end, &pasted);
-                        set_cursor(&el, cursor);
-                        pane.commit(&el);
-                    }
-                });
-            }
+            spawn_local(async move {
+                let pasted = crate::kill_ring::read_clipboard().await;
+                if let Some(pasted) = pasted.filter(|p| !p.is_empty()) {
+                    let (start, end) = get_pos(&el);
+                    let cursor = splice(&el, start, end, &pasted);
+                    set_cursor(&el, cursor);
+                    pane.commit(&el);
+                }
+            });
         }
         EditorAction::SelectAll => el.select(),
-        EditorAction::Undo => exec_undo(),
-        EditorAction::Redo => exec_redo(),
+        EditorAction::Recenter => recenter(el, &chars, end),
+        EditorAction::Undo => { pane.undo(false); }
+        EditorAction::Redo => { pane.undo(true); }
 
         // ── Org emphasis: *bold*, /italic/, _underline_, +strikethrough+ ──────
         EditorAction::Bold | EditorAction::Italic | EditorAction::Underline | EditorAction::Strikethrough => {

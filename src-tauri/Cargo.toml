@@ -28,6 +28,9 @@ tokio              = { version = "1", features = ["sync"] }
 notify-debouncer-mini = "0.5"
 orgamnesia-core = { path = "../core" }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk                = "0.18"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

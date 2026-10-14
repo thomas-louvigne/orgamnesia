@@ -19,6 +19,7 @@ pub struct Pane {
     /// Text of the page, and whether it is unsaved.
     pub content: RwSignal<String>,
     pub dirty: RwSignal<bool>,
+    history: StoredValue<crate::history::History>,
     /// None: find bar closed; Some(with_replace).
     pub find: RwSignal<Option<bool>>,
     /// Page position of the caret.
@@ -45,6 +46,7 @@ impl Pane {
             area: NodeRef::new(),
             content,
             dirty: tab.dirty,
+            history: tab.history,
             find: RwSignal::new(None),
             focus_pos: RwSignal::new(None),
             folds: RwSignal::new(Vec::new()),
@@ -95,6 +97,7 @@ impl Pane {
         ));
         // The folds move with the text
         if let Some(f) = folded { self.folds.set(f); }
+        self.record(&page);
         self.focus_pos.set(Some(pos));
         self.content.set(page);
         self.dirty.set(true);
@@ -102,9 +105,30 @@ impl Pane {
 
     /// The page changed without the textarea: it gets the new view.
     pub fn set_page(self, page: String, caret: usize) {
+        self.record(&page);
         self.focus_pos.set(Some(caret));
         self.content.set(page);
         self.dirty.set(true);
+    }
+
+    /// The page is about to become `page`: a step of its undo history.
+    fn record(self, page: &str) {
+        let now = js_sys::Date::now();
+        self.content.with_untracked(|old| self.history.update_value(|h| h.record(old, page, now)));
+    }
+
+    /// Undo (`redo` false) or redo the last step of the page; false when there is none.
+    pub fn undo(self, redo: bool) -> bool {
+        let current = self.content.get_untracked();
+        let Some((page, caret)) = self.history.try_update_value(|h| if redo { h.redo(&current) } else { h.undo(&current) }).flatten() else {
+            return false;
+        };
+        // Folds would no longer hold the same text
+        self.folds.set(Vec::new());
+        self.focus_pos.set(Some(caret));
+        self.content.set(page);
+        self.dirty.set(true);
+        true
     }
 
     /// The caret moved: the table it enters is shown as text, the one it leaves drawn.

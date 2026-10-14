@@ -189,6 +189,10 @@ With the Emacs profile: movements (character, word, line, sentence, paragraph,
 headline, start and end of document, page), kill to end of line, kill a word, kill
 ring (kill then yank with Ctrl+Y), selection mark.
 
+Ctrl+L (=recenter-top-bottom=) scrolls the page so the line of the cursor is in the
+middle of the editor; pressed again, at the top, then at the bottom, then in the
+middle again. The cursor doesn't move.
+
 The kill ring follows the system clipboard: what is killed (Ctrl+W, Ctrl+K…) is
 copied there, and Ctrl+Y yanks what it holds, even copied in another app. As in
 Emacs, kills made one after the other add up: Ctrl+K Ctrl+K Ctrl+K kills three
@@ -421,6 +425,7 @@ profile gets those of the actions it didn't know.
 | Next / previous headline       | —                   | Ctrl+C Ctrl+N / Ctrl+C Ctrl+P |
 | Start / end of document        | —                   | Alt+< / Alt+>                 |
 | Page down / up                 | —                   | Ctrl+V / Alt+V                |
+| Recenter (middle, top, bottom) | —                   | Ctrl+L                        |
 | Kill to end of line            | —                   | Ctrl+K                        |
 | Kill next / previous word      | —                   | Alt+D / Alt+Backspace         |
 | Delete next character          | —                   | Ctrl+D                        |
