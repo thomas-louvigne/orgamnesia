@@ -36,6 +36,23 @@ struct ChordState {
 
 thread_local! {
     static CHORD: std::cell::RefCell<ChordState> = Default::default();
+    /// What each physical key types (with Shift or not), learned from the keys
+    /// pressed: on a Mac, the key an Option combination is made with, as the
+    /// keyboard's layout has it (Option+W types ∑).
+    static TYPED: std::cell::RefCell<std::collections::HashMap<(String, bool), String>> = Default::default();
+    static MAC: bool = web_sys::window()
+        .and_then(|w| w.navigator().platform().ok())
+        .is_some_and(|p| p.starts_with("Mac"));
+}
+
+/// Whether the application runs on a Mac.
+pub fn is_mac() -> bool {
+    MAC.with(|m| *m)
+}
+
+/// Whether the shortcuts are those of the Emacs profile.
+fn is_emacs(kb: &Keybindings) -> bool {
+    kb.editor_preset == "emacs"
 }
 
 /// Resolve a key press against the application and editor bindings, tracking
@@ -55,8 +72,19 @@ pub fn resolve(kb: &Keybindings, event: &web_sys::KeyboardEvent) -> Resolution {
 }
 
 fn resolve_step(c: &mut ChordState, kb: &Keybindings, event: &web_sys::KeyboardEvent, ts: f64) -> Resolution {
+    // On a Mac, Cmd in the Emacs profile does what it does in the classic one
+    // (Cmd+S saves, Cmd+Z undoes), as in Emacs on a Mac: Ctrl is Emacs'
+    if is_mac() && is_emacs(kb) && event.meta_key() && !event.ctrl_key() {
+        let was_chord = !c.pending.is_empty();
+        c.pending.clear();
+        return match mac_command(event) {
+            Some((scope, id)) => Resolution::Action(scope, id),
+            None if was_chord => Resolution::Aborted,
+            None => Resolution::None,
+        };
+    }
     // A bare modifier is just the start of a combination
-    let Some(token) = capture_from_event(event) else { return Resolution::None };
+    let Some(token) = capture_from_event(event, is_emacs(kb)) else { return Resolution::None };
     if !c.pending.is_empty() && ts - c.at > CHORD_TIMEOUT_MS {
         c.pending.clear();
     }
@@ -104,6 +132,16 @@ fn resolve_step(c: &mut ChordState, kb: &Keybindings, event: &web_sys::KeyboardE
     let was_chord = !c.pending.is_empty();
     c.pending.clear();
     if was_chord { Resolution::Aborted } else { Resolution::None }
+}
+
+/// The action of the classic profile's Ctrl shortcut for this Cmd one, if any.
+fn mac_command(event: &web_sys::KeyboardEvent) -> Option<(Scope, String)> {
+    let token = capture_from_event(event, false)?;
+    [(Scope::Editor, preset_editor("classic")), (Scope::App, preset_app("classic"))]
+        .into_iter()
+        .find_map(|(scope, map)| {
+            map.into_iter().find(|(_, binds)| binds.contains(&token)).map(|(id, _)| (scope, id))
+        })
 }
 
 /// Run `f` after `ms` milliseconds.
@@ -154,18 +192,27 @@ fn key_from_code(code: &str) -> Option<String> {
 }
 
 /// Builds a binding string from a KeyboardEvent (returns None for bare modifiers).
-pub fn capture_from_event(event: &web_sys::KeyboardEvent) -> Option<String> {
+/// On a Mac, Cmd counts as Ctrl outside the `emacs` profile; in it Option is
+/// Emacs' Meta: the combination is made with the key held, not the sign it types.
+pub fn capture_from_event(event: &web_sys::KeyboardEvent, emacs: bool) -> Option<String> {
     let mut key = event_key(event);
     if matches!(key.as_str(), "Control" | "Shift" | "Alt" | "Meta") {
         return None;
     }
+    let code = event.code();
+    let shift = event.shift_key();
+    if !event.ctrl_key() && !event.alt_key() && !event.meta_key() && key.chars().count() == 1 {
+        TYPED.with(|t| t.borrow_mut().insert((code.clone(), shift), key.clone()));
+    }
+    let mac = is_mac();
     // Some layouts/input methods report no usable `key` while a modifier is held:
     // fall back to the physical key.
-    if matches!(key.as_str(), "Unidentified" | "Dead") {
-        key = key_from_code(&event.code())?;
+    if matches!(key.as_str(), "Unidentified" | "Dead") || (mac && emacs && event.alt_key() && !key.is_ascii()) {
+        key = TYPED.with(|t| t.borrow().get(&(code.clone(), shift)).cloned())
+            .or_else(|| key_from_code(&code))?;
     }
     let mut parts: Vec<String> = Vec::new();
-    if event.ctrl_key()  { parts.push("ctrl".into()); }
+    if event.ctrl_key() || (mac && !emacs && event.meta_key()) { parts.push("ctrl".into()); }
     if event.shift_key() { parts.push("shift".into()); }
     if event.alt_key()   { parts.push("alt".into()); }
     let key_part = match key.as_str() {

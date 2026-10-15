@@ -96,9 +96,7 @@ pub fn open_url(url: String) -> Cmd<()> {
     if !url.starts_with("https://") {
         return Err(AppError::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a web page")));
     }
-    std::process::Command::new("xdg-open").arg(&url).spawn()
-        .map(|_| ())
-        .map_err(|e| AppError::CannotRun { program: "xdg-open".into(), error: e.to_string() })
+    crate::open_with_system(&url)
 }
 
 #[tauri::command]

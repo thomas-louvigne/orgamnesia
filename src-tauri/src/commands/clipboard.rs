@@ -43,8 +43,27 @@ mod imp {
     }
 }
 
+#[cfg(target_os = "macos")]
+mod imp {
+    use tauri::AppHandle;
+    use tokio::sync::oneshot::Sender;
+
+    // The pasteboard (AppKit) is used from the main thread only.
+    pub fn read(app: &AppHandle, tx: Sender<Option<String>>) {
+        let _ = app.run_on_main_thread(move || {
+            let _ = tx.send(arboard::Clipboard::new().and_then(|mut c| c.get_text()).ok());
+        });
+    }
+
+    pub fn write(app: &AppHandle, text: String, tx: Sender<bool>) {
+        let _ = app.run_on_main_thread(move || {
+            let _ = tx.send(arboard::Clipboard::new().and_then(|mut c| c.set_text(text)).is_ok());
+        });
+    }
+}
+
 /// Elsewhere the page's own clipboard is used.
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 mod imp {
     use tauri::AppHandle;
     use tokio::sync::oneshot::Sender;

@@ -126,7 +126,65 @@ the bare program is =src-tauri/target/release/orgamnesia=.
 ** Data
 
 Your pages stay plain =.org= files in the folder you choose; settings live in
-=~/.config/com.orgamnesia.app/=.
+=~/.config/com.orgamnesia.app/=
+(=~/Library/Application Support/com.orgamnesia.app/= on macOS).
+
+* Installation (macOS)
+
+*Not tested on a Mac yet*: the application is built for macOS, but no one has tried
+it so far. Feedback (bugs, screenshots) is welcome.
+
+** Disk image
+
+Download the =.dmg= from the
+[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Releases page]]
+(one application for Apple Silicon and Intel Macs, macOS 11 or later), open it and
+drag Orgamnesia to the Applications folder.
+
+The application is not signed with an Apple developer account: on the first launch,
+macOS refuses to open it ("Orgamnesia is damaged" or "unidentified developer"). To
+allow it, once:
+
+#+BEGIN_SRC sh
+xattr -dr com.apple.quarantine /Applications/Orgamnesia.app
+#+END_SRC
+
+or, without a terminal: launch it once, then /System Settings › Privacy & Security/ ›
+/Open Anyway/.
+
+** From the sources
+
+Install the Xcode command line tools (=xcode-select --install=) and Rust (through
+[[https://rustup.rs][rustup]]), then:
+
+#+BEGIN_SRC sh
+git clone https://github.com/thomas-louvigne/orgamnesia.git
+cd orgamnesia
+rustup target add wasm32-unknown-unknown
+cargo install trunk tauri-cli --locked
+cargo tauri build --bundles app   # or dmg
+#+END_SRC
+
+The application lands in =src-tauri/target/release/bundle/macos/Orgamnesia.app=:
+drag it to =/Applications=. Built on the machine, it needs no permission above.
+
+** Particulars
+
+- *Spell checker*: macOS has no Hunspell dictionaries. Copy the =.aff= and =.dic=
+  files (such as =en_US.aff= and =en_US.dic=, those of
+  [[https://extensions.libreoffice.org/][LibreOffice]]) to =~/Library/Spelling/=, or
+  choose their folder in the settings. LibreOffice's own, when it is installed, are
+  found by themselves.
+- *Shortcuts*: in the classic profile, Cmd does what Ctrl does (Cmd+S saves, Cmd+Z
+  undoes). In the Emacs profile, as in Emacs on a Mac, Ctrl stays Emacs', Option is
+  Meta (Option+W is =M-w=, not ∑) and Cmd keeps the usual Mac shortcuts (Cmd+C,
+  Cmd+V, Cmd+S, Cmd+Z…).
+- *org-bloom extension*: =org-bloom= and =pandoc= are also looked for in Homebrew's
+  folders (=/opt/homebrew/bin=, =/usr/local/bin=).
+
+* Windows
+
+Windows support is not planned for now.
 
 * Development
 
@@ -137,6 +195,15 @@ Desktop app written in Rust: Tauri v2 (backend, =src-tauri/=) and Leptos 0.7
 cargo tauri dev     # run with hot reload
 cargo test --lib    # tests (also in src-tauri/ and core/)
 #+END_SRC
+
+* TODO list
+
+- [ ] Test on macOS
+- [ ] Package in the AUR for Arch Linux
+- [ ] Package in the Debian repositories
+- [ ] Regular expressions in searches
+- [ ] Vi keybindings
+- [ ] Theme management
 
 * License
 

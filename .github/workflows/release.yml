@@ -1,6 +1,6 @@
 name: Release
 
-# A version bump in tauri.conf.json pushed on main builds the Linux packages and
+# A version bump in tauri.conf.json pushed on main builds the Linux and macOS packages and
 # publishes them in a GitHub release `vX.Y.Z`, creating the tag. Pushing a tag
 # `vX.Y.Z` by hand, or running the workflow from the Actions tab, does the same.
 on:
@@ -87,6 +87,34 @@ jobs:
           files: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
+
+  macos:
+    name: macOS disk image (.dmg)
+    # Adds to the release that the linux job has just created
+    needs: [version, linux]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # One app for Apple Silicon and Intel Macs
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown,aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            src-tauri
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli
+
+      - run: cargo tauri build --target universal-apple-darwin --bundles dmg
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          files: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
 
   arch:
     name: Arch Linux package (.pkg.tar.zst)

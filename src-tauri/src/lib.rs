@@ -20,6 +20,15 @@ pub fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// Open `target` (a folder, a web page) with the system's program for it:
+/// `open` on macOS, `xdg-open` elsewhere.
+pub fn open_with_system(target: &str) -> Result<(), AppError> {
+    let program = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    std::process::Command::new(program).arg(target).spawn()
+        .map(|_| ())
+        .map_err(|e| AppError::CannotRun { program: program.into(), error: e.to_string() })
+}
+
 use error::AppError;
 use project::Project;
 use settings::{Prefs, Settings};

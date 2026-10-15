@@ -140,6 +140,8 @@ impl KbDraft {
         let conflicts = Memo::new(move |_| app.with(|a| editor.with(|e| find_conflicts(a, e))));
         provide_context(conflicts);
         let this = Self { active_id, profiles, preset: RwSignal::new(kb.editor_preset), app, editor, conflicts };
+        // The slots record the keys as the profile's base preset reads them
+        provide_context(this);
         this.fork_on_edit(ctx);
         this
     }
@@ -506,6 +508,7 @@ fn KeybindingSlot(
         map.with(|m| m.get(id).and_then(|v| v.get(index)).cloned().unwrap_or_default())
     };
     let conflicts = use_context::<Memo<Conflicts>>();
+    let draft = use_context::<KbDraft>();
     let in_conflict = move || {
         let c = current();
         !c.is_empty() && conflicts.is_some_and(|cf| cf.with(|l| {
@@ -521,7 +524,8 @@ fn KeybindingSlot(
     let generation = StoredValue::new(0u32);
     let show_held = move |e: &web_sys::KeyboardEvent| {
         let mut s = String::new();
-        if e.ctrl_key()  { s.push_str("Ctrl+"); }
+        let cmd_is_ctrl = keybindings::is_mac() && !draft.is_some_and(|d| d.preset.get_untracked() == "emacs");
+        if e.ctrl_key() || (cmd_is_ctrl && e.meta_key()) { s.push_str("Ctrl+"); }
         if e.shift_key() { s.push_str("Shift+"); }
         if e.alt_key()   { s.push_str("Alt+"); }
         held.set(s);
@@ -554,7 +558,8 @@ fn KeybindingSlot(
         }
         // A bare modifier (Ctrl, Shift…) is only the start of a combination:
         // keep recording until the actual key arrives.
-        match keybindings::capture_from_event(&e) {
+        let emacs = draft.is_some_and(|d| d.preset.get_untracked() == "emacs");
+        match keybindings::capture_from_event(&e, emacs) {
             Some(key) => {
                 seq.update(|s| s.push(key));
                 held.set(String::new());

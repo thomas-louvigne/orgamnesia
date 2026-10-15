@@ -104,19 +104,22 @@ pub fn open_folder(path: &str) -> Result<(), AppError> {
     if !Path::new(path).is_dir() {
         return Err(AppError::FolderNotFound(path.to_string()));
     }
-    Command::new("xdg-open").arg(path).spawn()
-        .map(|_| ())
-        .map_err(|e| AppError::CannotRun { program: "xdg-open".into(), error: e.to_string() })
+    crate::open_with_system(path)
 }
 
 /// The PATH given to org-bloom: `~/.local/bin` first, so that the tools it
 /// runs (pandoc) are the ones installed there, not the older ones of the
-/// system that an app started from the desktop menu would find instead.
+/// system that an app started from the desktop menu would find instead. On
+/// macOS, Homebrew's folders too: an app started from the Finder has only the
+/// system's in its PATH.
 fn child_path(home: Option<&Path>, path: Option<std::ffi::OsString>) -> Option<std::ffi::OsString> {
-    let local = home?.join(".local/bin");
-    let mut dirs = vec![local.clone()];
+    let mut first = vec![home?.join(".local/bin")];
+    if cfg!(target_os = "macos") {
+        first.extend(["/opt/homebrew/bin", "/usr/local/bin"].map(PathBuf::from));
+    }
+    let mut dirs = first.clone();
     if let Some(path) = path {
-        dirs.extend(std::env::split_paths(&path).filter(|d| *d != local));
+        dirs.extend(std::env::split_paths(&path).filter(|d| !first.contains(d)));
     }
     std::env::join_paths(dirs).ok()
 }

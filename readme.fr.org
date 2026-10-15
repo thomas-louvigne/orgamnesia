@@ -129,7 +129,66 @@ Le =.deb= est produit dans =src-tauri/target/release/bundle/deb/= ; avec
 ** Données
 
 Les pages restent de simples fichiers =.org= dans le dossier choisi ; les réglages
-sont dans =~/.config/com.orgamnesia.app/=.
+sont dans =~/.config/com.orgamnesia.app/=
+(=~/Library/Application Support/com.orgamnesia.app/= sur macOS).
+
+* Installation (macOS)
+
+*Pas encore testé sur un Mac* : l'application est compilée pour macOS, mais personne
+ne l'a encore essayée. Les retours (bugs, captures) sont les bienvenus.
+
+** Image disque
+
+Télécharger le =.dmg= sur la
+[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]]
+(une seule application pour les Mac Apple Silicon et Intel, macOS 11 ou plus récent),
+l'ouvrir et glisser Orgamnesia dans le dossier Applications.
+
+L'application n'est pas signée par un compte développeur Apple : au premier lancement,
+macOS refuse de l'ouvrir (« Orgamnesia est endommagé » ou « développeur non
+identifié »). Pour l'autoriser, une seule fois :
+
+#+BEGIN_SRC sh
+xattr -dr com.apple.quarantine /Applications/Orgamnesia.app
+#+END_SRC
+
+ou, sans terminal : la lancer une fois, puis /Réglages Système › Confidentialité et
+sécurité/ › /Ouvrir quand même/.
+
+** Depuis les sources
+
+Installer les outils en ligne de commande de Xcode (=xcode-select --install=) et Rust
+(via [[https://rustup.rs][rustup]]), puis :
+
+#+BEGIN_SRC sh
+git clone https://github.com/thomas-louvigne/orgamnesia.git
+cd orgamnesia
+rustup target add wasm32-unknown-unknown
+cargo install trunk tauri-cli --locked
+cargo tauri build --bundles app   # ou dmg
+#+END_SRC
+
+L'application est produite dans =src-tauri/target/release/bundle/macos/Orgamnesia.app= :
+la glisser dans =/Applications=. Compilée sur la machine, elle n'a pas besoin de
+l'autorisation ci-dessus.
+
+** Particularités
+
+- *Correcteur d'orthographe* : macOS n'a pas de dictionnaires Hunspell. Copier les
+  fichiers =.aff= et =.dic= (par exemple =fr_FR.aff= et =fr_FR.dic=, ceux de
+  [[https://extensions.libreoffice.org/][LibreOffice]]) dans =~/Library/Spelling/=,
+  ou choisir leur dossier dans les préférences. Ceux de LibreOffice, s'il est
+  installé, sont trouvés tout seuls.
+- *Raccourcis* : dans le profil classique, Cmd fait ce que fait Ctrl (Cmd+S
+  enregistre, Cmd+Z annule). Dans le profil Emacs, comme dans Emacs sur Mac, Ctrl
+  reste celui d'Emacs, Option sert de Meta (Option+W est =M-w=, pas ∑) et Cmd garde
+  les raccourcis habituels du Mac (Cmd+C, Cmd+V, Cmd+S, Cmd+Z…).
+- *Extension org-bloom* : =org-bloom= et =pandoc= sont aussi cherchés dans les
+  dossiers de Homebrew (=/opt/homebrew/bin=, =/usr/local/bin=).
+
+* Windows
+
+Le support de Windows n'est pas prévu pour le moment.
 
 * Développement
 
@@ -140,6 +199,15 @@ Application de bureau écrite en Rust : Tauri v2 (backend, =src-tauri/=) et Lept
 cargo tauri dev     # lancement avec rechargement à chaud
 cargo test --lib    # tests (aussi dans src-tauri/ et core/)
 #+END_SRC
+
+* TODO list
+
+- [ ] Tester sur macOS
+- [ ] Paquet dans l'AUR pour Arch Linux
+- [ ] Paquet dans les dépôts Debian
+- [ ] Expressions régulières dans les recherches
+- [ ] Raccourcis clavier vi
+- [ ] Gestion des thèmes
 
 * Licence
 
