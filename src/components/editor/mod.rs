@@ -18,6 +18,7 @@ use crate::{
     edit,
     highlight,
     i18n::t,
+    keybindings::EditorAction,
     state::{AppCtx, Goto, SplitKind, Tab},
 };
 use broken::BrokenLinks;
@@ -134,6 +135,8 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let mouse_focus = StoredValue::new(false);
     let images = Images::new(pane, wrap_ref, tab.path.clone(), mouse_focus);
     goto_target(pane, tab.clone(), second);
+    // Right-click menu: where it opens
+    let menu = RwSignal::new(None::<(i32, i32)>);
 
     let on_input = move |e: web_sys::Event| {
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
@@ -237,6 +240,12 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                     after_tick(move || mouse_focus.set_value(false));
                 }
                 on:mousemove=move |e| images.on_hover(&e)
+                // Our own menu: the webview's can't add an image
+                on:contextmenu=move |e: web_sys::MouseEvent| {
+                    e.prevent_default();
+                    completion.close();
+                    menu.set(Some((e.client_x(), e.client_y())));
+                }
                 on:focus=on_focus
                 on:blur=move |_| completion.close()
                 on:scroll=move |_| completion.close()
@@ -265,6 +274,49 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 />
             })}
             {completion.popup()}
+            {move || menu.get().map(|(x, y)| context_menu(pane, find, images, menu, x, y))}
+        </div>
+    }
+}
+
+/// The editor's right-click menu at `x`, `y`: clipboard, undo, and adding an image.
+fn context_menu(pane: Pane, find: Find, images: Images, menu: RwSignal<Option<(i32, i32)>>, x: i32, y: i32) -> impl IntoView {
+    let ctx = pane.ctx;
+    let selected = pane.area.get_untracked().is_some_and(|el| {
+        let (a, b) = dom::get_pos(&el);
+        a < b
+    });
+    let item = move |label: &'static str, enabled: bool, run: Box<dyn Fn()>| view! {
+        <button
+            class="ctx-menu-item"
+            disabled=!enabled
+            // The textarea keeps the focus and its selection
+            on:mousedown=|e: web_sys::MouseEvent| e.prevent_default()
+            on:click=move |_| { menu.set(None); run(); }
+        >
+            {move || t(label, ctx.lang.get())}
+        </button>
+    };
+    let action = move |a: EditorAction| -> Box<dyn Fn()> {
+        Box::new(move || if let Some(el) = pane.area.get_untracked() { keys::run_action(pane, find, &el, a); })
+    };
+    view! {
+        <div
+            class="ctx-overlay"
+            on:mousedown=|e: web_sys::MouseEvent| e.prevent_default()
+            on:click=move |_| menu.set(None)
+            on:contextmenu=move |e: web_sys::MouseEvent| { e.prevent_default(); menu.set(None); }
+        />
+        <div class="ctx-menu" role="menu" style=format!("left:{x}px;top:{y}px")>
+            {item("shortcut_cut", selected, action(EditorAction::Cut))}
+            {item("shortcut_copy", selected, action(EditorAction::Copy))}
+            {item("shortcut_paste", true, action(EditorAction::Paste))}
+            <div class="ctx-menu-sep" role="separator" />
+            {item("shortcut_undo_edit", true, action(EditorAction::Undo))}
+            {item("shortcut_redo", true, action(EditorAction::Redo))}
+            {item("shortcut_select_all", true, action(EditorAction::SelectAll))}
+            <div class="ctx-menu-sep" role="separator" />
+            {item("image_insert", true, Box::new(move || images.pick()))}
         </div>
     }
 }

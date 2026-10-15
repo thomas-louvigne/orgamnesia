@@ -23,11 +23,25 @@ pub const GIT_CHANGED: &str = "git-changed";
 /// Event sent by the window when files are dropped on it.
 pub const DRAG_DROP: &str = "tauri://drag-drop";
 
-/// Files dropped on the window, and where (physical pixels).
+/// Files dropped on the window, and where (see `client_pos`).
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Dropped {
     pub paths: Vec<String>,
     pub position: DropPosition,
+}
+
+impl Dropped {
+    /// Where the files were dropped, in CSS pixels of the page. Tauri says physical
+    /// pixels, but only WebView2 (Windows) gives them so: WebKitGTK and WKWebView
+    /// give the widget's own, logical, coordinates.
+    pub fn client_pos(&self) -> (f64, f64) {
+        let window = web_sys::window();
+        let windows = window.as_ref()
+            .and_then(|w| w.navigator().user_agent().ok())
+            .is_some_and(|ua| ua.contains("Windows"));
+        let ratio = if windows { window.map_or(1.0, |w| w.device_pixel_ratio()) } else { 1.0 };
+        (self.position.x / ratio, self.position.y / ratio)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]

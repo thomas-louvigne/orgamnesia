@@ -285,8 +285,9 @@ fn move_line(pane: Pane, el: &Textarea, up: bool) {
     }
 }
 
-/// An editor action of the keybindings: motions, clipboard, emphasis, Emacs editing…
-fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
+/// An editor action of the keybindings (or of the context menu): motions,
+/// clipboard, emphasis, Emacs editing…
+pub(super) fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
     let ctx = pane.ctx;
     let chars: Vec<char> = el.value().chars().collect();
     let text = |a: usize, b: usize| -> String { pane.page_text(el, a, b) };

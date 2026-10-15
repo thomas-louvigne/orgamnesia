@@ -969,7 +969,8 @@ kbd {
 }
 .ctx-menu-danger { color: var(--red); }
 .ctx-menu-sep { height: 1px; margin: 4px 0; background: var(--border); }
-.ctx-menu-item:hover { background: var(--accent); color: #fff; }
+.ctx-menu-item:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.ctx-menu-item:disabled { opacity: .45; cursor: default; }
 
 /* ── Modal ─────────────────────────────────────────────────── */
 .modal-overlay {

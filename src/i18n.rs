@@ -741,6 +741,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("saved",              Lang::Fr) => "Enregistré :",
         ("image_add",          Lang::En) => "Add an image (or drop it on the page)",
         ("image_add",          Lang::Fr) => "Ajouter une image (ou la déposer sur la page)",
+        ("image_insert",       Lang::En) => "Insert an image…",
+        ("image_insert",       Lang::Fr) => "Insérer une image…",
         ("image_error",        Lang::En) => "Could not add the image",
         ("image_error",        Lang::Fr) => "Échec de l'ajout de l'image",
         ("image_only",         Lang::En) => "Only images can be dropped on a page",

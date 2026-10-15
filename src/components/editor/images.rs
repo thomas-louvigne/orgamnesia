@@ -201,8 +201,7 @@ impl Images {
             if seen.get_value() == Some(n) { return; }
             seen.set_value(Some(n));
             let Some(wrap) = self.wrap.get_untracked() else { return };
-            let ratio = web_sys::window().map_or(1.0, |w| w.device_pixel_ratio());
-            let (x, y) = (drop.position.x / ratio, drop.position.y / ratio);
+            let (x, y) = drop.client_pos();
             let r = wrap.get_bounding_client_rect();
             if x < r.left() || x > r.right() || y < r.top() || y > r.bottom() { return; }
             let (pictures, others): (Vec<String>, Vec<String>) = drop.paths.into_iter().partition(|p| images::is_image(p));
