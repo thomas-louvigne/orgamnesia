@@ -48,6 +48,8 @@ fn main() {
             commands::app::pick_image,
             commands::app::import_image,
             commands::app::missing_files,
+            commands::app::read_image,
+            commands::app::open_url,
             commands::app::quit_app,
             commands::clipboard::read_clipboard,
             commands::clipboard::write_clipboard,

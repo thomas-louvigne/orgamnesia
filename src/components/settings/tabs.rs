@@ -32,6 +32,15 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="org_tag_links" hint="org_tag_links_hint" />
             <Check draft get=|p| p.org_tag_dashes set=|p, v| p.org_tag_dashes = v
                 label="org_tag_dashes" hint="org_tag_dashes_hint" sub=true />
+            <div class="setting-row setting-sub">
+                <button class="setting-doc-link"
+                    on:click=move |_| spawn_local(async move {
+                        let url = t("org_tag_dashes_doc_url", ctx.lang.get_untracked());
+                        if let Err(e) = invoke::open_url(url).await { ctx.error("open_url_failed", &e); }
+                    })>
+                    {move || t("org_tag_dashes_doc", lang())}
+                </button>
+            </div>
             <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />
 
             <div class="setting-row">

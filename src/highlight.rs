@@ -6,7 +6,7 @@ thread_local! {
     /// highlighting a line).
     static TAGS: std::cell::Cell<TagSyntax> = const { std::cell::Cell::new(TagSyntax {
         hashtags: Hashtags::Off,
-        org: OrgTags { links: true, dashes: false },
+        org: OrgTags { links: true, dashes: true },
     }) };
 }
 

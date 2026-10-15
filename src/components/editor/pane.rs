@@ -6,7 +6,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use super::{
     dom::{caret, get_pos, number_digits, set_cursor, table_lines, text_columns, Textarea, CHAR_WIDTH, LINE_HEIGHT},
-    images::{image_src, load_size, ImageSizes},
+    images::{image_src, image_url, load_size, ImageSizes},
 };
 use crate::{images, invoke, state::{AppCtx, Tab}, tables};
 use orgamnesia_core::TodoKeywords;
@@ -239,7 +239,7 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
             let max = (columns.saturating_sub(before) as f64 * CHAR_WIDTH).max(16.0);
             let (width, height) = images::display_size(natural?, attr, image, max);
             let lines = ((height + 4.0) / LINE_HEIGHT).ceil() as usize;
-            Some((tables::Shown { src, width, height }, lines))
+            Some((tables::Shown { src: image_url(&src), width, height }, lines))
         }, collapse, indent, &pane.folds.get())
     });
     Effect::new(move |_| {

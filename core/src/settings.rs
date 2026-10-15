@@ -247,7 +247,7 @@ impl Prefs {
             hashtag_links: s.hashtag_links.unwrap_or(true),
             hashtag_dashes: s.hashtag_dashes.unwrap_or(true),
             org_tag_links: s.org_tag_links.unwrap_or(true),
-            org_tag_dashes: s.org_tag_dashes.unwrap_or(false),
+            org_tag_dashes: s.org_tag_dashes.unwrap_or(true),
             find_match_case: s.find_match_case.unwrap_or(false),
             indent_headings: s.indent_headings.unwrap_or(true),
             hide_leading_stars: s.hide_leading_stars.unwrap_or(false),

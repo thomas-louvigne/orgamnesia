@@ -224,12 +224,35 @@ abandonnée après 4 secondes. On peut garder Ctrl enfoncé pour la deuxième to
   sous-titres en héritent dans la recherche).
 - =:exemple:= dans le texte est aussi lu comme un tag.
 - Les tags sont des liens vers la page du même nom (désactivable).
-- Lettres, chiffres, =_ @ # %= seulement, comme org-mode ; les tirets sont en option.
+- Lettres, chiffres, =_ @ # %= et tirets (=:mon-tag:=) ; les tirets peuvent être
+  désactivés dans les réglages, pour s'en tenir à ce qu'org-mode lit.
+
+*** Compatibilité avec Emacs
+Org-mode lit les tirets de =#+FILETAGS: :mon-tag:=, mais pas ceux des tags d'un
+titre : =* Titre :mon-tag:= n'a aucun tag pour Emacs. Pour qu'il les lise, ajouter
+ceci à la configuration d'Emacs (=init.el=), vérifié avec org 9.8 :
+
+#+begin_src emacs-lisp
+;; Tirets dans les tags org-mode (:mon-tag:), comme Orgamnesia les écrit
+(with-eval-after-load 'org
+  (setq org-tag--valid-char-set "-[:alnum:]_@#%"
+        org-tag--invalid-char-re (format "[^%s]" org-tag--valid-char-set)
+        org-tag-re (format "[%s]+" org-tag--valid-char-set)
+        org-tag--group-enclosed-re (format "\\(:\\([%s:]+\\):\\)" org-tag--valid-char-set)
+        org-tag--group-optional-re (concat "\\(?:[ \t]+" org-tag--group-enclosed-re "\\)?[ \t]*$")
+        org-tag-group-re (format "[ \t]+%s[ \t]*$" org-tag--group-enclosed-re)
+        org-tag-line-re (format "^\\*+ \\(?:.*[ \t]\\)?%s[ \t]*$" org-tag--group-enclosed-re)))
+#+end_src
+
+Les fichiers org déjà ouverts doivent être rouverts (ou =M-x org-mode= y être
+lancé). Les recherches de tags d'Emacs (=C-c a m=, =C-c \=) trouvent alors
+=mon-tag= par son nom.
 
 ** Recherche de tags
 Dans le cadre des tags, avec la syntaxe d'org-mode :
-- =a+b= : a et b ; =a-b= : a sans b ; =a|b= : a ou b ;
-- avec les tirets autorisés dans les tags, écrire =a -b= pour exclure b.
+- =a+b= : a et b ; =a|b= : a ou b ;
+- les tirets étant autorisés dans les tags, =a-b= est le tag « a-b » : écrire =a -b=
+  pour exclure b (tirets désactivés, =a-b= est a sans b, comme dans org-mode).
 
 La casse compte. Les résultats sont les pages (par =#+FILETAGS:=) et les titres qui
 correspondent ; un clic ouvre la page à la bonne ligne. Le champ complète les

@@ -200,7 +200,7 @@ pub fn TagsFrame() -> impl IntoView {
     view! {
         <div class="frame frame-grow panel-section">
             <div class="panel-header panel-header-row">
-                <span>{move || t("tags", ctx.lang.get())}</span>
+                <span>{move || format!("{} ({})", t("tags", ctx.lang.get()), ctx.project.tags.with(Vec::len))}</span>
                 <button
                     class="panel-add"
                     disabled=move || ctx.work.active_tab_data().is_none()

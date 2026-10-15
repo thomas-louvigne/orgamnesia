@@ -10,10 +10,6 @@ extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = "invoke")]
     fn tauri_invoke_raw(cmd: &str, args: JsValue) -> Promise;
 
-    /// URL the webview loads a file of the disk from (Tauri's asset protocol).
-    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = "convertFileSrc")]
-    pub fn convert_file_src(path: &str) -> String;
-
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"], js_name = "listen")]
     fn tauri_listen(event: &str, handler: &Closure<dyn FnMut(JsValue)>) -> Promise;
 }
@@ -280,6 +276,19 @@ pub async fn pick_image() -> Result<Option<String>, String> {
 /// the page `page` (`../assets/photo_1759520598218_0.png`).
 pub async fn import_image(page: &str, source: &str) -> Result<String, String> {
     call("import_image", serde_json::json!({ "page": page, "source": source })).await
+}
+
+/// Open the web page `url` in the browser.
+pub async fn open_url(url: &str) -> Result<(), String> {
+    call("open_url", serde_json::json!({ "url": url })).await
+}
+
+/// The bytes of the image file at `path`.
+pub async fn read_image(path: &str) -> Result<js_sys::Uint8Array, String> {
+    let args = serde_wasm_bindgen::to_value(&serde_json::json!({ "path": path })).map_err(|e| e.to_string())?;
+    let value = JsFuture::from(tauri_invoke_raw("read_image", args)).await
+        .map_err(|e| e.as_string().unwrap_or_else(|| format!("read_image: {e:?}")))?;
+    Ok(js_sys::Uint8Array::new(&value))
 }
 
 /// Of `paths`, those missing from the disk.

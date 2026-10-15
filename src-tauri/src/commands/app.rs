@@ -60,6 +60,30 @@ pub async fn missing_files(paths: Vec<String>) -> Cmd<Vec<String>> {
     }).collect())
 }
 
+/// The bytes of the image at `path` (`~/`: the home folder), for the page to show it:
+/// the webview can't load it from the asset protocol when the page comes from another
+/// origin (`http://localhost` while developing, WebKitGTK).
+#[tauri::command]
+pub async fn read_image(path: String) -> Cmd<tauri::ipc::Response> {
+    if !orgamnesia_core::assets::EXTENSIONS.iter().any(|e| path.to_ascii_lowercase().ends_with(&format!(".{e}"))) {
+        return Err(AppError::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not an image")));
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let path = match path.strip_prefix("~/") { Some(rest) => format!("{home}/{rest}"), None => path };
+    Ok(tauri::ipc::Response::new(std::fs::read(path).map_err(AppError::Io)?))
+}
+
+/// Open the web page `url` (`https://` only) in the browser.
+#[tauri::command]
+pub fn open_url(url: String) -> Cmd<()> {
+    if !url.starts_with("https://") {
+        return Err(AppError::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a web page")));
+    }
+    std::process::Command::new("xdg-open").arg(&url).spawn()
+        .map(|_| ())
+        .map_err(|e| AppError::CannotRun { program: "xdg-open".into(), error: e.to_string() })
+}
+
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);

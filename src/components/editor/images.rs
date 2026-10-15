@@ -11,27 +11,62 @@ use super::{
 };
 use crate::{i18n::t, images, invoke};
 
-/// Natural size of an image, by URL; `None` when it could not be loaded.
+/// Natural size of an image, by `image_src`; `None` when it could not be loaded.
 pub type ImageSizes = std::collections::HashMap<String, Option<(f64, f64)>>;
 
-/// URL of the image a link `target` of the page `page` points to.
-pub fn image_src(page: &str, target: &str) -> String {
-    if target.contains("://") { target.to_string() } else { invoke::convert_file_src(&images::resolve(page, target)) }
+thread_local! {
+    /// `blob:` URL of each file image read so far, by its path.
+    static BLOBS: std::cell::RefCell<std::collections::HashMap<String, String>> = Default::default();
 }
 
-/// Load the image at `src` to learn its natural size, into `sizes`.
+/// The image a link `target` of the page `page` points to: the path of the file, or
+/// the address of an image on the web.
+pub fn image_src(page: &str, target: &str) -> String {
+    if target.contains("://") { target.to_string() } else { images::resolve(page, target) }
+}
+
+/// URL the page shows the image `src` (an `image_src`) from: file images are read by
+/// the backend and shown from a `blob:` URL, as the webview may refuse to load them
+/// from Tauri's asset protocol (WebKitGTK, when the page comes from `http://localhost`).
+pub fn image_url(src: &str) -> String {
+    BLOBS.with(|b| b.borrow().get(src).cloned()).unwrap_or_else(|| src.to_string())
+}
+
+/// Load the image `src` (an `image_src`) to learn its natural size, into `sizes`.
 pub fn load_size(src: &str, sizes: RwSignal<ImageSizes>) {
-    let Ok(img) = web_sys::HtmlImageElement::new() else { return };
-    let (url, el) = (src.to_string(), img.clone());
-    let done = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |e: web_sys::Event| {
-        let size = (e.type_() == "load" && el.natural_width() > 0)
-            .then(|| (el.natural_width() as f64, el.natural_height() as f64));
-        let _ = sizes.try_update(|s| { s.insert(url.clone(), size); });
+    let src = src.to_string();
+    spawn_local(async move {
+        if !src.contains("://") && BLOBS.with(|b| !b.borrow().contains_key(&src)) {
+            match invoke::read_image(&src).await.ok().and_then(|bytes| blob_url(&src, &bytes)) {
+                Some(url) => BLOBS.with(|b| { b.borrow_mut().insert(src.clone(), url); }),
+                None => {
+                    let _ = sizes.try_update(|s| { s.insert(src, None); });
+                    return;
+                }
+            }
+        }
+        let Ok(img) = web_sys::HtmlImageElement::new() else { return };
+        let (key, el) = (src.clone(), img.clone());
+        let done = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |e: web_sys::Event| {
+            let size = (e.type_() == "load" && el.natural_width() > 0)
+                .then(|| (el.natural_width() as f64, el.natural_height() as f64));
+            let _ = sizes.try_update(|s| { s.insert(key.clone(), size); });
+        });
+        img.set_onload(Some(done.as_ref().unchecked_ref()));
+        img.set_onerror(Some(done.as_ref().unchecked_ref()));
+        done.forget();
+        img.set_src(&image_url(&src));
     });
-    img.set_onload(Some(done.as_ref().unchecked_ref()));
-    img.set_onerror(Some(done.as_ref().unchecked_ref()));
-    done.forget();
-    img.set_src(src);
+}
+
+/// A `blob:` URL holding the image file `path` read as `bytes`.
+fn blob_url(path: &str, bytes: &js_sys::Uint8Array) -> Option<String> {
+    let parts = js_sys::Array::of1(bytes);
+    let options = web_sys::BlobPropertyBag::new();
+    // An SVG is only drawn with its type; the others are recognized by their content
+    if path.to_ascii_lowercase().ends_with(".svg") { options.set_type("image/svg+xml"); }
+    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &options).ok()?;
+    web_sys::Url::create_object_url_with_blob(&blob).ok()
 }
 
 /// Distance from the bottom right corner of an image within which it is resized.

@@ -45,13 +45,14 @@ pub struct OrgTags {
     /// `:tags:` are links to pages: in `#+FILETAGS:`, at the end of a headline and
     /// in the text (`voir :exemple:`).
     pub links: bool,
-    /// Allow `-` in tags (`:mon-tag:`), which org-mode doesn't.
+    /// Allow `-` in tags (`:mon-tag:`), which org-mode only reads once told to (see
+    /// the docs, "Emacs compatibility").
     pub dashes: bool,
 }
 
 impl Default for OrgTags {
     fn default() -> Self {
-        Self { links: true, dashes: false }
+        Self { links: true, dashes: true }
     }
 }
 
@@ -190,7 +191,7 @@ mod tests {
 
     #[test]
     fn org_tags_in_text() {
-        let org = OrgTags::default();
+        let org = OrgTags { dashes: false, ..OrgTags::default() };
         let t = "#+FILETAGS: :a:b:\n* T :x: titre :h:\nvoir :ex: et (:y:z:), 10:30: http://u :mon-tag: fin:no:";
         assert_eq!(ranges(t, org, true), vec!["a", "b", "x", "h", "ex", "y", "z"]);
         assert_eq!(ranges(t, org, false), vec!["a", "b", "h"]);

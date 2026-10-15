@@ -187,9 +187,10 @@ mod tests {
     #[test]
     fn org_tags_in_text_are_links_when_enabled() {
         let t = "* T :a:\nvoir :ex: et :mon-tag:";
-        assert_eq!(extract_links(t, Hashtags::Off.into()), vec!["a", "ex"]);
-        let dashes = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: true, dashes: true } };
-        assert_eq!(extract_links(t, dashes), vec!["a", "ex", "mon-tag"]);
+        // Dashes allowed by default
+        assert_eq!(extract_links(t, Hashtags::Off.into()), vec!["a", "ex", "mon-tag"]);
+        let no_dashes = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: true, dashes: false } };
+        assert_eq!(extract_links(t, no_dashes), vec!["a", "ex"]);
         let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
         assert!(extract_links(t, off).is_empty());
         let out = rewrite_links(t, "ex", "Exemple", false, Hashtags::Off.into()).unwrap();

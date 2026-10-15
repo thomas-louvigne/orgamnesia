@@ -1069,6 +1069,12 @@ kbd {
 .setting-row label { font-size: var(--fs-meta); color: var(--fg-dim); }
 
 .setting-sub { padding-left: 24px; }
+/* A link from a setting to its documentation, opened in the browser */
+.setting-doc-link {
+    align-self: flex-start; background: none; border: none; padding: 0 0 0 12px; cursor: pointer;
+    color: var(--accent); font: inherit; font-size: var(--fs-meta); text-decoration: underline;
+}
+.setting-doc-link:hover { text-decoration-thickness: 2px; }
 /* Between two groups of settings (one extension and the next) */
 .setting-separator { border: none; border-top: 1px solid var(--border); margin: 4px 0; width: 100%; }
 .setting-sub:has(input:disabled) { opacity: 0.5; }
