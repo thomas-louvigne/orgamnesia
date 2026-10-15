@@ -155,6 +155,12 @@ pub fn close_tab(ctx: AppCtx, idx: usize) {
     ctx.work.active_tab.update(|active| *active = active_after_close(*active, idx, len));
 }
 
+/// Close every tab.
+pub fn close_all_tabs(ctx: AppCtx) {
+    ctx.work.tabs.set(vec![]);
+    ctx.work.active_tab.set(None);
+}
+
 /// The active tab once tab `closed` of `len` is closed: the same tab (its index
 /// shifts when it was after the closed one), or the one before the closed tab.
 fn active_after_close(active: Option<usize>, closed: usize, len: usize) -> Option<usize> {

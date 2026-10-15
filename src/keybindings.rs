@@ -1,5 +1,45 @@
 pub use orgamnesia_core::keybindings::*;
 
+// ─── Groups (settings tab, cheat sheet) ───────────────────────────────────────
+
+/// Application actions about the editor panes; shown in their own section.
+pub const SPLIT_ACTIONS: &[AppAction] = &[
+    AppAction::SplitVertical, AppAction::SplitHorizontal, AppAction::CloseSplit,
+    AppAction::SingleWindow, AppAction::OtherWindow,
+];
+
+/// Editor actions of the selection marker; shown in their own section.
+pub const MARK_ACTIONS: &[EditorAction] = &[EditorAction::SetMark, EditorAction::KeyboardQuit];
+
+/// Application actions of the git extension; shown in their own section.
+pub const GIT_ACTIONS: &[AppAction] = &[AppAction::GitCommit, AppAction::GitPull, AppAction::GitPush];
+
+/// Editor actions of the TODO states; shown in their own section.
+pub const TODO_ACTIONS: &[EditorAction] = &[EditorAction::TodoNext, EditorAction::TodoPrev];
+
+/// Label key of a built-in profile.
+pub fn preset_label_key(preset: &str) -> &'static str {
+    match preset {
+        "emacs" => "preset_emacs",
+        _       => "preset_classic",
+    }
+}
+
+/// Name of the active profile: a built-in one's label, or a custom one's name.
+pub fn profile_name(kb: &Keybindings, lang: crate::i18n::Lang) -> String {
+    let active = kb.resolved_active();
+    match kb.profiles.iter().find(|p| p.id == active) {
+        Some(p) => p.name.clone(),
+        None => crate::i18n::t(preset_label_key(&active), lang).to_string(),
+    }
+}
+
+/// First shortcut of the action `id` (application or editor), shown ("Ctrl+W").
+pub fn first_shortcut(kb: &Keybindings, id: &str) -> Option<String> {
+    kb.app.get(id).or_else(|| kb.editor.get(id))?
+        .iter().find(|b| !b.is_empty()).map(|b| display(b))
+}
+
 // ─── Matching / capture / display ─────────────────────────────────────────────
 
 // A binding is one key combination ("ctrl+s") or a chord of several, separated

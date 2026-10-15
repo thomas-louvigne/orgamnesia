@@ -6,24 +6,12 @@ use leptos::{html, prelude::*};
 use super::fields::Check;
 use crate::{
     i18n::{t, Lang},
-    keybindings::{self, AppAction, Bindings, EditorAction, Keybindings, Profile},
+    keybindings::{
+        self, preset_label_key, AppAction, Bindings, EditorAction, Keybindings, Profile,
+        GIT_ACTIONS, MARK_ACTIONS, SPLIT_ACTIONS, TODO_ACTIONS,
+    },
     state::{AppCtx, Prefs},
 };
-
-/// Application actions about the editor panes; shown in their own section.
-const SPLIT_ACTIONS: &[AppAction] = &[
-    AppAction::SplitVertical, AppAction::SplitHorizontal, AppAction::CloseSplit,
-    AppAction::SingleWindow, AppAction::OtherWindow,
-];
-
-/// Editor actions of the selection marker; shown in their own section.
-const MARK_ACTIONS: &[EditorAction] = &[EditorAction::SetMark, EditorAction::KeyboardQuit];
-
-/// Application actions of the git extension; shown in their own section.
-const GIT_ACTIONS: &[AppAction] = &[AppAction::GitCommit, AppAction::GitPull, AppAction::GitPush];
-
-/// Editor actions of the TODO states; shown in their own section.
-const TODO_ACTIONS: &[EditorAction] = &[EditorAction::TodoNext, EditorAction::TodoPrev];
 
 /// Combinations bound to more than one action, with the label keys of those actions.
 pub type Conflicts = Vec<(String, Vec<&'static str>)>;
@@ -73,13 +61,6 @@ fn clean_bindings(mut b: Bindings) -> Bindings {
     }
     b.retain(|_, v| !v.is_empty());
     b
-}
-
-fn preset_label_key(preset: &str) -> &'static str {
-    match preset {
-        "emacs" => "preset_emacs",
-        _       => "preset_classic",
-    }
 }
 
 /// Create a custom profile from the given bindings and make it the active one.

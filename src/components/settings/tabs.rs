@@ -132,7 +132,7 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
     }
 }
 
-/// The org-bloom, spelling and git extensions.
+/// The org-bloom and git extensions.
 #[component]
 pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
@@ -158,8 +158,6 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="org_bloom_no_external_deps" hint="org_bloom_no_external_deps_hint" sub=true
                 disabled=|p| !p.org_bloom />
             <SiteFolder draft />
-            <hr class="setting-separator" />
-            <SpellSettings draft />
             <hr class="setting-separator" />
             <Check draft get=|p| p.git_ext set=|p, v| p.git_ext = v
                 label="git_ext_enabled" hint="git_ext_hint" />
@@ -188,7 +186,7 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
 
 /// The spelling extension: on or off, the dictionary, and a folder of dictionaries.
 #[component]
-fn SpellSettings(draft: RwSignal<Prefs>) -> impl IntoView {
+pub fn SpellingTab(draft: RwSignal<Prefs>) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     let lang = move || ctx.lang.get();
     let off = move || !draft.with(|p| p.spell);
@@ -201,38 +199,40 @@ fn SpellSettings(draft: RwSignal<Prefs>) -> impl IntoView {
         });
     });
     view! {
-        <Check draft get=|p| p.spell set=|p, v| p.spell = v
-            label="spell_enabled" hint="spell_hint" />
-        <div class="setting-row setting-sub">
-            <label>{move || t("spell_language", lang())}</label>
-            <select
-                prop:disabled=off
-                prop:value=move || draft.with(|p| p.spell_lang.clone())
-                on:change=move |e| draft.update(|p| p.spell_lang = event_target_value(&e))
-            >
-                <option value="">{move || t("spell_lang_auto", lang())}</option>
-                // A dictionary chosen before, missing now, stays shown
-                {move || {
-                    let chosen = draft.with(|p| p.spell_lang.clone());
-                    let mut names = found.get();
-                    if !chosen.is_empty() && !names.contains(&chosen) { names.insert(0, chosen.clone()); }
-                    names.into_iter().map(|n| view! {
-                        <option value=n.clone() selected=n == chosen>{n.clone()}</option>
-                    }).collect_view()
-                }}
-            </select>
-            {move || found.with(Vec::is_empty).then(|| view! {
-                <span class="setting-hint">{move || t("spell_lang_none", lang())}</span>
-            })}
-        </div>
-        <div class="setting-row setting-sub">
-            <label>{move || t("spell_dict_dir", lang())}</label>
-            <PathField
-                value=Signal::derive(move || draft.with(|p| p.spell_dict_dir.clone()))
-                on_change=Callback::new(move |v| draft.update(|p| p.spell_dict_dir = v))
-                placeholder=Signal::derive(move || t("spell_dict_dir_ph", lang()).to_string())
-                disabled=Signal::derive(off)
-            />
+        <div class="tab-content">
+            <Check draft get=|p| p.spell set=|p, v| p.spell = v
+                label="spell_enabled" hint="spell_hint" />
+            <div class="setting-row setting-sub">
+                <label>{move || t("spell_language", lang())}</label>
+                <select
+                    prop:disabled=off
+                    prop:value=move || draft.with(|p| p.spell_lang.clone())
+                    on:change=move |e| draft.update(|p| p.spell_lang = event_target_value(&e))
+                >
+                    <option value="">{move || t("spell_lang_auto", lang())}</option>
+                    // A dictionary chosen before, missing now, stays shown
+                    {move || {
+                        let chosen = draft.with(|p| p.spell_lang.clone());
+                        let mut names = found.get();
+                        if !chosen.is_empty() && !names.contains(&chosen) { names.insert(0, chosen.clone()); }
+                        names.into_iter().map(|n| view! {
+                            <option value=n.clone() selected=n == chosen>{n.clone()}</option>
+                        }).collect_view()
+                    }}
+                </select>
+                {move || found.with(Vec::is_empty).then(|| view! {
+                    <span class="setting-hint">{move || t("spell_lang_none", lang())}</span>
+                })}
+            </div>
+            <div class="setting-row setting-sub">
+                <label>{move || t("spell_dict_dir", lang())}</label>
+                <PathField
+                    value=Signal::derive(move || draft.with(|p| p.spell_dict_dir.clone()))
+                    on_change=Callback::new(move |v| draft.update(|p| p.spell_dict_dir = v))
+                    placeholder=Signal::derive(move || t("spell_dict_dir_ph", lang()).to_string())
+                    disabled=Signal::derive(off)
+                />
+            </div>
         </div>
     }
 }

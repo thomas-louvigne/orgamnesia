@@ -297,8 +297,13 @@ fn context_menu(
         let (a, b) = dom::get_pos(&el);
         a < b
     });
-    let item = move |label: &'static str, enabled: bool, run: Box<dyn Fn()>| {
-        menu_item(move || t(label, ctx.lang.get()), enabled, menu, run)
+    // An item, with the shortcut of the action `id` at its right
+    let item = move |label: &'static str, id: Option<&'static str>, enabled: bool, run: Box<dyn Fn()>| {
+        let key = id.and_then(|id| ctx.shortcut(id));
+        menu_item(view! {
+            <span>{move || t(label, ctx.lang.get())}</span>
+            {key.map(|k| view! { <span class="ctx-menu-key">{k}</span> })}
+        }, enabled, menu, run)
     };
     let action = move |a: EditorAction| -> Box<dyn Fn()> {
         Box::new(move || if let Some(el) = pane.area.get_untracked() { keys::run_action(pane, find, &el, a); })
@@ -312,15 +317,15 @@ fn context_menu(
         />
         <div class="ctx-menu" role="menu" style=format!("left:{x}px;top:{y}px")>
             {word.map(|w| spell::menu_items(pane, w, menu))}
-            {item("shortcut_cut", selected, action(EditorAction::Cut))}
-            {item("shortcut_copy", selected, action(EditorAction::Copy))}
-            {item("shortcut_paste", true, action(EditorAction::Paste))}
+            {item("shortcut_cut", Some("cut"), selected, action(EditorAction::Cut))}
+            {item("shortcut_copy", Some("copy"), selected, action(EditorAction::Copy))}
+            {item("shortcut_paste", Some("paste"), true, action(EditorAction::Paste))}
             <div class="ctx-menu-sep" role="separator" />
-            {item("shortcut_undo_edit", true, action(EditorAction::Undo))}
-            {item("shortcut_redo", true, action(EditorAction::Redo))}
-            {item("shortcut_select_all", true, action(EditorAction::SelectAll))}
+            {item("shortcut_undo_edit", Some("undo"), true, action(EditorAction::Undo))}
+            {item("shortcut_redo", Some("redo"), true, action(EditorAction::Redo))}
+            {item("shortcut_select_all", Some("select_all"), true, action(EditorAction::SelectAll))}
             <div class="ctx-menu-sep" role="separator" />
-            {item("image_insert", true, Box::new(move || images.pick()))}
+            {item("image_insert", None, true, Box::new(move || images.pick()))}
         </div>
     }
 }

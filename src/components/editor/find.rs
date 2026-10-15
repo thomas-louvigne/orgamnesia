@@ -194,7 +194,7 @@ impl Find {
                     <div class="find-row">
                         <button
                             class=if with_replace { "find-btn find-toggle open" } else { "find-btn find-toggle" }
-                            title=t("find_replace_toggle", lang)
+                            title=move || ctx.with_shortcut("find_replace_toggle", "replace")
                             on:click=move |_| self.pane.find.set(Some(!with_replace))
                         >"›"</button>
                         <input
@@ -221,7 +221,7 @@ impl Find {
                             title=t("find_case_title", lang)
                             on:click=move |_| { match_case.update(|c| *c = !*c); self.show_from_anchor(); }
                         >"Aa"</button>
-                        <button class="find-btn" title=t("find_prev_title", lang) on:click=move |_| self.step(false)>"↑"</button>
+                        <button class="find-btn" title=move || ctx.with_shortcut("find_prev_title", "find_previous") on:click=move |_| self.step(false)>"↑"</button>
                         <button class="find-btn" title=t("find_next_title", lang) on:click=move |_| self.step(true)>"↓"</button>
                         <button class="find-btn" on:click=move |_| self.close()>"×"</button>
                     </div>

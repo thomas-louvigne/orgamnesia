@@ -205,9 +205,9 @@ pub fn TagsFrame() -> impl IntoView {
                     class="panel-add"
                     disabled=move || ctx.work.active_tab_data().is_none()
                     title=move || if ctx.work.active_tab_data().is_some() {
-                        t("tag_add_title", ctx.lang.get())
+                        ctx.with_shortcut("tag_add_title", "add_tag")
                     } else {
-                        t("tag_add_no_page", ctx.lang.get())
+                        t("tag_add_no_page", ctx.lang.get()).to_string()
                     }
                     aria-label=move || t("tag_add_title", ctx.lang.get())
                     on:click=move |_| adding.update(|a| *a = !*a)

@@ -301,6 +301,7 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
     match action {
         AppAction::NewPage      => ctx.ui.show_new_page.set(true),
         AppAction::OpenSettings => ctx.ui.show_settings.set(true),
+        AppAction::ShowShortcuts => ctx.ui.show_shortcuts.update(|s| *s = !*s),
         AppAction::QuickOpen    => ctx.ui.show_quick_open.set(true),
         AppAction::ProjectSearch  => ctx.ui.search.open.set(Some(false)),
         AppAction::ProjectReplace => ctx.ui.search.open.set(Some(true)),
@@ -515,6 +516,7 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <DiskConflictDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
             {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_modal::CommitModal /> })}
+            {move || ctx.ui.show_shortcuts.get().then(|| view! { <crate::components::shortcuts_help::ShortcutsHelp /> })}
             {move || ctx.ui.status.get().map(|msg| {
                 // The "Undo" button of this message, if it has one
                 let undo = ctx.ui.status_undo.get().filter(|(m, _)| *m == msg).map(|(_, f)| f);

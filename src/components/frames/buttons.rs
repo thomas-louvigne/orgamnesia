@@ -25,7 +25,11 @@ pub fn SettingsButton() -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     view! {
         <div class="frame sidebar-footer">
-            <button class="btn-settings" on:click=move |_| ctx.ui.show_settings.set(true)>
+            <button
+                class="btn-settings"
+                title=move || ctx.with_shortcut("settings_btn", "open_settings")
+                on:click=move |_| ctx.ui.show_settings.set(true)
+            >
                 {move || t("settings_btn", ctx.lang.get())}
             </button>
         </div>
@@ -41,13 +45,7 @@ pub fn QuitButton() -> impl IntoView {
             <button
                 class="btn-quit"
                 aria-label=move || t("quit_button_title", ctx.lang.get())
-                title=move || {
-                    let label = t("quit_button_title", ctx.lang.get());
-                    match ctx.keybindings.with(|kb| kb.app_binds("quit").first().cloned()) {
-                        Some(b) => format!("{label} ({})", crate::keybindings::display(&b)),
-                        None => label.to_string(),
-                    }
-                }
+                title=move || ctx.with_shortcut("quit_button_title", "quit")
                 on:click=move |_| crate::app::run_app_action(ctx, AppAction::Quit)
             >
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"

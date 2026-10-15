@@ -56,7 +56,7 @@ pub fn PagesFrame() -> impl IntoView {
                 <span class="sidebar-title">{move || t("pages", ctx.lang.get())}</span>
                 <button
                     class="btn-icon"
-                    title={move || t("new_page_title", ctx.lang.get())}
+                    title={move || ctx.with_shortcut("new_page_title", "new_page")}
                     aria-label={move || t("new_page_title", ctx.lang.get())}
                     on:click=move |_| trigger_new_page()
                 >"+"</button>

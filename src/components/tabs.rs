@@ -135,6 +135,7 @@ fn TabItem(
             <button
                 class="tab-close"
                 aria-label=move || t("shortcut_close_tab", ctx.lang.get())
+                title=move || ctx.with_shortcut("shortcut_close_tab", "close_tab")
                 style=hidden_while_editing
                 on:click=close
                 on:dblclick=|e: web_sys::MouseEvent| e.stop_propagation()
@@ -147,6 +148,30 @@ fn TabItem(
                     <div>
                         <div class="ctx-overlay" on:click=move |_| menu.set(None) />
                         <div class="ctx-menu" style=format!("left:{x}px;top:{y}px;")>
+                            <button
+                                class="ctx-menu-item"
+                                on:click=move |e: web_sys::MouseEvent| {
+                                    // Not to the tab underneath, which may be gone
+                                    e.stop_propagation();
+                                    menu.set(None);
+                                    if let Some(idx) = index() { actions::close_tab(ctx, idx); }
+                                }
+                            >
+                                <span>{move || t("close_this_tab", ctx.lang.get())}</span>
+                                {move || ctx.shortcut("close_tab").map(|k| view! { <span class="ctx-menu-key">{k}</span> })}
+                            </button>
+                            <button
+                                class="ctx-menu-item"
+                                on:click=move |e: web_sys::MouseEvent| {
+                                    // Not to the tab underneath, which may be gone
+                                    e.stop_propagation();
+                                    menu.set(None);
+                                    actions::close_all_tabs(ctx);
+                                }
+                            >
+                                {move || t("close_all_tabs", ctx.lang.get())}
+                            </button>
+                            <div class="ctx-menu-sep" role="separator" />
                             <button
                                 class="ctx-menu-item"
                                 on:click=move |_| {

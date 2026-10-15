@@ -133,7 +133,7 @@ pub struct ActionDef<A: 'static> {
 /// Application actions (handled outside the editor).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppAction {
-    NewPage, Save, OpenSettings, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
+    NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
     GitCommit, GitPull, GitPush,
 }
@@ -169,6 +169,7 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::NewPage, id: "new_page",      label_key: "shortcut_new_page" },
     ActionDef { action: AppAction::Save, id: "save",          label_key: "shortcut_save" },
     ActionDef { action: AppAction::OpenSettings, id: "open_settings", label_key: "shortcut_settings" },
+    ActionDef { action: AppAction::ShowShortcuts, id: "show_shortcuts", label_key: "shortcut_show_shortcuts" },
     ActionDef { action: AppAction::QuickOpen, id: "quick_open",    label_key: "shortcut_quick_open" },
     ActionDef { action: AppAction::ProjectSearch, id: "project_search",   label_key: "shortcut_project_search" },
     ActionDef { action: AppAction::ProjectReplace, id: "project_replace", label_key: "shortcut_project_replace" },
@@ -270,6 +271,7 @@ pub fn default_app() -> Bindings {
         ("new_page",      &["ctrl+n"]),
         ("save",          &["ctrl+s"]),
         ("open_settings", &["ctrl+,"]),
+        ("show_shortcuts", &["F1"]),
         ("quick_open",    &["ctrl+k", "ctrl+shift+k"]),
         ("project_search",  &["ctrl+shift+f"]),
         ("project_replace", &["ctrl+shift+h"]),
@@ -297,10 +299,27 @@ pub fn default_app() -> Bindings {
 
 /// Add the shortcuts of `base` for every action a stored profile doesn't mention
 /// yet (actions introduced after the profile was saved). Actions the user cleared
-/// are still present as empty entries, so they are left alone.
+/// are still present as empty entries, so they are left alone. A new shortcut the
+/// profile already gives to another action (or that starts a chord of it, or the
+/// reverse) is left out: a conflict would block saving the settings.
 pub fn fill_missing(app: &mut Bindings, editor: &mut Bindings, base: &str) {
-    for (k, v) in preset_app(base) { app.entry(k).or_insert(v); }
-    for (k, v) in preset_editor(base) { editor.entry(k).or_insert(v); }
+    let mut taken: Vec<String> = app.values().chain(editor.values()).flatten()
+        .filter(|b| !b.is_empty()).cloned().collect();
+    let mut fill = |map: &mut Bindings, preset: Bindings| {
+        for (k, v) in preset {
+            if map.contains_key(&k) { continue; }
+            let free: Vec<String> = v.into_iter().filter(|b| !taken.iter().any(|t| clash(t, b))).collect();
+            taken.extend(free.iter().cloned());
+            map.insert(k, free);
+        }
+    };
+    fill(app, preset_app(base));
+    fill(editor, preset_editor(base));
+}
+
+/// Whether two shortcuts can't both be bound: the same, or one the first key(s) of the other.
+fn clash(a: &str, b: &str) -> bool {
+    a == b || a.starts_with(&format!("{b} ")) || b.starts_with(&format!("{a} "))
 }
 
 /// Default application bindings for a preset. Emacs uses its own `C-x` chords
@@ -311,6 +330,8 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("new_page",      &["ctrl+x ctrl+f"]),
             ("save",          &["ctrl+x ctrl+s"]),
             ("open_settings", &["ctrl+c ,"]),
+            // describe-bindings
+            ("show_shortcuts", &["F1", "ctrl+h b"]),
             ("quick_open",    &["ctrl+x b", "alt+x"]),
             // project.el: `C-x p g` (find regexp), `C-x p r` (query replace)
             ("project_search",  &["ctrl+x p g", "ctrl+shift+f"]),
@@ -497,5 +518,18 @@ mod tests {
         custom.upgrade();
         assert_eq!(custom.profiles[0].app, preset_app("classic"));
         assert_eq!(custom.app, preset_app("classic"));
+    }
+
+    #[test]
+    fn fill_missing_leaves_out_shortcuts_already_taken() {
+        // A profile saved when the settings were on `ctrl+,` in Emacs, before `spell_next` took it
+        let mut app = m(&[("open_settings", &["ctrl+,"]), ("quit", &["ctrl+x ctrl+c"])]);
+        let mut editor = Bindings::new();
+        fill_missing(&mut app, &mut editor, "emacs");
+        assert_eq!(app["open_settings"], vec!["ctrl+,"]);
+        assert!(editor["spell_next"].is_empty());
+        // Still filled when nothing is in the way
+        assert_eq!(editor["find"], vec!["ctrl+s"]);
+        assert!(!clash("ctrl+x", "ctrl+xb") && clash("ctrl+x", "ctrl+x ctrl+s"));
     }
 }

@@ -138,6 +138,8 @@ pub struct Ui {
     pub show_new_page: RwSignal<bool>,
     pub show_quick_open: RwSignal<bool>,
     pub show_commit: RwSignal<bool>,
+    /// The cheat sheet of the shortcuts (F1).
+    pub show_shortcuts: RwSignal<bool>,
     pub search: ProjectSearch,
     /// Open pages changed on disk while they have unsaved changes: which version
     /// to keep is asked for each, one after the other.
@@ -211,6 +213,7 @@ impl AppCtx {
                 show_new_page: RwSignal::new(false),
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
+                show_shortcuts: RwSignal::new(false),
                 tag_add: RwSignal::new(false),
                 disk_conflicts: RwSignal::new(vec![]),
                 search: ProjectSearch {
@@ -311,6 +314,21 @@ impl AppCtx {
     /// Ask the user to confirm a destructive action, done by the button `button` (label key).
     pub fn ask_confirm_danger(&self, message: String, button: &'static str, on_yes: impl Fn() + Send + Sync + 'static) {
         self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: Some(button), info: false }));
+    }
+
+    /// The shortcut of the action `id` in the active profile, shown ("Ctrl+W"), if it has one.
+    pub fn shortcut(&self, id: &str) -> Option<String> {
+        self.keybindings.with(|kb| crate::keybindings::first_shortcut(kb, id))
+    }
+
+    /// The text `label_key`, followed by the shortcut of the action `id` if it has
+    /// one: "Close tab (Ctrl+W)", for a tooltip.
+    pub fn with_shortcut(&self, label_key: &'static str, id: &str) -> String {
+        let label = t(label_key, self.lang.get());
+        match self.shortcut(id) {
+            Some(k) => format!("{label} ({k})"),
+            None => label.to_string(),
+        }
     }
 
     /// Show a message in the status bar.

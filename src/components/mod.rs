@@ -7,4 +7,5 @@ pub mod page_title;
 pub mod project_search;
 pub mod quick_open;
 pub mod settings;
+pub mod shortcuts_help;
 pub mod tabs;
