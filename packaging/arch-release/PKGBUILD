@@ -3,7 +3,7 @@
 # Builds the released version `v$pkgver`, where packaging/arch builds the latest
 # main. The release workflow sets pkgver to the version it publishes.
 pkgname=orgamnesia
-pkgver=0.16.4
+pkgver=0.16.5
 pkgrel=1
 pkgdesc="A personal wiki, org-mode style: the essentials of Obsidian, lighter."
 arch=('x86_64' 'aarch64')
