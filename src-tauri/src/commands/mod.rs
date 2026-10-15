@@ -10,6 +10,7 @@ pub mod org_bloom;
 pub mod pages;
 pub mod projects;
 pub mod search;
+pub mod spell;
 
 use tauri::{AppHandle, Manager};
 

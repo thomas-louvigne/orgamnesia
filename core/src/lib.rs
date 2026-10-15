@@ -10,6 +10,7 @@ pub mod model;
 pub mod names;
 pub mod search;
 pub mod settings;
+pub mod spell;
 pub mod todo;
 
 pub use hashtags::{Hashtags, OrgTags, TagSyntax};

@@ -535,7 +535,7 @@ kbd {
 .editor-wrap.line-numbers .hl-layer,
 .editor-wrap.line-numbers .edit-layer { padding-left: calc(4px + var(--ln-w) + 1.5ch); }
 /* Thin grey line between the numbers and the text, the whole height of the editor */
-.editor-wrap.line-numbers .hl-layer:not(.region-layer, .match-layer) {
+.editor-wrap.line-numbers .hl-layer:not(.region-layer, .match-layer, .spell-layer) {
     background-image: linear-gradient(var(--border), var(--border));
     background-size: 1px 100%;
     background-position: calc(4px + var(--ln-w) + 0.6ch) 0;
@@ -623,6 +623,14 @@ kbd {
 .tbl-head { font-weight: bold; }
 .org-table tr.rule > * { border-top: 2px solid var(--fg-dim); }
 .org-table tr.empty > * { height: 8px; padding: 0; }
+
+/* Spelling: a thin red wavy line under the words the dictionary doesn't know */
+.spell-layer { background: transparent; color: transparent; z-index: 0; }
+.spell-layer mark.spell {
+    background: transparent; color: transparent;
+    text-decoration: underline wavy var(--red); text-decoration-thickness: 1px;
+    text-underline-offset: 3px; text-decoration-skip-ink: none;
+}
 
 /* Find in the page: every match, the selected one brighter */
 .match-layer { background: transparent; color: transparent; z-index: 0; }

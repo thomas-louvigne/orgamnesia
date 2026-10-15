@@ -158,22 +158,40 @@ fn header_lines(lines: &[&str]) -> std::collections::HashSet<usize> {
     heads
 }
 
-pub fn render_matches(content: &str, matches: &[(usize, usize)], current: Option<usize>) -> String {
-    if matches.is_empty() { return String::new(); }
+/// `content` with each of `marks` (a char range and the attributes of its tag)
+/// drawn as a `<mark>`; a mark overlapping the one before is left out.
+fn render_marks(content: &str, marks: impl IntoIterator<Item = (usize, usize, String)>) -> String {
     let chars: Vec<char> = content.chars().collect();
     let part = |a: usize, b: usize| escape(&chars[a.min(chars.len())..b.min(chars.len())].iter().collect::<String>());
     let mut out = String::new();
     let mut at = 0;
-    for (i, &(a, b)) in matches.iter().enumerate() {
+    for (a, b, attrs) in marks {
         if a < at { continue; }
-        let class = if Some(i) == current { "match current" } else { "match" };
         out.push_str(&part(at, a));
-        out.push_str(&format!("<mark class='{class}'>{}</mark>", part(a, b)));
+        out.push_str(&format!("<mark {attrs}>{}</mark>", part(a, b)));
         at = b;
     }
+    if out.is_empty() { return out; }
     out.push_str(&part(at, chars.len()));
     out.push('\n');
     out
+}
+
+/// A misspelled word: its range in the view, and in the page.
+pub type SpellMark = ((usize, usize), (usize, usize));
+
+/// The spelling layer: the misspelled words of `content`, with the page range of
+/// each (`data-a`, `data-b`) to find the word under the mouse.
+pub fn render_spelling(content: &str, words: &[SpellMark]) -> String {
+    render_marks(content, words.iter().map(|&((a, b), (pa, pb))| {
+        (a, b, format!("class='spell' data-a='{pa}' data-b='{pb}'"))
+    }))
+}
+
+pub fn render_matches(content: &str, matches: &[(usize, usize)], current: Option<usize>) -> String {
+    render_marks(content, matches.iter().enumerate().map(|(i, &(a, b))| {
+        (a, b, format!("class='{}'", if Some(i) == current { "match current" } else { "match" }))
+    }))
 }
 
 fn highlight_line(line: &str) -> String {

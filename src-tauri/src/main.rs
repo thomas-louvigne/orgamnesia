@@ -58,6 +58,10 @@ fn main() {
             commands::search::replace_in_project,
             commands::search::undo_replace,
             commands::search::can_undo_replace,
+            commands::spell::spell_languages,
+            commands::spell::spell_check,
+            commands::spell::spell_suggest,
+            commands::spell::spell_add,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -1,6 +1,6 @@
 [package]
 name = "orgamnesia-ui"
-version = "0.16.0"
+version = "0.16.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
@@ -17,7 +17,7 @@ web-sys = { version = "0.3", features = [
     "Window", "Document", "HtmlDocument", "Element", "HtmlElement",
     "HtmlTextAreaElement", "HtmlDivElement", "HtmlInputElement",
     "EventTarget", "KeyboardEvent", "MouseEvent", "Event", "InputEvent",
-    "Storage", "console", "DomRect",
+    "Storage", "console", "DomRect", "DomRectList",
     "Navigator", "Clipboard", "Node", "NodeList", "DomTokenList",
     "HtmlImageElement", "Blob", "BlobPropertyBag", "Url",
 ] }

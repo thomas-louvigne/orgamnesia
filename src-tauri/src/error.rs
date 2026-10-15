@@ -35,6 +35,10 @@ pub enum AppError {
     NoRemote,
     /// The file added as an image is not one (by its extension).
     NotAnImage(String),
+    /// No spelling dictionary found for this language.
+    NoDictionary(String),
+    /// A spelling dictionary could not be read, and why.
+    BadDictionary(String),
 }
 
 impl std::fmt::Display for AppError {
@@ -56,6 +60,8 @@ impl std::fmt::Display for AppError {
             Self::Git(e)           => write!(f, "{e}"),
             Self::NoRemote         => write!(f, "no remote: add one with git remote add origin <url>"),
             Self::NotAnImage(p)    => write!(f, "Not an image: {p}"),
+            Self::NoDictionary(l)  => write!(f, "No spelling dictionary for {l}"),
+            Self::BadDictionary(e) => write!(f, "Unreadable spelling dictionary: {e}"),
         }
     }
 }
@@ -92,6 +98,8 @@ impl AppError {
             Self::Git(e)           => ("tool_output", some(e), None),
             Self::NoRemote         => ("no_remote", None, None),
             Self::NotAnImage(p)    => ("not_an_image", some(p), None),
+            Self::NoDictionary(l)  => ("no_dictionary", some(l), None),
+            Self::BadDictionary(e) => ("bad_dictionary", some(e), None),
         }
     }
 }

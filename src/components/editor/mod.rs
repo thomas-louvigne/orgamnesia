@@ -8,6 +8,7 @@ mod find;
 mod images;
 mod keys;
 mod pane;
+mod spell;
 
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -23,7 +24,7 @@ use crate::{
 };
 use broken::BrokenLinks;
 use completion::Completion;
-use dom::{after_tick, caret, caret_coords, number_digits, set_selection, Textarea, LINE_HEIGHT};
+use dom::{after_tick, caret, caret_coords, number_digits, Textarea};
 use find::Find;
 use images::{ImageSizes, Images};
 use pane::Pane;
@@ -135,8 +136,10 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let mouse_focus = StoredValue::new(false);
     let images = Images::new(pane, wrap_ref, tab.path.clone(), mouse_focus);
     goto_target(pane, tab.clone(), second);
-    // Right-click menu: where it opens
+    spell::watch(pane);
+    // Right-click menu: where it opens, and the misspelled word it was opened on
     let menu = RwSignal::new(None::<(i32, i32)>);
+    let menu_word = RwSignal::new(None::<spell::Word>);
 
     let on_input = move |e: web_sys::Event| {
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
@@ -198,6 +201,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             view.with(|v| highlight::render_region(&v.text, m.min(p), m.max(p)))
         }).unwrap_or_default()
     };
+    let spell_html = move || spell::layer_html(pane, view);
     let match_html = move || find.matches.with(|m| view.with(|v| {
         let m: Vec<(usize, usize)> = m.iter().map(|&(a, b)| (v.view_pos(a), v.view_pos(b))).collect();
         highlight::render_matches(&v.text, &m, find.current.get())
@@ -212,6 +216,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             style=move || content.with(|c| format!("--ln-w: {}ch", number_digits(c)))
         >
             <div class="hl-layer" aria-hidden="true" inner_html=highlighted />
+            <div class="hl-layer spell-layer" aria-hidden="true" inner_html=spell_html />
             <div class="hl-layer region-layer" aria-hidden="true" inner_html=region_html />
             <div class="hl-layer match-layer" aria-hidden="true" inner_html=match_html />
             <textarea
@@ -244,6 +249,8 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 on:contextmenu=move |e: web_sys::MouseEvent| {
                     e.prevent_default();
                     completion.close();
+                    let wrap = wrap_ref.get_untracked();
+                    menu_word.set(wrap.and_then(|w| spell::word_under(pane, &w, e.client_x(), e.client_y())));
                     menu.set(Some((e.client_x(), e.client_y())));
                 }
                 on:focus=on_focus
@@ -274,28 +281,24 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 />
             })}
             {completion.popup()}
-            {move || menu.get().map(|(x, y)| context_menu(pane, find, images, menu, x, y))}
+            {move || menu.get().map(|(x, y)| context_menu(pane, find, images, menu, menu_word.get_untracked(), x, y))}
         </div>
     }
 }
 
-/// The editor's right-click menu at `x`, `y`: clipboard, undo, and adding an image.
-fn context_menu(pane: Pane, find: Find, images: Images, menu: RwSignal<Option<(i32, i32)>>, x: i32, y: i32) -> impl IntoView {
+/// The editor's right-click menu at `x`, `y`: the suggestions for a misspelled `word`,
+/// clipboard, undo, and adding an image.
+fn context_menu(
+    pane: Pane, find: Find, images: Images, menu: RwSignal<Option<(i32, i32)>>,
+    word: Option<spell::Word>, x: i32, y: i32,
+) -> impl IntoView {
     let ctx = pane.ctx;
     let selected = pane.area.get_untracked().is_some_and(|el| {
         let (a, b) = dom::get_pos(&el);
         a < b
     });
-    let item = move |label: &'static str, enabled: bool, run: Box<dyn Fn()>| view! {
-        <button
-            class="ctx-menu-item"
-            disabled=!enabled
-            // The textarea keeps the focus and its selection
-            on:mousedown=|e: web_sys::MouseEvent| e.prevent_default()
-            on:click=move |_| { menu.set(None); run(); }
-        >
-            {move || t(label, ctx.lang.get())}
-        </button>
+    let item = move |label: &'static str, enabled: bool, run: Box<dyn Fn()>| {
+        menu_item(move || t(label, ctx.lang.get()), enabled, menu, run)
     };
     let action = move |a: EditorAction| -> Box<dyn Fn()> {
         Box::new(move || if let Some(el) = pane.area.get_untracked() { keys::run_action(pane, find, &el, a); })
@@ -308,6 +311,7 @@ fn context_menu(pane: Pane, find: Find, images: Images, menu: RwSignal<Option<(i
             on:contextmenu=move |e: web_sys::MouseEvent| { e.prevent_default(); menu.set(None); }
         />
         <div class="ctx-menu" role="menu" style=format!("left:{x}px;top:{y}px")>
+            {word.map(|w| spell::menu_items(pane, w, menu))}
             {item("shortcut_cut", selected, action(EditorAction::Cut))}
             {item("shortcut_copy", selected, action(EditorAction::Copy))}
             {item("shortcut_paste", true, action(EditorAction::Paste))}
@@ -321,6 +325,21 @@ fn context_menu(pane: Pane, find: Find, images: Images, menu: RwSignal<Option<(i
     }
 }
 
+/// An item of the editor's right-click menu: clicked, it closes `menu` and runs `run`.
+fn menu_item(label: impl IntoView + 'static, enabled: bool, menu: RwSignal<Option<(i32, i32)>>, run: impl Fn() + 'static) -> impl IntoView {
+    view! {
+        <button
+            class="ctx-menu-item"
+            disabled=!enabled
+            // The textarea keeps the focus and its selection
+            on:mousedown=|e: web_sys::MouseEvent| e.prevent_default()
+            on:click=move |_| { menu.set(None); run(); }
+        >
+            {label}
+        </button>
+    }
+}
+
 /// Jump to a link (from the "pages not created" list) or a line (from a tag search)
 /// asked for this page, in the focused pane.
 fn goto_target(pane: Pane, tab: Tab, second: bool) {
@@ -328,7 +347,8 @@ fn goto_target(pane: Pane, tab: Tab, second: bool) {
     Effect::new(move |_| {
         let Some((path, goto)) = ctx.work.goto.get() else { return };
         if path != tab.path || ctx.work.focus_second.get_untracked() != second { return; }
-        let Some(el) = pane.area.get() else { return };
+        // Once the editor is there
+        if pane.area.get().is_none() { return; }
         ctx.work.goto.set(None);
         let chars: Vec<char> = tab.content.get_untracked().chars().collect();
         let range = match goto {
@@ -342,19 +362,6 @@ fn goto_target(pane: Pane, tab: Tab, second: bool) {
             }
             Goto::Range(a, b) => Some((a.min(chars.len()), b.min(chars.len()))),
         };
-        if let Some((start, end)) = range {
-            // Show the target's table as text first, if it is in one, and unfold it
-            pane.focus_pos.set(Some(start));
-            pane.folds.update(|f| f.retain(|&(a, b)| !(a < start && start <= b)));
-            after_tick(move || {
-                let Some((a, b)) = pane.shown.try_with_value(|v| (v.view_pos(start), v.view_pos(end))) else { return };
-                let line = el.value().chars().take(a).filter(|&c| c == '\n').count();
-                let _ = el.focus();
-                set_selection(&el, a, b);
-                // Bring the line to the middle of the view
-                let y = (line as f64 * LINE_HEIGHT - el.client_height() as f64 / 2.0).max(0.0);
-                el.set_scroll_top(y as i32);
-            });
-        }
+        if let Some((start, end)) = range { pane.select_page_range(start, end, true); }
     });
 }

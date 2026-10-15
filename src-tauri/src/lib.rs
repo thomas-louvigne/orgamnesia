@@ -7,6 +7,7 @@ pub mod org_bloom;
 pub mod parser;
 pub mod project;
 pub mod settings;
+pub mod spell;
 pub mod tags;
 pub mod vault;
 pub mod watch;
@@ -30,6 +31,8 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     /// Watches the open project's folder.
     pub watcher: Mutex<Option<watch::Watcher>>,
+    /// The dictionary of the spelling extension.
+    pub spell: Mutex<spell::Speller>,
 }
 
 impl AppState {
@@ -38,6 +41,7 @@ impl AppState {
             project: Mutex::new(None),
             settings: Mutex::new(Settings::default()),
             watcher: Mutex::new(None),
+            spell: Mutex::new(spell::Speller::default()),
         }
     }
 

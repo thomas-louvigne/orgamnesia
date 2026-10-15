@@ -166,6 +166,8 @@ pub struct AppCtx {
     /// Interface language (from `prefs`).
     pub lang: Memo<Lang>,
     pub keybindings: RwSignal<Keybindings>,
+    /// Changes when a word is added to the spelling dictionary: pages are checked again.
+    pub spell_words: RwSignal<u32>,
     pub project: ProjectState,
     pub work: Workspace,
     pub ui: Ui,
@@ -178,6 +180,7 @@ impl AppCtx {
             prefs,
             lang: Memo::new(move |_| prefs.with(|p| Lang::from_code(&p.lang))),
             keybindings: RwSignal::new(Keybindings::defaults()),
+            spell_words: RwSignal::new(0),
             project: ProjectState {
                 vault_path: RwSignal::new(None),
                 projects: RwSignal::new(vec![]),

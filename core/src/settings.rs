@@ -102,6 +102,14 @@ pub struct Settings {
     /// Org-bloom builds without the hand-made web folders of the project
     /// (`--no-external-deps`).
     pub org_bloom_no_external_deps: Option<bool>,
+    /// Spelling extension: a red line under the words the dictionary doesn't know.
+    pub spell_enabled: Option<bool>,
+    /// Dictionary of the spelling extension (`fr_FR`, `en_US`…); empty: the one of
+    /// the interface language.
+    pub spell_language: Option<String>,
+    /// A folder of Hunspell dictionaries (`.aff` + `.dic`) looked in before the
+    /// system's.
+    pub spell_dict_dir: Option<String>,
     /// Git extension: show the git state of the project under its name.
     pub git_status_enabled: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
@@ -185,6 +193,10 @@ pub struct Prefs {
     pub org_bloom_no_external_deps: bool,
     pub git_ext: bool,
     pub git_ssh_key: String,
+    pub spell: bool,
+    /// See `Settings::spell_language`; empty: the interface language's.
+    pub spell_lang: String,
+    pub spell_dict_dir: String,
     pub case_insensitive_links: bool,
     pub hashtag_links: bool,
     pub hashtag_dashes: bool,
@@ -243,6 +255,9 @@ impl Prefs {
             org_bloom_no_external_deps: s.org_bloom_no_external_deps.unwrap_or(false),
             git_ext: s.git_status_enabled.unwrap_or(true),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
+            spell: s.spell_enabled.unwrap_or(false),
+            spell_lang: s.spell_language.clone().unwrap_or_default(),
+            spell_dict_dir: s.spell_dict_dir.clone().unwrap_or_default(),
             case_insensitive_links: s.case_insensitive_links.unwrap_or(true),
             hashtag_links: s.hashtag_links.unwrap_or(true),
             hashtag_dashes: s.hashtag_dashes.unwrap_or(true),
@@ -314,6 +329,9 @@ impl Prefs {
             org_bloom_no_external_deps: Some(self.org_bloom_no_external_deps),
             git_status_enabled: Some(self.git_ext),
             git_ssh_key: some(&self.git_ssh_key),
+            spell_enabled: Some(self.spell),
+            spell_language: some(&self.spell_lang),
+            spell_dict_dir: some(&self.spell_dict_dir),
             projects,
             session: None,
         }

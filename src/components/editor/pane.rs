@@ -5,7 +5,7 @@ use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use super::{
-    dom::{caret, get_pos, number_digits, set_cursor, table_lines, text_columns, Textarea, CHAR_WIDTH, LINE_HEIGHT},
+    dom::{after_tick, caret, get_pos, number_digits, reveal, set_cursor, set_selection, table_lines, text_columns, Textarea, CHAR_WIDTH, LINE_HEIGHT},
     images::{image_src, image_url, load_size, ImageSizes},
 };
 use crate::{images, invoke, state::{AppCtx, Tab}, tables};
@@ -36,6 +36,8 @@ pub struct Pane {
     pub point: RwSignal<usize>,
     /// TODO keywords of the page (its `#+TODO:` lines, else the settings'); None when off.
     pub todo_keywords: Memo<Option<TodoKeywords>>,
+    /// Page ranges of the words the spelling dictionary doesn't know (see `spell`).
+    pub misspelled: RwSignal<Vec<(usize, usize)>>,
 }
 
 impl Pane {
@@ -57,6 +59,7 @@ impl Pane {
             todo_keywords: Memo::new(move |_| {
                 ctx.pref(|p| p.todo()).map(|d| content.with(|c| TodoKeywords::for_page(c, &d)))
             }),
+            misspelled: RwSignal::new(Vec::new()),
         }
     }
 
@@ -85,6 +88,28 @@ impl Pane {
         let text = el.value();
         let (a, b) = self.shown.with_value(|v| (v.content_pos(&text, a), v.content_pos(&text, b)));
         self.content.with_untracked(|c| c.chars().skip(a).take(b.saturating_sub(a)).collect())
+    }
+
+    /// Select the page range `start..end`, its table shown as text and its headline
+    /// unfolded first. With `center`, its line goes to the middle of the view; else
+    /// the view only moves when it is out of sight.
+    pub fn select_page_range(self, start: usize, end: usize, center: bool) {
+        self.focus_pos.set(Some(start));
+        self.folds.update(|f| f.retain(|&(a, b)| !(a < start && start <= b)));
+        after_tick(move || {
+            let Some(el) = self.area.try_get_untracked().flatten() else { return };
+            let Some((a, b)) = self.shown.try_with_value(|v| (v.view_pos(start), v.view_pos(end))) else { return };
+            let _ = el.focus();
+            set_selection(&el, a, b);
+            let chars: Vec<char> = el.value().chars().collect();
+            if center {
+                let line = chars[..a.min(chars.len())].iter().filter(|&&c| c == '\n').count();
+                let y = (line as f64 * LINE_HEIGHT - el.client_height() as f64 / 2.0).max(0.0);
+                el.set_scroll_top(y as i32);
+            } else {
+                reveal(&el, &chars, a);
+            }
+        });
     }
 
     /// The textarea was edited: the page follows.

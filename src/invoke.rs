@@ -88,6 +88,8 @@ fn error_text(err: &BackendError, lang: Lang) -> String {
         "dialog" => "err_dialog",
         "no_remote" => "err_no_remote",
         "not_an_image" => "err_not_an_image",
+        "no_dictionary" => "err_no_dictionary",
+        "bad_dictionary" => "err_bad_dictionary",
         // What a tool or the system said: shown as it is
         _ => return err.detail.clone().unwrap_or_else(|| err.code.clone()),
     };
@@ -308,4 +310,24 @@ pub async fn read_image(path: &str) -> Result<js_sys::Uint8Array, String> {
 /// Of `paths`, those missing from the disk.
 pub async fn missing_files(paths: &[String]) -> Result<Vec<String>, String> {
     call("missing_files", serde_json::json!({ "paths": paths })).await
+}
+
+/// Names of the spelling dictionaries found (`fr_FR`…), `dict_dir` looked in first.
+pub async fn spell_languages(dict_dir: &str) -> Result<Vec<String>, String> {
+    call("spell_languages", serde_json::json!({ "dictDir": dict_dir })).await
+}
+
+/// Of `words`, those the spelling dictionary doesn't know.
+pub async fn spell_check(words: &[String]) -> Result<Vec<String>, String> {
+    call("spell_check", serde_json::json!({ "words": words })).await
+}
+
+/// Words `word` may have been meant as.
+pub async fn spell_suggest(word: &str) -> Result<Vec<String>, String> {
+    call("spell_suggest", serde_json::json!({ "word": word })).await
+}
+
+/// Add `word` to the user's spelling dictionary.
+pub async fn spell_add(word: &str) -> Result<(), String> {
+    call("spell_add", serde_json::json!({ "word": word })).await
 }

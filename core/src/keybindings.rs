@@ -150,7 +150,7 @@ pub enum EditorAction {
     BackToIndentation, PreviousHeading, NextHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell,
     Bold, Italic, Underline, Strikethrough, TodoNext, TodoPrev,
-    PromoteSubtree, DemoteSubtree, MoveLineUp, MoveLineDown,
+    PromoteSubtree, DemoteSubtree, MoveLineUp, MoveLineDown, SpellNext,
 }
 
 impl AppAction {
@@ -246,6 +246,7 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::DemoteSubtree, id: "demote_subtree",   label_key: "shortcut_demote_subtree" },
     ActionDef { action: EditorAction::MoveLineUp, id: "move_line_up",       label_key: "shortcut_move_line_up" },
     ActionDef { action: EditorAction::MoveLineDown, id: "move_line_down",   label_key: "shortcut_move_line_down" },
+    ActionDef { action: EditorAction::SpellNext, id: "spell_next",       label_key: "shortcut_spell_next" },
 ];
 
 /// Preset ids available in the UI (VI intentionally left as a future addition).
@@ -309,7 +310,7 @@ pub fn preset_app(preset: &str) -> Bindings {
         "emacs" => m(&[
             ("new_page",      &["ctrl+x ctrl+f"]),
             ("save",          &["ctrl+x ctrl+s"]),
-            ("open_settings", &["ctrl+,"]),
+            ("open_settings", &["ctrl+c ,"]),
             ("quick_open",    &["ctrl+x b", "alt+x"]),
             // project.el: `C-x p g` (find regexp), `C-x p r` (query replace)
             ("project_search",  &["ctrl+x p g", "ctrl+shift+f"]),
@@ -396,6 +397,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("demote_subtree",      &["shift+alt+ArrowRight"]),
             ("move_line_up",        &["alt+ArrowUp"]),
             ("move_line_down",      &["alt+ArrowDown"]),
+            // flyspell-goto-next-error
+            ("spell_next",          &["ctrl+,"]),
         ]),
         // "classic" and any unknown preset fall back to the classic table.
         _ => m(&[
@@ -420,6 +423,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("demote_subtree",  &["shift+alt+ArrowRight"]),
             ("move_line_up",    &["alt+ArrowUp"]),
             ("move_line_down",  &["alt+ArrowDown"]),
+            // Spelling, as in Word and LibreOffice
+            ("spell_next",      &["F7"]),
         ]),
     }
 }

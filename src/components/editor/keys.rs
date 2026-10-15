@@ -423,6 +423,7 @@ pub(super) fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAc
         }
         EditorAction::Find | EditorAction::FindPrevious => find.open(false, el),
         EditorAction::Replace => find.open(true, el),
+        EditorAction::SpellNext => super::spell::next(pane, el),
         // Movements are handled above; copy / cut without a selection do nothing
         _ => {}
     }
