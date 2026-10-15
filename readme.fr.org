@@ -4,195 +4,87 @@
 
 *Un wiki perso à la sauce =org-mode= : l'essentiel d'Obsidian en plus léger.*
 
-#+BEGIN_QUOTE
-*Version bêta.* Le projet est en cours de développement : des bugs sont probables,
-des fonctionnalités peuvent changer, et il vaut mieux garder une copie de ses fichiers =.org=.
-
-*Code généré par IA.* Cette application a été codée avec l'aide de Claude (Anthropic),
-une intelligence artificielle. Le code est à relire avec le même esprit critique
-que n'importe quelle contribution.
-#+END_QUOTE
-
 /[[file:readme.org][English version]]/
+
+#+BEGIN_QUOTE
+*Bêta, écrit avec une IA.* Des bugs et des changements sont à prévoir : gardez une
+copie de vos fichiers =.org=. Le code a été écrit avec l'aide de Claude (Anthropic) ;
+relisez-le comme n'importe quelle contribution.
+#+END_QUOTE
 
 [[file:docs/screenshot.png]]
 
+* Pourquoi Orgamnesia
+
+- *Vos notes restent de simples fichiers =.org=* dans le dossier de votre choix :
+  pas de base de données, pas de format propriétaire. Emacs, git ou un outil de
+  synchro peuvent les lire en parallèle.
+- *Des pages liées*, comme dans un wiki : liens =[[Page]]=, liens entrants, tags.
+- *Léger* : une application de bureau native écrite en Rust, rapide à lancer.
+
 * Fonctionnalités
 
-- *Pages et liens* : liens =[[Page]]=, =#mots-clés= et =:tags:= org-mode, avec
-  complétion pendant la frappe. Ctrl+clic ouvre une page (et la crée au besoin) ;
+- *Nouveau projet en un clic* : un dossier créé avec =pages/= et =assets/=, prêt
+  à écrire ; un dossier de fichiers =.org= existant s'ouvre tel quel.
+- *Liens et tags* : =[[Page]]=, =#mots-clés= et =:tags:=, avec complétion ;
   renommer une page réécrit les liens qui y mènent.
-- *Cadres autour de l'éditeur* : pages, liens entrants, tags (recherche à la syntaxe
-  org : =a+b-c=, =a|b=), à faire, pages pas encore créées, git… chacun affiché ou
-  non, dans la colonne de gauche ou de droite, dans l'ordre choisi.
-- *Ouverture rapide* (Ctrl+K) : n'importe quelle page, onglet ouvert ou tag.
-- *Recherche dans le projet* (Ctrl+Maj+F) : toutes les pages, et remplacement
-  (Ctrl+Maj+H) occurrence par occurrence ou en bloc, annulable.
-- *Éditeur* : coloration org-mode, titre de la page en haut, recherche et
-  remplacement, sauvegarde automatique, deux volets, raccourcis Emacs ou Classique
-  (configurables).
-- *Niveau des titres* : Alt+Maj+→ / ← descendent ou remontent un titre d'un niveau,
-  avec ses sous-titres, comme dans Emacs (voir [[file:docs/fonctionnalites.org#niveau-des-titres][Niveau des titres]]).
-- *Tableaux* : dessinés comme de vrais tableaux ; Tab / Maj+Tab passent d'une cellule
-  à l'autre et réalignent le tableau comme dans Emacs ; =|-= + Tab trace la ligne d'en-tête.
-- *États TODO* sur les titres (=* TODO Titre=) : mis en valeur, et changés avec
-  Maj+←/→ dans les raccourcis Emacs. Les états se règlent dans les préférences
-  (=TODO DOING HANGUP | DONE=) ou par une ligne =#+TODO:= dans la page. Le cadre
-  « À faire » rassemble les titres TODO de tout le projet.
-- *Corbeille* : une page supprimée va dans le dossier =.trash= du projet ; « Annuler »
-  dans la barre d'état la remet en place. Les préférences la vident, à la main ou
-  automatiquement (durée et poids maximum réglables).
-- *Extensions* : état git du projet, site web statique du projet avec
+- *Cadres* autour de l'éditeur : pages, liens entrants, tags, à faire, git…, placés
+  à votre guise.
+- *Ouverture rapide* (Ctrl+K) et *recherche et remplacement dans le projet*
+  (Ctrl+Maj+F).
+- *Éditeur org-mode* : coloration, tableaux, états TODO, niveaux des titres, deux
+  volets, raccourcis Emacs ou Classique.
+- *Correcteur d'orthographe* : fautes soulignées, suggestions au clic droit,
+  dictionnaire personnel (dictionnaires Hunspell).
+- *Corbeille* avec annulation, *sauvegarde automatique*, pages modifiées par un
+  autre programme rechargées.
+- *Extensions* : état git, site web statique avec
   [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
-- Les pages modifiées par un autre programme (synchro, git…) sont rechargées.
-  Français et anglais.
+- Interface en français et en anglais.
 
-Le détail de toutes les fonctionnalités est dans [[file:docs/fonctionnalites.org][docs/fonctionnalites.org]].
+Toutes les fonctionnalités en détail : [[file:docs/fonctionnalites.org][docs/fonctionnalites.org]].
 
-* Installation (Linux)
+* Prise en main
 
-** Debian, Ubuntu, Mint… et autres distributions
+1. Lancez Orgamnesia et *créez un projet* (un nouveau dossier, préparé avec =pages/=
+   et =assets/=), ou *ouvrez un dossier* qui contient déjà des fichiers =.org=.
+2. *Créez une page* avec le bouton =+= de la liste des pages.
+3. Tapez =[[Autre page]]= pour faire un lien vers une autre page ; Ctrl+clic
+   l'ouvre, et la crée au besoin.
+4. Ctrl+K ouvre n'importe quelle page ; F1 liste tous les raccourcis.
 
-Télécharger le =.deb= (Debian, Ubuntu, Mint…) ou l'=.AppImage= (toutes distributions)
-sur la [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]].
+* Installation
 
-#+BEGIN_SRC sh
-sudo apt install ./Orgamnesia_*.deb   # .deb
-chmod +x Orgamnesia_*.AppImage        # .AppImage : le rendre exécutable,
-./Orgamnesia_*.AppImage               # puis le lancer
-#+END_SRC
+Téléchargez le fichier de votre système sur la
+[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]] :
 
-** Arch Linux
+| Système                  | Fichier            | Installation                                     |
+|--------------------------+--------------------+--------------------------------------------------|
+| Debian, Ubuntu, Mint…    | =.deb=             | =sudo apt install ./Orgamnesia_*.deb=            |
+| Arch Linux               | =.pkg.tar.zst=     | =sudo pacman -U orgamnesia-*.pkg.tar.zst=        |
+| Tout Linux               | =.AppImage=        | =chmod +x Orgamnesia_*.AppImage=, puis le lancer |
+| macOS 11+ (non testé)    | =.dmg=             | glisser Orgamnesia dans Applications             |
 
-*** Paquet tout prêt (le plus rapide)
+*macOS* : l'application n'est pas signée, donc macOS refuse de l'ouvrir la première
+fois. Autorisez-la une fois avec
+=xattr -dr com.apple.quarantine /Applications/Orgamnesia.app=, ou par
+/Réglages Système › Confidentialité et sécurité › Ouvrir quand même/.
 
-Télécharger le fichier =orgamnesia-X.Y.Z-1-x86_64.pkg.tar.zst= sur la
-[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]],
-puis l'installer avec pacman, qui installe aussi les dépendances :
+Windows n'est pas pris en charge pour le moment.
 
-#+BEGIN_SRC sh
-sudo pacman -U orgamnesia-*-x86_64.pkg.tar.zst
-#+END_SRC
+Compiler depuis les sources, la dernière version de =main= sur Arch, et les
+particularités de macOS (dictionnaires, touches Cmd et Option) :
+[[file:docs/installation.org][docs/installation.org]].
 
-Orgamnesia apparaît ensuite dans le menu des applications, ou se lance avec
-=orgamnesia=. Pour mettre à jour, refaire la même chose avec le fichier de la
-nouvelle version ; pour désinstaller : =sudo pacman -R orgamnesia=.
+* Vos données
 
-*** Compiler la dernière version de =main=
-
-Pour avoir les nouveautés pas encore publiées. Le =PKGBUILD= de =packaging/arch=
-compile la branche =main= et l'installe avec pacman. Il se lance *depuis ce
-dossier*, qui contient aussi le fichier =.desktop= dont il a besoin :
-
-#+BEGIN_SRC sh
-sudo pacman -S --needed base-devel git webkit2gtk-4.1 \
-  rust rust-wasm trunk cargo-tauri
-git clone https://github.com/thomas-louvigne/orgamnesia.git
-cd orgamnesia/packaging/arch
-makepkg -si
-#+END_SRC
-
-La première ligne installe ce dont la compilation a besoin ; s'il en manque un,
-=makepkg= s'arrête dessus :
-
-- =webkit2gtk-4.1= : le moteur web qui dessine la fenêtre ;
-- =rust= : le compilateur ;
-- =rust-wasm= : la cible WebAssembly, pour l'interface ;
-- =trunk= : compile l'interface ;
-- =cargo-tauri= : compile l'application.
-
-=makepkg -si= compile ensuite (quelques minutes) puis installe le paquet. Orgamnesia
-apparaît dans le menu des applications, ou se lance avec =orgamnesia=.
-
-- *Mettre à jour* : dans =orgamnesia/packaging/arch=, =git pull= puis =makepkg -si=.
-- *Avec rustup* : le paquet =rust= entre en conflit avec =rustup=. Garder =rustup=,
-  retirer =rust= et =rust-wasm= de la première ligne, et lancer
-  =rustup target add wasm32-unknown-unknown= avant =makepkg -si=.
-- *Désinstaller* : =sudo pacman -R orgamnesia-git=.
-
-** Depuis les sources (toutes distributions)
-
-Installer les [[https://v2.tauri.app/start/prerequisites/#linux][prérequis de Tauri]]
-et Rust (via [[https://rustup.rs][rustup]]), puis :
-
-#+BEGIN_SRC sh
-git clone https://github.com/thomas-louvigne/orgamnesia.git
-cd orgamnesia
-rustup target add wasm32-unknown-unknown
-cargo install trunk tauri-cli --locked
-cargo tauri build --bundles deb   # ou --no-bundle
-#+END_SRC
-
-Le =.deb= est produit dans =src-tauri/target/release/bundle/deb/= ; avec
-=--no-bundle=, le programme seul est =src-tauri/target/release/orgamnesia=.
-
-** Données
-
-Les pages restent de simples fichiers =.org= dans le dossier choisi ; les réglages
-sont dans =~/.config/com.orgamnesia.app/=
-(=~/Library/Application Support/com.orgamnesia.app/= sur macOS).
-
-* Installation (macOS)
-
-*Pas encore testé sur un Mac* : l'application est compilée pour macOS, mais personne
-ne l'a encore essayée. Les retours (bugs, captures) sont les bienvenus.
-
-** Image disque
-
-Télécharger le =.dmg= sur la
-[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]]
-(une seule application pour les Mac Apple Silicon et Intel, macOS 11 ou plus récent),
-l'ouvrir et glisser Orgamnesia dans le dossier Applications.
-
-L'application n'est pas signée par un compte développeur Apple : au premier lancement,
-macOS refuse de l'ouvrir (« Orgamnesia est endommagé » ou « développeur non
-identifié »). Pour l'autoriser, une seule fois :
-
-#+BEGIN_SRC sh
-xattr -dr com.apple.quarantine /Applications/Orgamnesia.app
-#+END_SRC
-
-ou, sans terminal : la lancer une fois, puis /Réglages Système › Confidentialité et
-sécurité/ › /Ouvrir quand même/.
-
-** Depuis les sources
-
-Installer les outils en ligne de commande de Xcode (=xcode-select --install=) et Rust
-(via [[https://rustup.rs][rustup]]), puis :
-
-#+BEGIN_SRC sh
-git clone https://github.com/thomas-louvigne/orgamnesia.git
-cd orgamnesia
-rustup target add wasm32-unknown-unknown
-cargo install trunk tauri-cli --locked
-cargo tauri build --bundles app   # ou dmg
-#+END_SRC
-
-L'application est produite dans =src-tauri/target/release/bundle/macos/Orgamnesia.app= :
-la glisser dans =/Applications=. Compilée sur la machine, elle n'a pas besoin de
-l'autorisation ci-dessus.
-
-** Particularités
-
-- *Correcteur d'orthographe* : macOS n'a pas de dictionnaires Hunspell. Copier les
-  fichiers =.aff= et =.dic= (par exemple =fr_FR.aff= et =fr_FR.dic=, ceux de
-  [[https://extensions.libreoffice.org/][LibreOffice]]) dans =~/Library/Spelling/=,
-  ou choisir leur dossier dans les préférences. Ceux de LibreOffice, s'il est
-  installé, sont trouvés tout seuls.
-- *Raccourcis* : dans le profil classique, Cmd fait ce que fait Ctrl (Cmd+S
-  enregistre, Cmd+Z annule). Dans le profil Emacs, comme dans Emacs sur Mac, Ctrl
-  reste celui d'Emacs, Option sert de Meta (Option+W est =M-w=, pas ∑) et Cmd garde
-  les raccourcis habituels du Mac (Cmd+C, Cmd+V, Cmd+S, Cmd+Z…).
-- *Extension org-bloom* : =org-bloom= et =pandoc= sont aussi cherchés dans les
-  dossiers de Homebrew (=/opt/homebrew/bin=, =/usr/local/bin=).
-
-* Windows
-
-Le support de Windows n'est pas prévu pour le moment.
+- Les pages : les fichiers =.org= du dossier du projet.
+- Les réglages : =~/.config/com.orgamnesia.app/= sous Linux,
+  =~/Library/Application Support/com.orgamnesia.app/= sous macOS.
 
 * Développement
 
-Application de bureau écrite en Rust : Tauri v2 (backend, =src-tauri/=) et Leptos 0.7
+Application de bureau en Rust : Tauri v2 (backend, =src-tauri/=) et Leptos 0.7
 (interface compilée en WebAssembly, =src/=) ; =core/= contient ce qu'ils partagent.
 
 #+BEGIN_SRC sh
@@ -200,7 +92,9 @@ cargo tauri dev     # lancement avec rechargement à chaud
 cargo test --lib    # tests (aussi dans src-tauri/ et core/)
 #+END_SRC
 
-* TODO list
+Installer les outils : [[file:docs/installation.org][docs/installation.org]].
+
+* TODO-LIST
 
 - [ ] Tester sur macOS
 - [ ] Paquet dans l'AUR pour Arch Linux

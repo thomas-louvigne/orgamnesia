@@ -32,11 +32,14 @@ A project is a folder of =.org= pages linked to each other.
 - If the folder has a =pages/= subfolder, the pages are there; otherwise, if the
   folder already holds =.org= files, it is used as is. An empty folder gets
   =pages/= and =assets/=.
+- *New project*: the button next to the open one, the end of the projects menu or
+  the welcome screen name a new folder in the system's dialog; it is created with
+  =pages/= and =assets/=, then opened (an existing folder is just opened).
 - The project name, above the list of pages, opens the projects menu: open another
   folder, go back to a recent project, remove a project from the list (the folder
   itself is left untouched).
 - Switching projects with unsaved tabs asks for confirmation.
-- With no project open, the welcome screen offers to open one and lists the
+- With no project open, the welcome screen offers to open or create one and lists the
   recent projects.
 
 [[file:images/welcome.png]]
@@ -484,6 +487,19 @@ status bar shows the folder of the site, or what went wrong.
 - The command can be set; empty, =org-bloom= is looked for on the PATH, then in
   =~/.local/bin= (an app started from the menu may not have it on its PATH).
 
+** Spelling
+Words the dictionary doesn't know are underlined in red. Off by default: turn it on
+in Settings > Spelling.
+
+- *Dictionaries*: the Hunspell ones of the system (on Linux, the =hunspell-fr=,
+  =hunspell-en-us=… packages; LibreOffice's on macOS), or a folder of =.aff= +
+  =.dic= files chosen in the settings, looked in first. The dictionary is the
+  interface language's by default, or the one picked in the settings.
+- *Left out*: code, links, tags, and words with digits or capitals.
+- *Right click* on an underlined word: suggestions, and "Add to the dictionary".
+  Your own words are kept in =dictionary.txt=, in the settings folder.
+- *Next misspelled word*: F7 in Classic, Ctrl+, in Emacs (as =flyspell-goto-next-error=).
+
 * Settings
 The settings window (Ctrl+,) can be moved and resized. "Apply" saves the changes
 without closing (a dot shows there are some), "Save" saves and closes, "Cancel"
@@ -521,6 +537,10 @@ closes without saving. The explanations under a setting are in italics.
 - org-bloom and its command.
 - Git.
 
+** Spelling
+- Underline the misspelled words.
+- Dictionary, and another folder of dictionaries.
+
 ** Shortcuts
 Profile, shortcuts of the application, the panes, the editor, the selection mark
 (with its setting) and the TODO states (with their setting). A field on top
@@ -529,5 +549,6 @@ filters the actions by name or shortcut.
 * Files
 - Pages stay plain =.org= files, readable and editable with Emacs or any other
   editor.
-- Settings: =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=).
+- Settings: =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=,
+  and =dictionary.txt= for the words added to the dictionary).
 - Trash: =<project>/.trash/=.

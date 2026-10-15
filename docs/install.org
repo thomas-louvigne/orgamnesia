@@ -1,0 +1,98 @@
+#+TITLE: Orgamnesia — installation
+
+The quick install, from the ready-made packages, is in the
+[[file:../readme.org][readme]]. This document covers the rest. A French version is in
+[[file:installation.org][installation.org]].
+
+* From the sources
+
+Works on any Linux distribution and on macOS.
+
+1. Install the system prerequisites:
+   - *Linux*: the [[https://v2.tauri.app/start/prerequisites/#linux][Tauri prerequisites]]
+     (=webkit2gtk-4.1= and the build tools);
+   - *macOS*: the Xcode command line tools (=xcode-select --install=).
+2. Install Rust through [[https://rustup.rs][rustup]], then:
+
+#+BEGIN_SRC sh
+git clone https://github.com/thomas-louvigne/orgamnesia.git
+cd orgamnesia
+rustup target add wasm32-unknown-unknown
+cargo install trunk tauri-cli --locked
+cargo tauri build --bundles deb   # Linux; or --no-bundle
+cargo tauri build --bundles app   # macOS; or dmg
+#+END_SRC
+
+The result lands in =src-tauri/target/release/=:
+
+- =bundle/deb/=: the =.deb= package;
+- =orgamnesia=: the bare program, with =--no-bundle=;
+- =bundle/macos/Orgamnesia.app=: drag it to =/Applications=. Built on the machine,
+  it opens without the quarantine permission.
+
+* Arch Linux
+
+** Ready-made package
+
+=sudo pacman -U orgamnesia-*-x86_64.pkg.tar.zst= also installs the dependencies.
+Update by doing the same with the new version's file; uninstall with
+=sudo pacman -R orgamnesia=.
+
+** Latest =main=
+
+To get what is not released yet. The =PKGBUILD= in =packaging/arch= builds the
+=main= branch and installs it with pacman. Run it *from that folder*, which also
+holds the =.desktop= file it needs:
+
+#+BEGIN_SRC sh
+sudo pacman -S --needed base-devel git webkit2gtk-4.1 \
+  rust rust-wasm trunk cargo-tauri
+git clone https://github.com/thomas-louvigne/orgamnesia.git
+cd orgamnesia/packaging/arch
+makepkg -si
+#+END_SRC
+
+The first line installs what the build needs: the web engine the window is drawn
+with (=webkit2gtk-4.1=), the compiler (=rust=), its WebAssembly target for the
+interface (=rust-wasm=), and the tools that build the interface (=trunk=) and the
+application (=cargo-tauri=). =makepkg -si= then builds (a few minutes) and installs
+the package.
+
+- *Update*: in =orgamnesia/packaging/arch=, =git pull= then =makepkg -si=.
+- *With rustup*: the =rust= package conflicts with =rustup=. Keep =rustup=, drop
+  =rust= and =rust-wasm= from the first line, and run
+  =rustup target add wasm32-unknown-unknown= before =makepkg -si=.
+- *Uninstall*: =sudo pacman -R orgamnesia-git=.
+
+* macOS
+
+*Not tested on a Mac yet*: the application is built for macOS, but no one has tried
+it so far. Feedback (bugs, screenshots) is welcome.
+
+** First launch
+
+The =.dmg= holds one application for Apple Silicon and Intel Macs (macOS 11 or
+later). It is not signed with an Apple developer account: on the first launch,
+macOS refuses to open it ("Orgamnesia is damaged" or "unidentified developer"). To
+allow it, once:
+
+#+BEGIN_SRC sh
+xattr -dr com.apple.quarantine /Applications/Orgamnesia.app
+#+END_SRC
+
+or, without a terminal: launch it once, then /System Settings › Privacy & Security/ ›
+/Open Anyway/.
+
+** Particulars
+
+- *Spell checker*: macOS has no Hunspell dictionaries. Copy the =.aff= and =.dic=
+  files (such as =en_US.aff= and =en_US.dic=, those of
+  [[https://extensions.libreoffice.org/][LibreOffice]]) to =~/Library/Spelling/=, or
+  choose their folder in the settings. LibreOffice's own, when it is installed, are
+  found by themselves.
+- *Shortcuts*: in the classic profile, Cmd does what Ctrl does (Cmd+S saves, Cmd+Z
+  undoes). In the Emacs profile, as in Emacs on a Mac, Ctrl stays Emacs', Option is
+  Meta (Option+W is =M-w=, not ∑) and Cmd keeps the usual Mac shortcuts (Cmd+C,
+  Cmd+V, Cmd+S, Cmd+Z…).
+- *org-bloom extension*: =org-bloom= and =pandoc= are also looked for in Homebrew's
+  folders (=/opt/homebrew/bin=, =/usr/local/bin=).

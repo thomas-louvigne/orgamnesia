@@ -27,11 +27,15 @@ Un projet est un dossier de pages =.org= liées entre elles.
 - Si le dossier contient un sous-dossier =pages/=, les pages y sont ; sinon, si le
   dossier contient déjà des fichiers =.org=, il est utilisé tel quel. Un dossier
   vide reçoit =pages/= et =assets/=.
+- *Nouveau projet* : le bouton à côté de celui d'ouverture, la fin du menu des
+  projets ou l'écran d'accueil nomment un nouveau dossier dans la boîte de dialogue
+  du système ; il est créé avec =pages/= et =assets/=, puis ouvert (un dossier qui
+  existe déjà est simplement ouvert).
 - Le nom du projet, en haut de la liste des pages, ouvre le menu des projets :
   ouvrir un autre dossier, revenir à un projet récent, retirer un projet de la
   liste (le dossier n'est pas touché).
 - Changer de projet avec des onglets non sauvegardés demande confirmation.
-- Sans projet ouvert, l'écran d'accueil propose d'en ouvrir un et liste les
+- Sans projet ouvert, l'écran d'accueil propose d'en ouvrir ou d'en créer un et liste les
   projets récents.
 
 ** Pages
@@ -478,6 +482,21 @@ autres cadres, dans Préférences > Affichage) enregistre les pages puis lance
   =~/.local/bin= (une application lancée depuis le menu peut ne pas l'avoir dans son
   PATH).
 
+** Orthographe
+Les mots inconnus du dictionnaire sont soulignés en rouge. Désactivé par défaut : à
+activer dans Préférences > Orthographe.
+
+- *Dictionnaires* : ceux de Hunspell installés sur le système (sous Linux, les
+  paquets =hunspell-fr=, =hunspell-en-us=… ; ceux de LibreOffice sur macOS), ou un
+  dossier de fichiers =.aff= + =.dic= choisi dans les préférences, consulté en
+  premier. Le dictionnaire est celui de la langue de l'interface par défaut, ou
+  celui choisi dans les préférences.
+- *Non vérifiés* : le code, les liens, les tags, et les mots avec chiffres ou
+  majuscules.
+- *Clic droit* sur un mot souligné : suggestions, et « Ajouter au dictionnaire ».
+  Vos mots sont gardés dans =dictionary.txt=, dans le dossier des réglages.
+- *Faute suivante* : F7 en Classique, Ctrl+, en Emacs (comme =flyspell-goto-next-error=).
+
 * Préférences
 La fenêtre des préférences (Ctrl+,) se déplace et se redimensionne. « Appliquer »
 enregistre les changements sans fermer (un point signale qu'il y en a),
@@ -514,6 +533,10 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 - org-bloom et sa commande.
 - Git.
 
+** Orthographe
+- Souligner les fautes d'orthographe.
+- Dictionnaire, et autre dossier de dictionnaires.
+
 ** Raccourcis
 Profil, raccourcis de l'application, des volets, de l'éditeur, du marqueur de
 sélection (avec son option) et des états TODO (avec leur option). Un champ en haut
@@ -522,5 +545,6 @@ filtre les actions par leur nom ou leur raccourci.
 * Fichiers
 - Les pages restent de simples fichiers =.org=, lisibles et modifiables avec Emacs
   ou tout autre éditeur.
-- Réglages : =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=).
+- Réglages : =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=,
+  et =dictionary.txt= pour les mots ajoutés au dictionnaire).
 - Corbeille : =<projet>/.trash/=.
