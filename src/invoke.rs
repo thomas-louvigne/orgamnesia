@@ -245,6 +245,11 @@ pub async fn pick_folder() -> Result<Option<String>, String> {
     call("pick_folder", serde_json::json!({})).await
 }
 
+/// Save dialog naming a new folder, created by the backend.
+pub async fn pick_new_folder(title: &str) -> Result<Option<String>, String> {
+    call("pick_new_folder", serde_json::json!({ "title": title })).await
+}
+
 pub async fn get_keybindings() -> Result<Keybindings, String> {
     call("get_keybindings", serde_json::json!({})).await
 }

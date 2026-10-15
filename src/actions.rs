@@ -61,6 +61,16 @@ pub async fn pick_and_open_project(ctx: AppCtx) {
     }
 }
 
+/// Name a new folder in the native dialog, then open it as a project.
+pub async fn create_project(ctx: AppCtx) {
+    let title = t("new_project_title", ctx.lang.get_untracked());
+    match invoke::pick_new_folder(title).await {
+        Ok(Some(path)) => open_project(ctx, path).await,
+        Ok(None) => {}
+        Err(e) => ctx.error("new_project_error", &e),
+    }
+}
+
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
 /// Add `tab` and make it the active one; when its page got opened meanwhile

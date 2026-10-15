@@ -2225,7 +2225,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "orgamnesia"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "gtk",
  "notify-debouncer-mini",
@@ -2242,7 +2242,7 @@ dependencies = [
 
 [[package]]
 name = "orgamnesia-core"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "serde",
 ]

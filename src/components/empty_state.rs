@@ -38,6 +38,9 @@ pub fn EmptyState() -> impl IntoView {
                             <button class="btn-primary" on:click=move |_| spawn_local(actions::pick_and_open_project(ctx))>
                                 {t("open_project", lang())}
                             </button>
+                            <button class="btn-secondary" on:click=move |_| spawn_local(actions::create_project(ctx))>
+                                {t("new_project", lang())}
+                            </button>
                         </div>
                         {(!recent.is_empty()).then(|| view! {
                             <div class="empty-recent">

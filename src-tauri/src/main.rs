@@ -39,6 +39,7 @@ fn main() {
             commands::org_bloom::site_config,
             commands::org_bloom::open_folder,
             commands::app::pick_folder,
+            commands::app::pick_new_folder,
             commands::git::git_status,
             commands::git::git_changes,
             commands::git::git_commit,

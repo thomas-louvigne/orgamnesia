@@ -15,6 +15,23 @@ pub async fn pick_folder(app: AppHandle) -> Cmd<Option<String>> {
     rx.await.map_err(|_| AppError::Dialog)
 }
 
+/// Save dialog naming the folder of a new project, titled `title`: the folder is
+/// created (kept when it already is one) and its path returned.
+#[tauri::command]
+pub async fn pick_new_folder(app: AppHandle, title: String) -> Cmd<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
+    app.dialog().file().set_title(title).save_file(move |folder| {
+        let _ = tx.send(folder.map(|f| f.to_string()));
+    });
+    let Some(path) = rx.await.map_err(|_| AppError::Dialog)? else { return Ok(None) };
+    if std::path::Path::new(&path).exists() && !std::path::Path::new(&path).is_dir() {
+        return Err(AppError::NotAFolder(path));
+    }
+    std::fs::create_dir_all(&path)?;
+    Ok(Some(path))
+}
+
 /// File picker (for the SSH key), opening in `start` when it exists.
 #[tauri::command]
 pub async fn pick_file(app: AppHandle, start: Option<String>) -> Cmd<Option<String>> {
