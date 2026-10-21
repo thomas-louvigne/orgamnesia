@@ -255,7 +255,7 @@ impl Prefs {
             org_bloom_no_external_deps: s.org_bloom_no_external_deps.unwrap_or(false),
             git_ext: s.git_status_enabled.unwrap_or(true),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
-            spell: s.spell_enabled.unwrap_or(false),
+            spell: s.spell_enabled.unwrap_or(true),
             spell_lang: s.spell_language.clone().unwrap_or_default(),
             spell_dict_dir: s.spell_dict_dir.clone().unwrap_or_default(),
             case_insensitive_links: s.case_insensitive_links.unwrap_or(true),

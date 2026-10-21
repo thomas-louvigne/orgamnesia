@@ -190,18 +190,19 @@ pub fn SpellingTab(draft: RwSignal<Prefs>) -> impl IntoView {
     let ctx = use_context::<AppCtx>().expect("AppCtx");
     let lang = move || ctx.lang.get();
     let off = move || !draft.with(|p| p.spell);
-    // The dictionaries found, with the folder of the settings looked in first
-    let found = RwSignal::new(Vec::<String>::new());
+    // The dictionaries found, with the folder of the settings looked in first; None: not known yet
+    let found = RwSignal::new(None::<Vec<String>>);
     Effect::new(move |_| {
         let dir = draft.with(|p| p.spell_dict_dir.clone());
         spawn_local(async move {
-            if let Ok(names) = invoke::spell_languages(&dir).await { let _ = found.try_set(names); }
+            if let Ok(names) = invoke::spell_languages(&dir).await { let _ = found.try_set(Some(names)); }
         });
     });
     view! {
         <div class="tab-content">
             <Check draft get=|p| p.spell set=|p, v| p.spell = v
                 label="spell_enabled" hint="spell_hint" />
+            {move || found.with(|f| f.as_ref().is_some_and(Vec::is_empty)).then(|| view! { <SpellInstallHelp draft /> })}
             <div class="setting-row setting-sub">
                 <label>{move || t("spell_language", lang())}</label>
                 <select
@@ -213,16 +214,13 @@ pub fn SpellingTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     // A dictionary chosen before, missing now, stays shown
                     {move || {
                         let chosen = draft.with(|p| p.spell_lang.clone());
-                        let mut names = found.get();
+                        let mut names = found.get().unwrap_or_default();
                         if !chosen.is_empty() && !names.contains(&chosen) { names.insert(0, chosen.clone()); }
                         names.into_iter().map(|n| view! {
                             <option value=n.clone() selected=n == chosen>{n.clone()}</option>
                         }).collect_view()
                     }}
                 </select>
-                {move || found.with(Vec::is_empty).then(|| view! {
-                    <span class="setting-hint">{move || t("spell_lang_none", lang())}</span>
-                })}
             </div>
             <div class="setting-row setting-sub">
                 <label>{move || t("spell_dict_dir", lang())}</label>
@@ -232,6 +230,63 @@ pub fn SpellingTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     placeholder=Signal::derive(move || t("spell_dict_dir_ph", lang()).to_string())
                     disabled=Signal::derive(off)
                 />
+            </div>
+        </div>
+    }
+}
+
+/// Where Hunspell dictionaries can be downloaded, for the systems without packages.
+const DICTIONARIES_URL: &str = "https://github.com/LibreOffice/dictionaries";
+
+/// The packages of the dictionary for `code` (`fr`, `en_GB`…), as Debian, Fedora
+/// and Arch name them.
+fn dict_packages(code: &str) -> [String; 3] {
+    let (lang, region) = code.split_once('_').unwrap_or((code, ""));
+    let lang = lang.to_lowercase();
+    // English comes in one package per country, the other languages in one package
+    if lang == "en" {
+        let region = if region.is_empty() { "us".to_string() } else { region.to_lowercase() };
+        return [format!("hunspell-en-{region}"), format!("hunspell-en-{}", region.to_uppercase()),
+                format!("hunspell-en_{region}")];
+    }
+    [0, 1, 2].map(|_| format!("hunspell-{lang}"))
+}
+
+/// No dictionary on the system: how to install one, for the system the application runs on.
+#[component]
+fn SpellInstallHelp(draft: RwSignal<Prefs>) -> impl IntoView {
+    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let lang = move || ctx.lang.get();
+    let platform = web_sys::window().and_then(|w| w.navigator().platform().ok()).unwrap_or_default();
+    let (mac, windows) = (platform.starts_with("Mac"), platform.starts_with("Win"));
+    let help = if mac { "spell_install_mac" } else if windows { "spell_install_windows" } else { "spell_install_linux" };
+    // The dictionary wanted: the one of the settings, else the interface language's
+    let commands = move || {
+        let code = draft.with(|p| if p.spell_lang.is_empty() { p.lang.clone() } else { p.spell_lang.clone() });
+        let [deb, fedora, arch] = dict_packages(&code);
+        [("Debian, Ubuntu", format!("sudo apt install {deb}")),
+         ("Fedora", format!("sudo dnf install {fedora}")),
+         ("Arch", format!("sudo pacman -S {arch}"))]
+    };
+    view! {
+        <div class="setting-row setting-sub">
+            <div class="setting-hint install-help">
+                <p class="install-help-title">{move || t("spell_lang_none", lang())}</p>
+                <p>{move || t(help, lang())}</p>
+                {(!mac && !windows).then(|| view! {
+                    {move || commands().into_iter().map(|(distro, cmd)| view! {
+                        <div class="install-cmd"><span>{distro}</span><code>{cmd}</code></div>
+                    }).collect_view()}
+                })}
+                {(mac || windows).then(|| view! {
+                    <button class="setting-doc-link"
+                        on:click=move |_| spawn_local(async move {
+                            if let Err(e) = invoke::open_url(DICTIONARIES_URL).await { ctx.error("open_url_failed", &e); }
+                        })>
+                        {move || t("spell_install_download", lang())}
+                    </button>
+                })}
+                <p>{move || t("spell_install_then", lang())}</p>
             </div>
         </div>
     }

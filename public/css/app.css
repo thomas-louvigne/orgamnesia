@@ -934,9 +934,15 @@ kbd {
 }
 .bloom-folder-path { text-decoration: underline; overflow-wrap: anywhere; }
 .bloom-folder:hover .bloom-folder-path { text-decoration-thickness: 2px; }
-.ssh-help { display: flex; flex-direction: column; gap: 4px; }
-.ssh-help p { margin: 0; }
-.ssh-help code {
+.ssh-help, .install-help { display: flex; flex-direction: column; gap: 4px; }
+.ssh-help p, .install-help p { margin: 0; }
+/* No spelling dictionary: a warning, then how to install one */
+.install-help { border-left-color: var(--orange); }
+.install-help-title { font-style: normal; font-weight: 600; color: var(--fg); }
+.install-cmd { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.install-cmd span { min-width: 110px; }
+.install-help .setting-doc-link { padding-left: 0; }
+.ssh-help code, .install-help code {
     font-style: normal; font-family: var(--font-mono, monospace); background: var(--bg);
     border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; align-self: flex-start; user-select: all;
 }

@@ -488,8 +488,8 @@ status bar shows the folder of the site, or what went wrong.
   =~/.local/bin= (an app started from the menu may not have it on its PATH).
 
 ** Spelling
-Words the dictionary doesn't know are underlined in red. Off by default: turn it on
-in Settings > Spelling.
+Words the dictionary doesn't know are underlined in red. On by default: turn it off
+in Settings > Spelling, which also tells how to install a dictionary when none is found.
 
 - *Dictionaries*: the Hunspell ones of the system (on Linux, the =hunspell-fr=,
   =hunspell-en-us=… packages; LibreOffice's on macOS), or a folder of =.aff= +

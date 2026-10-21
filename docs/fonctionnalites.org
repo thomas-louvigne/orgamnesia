@@ -483,8 +483,9 @@ autres cadres, dans Préférences > Affichage) enregistre les pages puis lance
   PATH).
 
 ** Orthographe
-Les mots inconnus du dictionnaire sont soulignés en rouge. Désactivé par défaut : à
-activer dans Préférences > Orthographe.
+Les mots inconnus du dictionnaire sont soulignés en rouge. Activé par défaut : à
+désactiver dans Préférences > Orthographe, qui indique aussi comment installer un
+dictionnaire quand aucun n'est trouvé.
 
 - *Dictionnaires* : ceux de Hunspell installés sur le système (sous Linux, les
   paquets =hunspell-fr=, =hunspell-en-us=… ; ceux de LibreOffice sur macOS), ou un
