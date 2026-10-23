@@ -81,7 +81,8 @@ pub fn BrokenFrame(right: bool) -> impl IntoView {
                             view! { <div class="broken-links-empty">{t("no_broken_links", ctx.lang.get())}</div> }.into_any()
                         } else {
                             list.into_iter().map(|b| {
-                                let tip = format!("{} {}", t("used_in", ctx.lang.get()), b.sources.join(", "));
+                                let tip = format!("{} {}\n{}", t("used_in", ctx.lang.get()), b.sources.join(", "),
+                                    t("ctrl_click_creates", ctx.lang.get()));
                                 let b_click = b.clone();
                                 let b_menu = b.clone();
                                 view! {
@@ -91,7 +92,12 @@ pub fn BrokenFrame(right: bool) -> impl IntoView {
                                         role="button"
                                         tabindex="0"
                                         on:keydown=crate::a11y::list_item_keys
-                                        on:click=move |_| {
+                                        on:click=move |e: web_sys::MouseEvent| {
+                                            // Ctrl+click creates the page
+                                            if e.ctrl_key() || e.meta_key() {
+                                                actions::create_and_open_page(ctx, b_click.target.clone());
+                                                return;
+                                            }
                                             // Visit the pages using this link, one after the other
                                             let n = b_click.sources.len();
                                             if n == 0 { return; }

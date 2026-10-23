@@ -486,6 +486,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("no_broken_links",        Lang::Fr) => "Aucune page non créée",
         ("used_in",                Lang::En) => "Used in:",
         ("used_in",                Lang::Fr) => "Utilisé dans :",
+        ("ctrl_click_creates",     Lang::En) => "Ctrl+click: create the page",
+        ("ctrl_click_creates",     Lang::Fr) => "Ctrl+clic : créer la page",
         ("close_this_tab",         Lang::En) => "Close this tab",
         ("close_this_tab",         Lang::Fr) => "Fermer cet onglet",
         ("close_all_tabs",         Lang::En) => "Close all tabs",

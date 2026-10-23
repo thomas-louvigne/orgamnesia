@@ -386,11 +386,16 @@ fn try_em(chars: &[char], start: usize, delim: char, class: &str) -> Option<(Str
     if next.is_whitespace() || next == delim { return None; }
     let mut i = start + 1;
     while i < chars.len() {
+        // A link inside is drawn as a link: its target may hold the delimiter (`/[[a/b]]/`)
+        if chars[i] == '[' && chars.get(i + 1) == Some(&'[') && let Some((_, len)) = try_link(chars, i) {
+            i += len;
+            continue;
+        }
         if chars[i] == delim && !chars[i - 1].is_whitespace() && i > start + 1 {
             let inner: String = chars[start + 1..i].iter().collect();
             let html = format!(
                 "<span class='{class}'>{delim}{}{delim}</span>",
-                escape(&inner)
+                inline_html(&inner)
             );
             return Some((html, i + 1 - start));
         }
@@ -508,6 +513,16 @@ mod tests {
         assert!(html.contains("link-t"));
         assert!(html.contains("link-d"));
         assert!(html.contains("label"));
+    }
+
+    #[test]
+    fn link_inside_emphasis_rendered() {
+        for s in ["*[[test]]*", "/[[test]]/", "_voir [[a/b][c]]_", "/[[a/b]]/"] {
+            let html = inline_html(s);
+            assert!(html.contains("<span class='link'>[[<span class='link-t'>"), "{s}: {html}");
+        }
+        assert!(inline_html("/[[a/b]]/").starts_with("<span class='em-i'>/"));
+        assert!(inline_html("*gras /et italique/*").contains("<span class='em-i'>/et italique/</span>*</span>"));
     }
 
     #[test]

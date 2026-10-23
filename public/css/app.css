@@ -569,7 +569,11 @@ kbd {
     pointer-events: none;
     z-index: 0;
     overflow: hidden; /* textarea drives scrolling */
+    /* The textarea always has its scrollbar (6px): the text has the same width
+       here, and wraps at the same place */
+    padding-right: calc(24px + 6px);
 }
+.edit-layer { overflow-y: scroll; }
 
 /* Images (see images.rs): drawn from the line of their link over the empty lines
    that follow it, like tables. The highlight layer lets the mouse through: the editor
