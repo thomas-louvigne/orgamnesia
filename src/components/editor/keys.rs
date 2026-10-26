@@ -10,6 +10,7 @@ use super::{
     completion::Completion,
     dom::{after_tick, caret, clipboard_write, get_pos, recenter, set_cursor, set_selection, splice, Textarea},
     find::Find,
+    insert::Insert,
     pane::Pane,
 };
 use crate::{
@@ -37,7 +38,7 @@ fn swallow(e: &web_sys::KeyboardEvent) {
     e.stop_propagation();
 }
 
-pub fn on_keydown(pane: Pane, completion: Completion, find: Find, e: web_sys::KeyboardEvent) {
+pub fn on_keydown(pane: Pane, completion: Completion, find: Find, insert: Insert, e: web_sys::KeyboardEvent) {
     let ctx = pane.ctx;
     let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
     {
@@ -100,7 +101,7 @@ pub fn on_keydown(pane: Pane, completion: Completion, find: Find, e: web_sys::Ke
         EditorAction::PromoteSubtree | EditorAction::DemoteSubtree => shift_subtree(pane, &e, &el, action),
         _ => {
             swallow(&e);
-            run_action(pane, find, &el, action);
+            run_action(pane, find, insert, &el, action);
         }
     }
 }
@@ -170,27 +171,14 @@ fn auto_pair(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) -> bool {
     true
 }
 
-/// Tab / Shift+Tab move between the cells of a table; Tab on a headline folds /
-/// unfolds it (org-mode cycle), when the settings say so.
+/// Tab / Shift+Tab move between the cells of a table; elsewhere, when the
+/// settings say so, they fold / unfold as org-mode's `org-cycle` / `org-shifttab`.
 fn table_cell(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: EditorAction) {
-    let ctx = pane.ctx;
     let chars: Vec<char> = el.value().chars().collect();
     let forward = action == EditorAction::TableNextCell;
     let Some(to) = tables::move_cell(&chars, caret(el), forward) else {
-        if !forward || !ctx.pref_untracked(|p| p.tab_folds) { return; }
-        let pos = pane.page_pos(el, caret(el));
-        let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
-        let line = folding::line_start(&page, pos);
-        if !folding::is_headline(&page, line) { return; }
-        // On a headline, Tab never leaves the editor: with nothing under it, say so (Emacs: EMPTY ENTRY)
-        swallow(e);
-        let Some(next) = pane.folds.with_untracked(|f| folding::cycle(&page, line, f)) else {
-            ctx.notify_t("fold_empty", "");
-            return;
-        };
-        // The caret stays on the headline
-        pane.focus_pos.set(Some(pos.min(page[line..].iter().position(|&c| c == '\n').map_or(page.len(), |p| line + p))));
-        pane.folds.set(next);
+        if !pane.ctx.pref_untracked(|p| p.tab_folds) { return; }
+        if forward { cycle(pane, e, el); } else if global_cycle(pane, el) { swallow(e); }
         return;
     };
     swallow(e);
@@ -203,6 +191,48 @@ fn table_cell(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: Edi
         }
     }
     pane.track_caret(el);
+}
+
+/// A headline folds / unfolds (FOLDED, CHILDREN, SUBTREE), a list item with
+/// lines under it, a block or a drawer too (org-mode's `org-cycle`).
+fn cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) {
+    let pos = pane.page_pos(el, caret(el));
+    let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+    let line = folding::line_start(&page, pos);
+    let next = if folding::is_headline(&page, line) {
+        // On a headline, Tab never leaves the editor: with nothing under it, say so (Emacs: EMPTY ENTRY)
+        swallow(e);
+        let Some(next) = pane.folds.with_untracked(|f| folding::cycle(&page, line, f)) else {
+            pane.ctx.notify_t("fold_empty", "");
+            return;
+        };
+        next
+    } else {
+        let Some(next) = pane.folds.with_untracked(|f| folding::cycle_element(&page, line, f)) else { return };
+        swallow(e);
+        next
+    };
+    // The caret stays on the line
+    pane.focus_pos.set(Some(pos.min(page[line..].iter().position(|&c| c == '\n').map_or(page.len(), |p| line + p))));
+    pane.folds.set(next);
+}
+
+/// The whole page folds / unfolds: OVERVIEW, CONTENTS, SHOW ALL (org-mode's
+/// `org-global-cycle`). False when the page has no headline.
+fn global_cycle(pane: Pane, el: &Textarea) -> bool {
+    let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+    let Some((shown, folds)) = pane.folds.with_untracked(|f| folding::global_cycle(&page, f)) else { return false };
+    // A caret now hidden goes to the end of its headline
+    let pos = pane.page_pos(el, caret(el));
+    let pos = folds.iter().find(|&&(a, b)| a < pos && pos <= b).map_or(pos, |&(a, _)| a);
+    pane.focus_pos.set(Some(pos));
+    pane.folds.set(folds);
+    pane.ctx.notify_t(match shown {
+        folding::Global::Overview => "fold_overview",
+        folding::Global::Contents => "fold_contents",
+        folding::Global::ShowAll => "fold_show_all",
+    }, "");
+    true
 }
 
 /// On a headline, the TODO keyword goes to its next / previous state (org-mode
@@ -308,7 +338,7 @@ fn replace_lines(pane: Pane, el: &Textarea, page: &[char], a: usize, b: usize, t
 
 /// An editor action of the keybindings (or of the context menu): motions,
 /// clipboard, emphasis, Emacs editing…
-pub(super) fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAction) {
+pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, action: EditorAction) {
     let ctx = pane.ctx;
     let chars: Vec<char> = el.value().chars().collect();
     let text = |a: usize, b: usize| -> String { pane.page_text(el, a, b) };
@@ -377,6 +407,9 @@ pub(super) fn run_action(pane: Pane, find: Find, el: &Textarea, action: EditorAc
             let (at, heading) = edit::new_heading(&chars, end);
             replace(at, at, &heading);
         }
+        EditorAction::GlobalCycle => { global_cycle(pane, el); }
+        EditorAction::InsertLink => insert.link(el),
+        EditorAction::InsertDate | EditorAction::InsertInactiveDate => insert.date(el, action == EditorAction::InsertDate),
         EditorAction::OpenLink => {
             if let Some(name) = edit::link_at(&chars, start, ctx.tags_untracked()) {
                 follow_link(ctx, name);

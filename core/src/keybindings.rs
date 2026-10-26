@@ -146,9 +146,10 @@ pub enum EditorAction {
     KillRegion, CopyRegion, DeleteCharForward,
     ForwardChar, BackwardChar, NextLine, PreviousLine, ForwardWord, BackwardWord,
     BeginningOfBuffer, EndOfBuffer, ScrollDown, ScrollUp, Recenter,
-    BackwardSentence, ForwardSentence, BackwardParagraph, ForwardParagraph,
-    BackToIndentation, PreviousHeading, NextHeading, BackwardHeading, ForwardHeading, OpenLink, SetMark, KeyboardQuit,
-    Find, FindPrevious, Replace, TableNextCell, TablePrevCell,
+    BackwardSentence, ForwardSentence, BackwardParagraph, ForwardParagraph, BackwardElement, ForwardElement,
+    BackToIndentation, PreviousHeading, NextHeading, BackwardHeading, ForwardHeading, UpHeading, OpenLink, SetMark, KeyboardQuit,
+    Find, FindPrevious, Replace, TableNextCell, TablePrevCell, GlobalCycle,
+    InsertLink, InsertDate, InsertInactiveDate,
     Bold, Italic, Underline, Strikethrough, TodoNext, TodoPrev,
     PromoteSubtree, DemoteSubtree, MoveLineUp, MoveLineDown, SpellNext,
 }
@@ -231,6 +232,9 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::NextHeading, id: "next_heading",        label_key: "shortcut_next_heading" },
     ActionDef { action: EditorAction::BackwardHeading, id: "backward_heading", label_key: "shortcut_backward_heading" },
     ActionDef { action: EditorAction::ForwardHeading, id: "forward_heading",   label_key: "shortcut_forward_heading" },
+    ActionDef { action: EditorAction::BackwardElement, id: "backward_element", label_key: "shortcut_backward_element" },
+    ActionDef { action: EditorAction::ForwardElement, id: "forward_element",   label_key: "shortcut_forward_element" },
+    ActionDef { action: EditorAction::UpHeading, id: "up_heading",             label_key: "shortcut_up_heading" },
     ActionDef { action: EditorAction::OpenLink, id: "open_link",           label_key: "shortcut_open_link" },
     ActionDef { action: EditorAction::SetMark, id: "set_mark",            label_key: "shortcut_set_mark" },
     ActionDef { action: EditorAction::KeyboardQuit, id: "keyboard_quit",       label_key: "shortcut_keyboard_quit" },
@@ -239,6 +243,10 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Replace, id: "replace",             label_key: "shortcut_replace" },
     ActionDef { action: EditorAction::TableNextCell, id: "table_next_cell",     label_key: "shortcut_table_next_cell" },
     ActionDef { action: EditorAction::TablePrevCell, id: "table_prev_cell",     label_key: "shortcut_table_prev_cell" },
+    ActionDef { action: EditorAction::GlobalCycle, id: "global_cycle",         label_key: "shortcut_global_cycle" },
+    ActionDef { action: EditorAction::InsertLink, id: "insert_link",           label_key: "shortcut_insert_link" },
+    ActionDef { action: EditorAction::InsertDate, id: "insert_date",           label_key: "shortcut_insert_date" },
+    ActionDef { action: EditorAction::InsertInactiveDate, id: "insert_inactive_date", label_key: "shortcut_insert_inactive_date" },
     ActionDef { action: EditorAction::Bold, id: "bold",                label_key: "shortcut_bold" },
     ActionDef { action: EditorAction::Italic, id: "italic",              label_key: "shortcut_italic" },
     ActionDef { action: EditorAction::Underline, id: "underline",           label_key: "shortcut_underline" },
@@ -299,12 +307,24 @@ pub fn default_app() -> Bindings {
     ])
 }
 
+/// Default editor shortcuts a preset handed over to a new action:
+/// (preset, shortcut, old action, new action).
+const MOVED: &[(&str, &str, &str, &str)] = &[
+    ("emacs", "shift+alt+{", "backward_paragraph", "backward_element"),
+    ("emacs", "shift+alt+}", "forward_paragraph", "forward_element"),
+];
+
 /// Add the shortcuts of `base` for every action a stored profile doesn't mention
 /// yet (actions introduced after the profile was saved). Actions the user cleared
 /// are still present as empty entries, so they are left alone. A new shortcut the
 /// profile already gives to another action (or that starts a chord of it, or the
-/// reverse) is left out: a conflict would block saving the settings.
+/// reverse) is left out: a conflict would block saving the settings, unless the
+/// preset itself moved that shortcut from the old action to the new one (`MOVED`).
 pub fn fill_missing(app: &mut Bindings, editor: &mut Bindings, base: &str) {
+    for &(_, key, from, to) in MOVED.iter().filter(|m| m.0 == base) {
+        if editor.contains_key(to) { continue; }
+        if let Some(v) = editor.get_mut(from) { v.retain(|b| b != key); }
+    }
     let mut taken: Vec<String> = app.values().chain(editor.values()).flatten()
         .filter(|b| !b.is_empty()).cloned().collect();
     let mut fill = |map: &mut Bindings, preset: Bindings| {
@@ -377,7 +397,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("copy_region",         &["alt+w"]),
             ("delete_char_forward", &["ctrl+d"]),
             ("undo",                &["ctrl+/", "ctrl+x u"]),
-            ("new_heading",         &["alt+Enter", "shift+Enter"]),
+            // org-meta-return: a new headline, or a new item on a list item
+            ("new_heading",         &["alt+Enter"]),
             ("open_link",           &["ctrl+c ctrl+o"]),
             ("forward_char",        &["ctrl+f"]),
             ("backward_char",       &["ctrl+b"]),
@@ -391,22 +412,36 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("scroll_up",           &["alt+v"]),
             // recenter-top-bottom
             ("recenter",            &["ctrl+l"]),
-            // org-backward-element / org-forward-element (M-{ / M-} on headlines)
-            ("backward_heading",    &["alt+a"]),
-            ("forward_heading",     &["alt+e"]),
-            ("backward_paragraph",  &["shift+alt+{", "ctrl+ArrowUp"]),
-            ("forward_paragraph",   &["shift+alt+}", "ctrl+ArrowDown"]),
+            ("backward_sentence",   &["alt+a"]),
+            ("forward_sentence",    &["alt+e"]),
+            // org-backward/forward-paragraph; org-backward/forward-element
+            ("backward_paragraph",  &["ctrl+ArrowUp"]),
+            ("forward_paragraph",   &["ctrl+ArrowDown"]),
+            ("backward_element",    &["shift+alt+{"]),
+            ("forward_element",     &["shift+alt+}"]),
             ("back_to_indentation", &["alt+m"]),
             ("previous_heading",    &["ctrl+c ctrl+p"]),
             ("next_heading",        &["ctrl+c ctrl+n"]),
+            // org-backward/forward-heading-same-level, outline-up-heading
+            ("backward_heading",    &["ctrl+c ctrl+b"]),
+            ("forward_heading",     &["ctrl+c ctrl+f"]),
+            ("up_heading",          &["ctrl+c ctrl+u"]),
             ("set_mark",            &["ctrl+space"]),
             ("keyboard_quit",       &["ctrl+g"]),
             // isearch-forward / isearch-backward / query-replace
             ("find",                &["ctrl+s"]),
             ("find_previous",       &["ctrl+r"]),
             ("replace",             &["alt+%", "shift+alt+%"]),
+            // org-cycle / org-shifttab: a table's cells, else folding
             ("table_next_cell",     &["Tab"]),
             ("table_prev_cell",     &["shift+Tab"]),
+            // org-global-cycle
+            ("global_cycle",        &["ctrl+u Tab"]),
+            // org-insert-link, org-time-stamp, org-time-stamp-inactive. `.` and `!`
+            // need Shift on some keyboards (AZERTY, QWERTY), hence the second variant.
+            ("insert_link",         &["ctrl+c ctrl+l"]),
+            ("insert_date",         &["ctrl+c .", "ctrl+c shift+."]),
+            ("insert_inactive_date", &["ctrl+c !", "ctrl+c shift+!"]),
             // org-emphasize (`C-c C-x C-f`) then the marker. Some markers need Shift,
             // depending on the keyboard (QWERTY / AZERTY), hence the second variant.
             ("bold",                &["ctrl+c ctrl+x ctrl+f *", "ctrl+c ctrl+x ctrl+f shift+*"]),
@@ -414,7 +449,7 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("underline",           &["ctrl+c ctrl+x ctrl+f _", "ctrl+c ctrl+x ctrl+f shift+_"]),
             ("strikethrough",       &["ctrl+c ctrl+x ctrl+f +", "ctrl+c ctrl+x ctrl+f shift++"]),
             // org-shiftright / org-shiftleft on a headline (elsewhere, Shift+arrows select)
-            ("todo_next",           &["shift+ArrowRight"]),
+            ("todo_next",           &["shift+ArrowRight", "ctrl+c ctrl+t"]),
             ("todo_prev",           &["shift+ArrowLeft"]),
             // org-promote-subtree / org-demote-subtree (M-S-<left> / M-S-<right>)
             ("promote_subtree",     &["shift+alt+ArrowLeft"]),
@@ -439,6 +474,9 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("replace",       &["ctrl+h"]),
             ("table_next_cell", &["Tab"]),
             ("table_prev_cell", &["shift+Tab"]),
+            // `ctrl+k`, the usual one, opens a page; `ctrl+;` inserts the date in spreadsheets
+            ("insert_link",     &["ctrl+l"]),
+            ("insert_date",     &["ctrl+;"]),
             ("bold",          &["ctrl+b"]),
             ("italic",        &["ctrl+i"]),
             ("underline",     &["ctrl+u"]),
@@ -534,5 +572,19 @@ mod tests {
         // Still filled when nothing is in the way
         assert_eq!(editor["find"], vec!["ctrl+s"]);
         assert!(!clash("ctrl+x", "ctrl+xb") && clash("ctrl+x", "ctrl+x ctrl+s"));
+    }
+
+    #[test]
+    fn fill_missing_moves_shortcuts_the_preset_handed_over() {
+        // An Emacs profile saved when Alt+{ / Alt+} were the paragraph motions
+        let mut app = Bindings::new();
+        let mut editor = m(&[("backward_paragraph", &["shift+alt+{", "ctrl+ArrowUp"])]);
+        fill_missing(&mut app, &mut editor, "emacs");
+        assert_eq!(editor["backward_element"], vec!["shift+alt+{"]);
+        assert_eq!(editor["backward_paragraph"], vec!["ctrl+ArrowUp"]);
+        // Left alone once the profile knows the new action
+        let mut editor = m(&[("backward_paragraph", &["shift+alt+{"]), ("backward_element", &[])]);
+        fill_missing(&mut app, &mut editor, "emacs");
+        assert_eq!(editor["backward_paragraph"], vec!["shift+alt+{"]);
     }
 }

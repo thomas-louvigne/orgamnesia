@@ -104,15 +104,24 @@ Above the editor, in large type: the page's =#+TITLE:= if it has one, else its n
 Right click on it: rename the file, add or edit the =#+TITLE:=. Can be hidden in the
 settings.
 
-** Folding headlines
-Tab on a headline folds and unfolds it as org-mode does:
+** Folding
+Tab folds and unfolds as org-mode's =org-cycle= does. On a headline:
 1. folded (everything under it hidden);
 2. only its sub-headlines, folded;
 3. everything shown.
 
-A folded headline ends with =…=. With nothing under it, a message says so.
-Backspace or Delete next to the =…= unfolds the headline instead of deleting the
-hidden text. Can be turned off (Tab then does what it does elsewhere).
+On a list item with lines under it, a =#+begin_…= block or a drawer
+(=:PROPERTIES:= … =:END:=), Tab hides what is under the line, then shows it again.
+
+Shift+Tab out of a table folds the whole page, as org-mode's =S-TAB=: its top
+headlines only (OVERVIEW), then all the headlines (CONTENTS), then everything (SHOW
+ALL). The "Fold / unfold the whole page" shortcut does the same anywhere
+(Ctrl+U Tab in Emacs).
+
+What is folded ends with =…=. On a headline with nothing under it, a message says
+so. Backspace or Delete next to the =…= unfolds instead of deleting the hidden
+text. Can be turned off (Tab and Shift+Tab out of a table then do what they do
+elsewhere).
 
 [[file:images/fold.png]]
 
@@ -155,8 +164,10 @@ the markers (or removes them when already there); without a selection, inserts a
 pair of markers with the cursor between them.
 
 ** New headline
-The "New heading" shortcut (Shift+Enter; also Alt+Enter in Emacs) inserts, below
-the current line, a headline of the same level as the current one.
+The "New heading" shortcut (Shift+Enter; Alt+Enter in Emacs) inserts, below the
+current line, a headline of the same level as the current one. On a list item, as
+org-mode's =M-RET=, it inserts a new item instead: same bullet, next number, and an
+empty checkbox when the item has one.
 
 ** Headline level
 On a headline, Alt+Shift+→ moves it one level down and Alt+Shift+← one level up,
@@ -192,9 +203,21 @@ With the Emacs profile: movements (character, word, line, sentence, paragraph,
 headline, start and end of document, page), kill to end of line, kill a word, kill
 ring (kill then yank with Ctrl+Y), selection mark.
 
-Alt+A / Alt+E go to the previous / next headline of the same level, as org-mode's
-=M-{= / =M-}=: Alt+A goes up to the parent when there is no headline of the same
-level above, and from the text under a headline, to that headline.
+As in org-mode, a headline is a paragraph of its own: Alt+A / Alt+E (sentence
+start / end) stop at it instead of crossing it. In a table, they go from cell to
+cell: Alt+E to the end of the cell, then of the next one; Alt+A to its start, then
+to the previous one's.
+
+Ctrl+C Ctrl+B / Ctrl+C Ctrl+F go to the previous / next headline of the same level
+as the one holding the cursor, without leaving its parent; Ctrl+C Ctrl+U goes up to
+the parent headline.
+
+Alt+{ / Alt+} go from element to element, as org-mode's =M-{= / =M-}=: paragraph,
+list item, table, block, drawer. On a headline, Alt+} goes past its subtree and
+Alt+{ to the previous headline of the same level, or to the parent when there is
+none. Ctrl+↑ / Ctrl+↓ remain the paragraph motions.
+
+As in org-mode, the TODO state also turns with Ctrl+C Ctrl+T (=org-todo=).
 
 Ctrl+L (=recenter-top-bottom=) scrolls the page so the line of the cursor is in the
 middle of the editor; pressed again, at the top, then at the bottom, then in the
@@ -232,6 +255,16 @@ can be kept down for the second key (=Ctrl+X Ctrl+O= works as =Ctrl+X O=).
 - Ctrl+click, or the "Open link" shortcut (Ctrl+Enter in Classic, Ctrl+C Ctrl+O in
   Emacs), opens the page of the link under the cursor and creates it if needed.
 - By default, links ignore case and accents: =[[élody]]= leads to =Elody=.
+- "Insert a link" (Ctrl+L in Classic, Ctrl+C Ctrl+L in Emacs, as org-mode) asks
+  for its target (the pages are proposed) and the text shown; the selected text
+  becomes that text. On a link, it edits it.
+
+** Dates
+"Insert a date" (Ctrl+; in Classic, Ctrl+C . in Emacs) asks for a day, today's
+first, and a time if wanted, and inserts an org-mode timestamp: =<2026-10-26 Mon>=,
+=<2026-10-26 Mon 14:30>=. An active date =<…>= puts the entry in org-mode's agenda;
+an inactive one =[…]= (Ctrl+C ! in Emacs, or the box unchecked) only notes when. On
+a date, it edits it, keeping what follows the time (a repeater =+1w=…).
 
 ** Org-mode tags
 - =#+FILETAGS: :a:b:= tags the whole page; =* Title :a:b:= tags a headline (its
@@ -433,16 +466,20 @@ profile gets those of the actions it didn't know.
 | Copy / cut / paste             | Ctrl+C / X / V      | Alt+W / Ctrl+W / Ctrl+Y       |
 | Select all                     | Ctrl+A              | —                             |
 | Undo / redo                    | Ctrl+Z / Ctrl+Y     | Ctrl+/, Ctrl+X U / —          |
-| New heading                    | Shift+Enter         | Alt+Enter, Shift+Enter        |
+| New heading, or list item      | Shift+Enter         | Alt+Enter                     |
 | Open link                      | Ctrl+Enter          | Ctrl+C Ctrl+O                 |
 | Find / previous                | Ctrl+F, F3 / Shift+F3 | Ctrl+S / Ctrl+R             |
 | Replace                        | Ctrl+H              | Alt+%                         |
-| Next / previous cell           | Tab / Shift+Tab     | Tab / Shift+Tab               |
+| Next / previous cell, fold     | Tab / Shift+Tab     | Tab / Shift+Tab               |
+| Fold / unfold the whole page   | Shift+Tab           | Shift+Tab, Ctrl+U Tab         |
+| Insert or edit a link          | Ctrl+L              | Ctrl+C Ctrl+L                 |
+| Insert or edit a date          | Ctrl+;              | Ctrl+C .                      |
+| Insert or edit an inactive date | —                  | Ctrl+C !                      |
 | Bold                           | Ctrl+B              | Ctrl+C Ctrl+X Ctrl+F *        |
 | Italic                         | Ctrl+I              | Ctrl+C Ctrl+X Ctrl+F /        |
 | Underline                      | Ctrl+U              | Ctrl+C Ctrl+X Ctrl+F _        |
 | Strikethrough                  | Ctrl+Shift+X        | Ctrl+C Ctrl+X Ctrl+F +        |
-| Next / previous TODO state     | —                   | Shift+→ / Shift+←             |
+| Next / previous TODO state     | —                   | Shift+→, Ctrl+C Ctrl+T / Shift+← |
 | Headline level down / up       | Alt+Shift+→ / ←     | Alt+Shift+→ / ←               |
 | Move the line up / down        | Alt+↑ / Alt+↓       | Alt+↑ / Alt+↓                 |
 | Set mark / cancel              | —                   | Ctrl+Space / Ctrl+G           |
@@ -450,10 +487,13 @@ profile gets those of the actions it didn't know.
 | Next / previous character      | —                   | Ctrl+F / Ctrl+B               |
 | Next / previous line           | —                   | Ctrl+N / Ctrl+P               |
 | Next / previous word           | —                   | Alt+F / Alt+B                 |
-| Sibling headline: next / previous (or parent) | — | Alt+E / Alt+A |
-| Paragraph: end / start         | —                   | Alt+} / Alt+{ (Ctrl+↓ / ↑)    |
+| Sentence (cell): end / start   | —                   | Alt+E / Alt+A                 |
+| Paragraph: end / start         | —                   | Ctrl+↓ / Ctrl+↑               |
+| Element: next / previous       | —                   | Alt+} / Alt+{                 |
 | First non-blank character      | —                   | Alt+M                         |
 | Next / previous headline       | —                   | Ctrl+C Ctrl+N / Ctrl+C Ctrl+P |
+| Same-level headline: next / previous | —             | Ctrl+C Ctrl+F / Ctrl+C Ctrl+B |
+| Parent headline                | —                   | Ctrl+C Ctrl+U                 |
 | Start / end of document        | —                   | Alt+< / Alt+>                 |
 | Page down / up                 | —                   | Ctrl+V / Alt+V                |
 | Recenter (middle, top, bottom) | —                   | Ctrl+L                        |
@@ -527,7 +567,7 @@ closes without saving. The explanations under a setting are in italics.
 - Electric mode.
 - Exact find (case and accents) by default.
 - Indent the text under headlines.
-- Tab on a headline folds / unfolds it.
+- Tab folds / unfolds, as org-mode's org-cycle.
 - TODO states on headlines, and the list of states.
 - On quit, delete empty pages / pages holding only their title.
 - Trash: empty it, empty it automatically, maximum time and size.

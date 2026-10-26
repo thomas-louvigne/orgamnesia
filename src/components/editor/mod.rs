@@ -6,6 +6,7 @@ mod completion;
 mod dom;
 mod find;
 mod images;
+mod insert;
 mod keys;
 mod pane;
 mod spell;
@@ -27,6 +28,7 @@ use completion::Completion;
 use dom::{after_tick, caret, caret_coords, number_digits, Textarea};
 use find::Find;
 use images::{ImageSizes, Images};
+use insert::Insert;
 use pane::Pane;
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -127,6 +129,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let content = pane.content;
     let completion = Completion::new(pane);
     let find = Find::new(pane);
+    let insert = Insert::new(pane);
     // Natural sizes of the images of the page
     let sizes = RwSignal::new(ImageSizes::new());
     let view = pane::drawn_view(pane, tab.path.clone(), sizes);
@@ -225,7 +228,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 aria-label=format!("{} {}", t("editor_label", ctx.lang.get_untracked()), tab.name)
                 spellcheck=false
                 on:input=on_input
-                on:keydown=move |e| keys::on_keydown(pane, completion, find, e)
+                on:keydown=move |e| keys::on_keydown(pane, completion, find, insert, e)
                 // Undo / redo from the context menu: the page's own history, as the keys
                 on:beforeinput=move |e: web_sys::InputEvent| {
                     let redo = match e.input_type().as_str() {
@@ -281,15 +284,17 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 />
             })}
             {completion.popup()}
-            {move || menu.get().map(|(x, y)| context_menu(pane, find, images, menu, menu_word.get_untracked(), x, y))}
+            {insert.dialog()}
+            {move || menu.get().map(|(x, y)| context_menu(pane, find, insert, images, menu, menu_word.get_untracked(), x, y))}
         </div>
     }
 }
 
 /// The editor's right-click menu at `x`, `y`: the suggestions for a misspelled `word`,
 /// clipboard, undo, and adding an image.
+#[allow(clippy::too_many_arguments)]
 fn context_menu(
-    pane: Pane, find: Find, images: Images, menu: RwSignal<Option<(i32, i32)>>,
+    pane: Pane, find: Find, insert: Insert, images: Images, menu: RwSignal<Option<(i32, i32)>>,
     word: Option<spell::Word>, x: i32, y: i32,
 ) -> impl IntoView {
     let ctx = pane.ctx;
@@ -306,7 +311,7 @@ fn context_menu(
         }, enabled, menu, run)
     };
     let action = move |a: EditorAction| -> Box<dyn Fn()> {
-        Box::new(move || if let Some(el) = pane.area.get_untracked() { keys::run_action(pane, find, &el, a); })
+        Box::new(move || if let Some(el) = pane.area.get_untracked() { keys::run_action(pane, find, insert, &el, a); })
     };
     view! {
         <div

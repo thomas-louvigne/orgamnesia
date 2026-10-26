@@ -99,15 +99,24 @@ Au-dessus de l'éditeur, en grand : le =#+TITLE:= de la page s'il en a un, sinon
 nom. Clic droit dessus : renommer le fichier, ajouter ou modifier le =#+TITLE:=.
 Masquable dans les préférences.
 
-** Plier les titres
-Tab sur un titre le plie et le déplie comme dans org-mode :
+** Plier
+Tab plie et déplie comme =org-cycle= dans org-mode. Sur un titre :
 1. replié (tout ce qu'il contient est caché) ;
 2. seulement ses sous-titres, repliés ;
 3. tout affiché.
 
-Un titre plié se termine par =…=. Sans rien en dessous, un message l'indique.
-Retour arrière ou Suppr à côté du =…= déplie le titre au lieu d'effacer le texte
-caché. Désactivable (Tab fait alors comme ailleurs).
+Sur un élément de liste avec des lignes en dessous, un bloc =#+begin_…= ou un
+tiroir (=:PROPERTIES:= … =:END:=), Tab cache ce qui est sous la ligne, puis
+l'affiche à nouveau.
+
+Maj+Tab hors d'un tableau plie toute la page, comme =S-TAB= dans org-mode : ses
+titres principaux seuls (VUE D'ENSEMBLE), puis tous les titres (SOMMAIRE), puis
+tout (TOUT AFFICHÉ). Le raccourci « Plier / déplier toute la page » fait de même
+partout (Ctrl+U Tab en Emacs).
+
+Ce qui est plié se termine par =…=. Sur un titre sans rien en dessous, un message
+l'indique. Retour arrière ou Suppr à côté du =…= déplie au lieu d'effacer le texte
+caché. Désactivable (Tab et Maj+Tab hors d'un tableau font alors comme ailleurs).
 
 ** Indentation sous les titres
 Le texte sous un titre est décalé à la colonne du texte du titre, comme
@@ -148,8 +157,10 @@ des marqueurs (ou les retire s'ils y sont déjà) ; sans sélection, insère une
 de marqueurs avec le curseur au milieu.
 
 ** Nouveau titre
-Le raccourci « Nouveau titre » (Maj+Entrée ; aussi Alt+Entrée en Emacs) insère, sous
-la ligne courante, un titre du même niveau que le titre en cours.
+Le raccourci « Nouveau titre » (Maj+Entrée ; Alt+Entrée en Emacs) insère, sous la
+ligne courante, un titre du même niveau que le titre en cours. Sur un élément de
+liste, comme =M-RET= dans org-mode, il insère plutôt un nouvel élément : même puce,
+numéro suivant, et une case à cocher vide quand l'élément en a une.
 
 ** Niveau des titres
 Sur un titre, Alt+Maj+→ le descend d'un niveau et Alt+Maj+← le remonte d'un niveau,
@@ -185,9 +196,21 @@ Avec le profil Emacs : déplacements (caractère, mot, ligne, phrase, paragraphe
 titre, début et fin de document, page), couper jusqu'à la fin de ligne, couper un
 mot, kill ring (couper puis coller avec Ctrl+Y), marqueur de sélection.
 
-Alt+A / Alt+E vont au titre précédent / suivant de même niveau, comme =M-{= / =M-}=
-dans org-mode : Alt+A remonte au parent quand il n'y a plus de titre de même niveau
-au-dessus, et depuis le texte sous un titre, à ce titre.
+Comme dans org-mode, un titre est un paragraphe à lui seul : Alt+A / Alt+E (début /
+fin de phrase) s'y arrêtent au lieu de le traverser. Dans un tableau, ils vont de
+cellule en cellule : Alt+E à la fin de la cellule, puis de la suivante ; Alt+A à
+son début, puis à celui de la précédente.
+
+Ctrl+C Ctrl+B / Ctrl+C Ctrl+F vont au titre précédent / suivant de même niveau que
+celui où se trouve le curseur, sans sortir de son parent ; Ctrl+C Ctrl+U remonte au
+titre parent.
+
+Alt+{ / Alt+} vont d'élément en élément, comme =M-{= / =M-}= dans org-mode :
+paragraphe, élément de liste, tableau, bloc, tiroir. Sur un titre, Alt+} va après
+son sous-arbre et Alt+{ au titre précédent de même niveau, ou au parent s'il n'y en
+a pas. Ctrl+↑ / Ctrl+↓ restent les déplacements par paragraphe.
+
+Comme dans org-mode, l'état TODO change aussi avec Ctrl+C Ctrl+T (=org-todo=).
 
 Ctrl+L (=recenter-top-bottom=) fait défiler la page pour mettre la ligne du curseur
 au milieu de l'éditeur ; appuyé de nouveau, en haut, puis en bas, puis de nouveau
@@ -228,6 +251,17 @@ abandonnée après 4 secondes. On peut garder Ctrl enfoncé pour la deuxième to
   n'existe pas.
 - Par défaut, les liens ignorent la casse et les accents : =[[élody]]= mène à
   =Elody=.
+- « Insérer un lien » (Ctrl+L en Classique, Ctrl+C Ctrl+L en Emacs, comme
+  org-mode) demande sa cible (les pages sont proposées) et le texte affiché ; le
+  texte sélectionné devient ce texte. Sur un lien, il le modifie.
+
+** Dates
+« Insérer une date » (Ctrl+; en Classique, Ctrl+C . en Emacs) demande un jour,
+aujourd'hui d'abord, et une heure si on veut, et insère une date org-mode :
+=<2026-10-26 Mon>=, =<2026-10-26 Mon 14:30>=. Une date active =<…>= met l'entrée
+dans l'agenda d'org-mode ; une date inactive =[…]= (Ctrl+C ! en Emacs, ou la case
+décochée) note seulement quand. Sur une date, il la modifie, en gardant ce qui
+suit l'heure (une répétition =+1w=…).
 
 ** Tags org-mode
 - =#+FILETAGS: :a:b:= tague toute la page ; =* Titre :a:b:= tague un titre (et ses
@@ -429,16 +463,20 @@ connaissait pas.
 | Copier / couper / coller     | Ctrl+C / X / V     | Alt+W / Ctrl+W / Ctrl+Y     |
 | Tout sélectionner            | Ctrl+A             | —                           |
 | Annuler / rétablir           | Ctrl+Z / Ctrl+Y    | Ctrl+/, Ctrl+X U / —        |
-| Nouveau titre                | Maj+Entrée         | Alt+Entrée, Maj+Entrée      |
+| Nouveau titre, ou élément de liste | Maj+Entrée    | Alt+Entrée                  |
 | Suivre le lien               | Ctrl+Entrée        | Ctrl+C Ctrl+O               |
 | Rechercher / précédent       | Ctrl+F, F3 / Maj+F3 | Ctrl+S / Ctrl+R            |
 | Remplacer                    | Ctrl+H             | Alt+%                       |
-| Cellule suivante / précédente | Tab / Maj+Tab     | Tab / Maj+Tab               |
+| Cellule suivante / précédente, plier | Tab / Maj+Tab | Tab / Maj+Tab           |
+| Plier / déplier toute la page | Maj+Tab           | Maj+Tab, Ctrl+U Tab         |
+| Insérer ou modifier un lien  | Ctrl+L             | Ctrl+C Ctrl+L               |
+| Insérer ou modifier une date | Ctrl+;             | Ctrl+C .                    |
+| Insérer ou modifier une date inactive | —         | Ctrl+C !                    |
 | Gras                         | Ctrl+B             | Ctrl+C Ctrl+X Ctrl+F *      |
 | Italique                     | Ctrl+I             | Ctrl+C Ctrl+X Ctrl+F /      |
 | Souligné                     | Ctrl+U             | Ctrl+C Ctrl+X Ctrl+F _      |
 | Barré                        | Ctrl+Maj+X         | Ctrl+C Ctrl+X Ctrl+F +      |
-| État TODO suivant / précédent | —                 | Maj+→ / Maj+←               |
+| État TODO suivant / précédent | —                 | Maj+→, Ctrl+C Ctrl+T / Maj+← |
 | Titre : descendre / remonter | Alt+Maj+→ / ←      | Alt+Maj+→ / ←               |
 | Monter / descendre la ligne  | Alt+↑ / Alt+↓      | Alt+↑ / Alt+↓               |
 | Marqueur / annuler           | —                  | Ctrl+Espace / Ctrl+G        |
@@ -446,10 +484,13 @@ connaissait pas.
 | Caractère suivant / précédent | —                 | Ctrl+F / Ctrl+B             |
 | Ligne suivante / précédente  | —                  | Ctrl+N / Ctrl+P             |
 | Mot suivant / précédent      | —                  | Alt+F / Alt+B               |
-| Titre frère : suivant / précédent (ou parent) | — | Alt+E / Alt+A |
-| Paragraphe : fin / début     | —                  | Alt+} / Alt+{ (Ctrl+↓ / ↑)  |
+| Phrase (cellule) : fin / début | —                | Alt+E / Alt+A               |
+| Paragraphe : fin / début     | —                  | Ctrl+↓ / Ctrl+↑             |
+| Élément : suivant / précédent | —                 | Alt+} / Alt+{               |
 | Premier caractère non blanc  | —                  | Alt+M                       |
 | Titre suivant / précédent    | —                  | Ctrl+C Ctrl+N / Ctrl+C Ctrl+P |
+| Titre de même niveau : suivant / précédent | —    | Ctrl+C Ctrl+F / Ctrl+C Ctrl+B |
+| Titre parent                 | —                  | Ctrl+C Ctrl+U               |
 | Début / fin du document      | —                  | Alt+< / Alt+>               |
 | Page suivante / précédente   | —                  | Ctrl+V / Alt+V              |
 | Centrer la vue               | —                  | Ctrl+L                      |
@@ -523,7 +564,7 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 - Mode électrique.
 - Recherche exacte (casse et accents) par défaut.
 - Indenter le texte sous les titres.
-- Tab sur un titre le plie / déplie.
+- Tab plie / déplie, comme org-cycle d'org-mode.
 - États TODO sur les titres, et la liste des états.
 - Supprimer en quittant les pages vides / les pages avec seulement leur titre.
 - Corbeille : la vider, la vider automatiquement, durée et poids maximum.

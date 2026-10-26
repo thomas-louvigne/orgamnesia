@@ -914,6 +914,11 @@ kbd {
     .bloom-mark.running { animation: none; }
 }
 .commit-modal { width: 600px; }
+/* The link / date window: the text it will insert */
+.insert-preview {
+    align-self: flex-start; font-family: var(--font-mono); font-size: var(--fs-meta);
+    color: var(--fg-dim); min-height: 1.4em; word-break: break-all;
+}
 .commit-body { display: flex; flex-direction: column; gap: 8px; }
 .commit-files-title, .commit-label { font-size: var(--fs-meta); color: var(--fg-dim); }
 .commit-files {

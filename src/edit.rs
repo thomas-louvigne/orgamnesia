@@ -102,10 +102,14 @@ pub fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
 }
 
 /// Where to insert a new heading of the current level, and what: after the
-/// current line, `\n` and the stars.
+/// current line, `\n` and the stars. On a list item, a new item instead, as
+/// org's `M-RET`.
 pub fn new_heading(chars: &[char], caret: usize) -> (usize, String) {
-    let level = nearest_heading_level(chars, caret);
     let (_, line_end) = line_bounds(chars, caret);
+    if let Some(bullet) = motion::new_item_bullet(chars, caret) {
+        return (line_end, format!("\n{bullet}"));
+    }
+    let level = nearest_heading_level(chars, caret);
     (line_end, format!("\n{} ", "*".repeat(level)))
 }
 
@@ -153,15 +157,18 @@ pub fn motion_target(action: EditorAction, chars: &[char], pos: usize) -> Option
         EndOfBuffer => chars.len(),
         ScrollDown => move_lines(chars, pos, PAGE_LINES),
         ScrollUp => move_lines(chars, pos, -PAGE_LINES),
-        ForwardSentence => motion::forward_sentence(chars, pos),
-        BackwardSentence => motion::backward_sentence(chars, pos),
+        ForwardSentence => motion::forward_sentence_in_table(chars, pos).unwrap_or_else(|| motion::forward_sentence(chars, pos)),
+        BackwardSentence => motion::backward_sentence_in_table(chars, pos).unwrap_or_else(|| motion::backward_sentence(chars, pos)),
         ForwardParagraph => motion::forward_paragraph(chars, pos),
         BackwardParagraph => motion::backward_paragraph(chars, pos),
+        BackwardElement => motion::backward_element(chars, pos),
+        ForwardElement => motion::forward_element(chars, pos),
         BackToIndentation => motion::back_to_indentation(chars, pos),
         NextHeading => motion::next_heading(chars, pos),
         PreviousHeading => motion::previous_heading(chars, pos),
         BackwardHeading => motion::backward_heading(chars, pos),
         ForwardHeading => motion::forward_heading(chars, pos),
+        UpHeading => motion::up_heading(chars, pos),
         BeginningOfLine => line_bounds(chars, pos).0,
         EndOfLine => line_bounds(chars, pos).1,
         _ => return None,
@@ -246,11 +253,158 @@ pub fn find_all(chars: &[char], query: &str, match_case: bool) -> Vec<(usize, us
     orgamnesia_core::search::find_all(chars, query, opts)
 }
 
+/// A `[[target]]` / `[[target][description]]` link of the text.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Link {
+    /// Its range.
+    pub start: usize,
+    pub end: usize,
+    pub target: String,
+    pub description: String,
+}
+
+/// The link the caret at `pos` is on (`C-c C-l` there edits it).
+pub fn link_around(chars: &[char], pos: usize) -> Option<Link> {
+    let (ls, le) = line_bounds(chars, pos);
+    let text = |a: usize, b: usize| -> String { chars[a..b].iter().collect() };
+    let mut i = ls;
+    while i + 1 < le {
+        if chars[i] != '[' || chars[i + 1] != '[' { i += 1; continue; }
+        let Some(t) = (i + 2..le).find(|&j| matches!(chars[j], ']' | '[')) else { break };
+        let (description, end) = match chars.get(t + 1) {
+            Some(']') if chars[t] == ']' => (String::new(), t + 2),
+            Some('[') if chars[t] == ']' => match (t + 2..le.saturating_sub(1)).find(|&j| chars[j] == ']' && chars[j + 1] == ']') {
+                Some(d) => (text(t + 2, d), d + 2),
+                None => { i += 2; continue; }
+            },
+            _ => { i += 2; continue; }
+        };
+        if (i..end).contains(&pos) {
+            return Some(Link { start: i, end, target: text(i + 2, t), description });
+        }
+        i = end;
+    }
+    None
+}
+
+/// The text of a link to `target`, shown as `description` when there is one.
+pub fn format_link(target: &str, description: &str) -> String {
+    let (target, description) = (target.trim(), description.trim());
+    if description.is_empty() || description == target { format!("[[{target}]]") } else { format!("[[{target}][{description}]]") }
+}
+
+/// An org-mode timestamp: `<2026-10-26 Mon>`, `[2026-10-26 Mon 14:30 +1w]`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Stamp {
+    pub year: i32,
+    pub month: u32,
+    pub day: u32,
+    /// Hours and minutes.
+    pub time: Option<(u32, u32)>,
+    /// `<…>` (in the agenda) rather than `[…]`.
+    pub active: bool,
+    /// What follows the date and time, kept as it is (a repeater `+1w`, a warning `-2d`…).
+    pub rest: String,
+}
+
+impl Stamp {
+    /// From the values of a date field (`2026-10-26`) and a time field (`14:30`, or empty).
+    pub fn from_fields(date: &str, time: &str, active: bool, rest: &str) -> Option<Self> {
+        let mut d = date.trim().splitn(3, '-').map(|p| p.parse::<u32>().ok());
+        let (year, month, day) = (d.next()??, d.next()??, d.next()??);
+        if !(1..=12).contains(&month) || !(1..=31).contains(&day) { return None; }
+        let time = if time.trim().is_empty() { None } else { Some(parse_time(time.trim())?) };
+        Some(Self { year: year as i32, month, day, time, active, rest: rest.trim().to_string() })
+    }
+
+    /// The date as a date field takes it.
+    pub fn date_field(&self) -> String { format!("{:04}-{:02}-{:02}", self.year, self.month, self.day) }
+
+    /// The time as a time field takes it (empty without one).
+    pub fn time_field(&self) -> String { self.time.map(|(h, m)| format!("{h:02}:{m:02}")).unwrap_or_default() }
+
+    /// The text of the timestamp, its day named as org-mode does by default.
+    pub fn text(&self) -> String {
+        let (open, close) = if self.active { ('<', '>') } else { ('[', ']') };
+        let mut s = format!("{open}{} {}", self.date_field(), weekday(self.year, self.month, self.day));
+        if self.time.is_some() { s = format!("{s} {}", self.time_field()); }
+        if !self.rest.is_empty() { s = format!("{s} {}", self.rest); }
+        format!("{s}{close}")
+    }
+}
+
+fn parse_time(s: &str) -> Option<(u32, u32)> {
+    let (h, m) = s.split_once(':')?;
+    let (h, m) = (h.parse::<u32>().ok()?, m.parse::<u32>().ok()?);
+    (h < 24 && m < 60 && s.len() <= 5).then_some((h, m))
+}
+
+/// English abbreviation of the day of a date (Sakamoto's method).
+fn weekday(year: i32, month: u32, day: u32) -> &'static str {
+    const OFFSETS: [i32; 12] = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    let y = if month < 3 { year - 1 } else { year };
+    let n = (y + y / 4 - y / 100 + y / 400 + OFFSETS[month as usize - 1] + day as i32).rem_euclid(7);
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][n as usize]
+}
+
+/// The timestamp the caret at `pos` is on, and its range (`C-c .` there edits it).
+pub fn stamp_around(chars: &[char], pos: usize) -> Option<(usize, usize, Stamp)> {
+    let (ls, le) = line_bounds(chars, pos);
+    for i in ls..le {
+        let close = match chars[i] { '<' => '>', '[' => ']', _ => continue };
+        let Some(end) = (i + 1..le).find(|&j| chars[j] == close) else { continue };
+        if !(i..=end).contains(&pos) { continue; }
+        let inner: String = chars[i + 1..end].iter().collect();
+        let mut words = inner.split_whitespace();
+        let Some(date) = words.next().filter(|d| d.len() == 10 && d.as_bytes()[4] == b'-' && d.as_bytes()[7] == b'-') else { continue };
+        let mut rest: Vec<&str> = words.collect();
+        // The day name, then the time
+        if rest.first().is_some_and(|w| w.chars().all(|c| c.is_alphabetic() || c == '.')) { rest.remove(0); }
+        let time = rest.first().and_then(|w| parse_time(w)).map(|_| rest.remove(0)).unwrap_or("");
+        if let Some(stamp) = Stamp::from_fields(date, time, close == '>', &rest.join(" ")) {
+            return Some((i, end + 1, stamp));
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
+
+    #[test]
+    fn links_to_insert_or_edit() {
+        let t = c("voir [[Page]] et [[https://x.org][le site]] fin");
+        assert_eq!(link_around(&t, 7), Some(Link { start: 5, end: 13, target: "Page".into(), description: String::new() }));
+        let l = link_around(&t, 40).unwrap();
+        assert_eq!((l.start, l.end, l.target.as_str(), l.description.as_str()), (17, 43, "https://x.org", "le site"));
+        assert_eq!(link_around(&t, 13), None);
+        assert_eq!(link_around(&c("[[a] b"), 1), None);
+        assert_eq!(format_link(" Page ", ""), "[[Page]]");
+        assert_eq!(format_link("Page", "Page"), "[[Page]]");
+        assert_eq!(format_link("Page", "la page"), "[[Page][la page]]");
+    }
+
+    #[test]
+    fn timestamps_to_insert_or_edit() {
+        let s = Stamp::from_fields("2026-10-26", "", true, "").unwrap();
+        assert_eq!(s.text(), "<2026-10-26 Mon>");
+        let s = Stamp::from_fields("2024-02-29", "9:05", false, "+1w").unwrap();
+        assert_eq!(s.text(), "[2024-02-29 Thu 09:05 +1w]");
+        assert_eq!((s.date_field(), s.time_field()), ("2024-02-29".into(), "09:05".into()));
+        assert_eq!(Stamp::from_fields("2026-13-01", "", true, ""), None);
+        assert_eq!(Stamp::from_fields("2026-10-01", "25:00", true, ""), None);
+        let t = c("DEADLINE: <2026-01-05 lun. 10:00 -2d> et [2026-01-06 Tue] [x]");
+        let (a, b, s) = stamp_around(&t, 15).unwrap();
+        assert_eq!((a, b), (10, 37));
+        assert_eq!(s, Stamp { year: 2026, month: 1, day: 5, time: Some((10, 0)), active: true, rest: "-2d".into() });
+        assert_eq!(s.text(), "<2026-01-05 Mon 10:00 -2d>");
+        assert!(stamp_around(&t, 45).unwrap().2.time.is_none());
+        assert_eq!(stamp_around(&t, 60), None);
+        assert_eq!(stamp_around(&t, 3), None);
+    }
 
     #[test]
     fn lines() {
@@ -310,6 +464,9 @@ mod tests {
         let t = c("* a\n** b\ntexte");
         assert_eq!(new_heading(&t, 11), (14, "\n** ".to_string()));
         assert_eq!(new_heading(&c("rien"), 2), (4, "\n* ".to_string()));
+        // On a list item: a new item
+        assert_eq!(new_heading(&c("- a\n  suite"), 7), (11, "\n- ".to_string()));
+        assert_eq!(new_heading(&c("  9) [X] a"), 4), (10, "\n  10) [ ] ".to_string()));
     }
 
     #[test]

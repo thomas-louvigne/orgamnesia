@@ -1,6 +1,7 @@
 //! Folding headlines as Emacs' org-mode does with `TAB`: a headline cycles between
 //! FOLDED (all below it hidden), CHILDREN (only its sub-headlines shown, folded)
-//! and SUBTREE (all shown).
+//! and SUBTREE (all shown). A list item, a block or a drawer is folded or shown;
+//! `S-TAB` cycles the whole page between OVERVIEW, CONTENTS and SHOW ALL.
 //!
 //! A fold is a page range: from the `\n` ending a line to the end of the last
 //! hidden line (see `tables::View`, which hides them).
@@ -75,6 +76,104 @@ pub fn cycle(chars: &[char], ls: usize, folds: &[(usize, usize)]) -> Option<Vec<
     // CHILDREN → SUBTREE: the folds inside are dropped
     out.sort();
     Some(out)
+}
+
+/// The lines after the line ending at `le`: where each one starts and ends.
+fn lines_after(chars: &[char], le: usize) -> impl Iterator<Item = (usize, usize)> + '_ {
+    let first = (le < chars.len()).then(|| (le + 1, line_end(chars, le + 1)));
+    std::iter::successors(first, move |&(_, b)| (b < chars.len()).then(|| (b + 1, line_end(chars, b + 1))))
+}
+
+/// Where the list item, block (`#+begin_…` to `#+end_…`) or drawer (`:NAME:` to
+/// `:END:`) opened by the line `ls..le` ends: the end of its last line.
+fn element_end(chars: &[char], ls: usize, le: usize) -> Option<usize> {
+    let text = |a: usize, b: usize| -> String { chars[a..b].iter().collect::<String>().trim().to_lowercase() };
+    let line = text(ls, le);
+    if let Some(kind) = line.strip_prefix("#+begin_") {
+        let close = format!("#+end_{}", kind.split_whitespace().next().unwrap_or(""));
+        return lines_after(chars, le).find(|&(a, b)| text(a, b) == close).map(|(_, b)| b);
+    }
+    if crate::motion::is_drawer_start(chars, ls) {
+        return lines_after(chars, le).find(|&(a, b)| text(a, b) == ":end:").map(|(_, b)| b);
+    }
+    crate::motion::item_contents(chars, ls)?;
+    // The item goes on with the lines indented more than its bullet; the blank
+    // lines after it stay out, and two of them end the list
+    let indent = crate::motion::indent_of(chars, ls);
+    let mut end = le;
+    let mut blanks = 0;
+    for (a, b) in lines_after(chars, le) {
+        if chars[a..b].iter().all(|c| c.is_whitespace()) {
+            blanks += 1;
+            if blanks == 2 { break; }
+            continue;
+        }
+        if crate::motion::indent_of(chars, a) <= indent || is_headline(chars, a) { break; }
+        blanks = 0;
+        end = b;
+    }
+    Some(end)
+}
+
+/// The folds after `TAB` on the line starting at `ls` when it opens a list item
+/// with lines under it, a block or a drawer (org-mode folds them too): what is
+/// under the line is hidden, or shown again. `None` when the line opens none of
+/// them, or has nothing under it.
+pub fn cycle_element(chars: &[char], ls: usize, folds: &[(usize, usize)]) -> Option<Vec<(usize, usize)>> {
+    let le = line_end(chars, ls);
+    let end = element_end(chars, ls, le)?;
+    if end <= le { return None; }
+    let folded = folds.contains(&(le, end));
+    let mut out: Vec<(usize, usize)> = folds.iter().copied().filter(|&(a, b)| !(a >= le && b <= end)).collect();
+    if !folded { out.push((le, end)); }
+    out.sort();
+    Some(out)
+}
+
+/// What `S-TAB` shows of the page (org-mode's global cycling).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Global {
+    /// The top headlines only.
+    Overview,
+    /// All the headlines, their text hidden.
+    Contents,
+    /// Everything.
+    ShowAll,
+}
+
+/// The folds after `S-TAB`, given the current `folds`: OVERVIEW, then CONTENTS,
+/// then SHOW ALL, and OVERVIEW again (from any other folds too). `None` when the
+/// page has no headline.
+pub fn global_cycle(chars: &[char], folds: &[(usize, usize)]) -> Option<(Global, Vec<(usize, usize)>)> {
+    let mut heads = Vec::new();
+    let mut ls = 0;
+    loop {
+        if let Some(l) = level(chars, ls) { heads.push((ls, l)); }
+        let le = line_end(chars, ls);
+        if le >= chars.len() { break; }
+        ls = le + 1;
+    }
+    let top = heads.iter().map(|&(_, l)| l).min()?;
+    let overview: Vec<(usize, usize)> = heads.iter().filter(|&&(_, l)| l == top)
+        .map(|&(ls, l)| subtree(chars, ls, l))
+        .filter(|&(le, end, _)| le < end)
+        .map(|(le, end, _)| (le, end))
+        .collect();
+    // The empty line ending the page stays shown
+    let page_end = if chars.last() == Some(&'\n') { chars.len() - 1 } else { chars.len() };
+    let contents: Vec<(usize, usize)> = heads.iter().enumerate()
+        .map(|(i, &(ls, _))| (line_end(chars, ls), heads.get(i + 1).map_or(page_end, |&(next, _)| next - 1)))
+        .filter(|&(le, end)| le < end)
+        .collect();
+    let mut current = folds.to_vec();
+    current.sort();
+    Some(if current == overview && contents != overview {
+        (Global::Contents, contents)
+    } else if current == overview || (current == contents && !current.is_empty()) {
+        (Global::ShowAll, Vec::new())
+    } else {
+        (Global::Overview, overview)
+    })
 }
 
 /// Why a headline's subtree can't be promoted or demoted.
@@ -245,6 +344,44 @@ mod tests {
         // Without children, FOLDED shows everything again
         assert_eq!(cycle(&t, 4, &[(7, 13)]), Some(vec![]));
     }
+    #[test]
+    fn tab_folds_items_blocks_and_drawers() {
+        let t = c("- a\n  suite\n  - b\n\n- c\n#+BEGIN_SRC rust\nx\n#+end_src\n:PROPERTIES:\n:ID: 1\n:END:\nfin");
+        // The item `- a`: its lines and its sub-item, not the blank line after them
+        let folded = cycle_element(&t, 0, &[]).unwrap();
+        assert_eq!(folded, vec![(3, 17)]);
+        assert_eq!(cycle_element(&t, 0, &folded).unwrap(), Vec::<(usize, usize)>::new());
+        // Nothing under `- b` nor `- c`
+        assert_eq!(cycle_element(&t, 12, &[]), None);
+        assert_eq!(cycle_element(&t, 19, &[]), None);
+        // The block up to its end line, case aside; the drawer up to `:END:`
+        assert_eq!(cycle_element(&t, 23, &[]), Some(vec![(39, 51)]));
+        assert_eq!(cycle_element(&t, 52, &[]), Some(vec![(64, 77)]));
+        // Not one of them
+        assert_eq!(cycle_element(&t, 78, &[]), None);
+        // An item ends at a line no more indented than its bullet, or two blank lines
+        let t = c("  - a\n    b\n  c\n- d\n  e\n\n\n  f");
+        assert_eq!(cycle_element(&t, 0, &[]), Some(vec![(5, 11)]));
+        assert_eq!(cycle_element(&t, 16, &[]), Some(vec![(19, 23)]));
+    }
+
+    #[test]
+    fn shift_tab_cycles_overview_contents_show_all() {
+        let t = c("intro\n* A\ntexte\n** B\nb\n* C\n** D\n");
+        let overview = vec![(9, 22), (26, 31)];
+        let contents = vec![(9, 15), (20, 22)];
+        assert_eq!(global_cycle(&t, &[]), Some((Global::Overview, overview.clone())));
+        assert_eq!(global_cycle(&t, &overview), Some((Global::Contents, contents.clone())));
+        assert_eq!(global_cycle(&t, &contents), Some((Global::ShowAll, vec![])));
+        // From folds of its own, the page goes back to OVERVIEW
+        assert_eq!(global_cycle(&t, &[(9, 15)]).unwrap().0, Global::Overview);
+        // Headlines with nothing but sub-headlines: CONTENTS shows them all, then SHOW ALL
+        let t = c("* A\n** B\n");
+        assert_eq!(global_cycle(&t, &[]), Some((Global::Overview, vec![(3, 8)])));
+        assert_eq!(global_cycle(&t, &[(3, 8)]), Some((Global::Contents, vec![])));
+        assert_eq!(global_cycle(&c("texte"), &[]), None);
+    }
+
     #[test]
     fn subtree_moves_past_its_sibling() {
         let t = c("* A\ntexte\n** A1\n* B\n** B1\n* C\n");
