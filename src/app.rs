@@ -33,7 +33,7 @@ fn load_size(key: &str, default: i32) -> i32 {
 /// Draggable bar between a side column and the workspace.
 #[component]
 fn Resizer(which: Drag) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     view! {
         <div
             class="resizer"
@@ -48,7 +48,7 @@ fn Resizer(which: Drag) -> impl IntoView {
 /// In-app yes/no dialog (or message with OK) driven by `ctx.ui.confirm`.
 #[component]
 fn ConfirmDialog() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let close = move || ctx.ui.confirm.set(None);
     let accept = move || {
@@ -60,6 +60,12 @@ fn ConfirmDialog() -> impl IntoView {
     // A destructive action is not done by Enter: Cancel has the focus, Enter presses it
     let danger = ctx.ui.confirm.get_untracked().and_then(|r| r.danger);
     let info = ctx.ui.confirm.get_untracked().is_some_and(|r| r.info);
+    // A choice: the first button, in place of Cancel, and the label of the second
+    let choice = ctx.ui.confirm.get_untracked().and_then(|r| r.choice);
+    let no = move || {
+        close();
+        if let Some((_, on_no, _)) = choice { on_no.run(()); }
+    };
     let keys = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
         match e.key().as_str() {
             "Escape" => { e.stop_propagation(); close(); }
@@ -79,10 +85,12 @@ fn ConfirmDialog() -> impl IntoView {
                 <p>{move || ctx.ui.confirm.get().map(|r| r.message).unwrap_or_default()}</p>
                 <div class="alert-buttons">
                     {(!info).then(|| view! {
-                        <button class="btn-secondary" node_ref=cancel_ref on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                        <button class="btn-secondary" node_ref=cancel_ref on:click=move |_| no()>
+                            {move || t(choice.map_or("cancel", |(label, _, _)| label), lang())}
+                        </button>
                     })}
                     <button class=if danger.is_some() { "btn-danger" } else { "btn-primary" } on:click=move |_| accept()>
-                        {move || t(if info { "ok" } else { danger.unwrap_or("confirm") }, lang())}
+                        {move || t(if info { "ok" } else { choice.map(|(_, _, yes)| yes).or(danger).unwrap_or("confirm") }, lang())}
                     </button>
                 </div>
             </div>
@@ -94,7 +102,7 @@ fn ConfirmDialog() -> impl IntoView {
 /// edited, or take the one on disk. Escape keeps the text being edited.
 #[component]
 fn DiskConflictDialog() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let settle = move |take_disk: bool| spawn_local(actions::settle_disk_conflict(ctx, take_disk));
     let keys = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
@@ -150,6 +158,7 @@ async fn load_startup(ctx: AppCtx, owner: Owner) {
         ctx.keybindings.set(kb);
     }
     track_session(ctx, &owner);
+    owner.with(|| crate::preferences::watch(ctx));
 }
 
 /// Open again the tabs and panes of `session`; pages deleted since are left out.
@@ -179,6 +188,9 @@ async fn restore_session(ctx: AppCtx, owner: &Owner, session: Session) {
 /// Started after the restore, so the saved session isn't replaced by an empty one.
 fn track_session(ctx: AppCtx, owner: &Owner) {
     owner.with(|| Effect::new(move |_| {
+        // The "preference" project's files are no pages of the project: the session
+        // stays the one of the project put aside
+        if ctx.project.preference.get() { return; }
         let work = ctx.work;
         let session = ctx.project.vault_path.get().map(|project| Session {
             project,
@@ -296,6 +308,13 @@ fn watch_tags(ctx: AppCtx) {
 
 /// Run an application action (shortcut).
 pub fn run_app_action(ctx: AppCtx, action: AppAction) {
+    // What acts on the pages of a project has nothing to act on in the "preference" one
+    let project_only = matches!(action, AppAction::NewPage | AppAction::ProjectSearch | AppAction::ProjectReplace
+        | AppAction::AddTag | AppAction::GitCommit | AppAction::GitPull | AppAction::GitPush);
+    if project_only && ctx.project.preference.get_untracked() {
+        ctx.notify_t("pref_unavailable", "");
+        return;
+    }
     let tab_count = ctx.work.tabs.with_untracked(|t| t.len());
     let active = ctx.work.active_tab.get_untracked();
     match action {
@@ -339,7 +358,7 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
                     ctx.error("quit_error", &err);
                 }
             });
-            if ctx.work.has_unsaved_tabs() {
+            if ctx.work.has_unsaved_tabs() || crate::preferences::aside_unsaved(ctx) {
                 ctx.ask_confirm(t("quit_unsaved_confirm", ctx.lang.get_untracked()).to_string(), quit);
             } else {
                 quit();

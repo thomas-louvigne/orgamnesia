@@ -55,7 +55,7 @@ fn now_secs() -> u64 {
 /// with a marker telling whether the site is built, being built, or old.
 #[component]
 pub fn OrgBloomFrame() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let busy = move || ctx.project.bloom_busy.get();
     // When the site was built, read again for every project opened
     Effect::new(move |_| {

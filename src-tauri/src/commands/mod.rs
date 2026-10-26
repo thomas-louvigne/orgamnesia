@@ -26,9 +26,10 @@ fn config_dir(app: &AppHandle) -> Cmd<std::path::PathBuf> {
     app.path().app_config_dir().map_err(|e| AppError::Settings(e.to_string()))
 }
 
-/// Write `settings` to `settings.json` and keep them as the ones in effect.
-fn store_settings(state: &AppState, app: &AppHandle, settings: Settings) -> Cmd<()> {
-    settings::save(&config_dir(app)?, &settings)?;
+/// Write what the app keeps for itself of `settings` (the open project, the
+/// projects) to `state.json`, and keep `settings` as the ones in effect.
+fn store_state(state: &AppState, app: &AppHandle, settings: Settings) -> Cmd<()> {
+    settings::save_state(&config_dir(app)?, &settings)?;
     *crate::lock(&state.settings) = settings;
     Ok(())
 }

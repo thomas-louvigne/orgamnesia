@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
+use orgamnesia_core::config::{File as ConfigFile, InEffect, Problem};
+
 use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit, VaultChanges, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
 
 #[wasm_bindgen]
@@ -19,6 +21,34 @@ extern "C" {
 pub const VAULT_CHANGED: &str = "vault-changed";
 /// Event sent by the backend when the git state of the project may have changed.
 pub const GIT_CHANGED: &str = "git-changed";
+
+/// Event sent by the backend when a configuration file changed outside the app is
+/// valid, and now in effect (`src-tauri/src/config_files.rs`).
+pub const CONFIG_CHANGED: &str = "config-changed";
+/// Event sent by the backend when a configuration file changed outside the app is
+/// not valid: the one before stays in effect.
+pub const CONFIG_INVALID: &str = "config-invalid";
+
+/// A configuration file changed outside the app, now in effect.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ConfigChanged {
+    pub file: ConfigFile,
+    pub effect: InEffect,
+}
+
+/// A configuration file found wrong, and what is wrong with it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ConfigInvalid {
+    pub file: ConfigFile,
+    pub problem: Problem,
+}
+
+/// A configuration put back in effect: its text, and what it holds.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Restored {
+    pub content: String,
+    pub effect: InEffect,
+}
 
 /// Event sent by the window when files are dropped on it.
 pub const DRAG_DROP: &str = "tauri://drag-drop";
@@ -85,6 +115,7 @@ fn error_text(err: &BackendError, lang: Lang) -> String {
         "cannot_run" => "err_cannot_run",
         "folder_not_found" => "err_folder_not_found",
         "settings" => "err_settings",
+        "config_invalid" => "err_config_invalid",
         "dialog" => "err_dialog",
         "no_remote" => "err_no_remote",
         "not_an_image" => "err_not_an_image",
@@ -254,8 +285,39 @@ pub async fn get_keybindings() -> Result<Keybindings, String> {
     call("get_keybindings", serde_json::json!({})).await
 }
 
-pub async fn set_keybindings(kb: &Keybindings) -> Result<(), String> {
+/// Write the keybinding profiles; the keybindings as they now are (the profiles
+/// named after their files).
+pub async fn set_keybindings(kb: &Keybindings) -> Result<Keybindings, String> {
     call("set_keybindings", serde_json::json!({ "keybindings": kb })).await
+}
+
+/// The configuration files, as the pages of the "preference" project.
+pub async fn config_files() -> Result<Vec<FileEntry>, String> {
+    call("config_files", serde_json::json!({})).await
+}
+
+pub async fn read_config(file: &ConfigFile) -> Result<String, String> {
+    call("read_config", serde_json::json!({ "file": file })).await
+}
+
+/// Write `content` as `file` and put it in effect; what it holds.
+pub async fn apply_config(file: &ConfigFile, content: &str) -> Result<InEffect, String> {
+    call("apply_config", serde_json::json!({ "file": file, "content": content })).await
+}
+
+/// The versions kept of `file`, newest first: when each was replaced (ms since 1970).
+pub async fn config_versions(file: &ConfigFile) -> Result<Vec<u64>, String> {
+    call("config_versions", serde_json::json!({ "file": file })).await
+}
+
+/// Put back in effect the version of `file` replaced at `version`, or the last valid one.
+pub async fn restore_config(file: &ConfigFile, version: Option<u64>) -> Result<Restored, String> {
+    call("restore_config", serde_json::json!({ "file": file, "version": version })).await
+}
+
+/// The configuration files found wrong as the app started.
+pub async fn config_problems() -> Result<Vec<ConfigInvalid>, String> {
+    call("config_problems", serde_json::json!({})).await
 }
 
 pub async fn quit_app() -> Result<(), String> {

@@ -32,7 +32,7 @@ fn unlisted(p: &Prefs, frame: Frame) -> bool {
 /// top to bottom, a box to show each one and arrows to move it.
 #[component]
 pub fn LayoutEditor(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let listed = move |right: bool| draft.with(|p| {
         p.layout.column(right).iter().copied().filter(|f| !unlisted(p, *f)).collect::<Vec<_>>()
@@ -73,7 +73,7 @@ pub fn LayoutEditor(draft: RwSignal<Prefs>) -> impl IntoView {
 /// One frame in the layout editor: its box and its arrows.
 #[component]
 fn LayoutFrame(draft: RwSignal<Prefs>, frame: Frame) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let label = frame_label(frame);
     // Shown only with the feature it belongs to

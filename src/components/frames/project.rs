@@ -8,24 +8,34 @@ use crate::{
     actions::{self, project_name},
     i18n::t,
     invoke,
+    preferences::{self, File},
     state::AppCtx,
 };
 
-/// Name of the open project, with the menu of the known projects.
+/// Name of the open project, with the menu of the known projects and, always
+/// there, the "preference" project.
 #[component]
 pub fn ProjectSwitcher() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     view! {
         <div class="frame project-switcher">
             <button
                 class="project-current"
-                title=move || ctx.project.vault_path.get().unwrap_or_default()
+                title=move || if ctx.project.preference.get() {
+                    t("pref_project_title", ctx.lang.get()).to_string()
+                } else {
+                    ctx.project.vault_path.get().unwrap_or_default()
+                }
                 on:click=move |_| ctx.ui.show_projects.update(|v| *v = !*v)
             >
                 <span class="project-name">
-                    {move || ctx.project.vault_path.get()
-                        .map(|p| project_name(&p))
-                        .unwrap_or_else(|| t("no_project", ctx.lang.get()).to_string())}
+                    {move || if ctx.project.preference.get() {
+                        preferences::NAME.to_string()
+                    } else {
+                        ctx.project.vault_path.get()
+                            .map(|p| project_name(&p))
+                            .unwrap_or_else(|| t("no_project", ctx.lang.get()).to_string())
+                    }}
                 </span>
                 <span class="project-caret">"▾"</span>
             </button>
@@ -67,7 +77,7 @@ pub fn ProjectSwitcher() -> impl IntoView {
                             let label = project_name(&path);
                             view! {
                                 <div
-                                    class=move || if ctx.project.vault_path.get().as_deref() == Some(p_cmp.as_str()) {
+                                    class=move || if !ctx.project.preference.get() && ctx.project.vault_path.get().as_deref() == Some(p_cmp.as_str()) {
                                         "project-item list-item active"
                                     } else { "project-item list-item" }
                                     title=path.clone()
@@ -98,6 +108,22 @@ pub fn ProjectSwitcher() -> impl IntoView {
                             }
                         }
                     </For>
+                    // The configuration files, always there: never removed
+                    <div
+                        class=move || if ctx.project.preference.get() {
+                            "project-item list-item project-preference active"
+                        } else { "project-item list-item project-preference" }
+                        title=move || t("pref_project_title", ctx.lang.get())
+                        role="button"
+                        tabindex="0"
+                        on:keydown=crate::a11y::list_item_keys
+                        on:click=move |_| {
+                            ctx.ui.show_projects.set(false);
+                            preferences::open(ctx, File::Settings, None);
+                        }
+                    >
+                        <span class="project-item-name">{preferences::NAME}</span>
+                    </div>
                     <button class="project-open-btn" on:click=move |_| {
                         ctx.ui.show_projects.set(false);
                         spawn_local(actions::pick_and_open_project(ctx));

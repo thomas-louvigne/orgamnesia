@@ -13,6 +13,7 @@ use crate::{
     actions,
     i18n::{t, Lang},
     invoke,
+    preferences::{self, File},
     state::{AppCtx, Prefs},
     storage,
 };
@@ -67,7 +68,7 @@ fn store_size(w: i32, h: i32) {
 
 #[component]
 pub fn SettingsModal() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
 
     let panel = RwSignal::new(Tab::General);
@@ -166,7 +167,8 @@ pub fn SettingsModal() -> impl IntoView {
                 Ok(_) => {
                     ctx.prefs.set(prefs.clone());
                     ctx.bump_links();
-                    if let Some(path) = settings.vault_path {
+                    // Another project chosen (the same one would leave the "preference" project)
+                    if let Some(path) = settings.vault_path.filter(|p| ctx.project.vault_path.get_untracked().as_ref() != Some(p)) {
                         actions::open_project(ctx, path).await;
                     }
                     baseline.set(Some(applied));
@@ -175,15 +177,42 @@ pub fn SettingsModal() -> impl IntoView {
                 }
                 Err(e) => ctx.error("error", &e),
             }
+            // The profiles come back named after their files
             match invoke::set_keybindings(&keybindings).await {
-                Ok(_) => ctx.keybindings.set(keybindings),
+                Ok(mut kb) => {
+                    kb.upgrade();
+                    ctx.keybindings.set(kb);
+                }
                 Err(e) => ctx.error("keybindings_error", &e),
             }
+            // The files open in the "preference" project show what was written
+            preferences::refresh(ctx);
         });
     };
 
     let save  = move |_| do_save(true);
     let apply = move |_| do_save(false);
+
+    // The settings as text, in the "preference" project: from the shortcuts' tab,
+    // the file of the profile in effect when it is one of the user's (a built-in
+    // one is in the app). What is not applied here is lost (asked first).
+    let edit_as_text = move |_| {
+        let active = ctx.keybindings.with_untracked(|kb| kb.resolved_active());
+        let file = if panel.get_untracked() == Tab::Shortcuts && !crate::keybindings::is_builtin(&active) {
+            File::Profile(active)
+        } else {
+            File::Settings
+        };
+        let open = move || {
+            ctx.ui.show_settings.set(false);
+            preferences::open(ctx, file.clone(), None);
+        };
+        if has_changes() {
+            ctx.ask_confirm(t("pref_text_discard", ctx.lang.get_untracked()).to_string(), open);
+        } else {
+            open();
+        }
+    };
 
     view! {
         <div
@@ -247,6 +276,12 @@ pub fn SettingsModal() -> impl IntoView {
                 </div>
 
                 <div class="modal-footer">
+                    <button
+                        class="btn-link modal-footer-start"
+                        title=move || t("pref_edit_text_title", lang())
+                        on:click=edit_as_text
+                        on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
+                    >{move || t("pref_edit_text", lang())}</button>
                     <button
                         class="btn-secondary"
                         on:click=move |_| ctx.ui.show_settings.set(false)

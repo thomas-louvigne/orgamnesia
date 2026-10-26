@@ -17,7 +17,7 @@ const RECENT_PROJECTS: usize = 4;
 
 #[component]
 pub fn EmptyState() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     // First shortcut of an application or editor action, as shown to the user
     let app_key = move |id: &str| ctx.keybindings.with(|kb| kb.app_binds(id).first().map(|b| display(b)));

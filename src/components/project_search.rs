@@ -147,7 +147,7 @@ async fn after_change(ctx: AppCtx) {
 /// The pop-in, shown in the focused pane while `Ui::search.open` is set.
 #[component]
 pub fn ProjectSearchPopin() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let s = ctx.ui.search;
     let with_replace = move || s.open.get() == Some(true);

@@ -5,14 +5,19 @@ use tauri::{AppHandle, Manager, State};
 use super::{config_dir, Cmd};
 use crate::{error::AppError, settings, AppState};
 
+/// The answer of a dialog `show` opens, handing it the sender of its answer.
+async fn dialog<T>(show: impl FnOnce(tokio::sync::oneshot::Sender<T>)) -> Cmd<T> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<T>();
+    show(tx);
+    rx.await.map_err(|_| AppError::Dialog)
+}
+
 #[tauri::command]
 pub async fn pick_folder(app: AppHandle) -> Cmd<Option<String>> {
     use tauri_plugin_dialog::DialogExt;
-    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
-    app.dialog().file().pick_folder(move |folder| {
+    dialog(|tx| app.dialog().file().pick_folder(move |folder| {
         let _ = tx.send(folder.map(|f| f.to_string()));
-    });
-    rx.await.map_err(|_| AppError::Dialog)
+    })).await
 }
 
 /// Save dialog naming the folder of a new project, titled `title`: the folder is
@@ -20,11 +25,10 @@ pub async fn pick_folder(app: AppHandle) -> Cmd<Option<String>> {
 #[tauri::command]
 pub async fn pick_new_folder(app: AppHandle, title: String) -> Cmd<Option<String>> {
     use tauri_plugin_dialog::DialogExt;
-    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
-    app.dialog().file().set_title(title).save_file(move |folder| {
+    let picked = dialog(|tx| app.dialog().file().set_title(title).save_file(move |folder| {
         let _ = tx.send(folder.map(|f| f.to_string()));
-    });
-    let Some(path) = rx.await.map_err(|_| AppError::Dialog)? else { return Ok(None) };
+    })).await?;
+    let Some(path) = picked else { return Ok(None) };
     if std::path::Path::new(&path).exists() && !std::path::Path::new(&path).is_dir() {
         return Err(AppError::NotAFolder(path));
     }
@@ -36,28 +40,22 @@ pub async fn pick_new_folder(app: AppHandle, title: String) -> Cmd<Option<String
 #[tauri::command]
 pub async fn pick_file(app: AppHandle, start: Option<String>) -> Cmd<Option<String>> {
     use tauri_plugin_dialog::DialogExt;
-    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
-    let mut dialog = app.dialog().file();
-    let home = std::env::var("HOME").unwrap_or_default();
-    let start = start.map(|d| match d.strip_prefix("~/") { Some(rest) => format!("{home}/{rest}"), None => d });
-    if let Some(dir) = start.filter(|d| std::path::Path::new(d).is_dir()) {
-        dialog = dialog.set_directory(dir);
+    let mut picker = app.dialog().file();
+    if let Some(dir) = start.map(|d| crate::expand_home(&d)).filter(|d| std::path::Path::new(d).is_dir()) {
+        picker = picker.set_directory(dir);
     }
-    dialog.pick_file(move |file| {
+    dialog(|tx| picker.pick_file(move |file| {
         let _ = tx.send(file.map(|f| f.to_string()));
-    });
-    rx.await.map_err(|_| AppError::Dialog)
+    })).await
 }
 
 /// File picker for an image to add to a page.
 #[tauri::command]
 pub async fn pick_image(app: AppHandle) -> Cmd<Option<String>> {
     use tauri_plugin_dialog::DialogExt;
-    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
-    app.dialog().file()
+    dialog(|tx| app.dialog().file()
         .add_filter("Images", orgamnesia_core::assets::EXTENSIONS)
-        .pick_file(move |file| { let _ = tx.send(file.map(|f| f.to_string())); });
-    rx.await.map_err(|_| AppError::Dialog)
+        .pick_file(move |file| { let _ = tx.send(file.map(|f| f.to_string())); })).await
 }
 
 /// Copy the image `source` into the project's assets; returns the link to it from `page`.
@@ -70,11 +68,7 @@ pub async fn import_image(state: State<'_, AppState>, page: String, source: Stri
 /// folder), to mark the links to them.
 #[tauri::command]
 pub async fn missing_files(paths: Vec<String>) -> Cmd<Vec<String>> {
-    let home = std::env::var("HOME").unwrap_or_default();
-    Ok(paths.into_iter().filter(|p| {
-        let path = match p.strip_prefix("~/") { Some(rest) => format!("{home}/{rest}"), None => p.clone() };
-        !std::path::Path::new(&path).exists()
-    }).collect())
+    Ok(paths.into_iter().filter(|p| !std::path::Path::new(&crate::expand_home(p)).exists()).collect())
 }
 
 /// The bytes of the image at `path` (`~/`: the home folder), for the page to show it:
@@ -85,9 +79,7 @@ pub async fn read_image(path: String) -> Cmd<tauri::ipc::Response> {
     if !orgamnesia_core::assets::EXTENSIONS.iter().any(|e| path.to_ascii_lowercase().ends_with(&format!(".{e}"))) {
         return Err(AppError::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not an image")));
     }
-    let home = std::env::var("HOME").unwrap_or_default();
-    let path = match path.strip_prefix("~/") { Some(rest) => format!("{home}/{rest}"), None => path };
-    Ok(tauri::ipc::Response::new(std::fs::read(path).map_err(AppError::Io)?))
+    Ok(tauri::ipc::Response::new(std::fs::read(crate::expand_home(&path)).map_err(AppError::Io)?))
 }
 
 /// Open the web page `url` (`https://` only) in the browser.
@@ -118,6 +110,6 @@ pub fn on_exit(app: &AppHandle) {
         s.session = None;
     }
     if let Ok(dir) = config_dir(app) {
-        let _ = settings::save(&dir, &s);
+        let _ = settings::save_state(&dir, &s);
     }
 }

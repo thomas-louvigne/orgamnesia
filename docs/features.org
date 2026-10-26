@@ -22,6 +22,7 @@ keybindings.
 - [[*Keyboard shortcuts][Keyboard shortcuts]]
 - [[*Extensions][Extensions]]
 - [[*Settings][Settings]]
+- [[*Settings as text][Settings as text]]
 - [[*Files][Files]]
 
 * Projects and pages
@@ -432,6 +433,11 @@ Changing a shortcut creates a custom profile (which can be renamed, duplicated,
 deleted). Each action takes two shortcuts. A conflict (the same keys for two
 actions) is shown and prevents saving.
 
+The built-in profiles are in the application and can't be changed: changing one
+of their shortcuts copies them into a custom profile, which takes effect. Each
+custom profile is a file of its own, named after it (=keybindings/Personnalisé.json=
+by default), which can be edited as text (see [[*Settings as text]]).
+
 Built-in profiles get the new shortcuts of later versions automatically; a custom
 profile gets those of the actions it didn't know.
 
@@ -592,9 +598,41 @@ Profile, shortcuts of the application, the panes, the editor, the selection mark
 (with its setting) and the TODO states (with their setting). A field on top
 filters the actions by name or shortcut.
 
+* Settings as text
+"Edit the settings as text", at the bottom of the settings window, opens the
+*preference* project: the configuration files in the editor, in place of the open
+project. This project is always in the projects menu; "← <project>", above the
+file, goes back to the project left, its tabs and panes as they were.
+
+- *Its pages*: =settings.json= (the settings, and =keybinding_profile=, the
+  shortcuts profile in effect: =classic=, =emacs= or the name of a custom one),
+  then a =keybindings/<name>.json= file per custom profile (its base preset, the
+  shortcuts of the application and of the editor). From the Shortcuts tab, the
+  link opens the file of the profile in effect.
+- *JSON highlighting*: keys, strings, numbers, =true= / =false= / =null=. Tab and
+  Shift+Tab indent and unindent by two spaces (the selected lines when there is a
+  selection).
+- *Checked as you type*: the bar above the file says "Valid file", or what is wrong
+  and where ("Line 3, column 5: …"), underlined in the text; a click on the message
+  puts the cursor there. Refused: invalid JSON, a value of the wrong type, an
+  unknown key (a typo), a profile that doesn't exist, a shortcut given to two
+  actions, a file named after a built-in profile. An unknown action is only a
+  warning.
+- *Apply* (or the Save shortcut) writes the file and puts it in effect, only when
+  it is valid. These files are never saved automatically.
+- *Going back*: "Back to the last valid version" drops the changes not applied;
+  "History" lists the last 10 valid versions of the file, each can be put back.
+- *Changed outside the app* (with Emacs…): a valid file is put in effect at once;
+  an invalid one is not, the previous configuration stays, and a dialog offers to
+  correct it or to go back to the last valid version. The same dialog shows on
+  start for a file found invalid.
+
 * Files
 - Pages stay plain =.org= files, readable and editable with Emacs or any other
   editor.
-- Settings: =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=,
-  and =dictionary.txt= for the words added to the dictionary).
+- Settings: =~/.config/com.orgamnesia.app/=: =settings.json= (the settings),
+  =keybindings/= (the custom shortcut profiles), =state.json= (what the app keeps
+  for itself: the open project, the projects, the pages open on quit),
+  =history/= (the previous valid versions of the configuration files) and
+  =dictionary.txt= (the words added to the dictionary).
 - Trash: =<project>/.trash/=.

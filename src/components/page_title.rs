@@ -45,13 +45,14 @@ enum EditMode {
 
 /// Name of the page in large type above the editor: its `#+TITLE:` when it
 /// has one, else its name. Double-click to rename the file, right-click to
-/// rename it or set the title.
+/// rename it or set the title (not a configuration file's: its name is fixed).
 #[component]
 pub fn PageTitle(tab: Tab) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let content = tab.content;
     let title = Memo::new(move |_| content.with(|c| org_title(c)));
+    let fixed = crate::preferences::config_file(&tab.path).is_some();
 
     let menu = RwSignal::new(None::<(i32, i32)>);
     let editing = RwSignal::new(None::<EditMode>);
@@ -100,7 +101,7 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
             class="page-title"
             on:contextmenu=move |e: web_sys::MouseEvent| {
                 e.prevent_default();
-                menu.set(Some((e.client_x(), e.client_y())));
+                if !fixed { menu.set(Some((e.client_x(), e.client_y()))); }
             }
         >
             {move || if editing.get().is_some() {
@@ -128,7 +129,7 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
                 // Double click: rename the file (the links to it follow)
                 let start_dbl = start_dbl.clone();
                 view! {
-                    <h1 class="page-title-text" on:dblclick=move |_| start_dbl(EditMode::Rename)>
+                    <h1 class="page-title-text" on:dblclick=move |_| if !fixed { start_dbl(EditMode::Rename) }>
                         {shown.clone()}
                     </h1>
                 }.into_any()

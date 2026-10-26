@@ -535,7 +535,7 @@ kbd {
 .editor-wrap.line-numbers .hl-layer,
 .editor-wrap.line-numbers .edit-layer { padding-left: calc(4px + var(--ln-w) + 1.5ch); }
 /* Thin grey line between the numbers and the text, the whole height of the editor */
-.editor-wrap.line-numbers .hl-layer:not(.region-layer, .match-layer, .spell-layer) {
+.editor-wrap.line-numbers .hl-layer:not(.region-layer, .match-layer, .spell-layer, .problem-layer) {
     background-image: linear-gradient(var(--border), var(--border));
     background-size: 1px 100%;
     background-position: calc(4px + var(--ln-w) + 0.6ch) 0;
@@ -1267,7 +1267,7 @@ kbd {
 }
 .alert-box h3 { color: var(--red); font-size: var(--fs-heading); }
 .alert-box h3.disk-conflict-title { color: var(--orange); }
-.alert-box p { font-size: var(--fs-ui); color: var(--fg); }
+.alert-box p { font-size: var(--fs-ui); color: var(--fg); white-space: pre-line; }
 .alert-list { font-family: inherit; font-size: var(--fs-ui); color: var(--red); white-space: pre-wrap; }
 .alert-box.confirm { border-color: var(--border); z-index: 500; }
 .alert-overlay:has(.confirm) { z-index: 500; }
@@ -1497,3 +1497,60 @@ kbd {
 .page-completion-item:hover { background: var(--bg3); }
 .page-completion-item.selected { background: var(--bg3); color: var(--accent2); }
 .page-completion-sigil { color: var(--fg-dim); margin-right: 2px; }
+
+/* ── The preference project (configuration files as text) ──── */
+/* The frames about the pages of a project have nothing to show there */
+.side-column.preference > :not(.app-brand, .project-switcher, .pages-frame, .sidebar-footer, .quit-frame) { display: none; }
+/* Always at the end of the projects, set apart */
+.project-preference { border-top: 1px solid var(--border); color: var(--fg-dim); }
+
+/* Above the file: back to the project, whether the text is valid, the actions */
+.config-bar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0;
+    padding: 8px 24px; border-bottom: 1px solid var(--border); background: var(--bg2);
+    font-size: var(--fs-ui);
+}
+.config-bar .btn-secondary, .config-bar .btn-primary { padding: 5px 12px; white-space: nowrap; }
+.config-back { flex-shrink: 0; }
+.config-status {
+    flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px;
+    background: none; border: 1px solid transparent; border-radius: 4px; padding: 5px 8px;
+    font: inherit; text-align: left; color: var(--fg); cursor: default;
+}
+.config-status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.config-status-icon { font-weight: bold; flex-shrink: 0; }
+.config-status.ok .config-status-icon { color: var(--green); }
+.config-status.warning { color: var(--yellow); cursor: pointer; }
+.config-status.error { color: var(--red); cursor: pointer; border-color: color-mix(in srgb, var(--red) 45%, transparent);
+    background: color-mix(in srgb, var(--red) 10%, transparent); }
+.config-status:is(.warning, .error):hover .config-status-text { text-decoration: underline; text-underline-offset: 2px; }
+.config-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.config-history { position: relative; }
+.config-history-menu { position: absolute; top: calc(100% + 4px); right: 0; min-width: 220px; max-height: 320px; overflow-y: auto; }
+.config-history-empty { padding: 6px 12px; color: var(--fg-dim); }
+
+/* The JSON of the configuration files */
+.json-key   { color: var(--accent2); }
+.json-str   { color: var(--green); }
+.json-num   { color: var(--orange); }
+.json-lit   { color: var(--cyan); }
+.json-punct { color: var(--fg-dim); }
+.json-bad   { color: var(--red); }
+
+/* What is wrong in the file (red), or odd (yellow), where it is */
+.problem-layer { background: transparent; color: transparent; z-index: 0; }
+.problem-layer mark {
+    color: transparent; border-radius: 2px;
+    text-decoration: underline wavy; text-decoration-thickness: 1px;
+    text-underline-offset: 3px; text-decoration-skip-ink: none;
+}
+.problem-layer mark.cfg-error { background: color-mix(in srgb, var(--red) 22%, transparent); text-decoration-color: var(--red); }
+.problem-layer mark.cfg-warning { background: color-mix(in srgb, var(--yellow) 16%, transparent); text-decoration-color: var(--yellow); }
+
+/* In the settings window, the way to the files as text, apart from the buttons */
+.btn-link {
+    background: none; border: none; padding: 7px 0; cursor: pointer;
+    color: var(--accent2); font-size: var(--fs-ui); text-decoration: underline; text-underline-offset: 3px;
+}
+.btn-link:hover { color: var(--fg); }
+.modal-footer-start { margin-right: auto; }

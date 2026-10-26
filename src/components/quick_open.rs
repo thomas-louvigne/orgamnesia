@@ -35,7 +35,7 @@ fn do_open(ctx: AppCtx, item: QuickItem) {
 
 #[component]
 pub fn QuickOpenModal() -> impl IntoView {
-    let ctx      = use_context::<AppCtx>().expect("AppCtx");
+    let ctx      = expect_context::<AppCtx>();
     let query    = RwSignal::new(String::new());
     let selected = RwSignal::new(0usize);
     let input_ref = NodeRef::<html::Input>::new();

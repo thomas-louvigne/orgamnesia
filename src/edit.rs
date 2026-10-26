@@ -120,9 +120,53 @@ pub fn kill_line_range(chars: &[char], pos: usize) -> (usize, usize) {
     if pos == line_end && pos < chars.len() { (pos, pos + 1) } else { (pos, line_end) }
 }
 
-/// What "delete forward" removes: the selection, else the next character.
+/// Indentation step of the configuration files (JSON, as the app writes them).
+const JSON_INDENT: usize = 2;
+
+/// Tab (`back`: Shift+Tab) in a JSON file, the selection `start..end`: the
+/// char range `from..to` becomes `text`, and the new selection.
+/// Without a selection, Tab goes to the next indentation step, Shift+Tab takes
+/// one step off the line; a selection has its lines indented, or one step taken off.
+pub fn json_indent(chars: &[char], start: usize, end: usize, back: bool) -> (usize, usize, String, (usize, usize)) {
+    let (line, _) = line_bounds(chars, start);
+    if start == end && !back {
+        let n = JSON_INDENT - (start - line) % JSON_INDENT;
+        return (start, start, " ".repeat(n), (start + n, start + n));
+    }
+    // The lines of the selection; one it only reaches the start of is left out
+    let last = if end > start && chars[end - 1] == '\n' { end - 1 } else { end };
+    let (_, to) = line_bounds(chars, last.max(start));
+    let mut text = String::new();
+    // Chars taken off (or added) before `start`, and before `end`
+    let (mut before_start, mut before_end) = (0isize, 0isize);
+    let mut at = line;
+    for (i, l) in chars[line..to].split(|&c| c == '\n').enumerate() {
+        if i > 0 { text.push('\n'); }
+        let change = if back {
+            -(l.iter().take(JSON_INDENT).take_while(|&&c| c == ' ').count() as isize)
+        } else {
+            JSON_INDENT as isize
+        };
+        let kept = if change < 0 { &l[(-change) as usize..] } else { l };
+        if change > 0 { text.push_str(&" ".repeat(change as usize)); }
+        text.extend(kept);
+        // A change at a line start counts for a position from that line start on
+        let shift = |pos: usize| if pos >= at { change.max(-((pos - at) as isize)) } else { 0 };
+        before_start += shift(start);
+        before_end += shift(end);
+        at += l.len() + 1;
+    }
+    let moved = |pos: usize, by: isize| (pos as isize + by).max(line as isize) as usize;
+    (line, to, text, (moved(start, before_start), moved(end, before_end)))
+}
+
+/// What "delete forward" removes: the selection, else the next character. At the
+/// end of the text, on the empty line after a last newline: that newline (the
+/// caret goes up to the end of the line above).
 pub fn delete_forward_range(chars: &[char], start: usize, end: usize) -> (usize, usize) {
-    if start != end { (start, end) } else { (start, (start + 1).min(chars.len())) }
+    if start != end { return (start, end); }
+    if start >= chars.len() && chars.last() == Some(&'\n') { return (chars.len() - 1, chars.len()); }
+    (start, (start + 1).min(chars.len()))
 }
 
 /// The pair a typed character belongs to: `(` and `)` → `("(", ")")`…
@@ -452,11 +496,29 @@ mod tests {
     }
 
     #[test]
+    fn json_tab_indents() {
+        // The next step of two spaces
+        assert_eq!(json_indent(&c("{\n\"a\""), 2, 2, false), (2, 2, "  ".into(), (4, 4)));
+        assert_eq!(json_indent(&c("{\n \"a\""), 3, 3, false), (3, 3, " ".into(), (4, 4)));
+        // Shift+Tab: one step off the line, the caret with its text
+        assert_eq!(json_indent(&c("{\n    \"a\""), 7, 7, true), (2, 9, "  \"a\"".into(), (5, 5)));
+        assert_eq!(json_indent(&c("x\n \"a\""), 3, 3, true), (2, 6, "\"a\"".into(), (2, 2)));
+        // A selection: its lines, not the one it only reaches the start of
+        let t = c("{\n\"a\",\n\"b\"\n}");
+        assert_eq!(json_indent(&t, 2, 11, false), (2, 10, "  \"a\",\n  \"b\"".into(), (4, 15)));
+        let t = c("  a\n  b\nc");
+        assert_eq!(json_indent(&t, 0, 8, true), (0, 7, "a\nb".into(), (0, 4)));
+    }
+
+    #[test]
     fn delete_forward() {
         let t = c("abc");
         assert_eq!(delete_forward_range(&t, 0, 2), (0, 2));
         assert_eq!(delete_forward_range(&t, 1, 1), (1, 2));
         assert_eq!(delete_forward_range(&t, 3, 3), (3, 3));
+        // At the end, after a last newline: that newline
+        assert_eq!(delete_forward_range(&c("ab\n"), 3, 3), (2, 3));
+        assert_eq!(delete_forward_range(&c("ab\n"), 2, 2), (2, 3));
     }
 
     #[test]

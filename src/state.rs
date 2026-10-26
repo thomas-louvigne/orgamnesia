@@ -63,6 +63,9 @@ pub struct ConfirmReq {
     pub danger: Option<&'static str>,
     /// Only a message to read: a single OK button, nothing to confirm.
     pub info: bool,
+    /// A choice between two actions: the label keys of the buttons, and what
+    /// the first one does (it replaces Cancel; the second one runs `on_yes`).
+    pub choice: Option<(&'static str, Callback<()>, &'static str)>,
 }
 
 /// A git command of the git extension.
@@ -105,6 +108,10 @@ pub struct ProjectState {
     pub bloom_built: RwSignal<Option<u64>>,
     /// Bumped after every write to disk, so link-derived views can refresh.
     pub links_version: RwSignal<u32>,
+    /// The "preference" project is shown in place of the open project (see `preferences`).
+    pub preference: RwSignal<bool>,
+    /// The open project, put aside meanwhile.
+    pub aside: StoredValue<Option<crate::preferences::Aside>>,
 }
 
 /// The open pages and how the editor shows them.
@@ -194,6 +201,8 @@ impl AppCtx {
                 bloom_busy: RwSignal::new(false),
                 bloom_built: RwSignal::new(None),
                 links_version: RwSignal::new(0),
+                preference: RwSignal::new(false),
+                aside: StoredValue::new(None),
             },
             work: Workspace {
                 tabs: RwSignal::new(vec![]),
@@ -303,17 +312,30 @@ impl AppCtx {
 
     /// Ask the user to confirm; `on_yes` runs only if they accept.
     pub fn ask_confirm(&self, message: String, on_yes: impl Fn() + Send + Sync + 'static) {
-        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: None, info: false }));
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: None, info: false, choice: None }));
     }
 
     /// Show a message in a dialog the user closes with OK.
     pub fn alert(&self, message: String) {
-        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(|_| ()), danger: None, info: true }));
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(|_| ()), danger: None, info: true, choice: None }));
     }
 
     /// Ask the user to confirm a destructive action, done by the button `button` (label key).
     pub fn ask_confirm_danger(&self, message: String, button: &'static str, on_yes: impl Fn() + Send + Sync + 'static) {
-        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: Some(button), info: false }));
+        self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: Some(button), info: false, choice: None }));
+    }
+
+    /// Ask the user to choose between two actions: the buttons `no` (`on_no`) and
+    /// `yes` (`on_yes`), by their label keys. Closing the dialog does neither.
+    pub fn ask_choice(
+        &self, message: String,
+        no: &'static str, on_no: impl Fn() + Send + Sync + 'static,
+        yes: &'static str, on_yes: impl Fn() + Send + Sync + 'static,
+    ) {
+        self.ui.confirm.set(Some(ConfirmReq {
+            message, on_yes: Callback::new(move |_| on_yes()), danger: None, info: false,
+            choice: Some((no, Callback::new(move |_| on_no()), yes)),
+        }));
     }
 
     /// The shortcut of the action `id` in the active profile, shown ("Ctrl+W"), if it has one.

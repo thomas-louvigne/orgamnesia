@@ -931,6 +931,7 @@ name = "orgamnesia-core"
 version = "0.18.0"
 dependencies = [
  "serde",
+ "serde_json",
 ]
 
 [[package]]

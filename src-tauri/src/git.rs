@@ -102,18 +102,10 @@ fn ssh_command(base: &str, ssh_key: &str) -> String {
     let mut cmd = format!("{base} -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new");
     let key = ssh_key.trim();
     if !key.is_empty() {
-        let key = shellexpand_home(key);
+        let key = crate::expand_home(key);
         cmd.push_str(&format!(" -i '{}' -o IdentitiesOnly=yes", key.replace('\'', "'\\''")));
     }
     cmd
-}
-
-/// `~/x` → `/home/me/x`.
-fn shellexpand_home(path: &str) -> String {
-    match (path.strip_prefix("~/"), std::env::var("HOME")) {
-        (Some(rest), Ok(home)) => format!("{home}/{rest}"),
-        _ => path.to_string(),
-    }
 }
 
 /// Run `c`; its output, or its error message when it fails.

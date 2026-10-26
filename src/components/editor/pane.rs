@@ -38,6 +38,8 @@ pub struct Pane {
     pub todo_keywords: Memo<Option<TodoKeywords>>,
     /// Page ranges of the words the spelling dictionary doesn't know (see `spell`).
     pub misspelled: RwSignal<Vec<(usize, usize)>>,
+    /// The page is a configuration file of the "preference" project (JSON).
+    pub config: bool,
 }
 
 impl Pane {
@@ -60,6 +62,7 @@ impl Pane {
                 ctx.pref(|p| p.todo()).map(|d| content.with(|c| TodoKeywords::for_page(c, &d)))
             }),
             misspelled: RwSignal::new(Vec::new()),
+            config: crate::preferences::config_file(&tab.path).is_some(),
         }
     }
 

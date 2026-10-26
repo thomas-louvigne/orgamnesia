@@ -13,6 +13,7 @@ mod invoke;
 mod kill_ring;
 mod links;
 mod org_bloom;
+mod preferences;
 pub mod keybindings;
 pub mod motion;
 mod state;

@@ -7,8 +7,18 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     i18n::t,
     invoke,
+    preferences,
     state::{AppCtx, FileEntry, Goto, Tab, VaultChanges},
 };
+
+/// The text of the page at `path` on disk; a configuration file of the
+/// "preference" project is read as such.
+pub async fn read_page(path: &str) -> Result<String, String> {
+    match preferences::config_file(path) {
+        Some(file) => invoke::read_config(&file).await,
+        None => invoke::read_file(path).await,
+    }
+}
 
 // ─── Projects ────────────────────────────────────────────────────────────────
 
@@ -23,8 +33,13 @@ pub fn project_name(path: &str) -> String {
 }
 
 /// Switch to the project at `path`: loads its files and closes the tabs.
-/// Asks for confirmation first when open tabs have unsaved changes.
+/// Asks for confirmation first when open tabs have unsaved changes. From the
+/// "preference" project, comes back to the project put aside first.
 pub async fn open_project(ctx: AppCtx, path: String) {
+    if ctx.project.preference.get_untracked() {
+        preferences::leave(ctx, move || spawn_local(open_project(ctx, path.clone())));
+        return;
+    }
     if ctx.project.vault_path.get_untracked().as_deref() == Some(path.as_str()) {
         return;
     }
@@ -97,7 +112,7 @@ pub fn open_file(ctx: AppCtx, file: FileEntry, goto: Option<Goto>) {
     // Signals are created here, in the reactive owner, not after the await
     let tab = Tab::new(&file, String::new(), false);
     spawn_local(async move {
-        match invoke::read_file(&file.path).await {
+        match read_page(&file.path).await {
             Ok(content) => {
                 tab.content.set(content);
                 push_tab(ctx, tab);
@@ -233,8 +248,12 @@ pub fn history_step(ctx: AppCtx, back: bool) {
     }
 }
 
-/// Write the tab's page to disk.
+/// Write the tab's page to disk; a configuration file is applied (when valid).
 pub fn save_tab(ctx: AppCtx, tab: Tab) {
+    if preferences::config_file(&tab.path).is_some() {
+        preferences::apply(ctx, tab);
+        return;
+    }
     spawn_local(async move {
         let content = tab.content.get_untracked();
         match invoke::write_file(&tab.path, &content).await {
@@ -253,7 +272,8 @@ pub fn save_tab(ctx: AppCtx, tab: Tab) {
 pub async fn save_dirty_tabs(ctx: AppCtx) -> bool {
     let mut saved = false;
     for tab in ctx.work.tabs.get_untracked() {
-        if !tab.dirty.get_untracked() { continue; }
+        // A configuration file is only written when applied
+        if !tab.dirty.get_untracked() || preferences::config_file(&tab.path).is_some() { continue; }
         let content = tab.content.get_untracked();
         match invoke::write_file(&tab.path, &content).await {
             Ok(_) => if tab.content.get_untracked() == content { tab.dirty.set(false) },
@@ -395,14 +415,14 @@ pub async fn settle_disk_conflict(ctx: AppCtx, take_disk: bool) {
     ctx.ui.disk_conflicts.update(|q| { q.remove(0); });
     let Some(tab) = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| t.path == path).cloned()) else { return };
     if take_disk {
-        match invoke::read_file(&path).await {
+        match read_page(&path).await {
             Ok(content) => {
                 tab.content.try_set(content);
                 tab.dirty.try_set(false);
             }
             Err(e) => ctx.error("error", &e),
         }
-    } else if ctx.pref_untracked(|p| p.autosave) {
+    } else if ctx.pref_untracked(|p| p.autosave) && preferences::config_file(&path).is_none() {
         save_tab(ctx, tab);
     }
 }
@@ -422,6 +442,7 @@ pub async fn reload_clean_tabs(ctx: AppCtx) {
 /// page list, reload the open tabs without unsaved changes; for the others, ask
 /// which version to keep (unless the disk holds the same text).
 pub async fn apply_disk_changes(ctx: AppCtx, changes: VaultChanges) {
+    let Some(changes) = preferences::defer_disk_changes(ctx, changes) else { return };
     if ctx.project.files.get_untracked() != changes.files {
         ctx.project.files.set(changes.files);
     }

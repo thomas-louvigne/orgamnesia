@@ -1,4 +1,5 @@
-//! The settings: `Settings` as stored in `settings.json`, `Prefs` as used.
+//! The settings: `Config` as stored in `settings.json`, `Settings` with what the
+//! app keeps for itself (`state.json`), `Prefs` as used.
 
 use serde::{Deserialize, Serialize};
 
@@ -7,11 +8,30 @@ use crate::{Frame, Hashtags, Layout, OrgTags, TagSyntax, TodoKeywords};
 /// The TODO keywords when none are set (Emacs style: done states after the `|`).
 pub const DEFAULT_TODO_KEYWORDS: &str = "TODO DOING HANGUP | DONE";
 
-/// `settings.json`. A missing value (older file, or never set) means the
-/// default: see `Prefs`, the only place defaults are decided.
+/// The settings and what the app keeps for itself, as the backend and the
+/// interface exchange them.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Settings {
+    /// What the user sets (`settings.json`).
+    #[serde(flatten)]
+    pub config: Config,
+    /// The rest is kept by the app (`state.json`). The open project.
     pub vault_path: Option<String>,
+    /// Every project (folder) the user has opened, most recent first.
+    #[serde(default)]
+    pub projects: Vec<String>,
+    /// Pages and panes open when the app was last quit. Kept by the backend:
+    /// the settings window never sends it.
+    pub session: Option<Session>,
+}
+
+/// The keys of `Settings` kept in `state.json`, not in `settings.json`.
+pub const STATE_KEYS: [&str; 3] = ["vault_path", "projects", "session"];
+
+/// `settings.json`, what the user sets. A missing value (older file, or never
+/// set) means the default: see `Prefs`, the only place defaults are decided.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct Config {
     /// Command building the site (org-bloom extension); empty: `org-bloom`.
     pub org_bloom_path: Option<String>,
     pub language: Option<String>,
@@ -114,12 +134,10 @@ pub struct Settings {
     pub git_status_enabled: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
     pub git_ssh_key: Option<String>,
-    /// Every project (folder) the user has opened, most recent first.
-    #[serde(default)]
-    pub projects: Vec<String>,
-    /// Pages and panes open when the app was last quit. Kept by the backend:
-    /// the settings window never sends it.
-    pub session: Option<Session>,
+    /// The keybinding profile in effect: a built-in one (`classic`, `emacs`) or
+    /// the name of one of the user's (`keybindings/<name>.json`). Kept apart from
+    /// `Prefs`: the keybindings are saved on their own.
+    pub keybinding_profile: Option<String>,
 }
 
 /// How the editor is split in two (Emacs windows).
@@ -223,9 +241,10 @@ impl Default for Prefs {
 }
 
 impl Prefs {
-    pub fn from_settings(s: &Settings) -> Self {
+    pub fn from_settings(settings: &Settings) -> Self {
+        let s = &settings.config;
         Self {
-            vault: s.vault_path.clone().unwrap_or_default(),
+            vault: settings.vault_path.clone().unwrap_or_default(),
             org_bloom_path: s.org_bloom_path.clone().unwrap_or_default(),
             lang: s.language.clone().unwrap_or_else(|| "fr".to_string()),
             update_links: s.update_links_on_rename.unwrap_or(true),
@@ -281,8 +300,7 @@ impl Prefs {
 
     pub fn to_settings(&self, projects: Vec<String>) -> Settings {
         let some = |s: &str| (!s.is_empty()).then(|| s.to_string());
-        Settings {
-            vault_path: some(&self.vault),
+        let config = Config {
             org_bloom_path: some(&self.org_bloom_path),
             language: Some(self.lang.clone()),
             update_links_on_rename: Some(self.update_links),
@@ -332,9 +350,10 @@ impl Prefs {
             spell_enabled: Some(self.spell),
             spell_language: some(&self.spell_lang),
             spell_dict_dir: some(&self.spell_dict_dir),
-            projects,
-            session: None,
-        }
+            // Saved with the keybindings
+            keybinding_profile: None,
+        };
+        Settings { config, vault_path: some(&self.vault), projects, session: None }
     }
 
     /// How `#tags` and `:tags:` are read.
@@ -411,7 +430,7 @@ mod tests {
         assert_eq!(p.lang, "fr");
         assert_eq!(p.image_size_format, "org");
         assert_eq!(p.todo(), Some(TodoKeywords::parse(DEFAULT_TODO_KEYWORDS)));
-        let blank = Settings { todo_keywords: Some(" ".into()), ..Settings::default() };
+        let blank = Settings { config: Config { todo_keywords: Some(" ".into()), ..Config::default() }, ..Settings::default() };
         assert_eq!(blank.prefs().todo_keywords, DEFAULT_TODO_KEYWORDS);
         assert_eq!(p.tags(), TagSyntax { hashtags: Hashtags::Dashes, org: OrgTags::default() });
     }

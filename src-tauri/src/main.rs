@@ -10,7 +10,11 @@ fn main() {
             use tauri::Manager;
             if let Ok(dir) = app.path().app_config_dir() {
                 orgamnesia_lib::settings::migrate_legacy_config(&dir);
-                *orgamnesia_lib::lock(&app.state::<AppState>().settings) = orgamnesia_lib::settings::load(&dir);
+                let state = app.state::<AppState>();
+                let settings = orgamnesia_lib::settings::load(&dir, &mut orgamnesia_lib::lock(&state.config));
+                *orgamnesia_lib::lock(&state.settings) = settings;
+                // Without watching, the files changed outside the app are only read on the next start
+                *orgamnesia_lib::lock(&state.config_watcher) = orgamnesia_lib::config_files::watch(app.handle().clone(), dir).ok();
             }
             Ok(())
         })
@@ -19,6 +23,12 @@ fn main() {
             commands::config::set_settings,
             commands::config::get_keybindings,
             commands::config::set_keybindings,
+            commands::config::config_files,
+            commands::config::read_config,
+            commands::config::apply_config,
+            commands::config::config_versions,
+            commands::config::restore_config,
+            commands::config::config_problems,
             commands::projects::open_vault,
             commands::projects::remove_project,
             commands::projects::check_disk,

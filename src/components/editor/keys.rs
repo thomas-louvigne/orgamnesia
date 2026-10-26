@@ -70,6 +70,20 @@ pub fn on_keydown(pane: Pane, completion: Completion, find: Find, insert: Insert
         _ => ctx.clear_chord_status(),
     }
 
+    // In a configuration file (JSON), Tab indents as in any text editor, unless it
+    // ends a chord of another action
+    let other_action = matches!(&resolution, Resolution::Action(_, id) if id != "table_next_cell" && id != "table_prev_cell");
+    if pane.config && e.key() == "Tab" && unmodified(&e) && !other_action {
+        swallow(&e);
+        let (start, end) = get_pos(&el);
+        let chars: Vec<char> = el.value().chars().collect();
+        let (from, to, text, (a, b)) = edit::json_indent(&chars, start, end, e.shift_key());
+        splice(&el, from, to, &text);
+        set_selection(&el, a, b);
+        pane.commit(&el);
+        return;
+    }
+
     // With a mark set, the region follows the caret after each key press
     if pane.mark.get_untracked().is_some() {
         let el = el.clone();

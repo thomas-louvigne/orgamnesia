@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use notify_debouncer_mini::{new_debouncer, notify::RecommendedWatcher, notify::RecursiveMode, DebounceEventResult, Debouncer};
+use notify_debouncer_mini::{new_debouncer, notify::RecommendedWatcher, notify::RecursiveMode, DebounceEventResult, DebouncedEvent, Debouncer};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{error::AppError, AppState};
@@ -17,10 +17,21 @@ pub const GIT_CHANGED: &str = "git-changed";
 /// Keeps watching while it is alive.
 pub type Watcher = Debouncer<RecommendedWatcher>;
 
+/// Watch the folder `path` and what it holds, `on_change` getting the changes
+/// (gathered over 300 ms).
+pub fn start(path: &Path, mut on_change: impl FnMut(Vec<DebouncedEvent>) + Send + 'static) -> Result<Watcher, AppError> {
+    let mut debouncer = new_debouncer(Duration::from_millis(300), move |res: DebounceEventResult| {
+        if let Ok(events) = res { on_change(events); }
+    }).map_err(|e| AppError::Io(std::io::Error::other(e)))?;
+    debouncer.watcher()
+        .watch(path, RecursiveMode::Recursive)
+        .map_err(|e| AppError::Io(std::io::Error::other(e)))?;
+    Ok(debouncer)
+}
+
 pub fn watch(app: AppHandle, path: &str) -> Result<Watcher, AppError> {
     let project_path = path.to_string();
-    let mut debouncer = new_debouncer(Duration::from_millis(300), move |res: DebounceEventResult| {
-        let Ok(events) = res else { return };
+    start(Path::new(path), move |events| {
         let is_page = |p: &Path| p.extension().and_then(|e| e.to_str()) == Some("org");
         let in_git = |p: &Path| p.components().any(|c| c.as_os_str() == ".git");
         let pages = events.iter().any(|e| is_page(&e.path) && !in_git(&e.path));
@@ -41,9 +52,5 @@ pub fn watch(app: AppHandle, path: &str) -> Result<Watcher, AppError> {
         if pages || git {
             let _ = app.emit(GIT_CHANGED, ());
         }
-    }).map_err(|e| AppError::Io(std::io::Error::other(e)))?;
-    debouncer.watcher()
-        .watch(Path::new(path), RecursiveMode::Recursive)
-        .map_err(|e| AppError::Io(std::io::Error::other(e)))?;
-    Ok(debouncer)
+    })
 }

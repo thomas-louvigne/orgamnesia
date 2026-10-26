@@ -35,6 +35,8 @@ other contribution.
 - *Spell checker*: misspelled words underlined, suggestions on right click,
   your own dictionary (Hunspell dictionaries).
 - *Trash* with undo, *autosave*, pages changed by another program reloaded.
+- *Settings as text*: the settings and shortcut files opened in the editor,
+  checked as you type, applied at once, with a history.
 - *Extensions*: git state, static website with
   [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
 - French and English interface.
@@ -75,7 +77,9 @@ Building from the sources, the latest =main= on Arch, and macOS particulars
 
 - Pages: the =.org= files in the project folder.
 - Settings: =~/.config/com.orgamnesia.app/= on Linux,
-  =~/Library/Application Support/com.orgamnesia.app/= on macOS.
+  =~/Library/Application Support/com.orgamnesia.app/= on macOS. They can be edited
+  as text from the app, checked as you type, with a history of the valid versions
+  (see [[file:docs/features.org::*Settings as text][Settings as text]]).
 
 * Development
 

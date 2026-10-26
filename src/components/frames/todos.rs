@@ -14,7 +14,7 @@ use super::open_page;
 /// Headlines of the project with a TODO keyword.
 #[component]
 pub fn TodosFrame() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
 
     // Headlines of the project with a TODO keyword. Refreshed (debounced) like the tags.
     let todos = RwSignal::new(Vec::<TodoHit>::new());

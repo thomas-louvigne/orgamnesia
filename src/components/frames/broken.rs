@@ -16,7 +16,7 @@ use super::open_page;
 /// Pages linked to but not created. `right`: the column it is in.
 #[component]
 pub fn BrokenFrame(right: bool) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
 
     // Links pointing to pages that don't exist. Refreshed (debounced) when the
     // project, its pages or its content change.

@@ -16,10 +16,11 @@ use wasm_bindgen::JsCast;
 
 use crate::{
     actions::follow_link,
-    components::{empty_state::EmptyState, page_title::PageTitle, project_search::ProjectSearchPopin, frames::TagAddPopin, tabs::TabBar},
+    components::{config_bar::ConfigBar, empty_state::EmptyState, page_title::PageTitle, project_search::ProjectSearchPopin, frames::TagAddPopin, tabs::TabBar},
     edit,
     highlight,
     i18n::t,
+    preferences,
     keybindings::EditorAction,
     state::{AppCtx, Goto, SplitKind, Tab},
 };
@@ -36,7 +37,7 @@ use pane::Pane;
 /// The editor: one pane, or two when split (Emacs `C-x 2` / `C-x 3`).
 #[component]
 pub fn EditorSplit() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     view! {
         <div class=move || match ctx.work.split.get() {
             None => "editor-split",
@@ -51,7 +52,7 @@ pub fn EditorSplit() -> impl IntoView {
 
 #[component]
 pub fn EditorArea(second: bool) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
 
     // The focused pane shows the active tab, the other one `other_path`
     let path = Memo::new(move |_| ctx.work.pane_path(second));
@@ -103,6 +104,12 @@ pub fn EditorArea(second: bool) -> impl IntoView {
                 let tab = ctx.work.tabs.with(|tabs| tabs.iter().find(|t| t.path == p).cloned())?;
                 Some(view! { <PageTitle tab=tab /> })
             }).flatten()}
+            {move || {
+                let p = path.try_get().flatten()?;
+                let file = preferences::config_file(&p)?;
+                let tab = ctx.work.tabs.get_untracked().into_iter().find(|t| t.path == p)?;
+                Some(view! { <ConfigBar tab=tab file=file /> })
+            }}
             <div class="editor-pane-body">
             // `try_get`: these also re-run when the pane is closed (C-x 0), after `path` is disposed
             {move || match path.try_get().flatten() {
@@ -122,8 +129,10 @@ pub fn EditorArea(second: bool) -> impl IntoView {
 
 #[component]
 fn Editor(tab: Tab, second: bool) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
-    pane::autosave(ctx, tab.clone());
+    let ctx = expect_context::<AppCtx>();
+    // A configuration file of the "preference" project: JSON, written only when applied
+    let config = preferences::config_file(&tab.path);
+    if config.is_none() { pane::autosave(ctx, tab.clone()); }
 
     let pane = Pane::new(ctx, &tab);
     let content = pane.content;
@@ -139,7 +148,9 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let mouse_focus = StoredValue::new(false);
     let images = Images::new(pane, wrap_ref, tab.path.clone(), mouse_focus);
     goto_target(pane, tab.clone(), second);
-    spell::watch(pane);
+    let checked = config.clone().map(|f| preferences::checked(ctx, content, f));
+    let config = config.is_some();
+    if !config { spell::watch(pane); }
     // Right-click menu: where it opens, and the misspelled word it was opened on
     let menu = RwSignal::new(None::<(i32, i32)>);
     let menu_word = RwSignal::new(None::<spell::Word>);
@@ -149,7 +160,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         // Typing ends the region
         pane.mark.set(None);
         pane.commit(&el);
-        completion.on_input(&el);
+        if !config { completion.on_input(&el); }
     };
 
     // Ctrl+Click navigates to (or creates) the page of the wiki link, #tag or
@@ -196,7 +207,21 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         });
     };
 
-    let highlighted = move || view.with(|v| highlight::render_view(v, ctx.tags(), pane.todo_keywords.get(), ctx.pref(|p| p.show_line_numbers), broken.check()));
+    let highlighted = move || view.with(|v| match config {
+        true => highlight::render_json(&v.text, ctx.pref(|p| p.show_line_numbers)),
+        false => highlight::render_view(v, ctx.tags(), pane.todo_keywords.get(), ctx.pref(|p| p.show_line_numbers), broken.check()),
+    });
+    // What is wrong (or the first thing odd) in a configuration file, marked where it is
+    let problem_html = move || {
+        let (problem, error) = match checked?.get() {
+            Err(p) => (p, true),
+            Ok(c) => (c.warnings.into_iter().next()?, false),
+        };
+        Some(view.with(|v| {
+            let (a, b) = preferences::problem_range(&v.text, problem.line, problem.column);
+            highlight::render_problem(&v.text, a, b, error)
+        }))
+    };
     let region_html = move || {
         if !ctx.pref(|p| p.emacs_mark) { return String::new(); }
         pane.mark.get().map(|m| {
@@ -220,6 +245,9 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         >
             <div class="hl-layer" aria-hidden="true" inner_html=highlighted />
             <div class="hl-layer spell-layer" aria-hidden="true" inner_html=spell_html />
+            {config.then(|| view! {
+                <div class="hl-layer problem-layer" aria-hidden="true" inner_html=move || problem_html().unwrap_or_default() />
+            })}
             <div class="hl-layer region-layer" aria-hidden="true" inner_html=region_html />
             <div class="hl-layer match-layer" aria-hidden="true" inner_html=match_html />
             <textarea
@@ -260,6 +288,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 on:blur=move |_| completion.close()
                 on:scroll=move |_| completion.close()
             />
+            {(!config).then(|| view! {
             <button
                 class="img-add"
                 title=move || t("image_add", ctx.lang.get())
@@ -275,6 +304,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                     <path d="M21 16l-5-5-9 9" />
                 </svg>
             </button>
+            })}
             {find.bar()}
             {move || ping.get().map(|(x, top, bottom)| view! {
                 <div
@@ -285,7 +315,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
             })}
             {completion.popup()}
             {insert.dialog()}
-            {move || menu.get().map(|(x, y)| context_menu(pane, find, insert, images, menu, menu_word.get_untracked(), x, y))}
+            {move || menu.get().map(|(x, y)| context_menu(pane, find, insert, images, menu, menu_word.get_untracked(), x, y, !config))}
         </div>
     }
 }
@@ -295,7 +325,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
 #[allow(clippy::too_many_arguments)]
 fn context_menu(
     pane: Pane, find: Find, insert: Insert, images: Images, menu: RwSignal<Option<(i32, i32)>>,
-    word: Option<spell::Word>, x: i32, y: i32,
+    word: Option<spell::Word>, x: i32, y: i32, with_images: bool,
 ) -> impl IntoView {
     let ctx = pane.ctx;
     let selected = pane.area.get_untracked().is_some_and(|el| {
@@ -329,8 +359,10 @@ fn context_menu(
             {item("shortcut_undo_edit", Some("undo"), true, action(EditorAction::Undo))}
             {item("shortcut_redo", Some("redo"), true, action(EditorAction::Redo))}
             {item("shortcut_select_all", Some("select_all"), true, action(EditorAction::SelectAll))}
-            <div class="ctx-menu-sep" role="separator" />
-            {item("image_insert", None, true, Box::new(move || images.pick()))}
+            {with_images.then(|| view! {
+                <div class="ctx-menu-sep" role="separator" />
+                {item("image_insert", None, true, Box::new(move || images.pick()))}
+            })}
         </div>
     }
 }

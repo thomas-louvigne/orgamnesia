@@ -17,6 +17,7 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 - [[*Raccourcis clavier][Raccourcis clavier]]
 - [[*Extensions][Extensions]]
 - [[*Préférences][Préférences]]
+- [[*Préférences en texte][Préférences en texte]]
 - [[*Fichiers][Fichiers]]
 
 * Projets et pages
@@ -430,6 +431,11 @@ Modifier un raccourci crée un profil personnalisé (renommable, duplicable,
 supprimable). Chaque action accepte deux raccourcis. Un conflit (même combinaison
 pour deux actions) est signalé et empêche d'enregistrer.
 
+Les profils intégrés sont dans l'application et ne se modifient pas : modifier un
+de leurs raccourcis les copie dans un profil personnalisé, qui prend effet. Chaque
+profil personnalisé est un fichier à lui, à son nom (=keybindings/Personnalisé.json=
+par défaut), modifiable en texte (voir [[*Préférences en texte]]).
+
 Les profils intégrés reçoivent automatiquement les nouveaux raccourcis des
 versions suivantes ; un profil personnalisé reçoit ceux des actions qu'il ne
 connaissait pas.
@@ -590,9 +596,45 @@ Profil, raccourcis de l'application, des volets, de l'éditeur, du marqueur de
 sélection (avec son option) et des états TODO (avec leur option). Un champ en haut
 filtre les actions par leur nom ou leur raccourci.
 
+* Préférences en texte
+« Éditer les préférences en mode texte », en bas de la fenêtre des préférences,
+ouvre le projet *preference* : les fichiers de configuration dans l'éditeur, à la
+place du projet ouvert. Ce projet est toujours dans le menu des projets ;
+« ← <projet> », au-dessus du fichier, ramène au projet quitté, ses onglets et ses
+volets tels qu'ils étaient.
+
+- *Ses pages* : =settings.json= (les réglages, et =keybinding_profile=, le profil de
+  raccourcis en vigueur : =classic=, =emacs= ou le nom d'un profil personnalisé),
+  puis un fichier =keybindings/<nom>.json= par profil personnalisé (son préset de
+  base, les raccourcis de l'application et de l'éditeur). Depuis l'onglet
+  Raccourcis, le lien ouvre le fichier du profil en vigueur.
+- *Coloration JSON* : clés, chaînes, nombres, =true= / =false= / =null=. Tab et
+  Maj+Tab indentent et désindentent de deux espaces (les lignes sélectionnées
+  s'il y a une sélection).
+- *Vérifié pendant la frappe* : la barre au-dessus du fichier indique « Fichier
+  valide », ou ce qui ne va pas et où (« Ligne 3, colonne 5 : … »), souligné dans
+  le texte ; un clic sur le message y place le curseur. Sont refusés : un JSON
+  invalide, une valeur du mauvais type, une clé inconnue (une faute de frappe), un
+  profil qui n'existe pas, un raccourci donné à deux actions, un fichier au nom
+  d'un profil intégré. Une action inconnue n'est qu'un avertissement.
+- *Appliquer* (ou le raccourci d'enregistrement) écrit le fichier et le met en
+  vigueur, seulement s'il est valide. Ces fichiers ne sont jamais enregistrés
+  automatiquement.
+- *Retour arrière* : « Revenir à la dernière version valide » abandonne les
+  modifications non appliquées ; « Historique » liste les 10 dernières versions
+  valides du fichier, chacune peut être remise en vigueur.
+- *Modifié en dehors de l'application* (avec Emacs…) : un fichier valide est mis
+  en vigueur aussitôt ; un fichier invalide ne l'est pas, la configuration
+  précédente reste, et une fenêtre propose de le corriger ou de revenir à la
+  dernière version valide. La même fenêtre s'affiche au démarrage pour un fichier
+  trouvé invalide.
+
 * Fichiers
 - Les pages restent de simples fichiers =.org=, lisibles et modifiables avec Emacs
   ou tout autre éditeur.
-- Réglages : =~/.config/com.orgamnesia.app/= (=settings.json=, =keybindings.json=,
-  et =dictionary.txt= pour les mots ajoutés au dictionnaire).
+- Réglages : =~/.config/com.orgamnesia.app/= : =settings.json= (les réglages),
+  =keybindings/= (les profils de raccourcis personnalisés), =state.json= (ce que
+  l'application garde pour elle : le projet ouvert, les projets, les pages ouvertes
+  à la fermeture), =history/= (les versions valides précédentes des fichiers de
+  configuration) et =dictionary.txt= (les mots ajoutés au dictionnaire).
 - Corbeille : =<projet>/.trash/=.

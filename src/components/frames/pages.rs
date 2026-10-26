@@ -11,7 +11,7 @@ use crate::{
 /// The pages of the project, with their filter.
 #[component]
 pub fn PagesFrame() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let filter = RwSignal::new(String::new());
     // Right-click menu: position, and the file clicked (None = click on empty area)
     let ctx_menu = RwSignal::new(None::<(i32, i32, Option<FileEntry>)>);
@@ -54,12 +54,15 @@ pub fn PagesFrame() -> impl IntoView {
         <nav class="frame frame-grow pages-frame" aria-label=move || t("pages", ctx.lang.get())>
             <div class="sidebar-header">
                 <span class="sidebar-title">{move || t("pages", ctx.lang.get())}</span>
-                <button
-                    class="btn-icon"
-                    title={move || ctx.with_shortcut("new_page_title", "new_page")}
-                    aria-label={move || t("new_page_title", ctx.lang.get())}
-                    on:click=move |_| trigger_new_page()
-                >"+"</button>
+                // The configuration files can't be created, renamed nor deleted
+                {move || (!ctx.project.preference.get()).then(|| view! {
+                    <button
+                        class="btn-icon"
+                        title={move || ctx.with_shortcut("new_page_title", "new_page")}
+                        aria-label={move || t("new_page_title", ctx.lang.get())}
+                        on:click=move |_| trigger_new_page()
+                    >"+"</button>
+                })}
             </div>
             <div class="sidebar-search">
                 <input
@@ -75,7 +78,7 @@ pub fn PagesFrame() -> impl IntoView {
                 class="sidebar-list"
                 on:contextmenu=move |e: web_sys::MouseEvent| {
                     e.prevent_default();
-                    ctx_menu.set(Some((e.client_x(), e.client_y(), None)));
+                    if !ctx.project.preference.get_untracked() { ctx_menu.set(Some((e.client_x(), e.client_y(), None))); }
                 }
             >
                 <For
@@ -107,7 +110,9 @@ pub fn PagesFrame() -> impl IntoView {
                                 on:contextmenu=move |e: web_sys::MouseEvent| {
                                     e.prevent_default();
                                     e.stop_propagation();
-                                    ctx_menu.set(Some((e.client_x(), e.client_y(), Some(file_menu.clone()))));
+                                    if !ctx.project.preference.get_untracked() {
+                                        ctx_menu.set(Some((e.client_x(), e.client_y(), Some(file_menu.clone()))));
+                                    }
                                 }
                             >
                                 {move || if renaming.get().as_deref() == Some(path_r.as_str()) {

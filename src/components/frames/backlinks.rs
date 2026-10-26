@@ -14,7 +14,7 @@ use super::open_page;
 /// Pages linking to the active page.
 #[component]
 pub fn BacklinksFrame() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
 
     // Pages linking to the active page. Refreshed (debounced) when another
     // page becomes active or the links of the project change.

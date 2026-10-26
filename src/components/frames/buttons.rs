@@ -22,7 +22,7 @@ pub fn Brand() -> impl IntoView {
 /// Button opening the settings.
 #[component]
 pub fn SettingsButton() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     view! {
         <div class="frame sidebar-footer">
             <button
@@ -39,7 +39,7 @@ pub fn SettingsButton() -> impl IntoView {
 /// Button quitting the app, with its shortcut in its tooltip.
 #[component]
 pub fn QuitButton() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     view! {
         <div class="frame quit-frame">
             <button

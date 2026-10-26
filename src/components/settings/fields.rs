@@ -22,7 +22,7 @@ pub fn Check(
     /// Greyed out while this is true (the setting it depends on is off).
     #[prop(optional)] disabled: Option<fn(&Prefs) -> bool>,
 ) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     view! {
         <div class=if sub { "setting-row setting-sub" } else { "setting-row" }>
@@ -51,7 +51,7 @@ pub fn NumberField(
     hint: &'static str,
     #[prop(optional)] readable: bool,
 ) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     view! {
         <div class="setting-row setting-sub">
@@ -105,7 +105,7 @@ pub fn PathField(
     /// Pick a file (opening in this folder) instead of a folder.
     #[prop(optional)] file_in: Option<&'static str>,
 ) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let disabled = move || disabled.is_some_and(|d| d.get());
     let pick = move |_| {
         spawn_local(async move {

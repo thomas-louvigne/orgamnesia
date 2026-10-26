@@ -29,12 +29,15 @@ use todos::TodosFrame;
 /// The frames shown in the column left of the editor, or right of it.
 #[component]
 pub fn Column(right: bool) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     // Only when the frames of this column change: the others keep their state
     let frames = Memo::new(move |_| ctx.pref(|p| p.column(right)));
     view! {
+        // In the "preference" project, the frames about a project's pages are
+        // hidden (kept mounted: they are as they were on coming back)
         <aside
-            class=if right { "side-column right" } else { "side-column left" }
+            class=move || format!("side-column {}{}", if right { "right" } else { "left" },
+                if ctx.project.preference.get() { " preference" } else { "" })
             aria-label=move || t(if right { "layout_right" } else { "layout_left" }, ctx.lang.get())
         >
             <For each=move || frames.get() key=|f| *f let:frame>

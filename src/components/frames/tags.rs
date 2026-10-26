@@ -33,7 +33,7 @@ fn tag_active_page(ctx: AppCtx, tag: &str) {
 /// runs once a tag was added, or on Escape or leaving the field.
 #[component]
 pub fn TagAddField(on_close: Callback<()>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let new_tag = RwSignal::new(String::new());
     let add_ref = NodeRef::<leptos::html::Input>::new();
     Effect::new(move |_| {
@@ -126,7 +126,7 @@ pub fn TagAddField(on_close: Callback<()>) -> impl IntoView {
 /// title: for the shortcut, whether the tags frame is shown or not.
 #[component]
 pub fn TagAddPopin() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let close = Callback::new(move |_| {
         ctx.ui.tag_add.set(false);
         crate::components::project_search::focus_editor();
@@ -141,7 +141,7 @@ pub fn TagAddPopin() -> impl IntoView {
 /// The tags of the project, and the search of the pages and headlines by tag.
 #[component]
 pub fn TagsFrame() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
 
     // Pages and headlines matching the tag search
     let hits = RwSignal::new(Vec::<TagHit>::new());

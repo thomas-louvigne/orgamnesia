@@ -66,7 +66,7 @@ fn filter(sections: Vec<(&'static str, Vec<Entry>)>, q: &str, lang: Lang) -> Vec
 
 #[component]
 pub fn ShortcutsHelp() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let close = move || ctx.ui.show_shortcuts.set(false);
 

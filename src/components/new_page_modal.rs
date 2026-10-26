@@ -10,7 +10,7 @@ use crate::{
 
 #[component]
 pub fn NewPageModal() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let name = RwSignal::new(String::new());
     let input_ref = NodeRef::<leptos::html::Input>::new();

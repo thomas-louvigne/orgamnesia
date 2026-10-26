@@ -7,47 +7,11 @@ use super::fields::Check;
 use crate::{
     i18n::{t, Lang},
     keybindings::{
-        self, preset_label_key, AppAction, Bindings, EditorAction, Keybindings, Profile,
+        self, preset_label_key, AppAction, Bindings, Conflicts, EditorAction, Keybindings, Profile,
         GIT_ACTIONS, MARK_ACTIONS, SPLIT_ACTIONS, TODO_ACTIONS,
     },
     state::{AppCtx, Prefs},
 };
-
-/// Combinations bound to more than one action, with the label keys of those actions.
-pub type Conflicts = Vec<(String, Vec<&'static str>)>;
-
-/// Application and editor shortcuts share one keyboard, so a combination may
-/// only be given to a single action across both lists. A shortcut that is the
-/// first key(s) of another action's chord ("ctrl+x" vs "ctrl+x ctrl+s") is a
-/// conflict too: the chord could never be completed. Giving the same
-/// combination to both slots of one action is fine.
-fn find_conflicts(app: &Bindings, editor: &Bindings) -> Conflicts {
-    // (binding, action label), one entry per distinct binding of each action
-    let mut entries: Vec<(String, &'static str)> = Vec::new();
-    let app_ids = keybindings::APP_ACTIONS.iter().map(|a| (app, a.id, a.label_key));
-    let editor_ids = keybindings::EDITOR_ACTIONS.iter().map(|a| (editor, a.id, a.label_key));
-    for (map, id, label_key) in app_ids.chain(editor_ids) {
-        let mut seen = std::collections::HashSet::new();
-        for b in map.get(id).into_iter().flatten().filter(|b| !b.is_empty()) {
-            if seen.insert(b.clone()) {
-                entries.push((b.clone(), label_key));
-            }
-        }
-    }
-    let mut by_combo: std::collections::BTreeMap<String, Vec<&'static str>> = Default::default();
-    for (bind, label) in &entries {
-        let chord_prefix = format!("{bind} ");
-        for (other, other_label) in &entries {
-            if other_label != label && (other == bind || other.starts_with(&chord_prefix)) {
-                let labels = by_combo.entry(bind.clone()).or_default();
-                for l in [label, other_label] {
-                    if !labels.contains(l) { labels.push(l); }
-                }
-            }
-        }
-    }
-    by_combo.into_iter().collect()
-}
 
 fn describe_conflict(combo: &str, labels: &[&'static str], lang: Lang) -> String {
     let names: Vec<&str> = labels.iter().map(|k| t(k, lang)).collect();
@@ -118,7 +82,7 @@ impl KbDraft {
         let profiles = RwSignal::new(kb.profiles);
         let app = RwSignal::new(kb.app);
         let editor = RwSignal::new(kb.editor);
-        let conflicts = Memo::new(move |_| app.with(|a| editor.with(|e| find_conflicts(a, e))));
+        let conflicts = Memo::new(move |_| app.with(|a| editor.with(|e| keybindings::conflicts(a, e))));
         provide_context(conflicts);
         let this = Self { active_id, profiles, preset: RwSignal::new(kb.editor_preset), app, editor, conflicts };
         // The slots record the keys as the profile's base preset reads them
@@ -222,7 +186,7 @@ impl KbDraft {
 /// The shortcuts tab.
 #[component]
 pub fn ShortcutsTab(draft: RwSignal<Prefs>, kb: KbDraft) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let KbDraft { active_id, profiles, app: app_work, editor: editor_work, conflicts, .. } = kb;
     let on_profile_change = move |e: web_sys::Event| kb.select_profile(event_target_value(&e));
@@ -401,7 +365,7 @@ impl Section {
 /// A section of the shortcuts tab, hidden with its rows when the search leaves nothing of it.
 #[component]
 fn ShortcutSection(draft: RwSignal<Prefs>, section: Section, query: RwSignal<String>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let title = section.title;
     let check = section.check;
@@ -505,7 +469,7 @@ fn KeybindingSlot(
     let generation = StoredValue::new(0u32);
     let show_held = move |e: &web_sys::KeyboardEvent| {
         let mut s = String::new();
-        let cmd_is_ctrl = keybindings::is_mac() && !draft.is_some_and(|d| d.preset.get_untracked() == "emacs");
+        let cmd_is_ctrl = keybindings::is_mac() && draft.is_none_or(|d| d.preset.get_untracked() != "emacs");
         if e.ctrl_key() || (cmd_is_ctrl && e.meta_key()) { s.push_str("Ctrl+"); }
         if e.shift_key() { s.push_str("Shift+"); }
         if e.alt_key()   { s.push_str("Alt+"); }

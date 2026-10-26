@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 /// An action maps to a list of bindings (0, 1 or 2 accelerators).
 pub type Bindings = BTreeMap<String, Vec<String>>;
 
-fn default_preset() -> String { "classic".to_string() }
+pub fn default_preset() -> String { "classic".to_string() }
 
 /// A user-made shortcut profile. The built-in ones ("classic", "emacs") are not stored.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -34,6 +34,113 @@ pub struct Keybindings {
     /// Custom profiles.
     #[serde(default)]
     pub profiles: Vec<Profile>,
+}
+
+/// Name of a profile of the user's own when it has none (the French of the app's
+/// default language, as the settings window names it).
+pub const DEFAULT_PROFILE_NAME: &str = "Personnalisé";
+
+/// `keybindings/<name>.json`: a profile of the user's own, named after its file.
+/// Which profile is active is a setting (`keybinding_profile`); the built-in
+/// profiles are in the code.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProfileFile {
+    /// Built-in preset it derives from (decides which editor actions exist).
+    pub editor_preset: String,
+    #[serde(default)]
+    pub app: Bindings,
+    #[serde(default)]
+    pub editor: Bindings,
+}
+
+/// `name` as a file name: without `/` nor `\`, not hidden, not empty.
+fn file_name(name: &str) -> String {
+    let name: String = name.trim().chars().map(|c| if matches!(c, '/' | '\\') { '-' } else { c }).collect();
+    let name = name.trim_start_matches('.').trim().to_string();
+    if name.is_empty() { DEFAULT_PROFILE_NAME.to_string() } else { name }
+}
+
+impl Keybindings {
+    /// The keybindings with the user's `profiles`, `active` the active one
+    /// (built-in or one of them): its shortcuts in effect. A profile that is not
+    /// there gives way to the default one.
+    pub fn with_profiles(active: Option<&str>, profiles: Vec<Profile>) -> Self {
+        let profiles: Vec<Profile> = profiles.into_iter().filter(|p| !is_builtin(&p.id)).collect();
+        let wanted = active.unwrap_or_default();
+        let (active, preset, app, editor) = match profiles.iter().find(|p| p.id == wanted) {
+            Some(p) => (p.id.clone(), p.editor_preset.clone(), p.app.clone(), p.editor.clone()),
+            None => {
+                let id = if is_builtin(wanted) { wanted.to_string() } else { default_preset() };
+                (id.clone(), id.clone(), preset_app(&id), preset_editor(&id))
+            }
+        };
+        let mut kb = Self { editor_preset: preset, app, editor, active_profile: active, profiles };
+        kb.upgrade();
+        kb
+    }
+
+    /// The keybindings from their files: the user's profiles by name, `active`
+    /// the name of the active one (the setting).
+    pub fn from_files(active: Option<&str>, profiles: Vec<(String, ProfileFile)>) -> Self {
+        let profiles = profiles.into_iter()
+            .map(|(name, p)| Profile { id: name.clone(), name, editor_preset: p.editor_preset, app: p.app, editor: p.editor })
+            .collect();
+        Self::with_profiles(active, profiles)
+    }
+
+    /// The files of these keybindings: the user's own profiles, by the names of
+    /// their files (their own names, made unique and fit for a file), the
+    /// shortcuts of the active one as they are now; and the name of the active
+    /// profile (the setting).
+    pub fn to_files(&self) -> (String, Vec<(String, ProfileFile)>) {
+        let active = self.resolved_active();
+        let mut active_name = active.clone();
+        let mut taken: Vec<String> = EDITOR_PRESETS.iter().map(|s| s.to_string()).collect();
+        let mut files = vec![];
+        for p in self.profiles.iter().filter(|p| !is_builtin(&p.id)) {
+            let base = file_name(&p.name);
+            let mut name = base.clone();
+            let mut n = 2;
+            while taken.iter().any(|t| t.to_lowercase() == name.to_lowercase()) {
+                name = format!("{base} {n}");
+                n += 1;
+            }
+            taken.push(name.clone());
+            if p.id == active { active_name = name.clone(); }
+            let (app, editor) = if p.id == active { (self.app.clone(), self.editor.clone()) } else { (p.app.clone(), p.editor.clone()) };
+            files.push((name, ProfileFile { editor_preset: p.editor_preset.clone(), app, editor }));
+        }
+        (active_name, files)
+    }
+
+    /// `text`, a `keybindings.json` of an older version (the profiles in it, the
+    /// active one, its shortcuts at the top): the keybindings it held. Shortcuts
+    /// of a file older than the profiles that are not those of its preset become
+    /// a profile of their own. `None` when it holds no shortcuts.
+    pub fn from_old(text: &str) -> Option<Self> {
+        let map = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(text).ok()?;
+        if !["app", "editor", "profiles", "editor_preset"].iter().any(|k| map.contains_key(*k)) { return None; }
+        let mut kb = serde_json::from_str::<Keybindings>(text).ok()?;
+        let base = kb.editor_preset.clone();
+        if kb.active_profile.is_empty() {
+            let same = kb.app == preset_app(&base) && kb.editor == preset_editor(&base);
+            kb.active_profile = if same { base.clone() } else { "custom".to_string() };
+            if !same && !kb.profiles.iter().any(|p| p.id == "custom") {
+                kb.profiles.push(Profile {
+                    id: "custom".into(), name: DEFAULT_PROFILE_NAME.into(), editor_preset: base,
+                    app: kb.app.clone(), editor: kb.editor.clone(),
+                });
+            }
+        }
+        // The active profile's shortcuts are those at the top
+        let active = kb.resolved_active();
+        let (app, editor) = (kb.app.clone(), kb.editor.clone());
+        if let Some(p) = kb.profiles.iter_mut().find(|p| p.id == active) {
+            p.app = app;
+            p.editor = editor;
+        }
+        Some(Self::with_profiles(Some(&active), kb.profiles))
+    }
 }
 
 impl Default for Keybindings {
@@ -307,6 +414,42 @@ pub fn default_app() -> Bindings {
     ])
 }
 
+/// Combinations bound to more than one action, with the label keys of those actions.
+pub type Conflicts = Vec<(String, Vec<&'static str>)>;
+
+/// Application and editor shortcuts share one keyboard, so a combination may
+/// only be given to a single action across both lists. A shortcut that is the
+/// first key(s) of another action's chord ("ctrl+x" vs "ctrl+x ctrl+s") is a
+/// conflict too: the chord could never be completed. Giving the same
+/// combination to both slots of one action is fine.
+pub fn conflicts(app: &Bindings, editor: &Bindings) -> Conflicts {
+    // (binding, action label), one entry per distinct binding of each action
+    let mut entries: Vec<(String, &'static str)> = Vec::new();
+    let app_ids = APP_ACTIONS.iter().map(|a| (app, a.id, a.label_key));
+    let editor_ids = EDITOR_ACTIONS.iter().map(|a| (editor, a.id, a.label_key));
+    for (map, id, label_key) in app_ids.chain(editor_ids) {
+        let mut seen = std::collections::HashSet::new();
+        for b in map.get(id).into_iter().flatten().filter(|b| !b.is_empty()) {
+            if seen.insert(b.clone()) {
+                entries.push((b.clone(), label_key));
+            }
+        }
+    }
+    let mut by_combo: std::collections::BTreeMap<String, Vec<&'static str>> = Default::default();
+    for (bind, label) in &entries {
+        let chord_prefix = format!("{bind} ");
+        for (other, other_label) in &entries {
+            if other_label != label && (other == bind || other.starts_with(&chord_prefix)) {
+                let labels = by_combo.entry(bind.clone()).or_default();
+                for l in [label, other_label] {
+                    if !labels.contains(l) { labels.push(l); }
+                }
+            }
+        }
+    }
+    by_combo.into_iter().collect()
+}
+
 /// Default editor shortcuts a preset handed over to a new action:
 /// (preset, shortcut, old action, new action).
 const MOVED: &[(&str, &str, &str, &str)] = &[
@@ -497,16 +640,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn action_ids_are_unique_and_round_trip() {
-        for (i, d) in APP_ACTIONS.iter().enumerate() {
-            assert!(APP_ACTIONS[i + 1..].iter().all(|o| o.id != d.id), "{}", d.id);
-            assert_eq!(AppAction::from_id(d.id), Some(d.action));
-        }
-        for (i, d) in EDITOR_ACTIONS.iter().enumerate() {
-            assert!(EDITOR_ACTIONS[i + 1..].iter().all(|o| o.id != d.id), "{}", d.id);
-            assert_eq!(EditorAction::from_id(d.id), Some(d.action));
-        }
-        assert_eq!(AppAction::from_id("nope"), None);
+    fn old_files_hold_profiles() {
+        // A custom profile active: its shortcuts as they are in effect (at the top)
+        let old = r#"{"editor_preset": "emacs", "active_profile": "c1",
+            "app": {"save": ["ctrl+j"]}, "editor": {},
+            "profiles": [{"id": "c1", "name": "Mine", "editor_preset": "emacs", "app": {}, "editor": {}}]}"#;
+        let (active, profiles) = Keybindings::from_old(old).unwrap().to_files();
+        assert_eq!((active.as_str(), profiles.len(), profiles[0].0.as_str()), ("Mine", 1, "Mine"));
+        assert_eq!(profiles[0].1.app.get("save"), Some(&vec!["ctrl+j".to_string()]));
+        let kb = Keybindings::from_files(Some(&active), profiles);
+        assert_eq!(kb.app_binds("save"), &["ctrl+j".to_string()]);
+        // Older than the profiles: shortcuts of its own become a profile
+        let (active, profiles) = Keybindings::from_old(r#"{"editor_preset": "classic", "app": {"save": ["ctrl+j"]}, "editor": {}}"#).unwrap().to_files();
+        assert_eq!((active.as_str(), profiles.len()), (DEFAULT_PROFILE_NAME, 1));
+        assert_eq!(Keybindings::from_old(r#"{"active_profile": "emacs"}"#), None);
+    }
+
+    #[test]
+    fn profile_files_are_named_after_the_profiles() {
+        let profile = |id: &str, name: &str| Profile { id: id.into(), name: name.into(), editor_preset: "emacs".into(), app: Bindings::new(), editor: Bindings::new() };
+        let kb = Keybindings::with_profiles(Some("b"), vec![profile("a", "Perso"), profile("b", "perso"), profile("c", "a/b"), profile("d", " "), profile("e", "emacs")]);
+        let (active, files) = kb.to_files();
+        let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, vec!["Perso", "perso 2", "a-b", DEFAULT_PROFILE_NAME, "emacs 2"]);
+        assert_eq!(active, "perso 2");
+    }
+
+    #[test]
+    fn a_built_in_profile_is_its_preset() {
+        let kb = Keybindings::from_files(Some("emacs"), vec![]);
+        assert_eq!((kb.app.clone(), kb.editor_preset.as_str()), (preset_app("emacs"), "emacs"));
+        // A profile that is not there: the default one
+        let kb = Keybindings::from_files(Some("gone"), vec![]);
+        assert_eq!(kb.active_profile, "classic");
+        assert_eq!(kb.to_files().0, "classic");
     }
 
     #[test]

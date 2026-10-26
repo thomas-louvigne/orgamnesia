@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod config_files;
 pub mod error;
 pub mod git;
 pub mod index;
@@ -20,6 +21,14 @@ pub fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// `path` with a leading `~/` made the home folder (`~/x` → `/home/me/x`).
+pub fn expand_home(path: &str) -> String {
+    match (path.strip_prefix("~/"), std::env::var("HOME")) {
+        (Some(rest), Ok(home)) => format!("{home}/{rest}"),
+        _ => path.to_string(),
+    }
+}
+
 /// Open `target` (a folder, a web page) with the system's program for it:
 /// `open` on macOS, `xdg-open` elsewhere.
 pub fn open_with_system(target: &str) -> Result<(), AppError> {
@@ -36,8 +45,12 @@ use settings::{Prefs, Settings};
 pub struct AppState {
     /// The open project, if any.
     pub project: Mutex<Option<Project>>,
-    /// The settings, as last read from or written to `settings.json`.
+    /// The settings, as last read from or written to `settings.json` and `state.json`.
     pub settings: Mutex<Settings>,
+    /// The configuration files: the text in effect of each, what is wrong in them.
+    pub config: Mutex<config_files::ConfigState>,
+    /// Watches the configuration folder.
+    pub config_watcher: Mutex<Option<watch::Watcher>>,
     /// Watches the open project's folder.
     pub watcher: Mutex<Option<watch::Watcher>>,
     /// The dictionary of the spelling extension.
@@ -49,6 +62,8 @@ impl AppState {
         Self {
             project: Mutex::new(None),
             settings: Mutex::new(Settings::default()),
+            config: Mutex::new(config_files::ConfigState::default()),
+            config_watcher: Mutex::new(None),
             watcher: Mutex::new(None),
             spell: Mutex::new(spell::Speller::default()),
         }

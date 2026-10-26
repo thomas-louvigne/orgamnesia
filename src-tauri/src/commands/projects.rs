@@ -3,7 +3,7 @@
 use orgamnesia_core::{FileEntry, VaultChanges};
 use tauri::{AppHandle, Manager, State};
 
-use super::{store_settings, Cmd};
+use super::{store_state, Cmd};
 use crate::{project::Project, watch, AppState};
 
 /// Open the folder `path` as the project; returns its pages.
@@ -22,7 +22,7 @@ pub async fn open_vault(state: State<'_, AppState>, app: AppHandle, path: String
     s.vault_path = Some(path.clone());
     s.projects.retain(|p| p != &path);
     s.projects.insert(0, path.clone());
-    store_settings(&state, &app, s)?;
+    store_state(&state, &app, s)?;
 
     *crate::lock(&state.project) = Some(project);
     // The images of its pages are shown from the disk
@@ -47,6 +47,6 @@ pub async fn remove_project(state: State<'_, AppState>, app: AppHandle, path: St
     let mut s = state.settings();
     s.projects.retain(|p| p != &path);
     let projects = s.projects.clone();
-    store_settings(&state, &app, s)?;
+    store_state(&state, &app, s)?;
     Ok(projects)
 }

@@ -7,7 +7,7 @@ use crate::{actions, i18n::t, state::{AppCtx, FileEntry}};
 /// opens the page there. Without, it follows the focused pane.
 #[component]
 pub fn TabBar(#[prop(optional)] pane: Option<bool>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
 
     view! {
         <div class="tab-bar">
@@ -31,7 +31,7 @@ fn TabItem(
     dirty: RwSignal<bool>,
     pane: Option<bool>,
 ) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let path = StoredValue::new(tab_path);
     let index = move || path.with_value(|p| ctx.work.tab_index(p));
 

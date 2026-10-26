@@ -22,7 +22,7 @@ fn GitIcon() -> impl IntoView {
 #[component]
 fn GitButtons() -> impl IntoView {
     use crate::state::GitOp;
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let busy = move || ctx.project.git_busy.get();
     let git = move || ctx.project.git.get().unwrap_or_default();
@@ -80,7 +80,7 @@ fn GitButtons() -> impl IntoView {
 /// Git state of the open project (git extension).
 #[component]
 pub fn GitLine() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     // Built again only when the project becomes, or stops being, a repository: a
     // new state only updates the branch and the counts, so the buttons stay the

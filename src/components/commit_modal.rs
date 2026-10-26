@@ -13,7 +13,7 @@ use crate::{
 
 #[component]
 pub fn CommitModal() -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let close = move || ctx.ui.show_commit.set(false);
     // None while git is read

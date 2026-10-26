@@ -27,6 +27,8 @@ pub enum AppError {
     FolderNotFound(String),
     /// `settings.json` / `keybindings.json` could not be written.
     Settings(String),
+    /// A configuration file to apply is not valid: what is wrong with it.
+    ConfigInvalid(String),
     /// The folder picker could not be shown.
     Dialog,
     /// A git command failed; what it said.
@@ -56,6 +58,7 @@ impl std::fmt::Display for AppError {
             Self::CannotRun { program, error } => write!(f, "cannot run '{program}': {error}"),
             Self::FolderNotFound(p) => write!(f, "Folder not found: {p}"),
             Self::Settings(e)      => write!(f, "Settings error: {e}"),
+            Self::ConfigInvalid(e) => write!(f, "Invalid configuration: {e}"),
             Self::Dialog           => write!(f, "The folder picker could not be shown"),
             Self::Git(e)           => write!(f, "{e}"),
             Self::NoRemote         => write!(f, "no remote: add one with git remote add origin <url>"),
@@ -94,6 +97,7 @@ impl AppError {
             Self::CannotRun { program, error } => ("cannot_run", some(program), some(error)),
             Self::FolderNotFound(p) => ("folder_not_found", some(p), None),
             Self::Settings(e)      => ("settings", some(e), None),
+            Self::ConfigInvalid(e) => ("config_invalid", some(e), None),
             Self::Dialog           => ("dialog", None, None),
             Self::Git(e)           => ("tool_output", some(e), None),
             Self::NoRemote         => ("no_remote", None, None),

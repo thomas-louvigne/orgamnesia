@@ -38,6 +38,8 @@ relisez-le comme n'importe quelle contribution.
   dictionnaire personnel (dictionnaires Hunspell).
 - *Corbeille* avec annulation, *sauvegarde automatique*, pages modifiées par un
   autre programme rechargées.
+- *Préférences en texte* : les fichiers de réglages et de raccourcis ouverts dans
+  l'éditeur, vérifiés pendant la frappe, appliqués à chaud, avec historique.
 - *Extensions* : état git, site web statique avec
   [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
 - Interface en français et en anglais.
@@ -80,7 +82,9 @@ particularités de macOS (dictionnaires, touches Cmd et Option) :
 
 - Les pages : les fichiers =.org= du dossier du projet.
 - Les réglages : =~/.config/com.orgamnesia.app/= sous Linux,
-  =~/Library/Application Support/com.orgamnesia.app/= sous macOS.
+  =~/Library/Application Support/com.orgamnesia.app/= sous macOS. Ils se modifient
+  en texte depuis l'application, vérifiés pendant la frappe, avec un historique des
+  versions valides (voir [[file:docs/fonctionnalites.org::*Préférences en texte][Préférences en texte]]).
 
 * Développement
 

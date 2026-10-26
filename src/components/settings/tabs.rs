@@ -10,7 +10,7 @@ use orgamnesia_core::SiteConfig;
 /// Project, links and language.
 #[component]
 pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     view! {
         <div class="tab-content">
@@ -60,7 +60,7 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
 /// Saving, editing helpers, TODO keywords, deleting pages and the trash.
 #[component]
 pub fn EditingTab(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     view! {
         <div class="tab-content">
@@ -96,7 +96,7 @@ pub fn EditingTab(draft: RwSignal<Prefs>) -> impl IntoView {
 /// What the editor shows, and where the frames go around it.
 #[component]
 pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     view! {
         <div class="tab-content">
@@ -135,7 +135,7 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
 /// The org-bloom and git extensions.
 #[component]
 pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     view! {
         <div class="tab-content">
@@ -187,7 +187,7 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
 /// The spelling extension: on or off, the dictionary, and a folder of dictionaries.
 #[component]
 pub fn SpellingTab(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let off = move || !draft.with(|p| p.spell);
     // The dictionaries found, with the folder of the settings looked in first; None: not known yet
@@ -255,7 +255,7 @@ fn dict_packages(code: &str) -> [String; 3] {
 /// No dictionary on the system: how to install one, for the system the application runs on.
 #[component]
 fn SpellInstallHelp(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let platform = web_sys::window().and_then(|w| w.navigator().platform().ok()).unwrap_or_default();
     let (mac, windows) = (platform.starts_with("Mac"), platform.starts_with("Win"));
@@ -296,7 +296,7 @@ fn SpellInstallHelp(draft: RwSignal<Prefs>) -> impl IntoView {
 /// setting to empty it automatically.
 #[component]
 fn TrashSettings(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     // None: no project open
     let count = RwSignal::new(None::<usize>);
@@ -347,7 +347,7 @@ fn TrashSettings(draft: RwSignal<Prefs>) -> impl IntoView {
 /// says; the folder opens in the file manager.
 #[component]
 fn SiteFolder(draft: RwSignal<Prefs>) -> impl IntoView {
-    let ctx = use_context::<AppCtx>().expect("AppCtx");
+    let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let site = RwSignal::new(None::<SiteConfig>);
     spawn_local(async move {
