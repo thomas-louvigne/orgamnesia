@@ -38,3 +38,6 @@ arboard            = { version = "3", default-features = false }
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+[dev-dependencies]
+tauri              = { version = "2", features = ["protocol-asset", "test"] }

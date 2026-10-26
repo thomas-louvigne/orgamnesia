@@ -36,6 +36,8 @@ struct State {
     #[serde(default)]
     projects: Vec<String>,
     session: Option<Session>,
+    #[serde(default)]
+    assets_declined: Vec<String>,
 }
 
 /// The settings (`settings.json`) and what the app keeps for itself
@@ -54,6 +56,7 @@ pub fn load(config_dir: &Path, config: &mut ConfigState) -> Settings {
             settings.vault_path = state.vault_path;
             settings.projects = state.projects;
             settings.session = state.session;
+            settings.assets_declined = state.assets_declined;
         }
         None => {
             if let Some(rest) = text.as_deref().and_then(without_state) && save_state(config_dir, &settings).is_ok() {
@@ -95,6 +98,7 @@ pub fn save_state(config_dir: &Path, settings: &Settings) -> Result<(), AppError
         vault_path: settings.vault_path.clone(),
         projects: settings.projects.clone(),
         session: settings.session.clone(),
+        assets_declined: settings.assets_declined.clone(),
     };
     std::fs::create_dir_all(config_dir)?;
     std::fs::write(config_dir.join(STATE_FILE), serde_json::to_string_pretty(&state)?)?;

@@ -111,7 +111,7 @@ pub fn PathField(
         spawn_local(async move {
             let picked = match file_in {
                 Some(dir) => invoke::pick_file(Some(dir)).await,
-                None => invoke::pick_folder().await,
+                None => invoke::pick_folder(None).await,
             };
             match picked {
                 Ok(Some(path)) => on_change.run(path),

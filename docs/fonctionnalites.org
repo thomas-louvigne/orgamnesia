@@ -28,10 +28,13 @@ Un projet est un dossier de pages =.org= liées entre elles.
 - Si le dossier contient un sous-dossier =pages/=, les pages y sont ; sinon, si le
   dossier contient déjà des fichiers =.org=, il est utilisé tel quel. Un dossier
   vide reçoit =pages/= et =assets/=.
-- *Nouveau projet* : le bouton à côté de celui d'ouverture, la fin du menu des
-  projets ou l'écran d'accueil nomment un nouveau dossier dans la boîte de dialogue
-  du système ; il est créé avec =pages/= et =assets/=, puis ouvert (un dossier qui
-  existe déjà est simplement ouvert).
+- *Ouvrir ou créer un dossier de notes* : le bouton dossier à côté du nom du projet,
+  le menu des projets ou l'écran d'accueil ouvrent le sélecteur de dossier du
+  système, où l'on peut aussi créer un nouveau dossier ; un dossier nouveau ou vide
+  reçoit =pages/= et =assets/=, puis s'ouvre. Un dossier qui contient déjà des
+  fichiers =.org= est utilisé tel quel : s'il n'a pas de dossier =assets/= (où sont
+  copiées les images ajoutées aux pages), l'application propose de le créer ; si
+  on refuse, elle ne le redemande plus pour ce dossier.
 - Le nom du projet, en haut de la liste des pages, ouvre le menu des projets :
   ouvrir un autre dossier, revenir à un projet récent, retirer un projet de la
   liste (le dossier n'est pas touché).

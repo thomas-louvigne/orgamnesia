@@ -1,5 +1,5 @@
-//! The open project, the menu switching to another one, the buttons opening and
-//! creating one.
+//! The open project, the menu switching to another one, the button opening (or
+//! creating) one.
 
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -48,18 +48,6 @@ pub fn ProjectSwitcher() -> impl IntoView {
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linejoin="round" aria-hidden="true">
                     <path d="M3 7.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V9a1.5 1.5 0 0 0-1.5-1.5h-7.2L10.4 5H4.5A1.5 1.5 0 0 0 3 6.5z" />
-                </svg>
-            </button>
-            <button
-                class="btn-icon btn-new-project"
-                title={move || t("new_project", ctx.lang.get())}
-                aria-label={move || t("new_project", ctx.lang.get())}
-                on:click=move |_| spawn_local(actions::create_project(ctx))
-            >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
-                    <path d="M3 7.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V9a1.5 1.5 0 0 0-1.5-1.5h-7.2L10.4 5H4.5A1.5 1.5 0 0 0 3 6.5z" />
-                    <path d="M12 10.5v6M9 13.5h6" />
                 </svg>
             </button>
             {move || ctx.ui.show_projects.get().then(|| view! {
@@ -129,12 +117,6 @@ pub fn ProjectSwitcher() -> impl IntoView {
                         spawn_local(actions::pick_and_open_project(ctx));
                     }>
                         {move || t("open_project", ctx.lang.get())}
-                    </button>
-                    <button class="project-open-btn" on:click=move |_| {
-                        ctx.ui.show_projects.set(false);
-                        spawn_local(actions::create_project(ctx));
-                    }>
-                        {move || t("new_project", ctx.lang.get())}
                     </button>
                 </div>
             })}

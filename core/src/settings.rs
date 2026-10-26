@@ -23,10 +23,13 @@ pub struct Settings {
     /// Pages and panes open when the app was last quit. Kept by the backend:
     /// the settings window never sends it.
     pub session: Option<Session>,
+    /// Folders of `.org` files whose user didn't want an `assets/` folder made.
+    #[serde(default)]
+    pub assets_declined: Vec<String>,
 }
 
 /// The keys of `Settings` kept in `state.json`, not in `settings.json`.
-pub const STATE_KEYS: [&str; 3] = ["vault_path", "projects", "session"];
+pub const STATE_KEYS: [&str; 4] = ["vault_path", "projects", "session", "assets_declined"];
 
 /// `settings.json`, what the user sets. A missing value (older file, or never
 /// set) means the default: see `Prefs`, the only place defaults are decided.
@@ -353,7 +356,7 @@ impl Prefs {
             // Saved with the keybindings
             keybinding_profile: None,
         };
-        Settings { config, vault_path: some(&self.vault), projects, session: None }
+        Settings { config, vault_path: some(&self.vault), projects, session: None, assets_declined: vec![] }
     }
 
     /// How `#tags` and `:tags:` are read.

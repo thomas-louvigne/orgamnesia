@@ -33,9 +33,12 @@ A project is a folder of =.org= pages linked to each other.
 - If the folder has a =pages/= subfolder, the pages are there; otherwise, if the
   folder already holds =.org= files, it is used as is. An empty folder gets
   =pages/= and =assets/=.
-- *New project*: the button next to the open one, the end of the projects menu or
-  the welcome screen name a new folder in the system's dialog; it is created with
-  =pages/= and =assets/=, then opened (an existing folder is just opened).
+- *Open or create a folder of notes*: the folder button next to the project name,
+  the projects menu or the welcome screen open the system's folder picker, where a
+  new folder can also be created; a new or empty folder gets =pages/= and
+  =assets/=, then opens. A folder already holding =.org= files is used as it is:
+  when it has no =assets/= folder (where the images added to the pages are
+  copied), the app offers to make one; declined, it doesn't ask again there.
 - The project name, above the list of pages, opens the projects menu: open another
   folder, go back to a recent project, remove a project from the list (the folder
   itself is left untouched).

@@ -24,8 +24,8 @@ relisez-le comme n'importe quelle contribution.
 
 * Fonctionnalités
 
-- *Nouveau projet en un clic* : un dossier créé avec =pages/= et =assets/=, prêt
-  à écrire ; un dossier de fichiers =.org= existant s'ouvre tel quel.
+- *Ouvrir ou créer un dossier de notes* dans la même fenêtre : un nouveau dossier
+  reçoit =pages/= et =assets/=, prêt à écrire ; un dossier de fichiers =.org= existant s'ouvre tel quel.
 - *Liens et tags* : =[[Page]]=, =#mots-clés= et =:tags:=, avec complétion ;
   renommer une page réécrit les liens qui y mènent.
 - *Cadres* autour de l'éditeur : pages, liens entrants, tags, à faire, git…, placés
@@ -48,8 +48,9 @@ Toutes les fonctionnalités en détail : [[file:docs/fonctionnalites.org][docs/f
 
 * Prise en main
 
-1. Lancez Orgamnesia et *créez un projet* (un nouveau dossier, préparé avec =pages/=
-   et =assets/=), ou *ouvrez un dossier* qui contient déjà des fichiers =.org=.
+1. Lancez Orgamnesia et *ouvrez ou créez un dossier de notes* : un nouveau dossier
+   est préparé avec =pages/= et =assets/=, un dossier qui contient déjà des
+   fichiers =.org= s'ouvre tel quel.
 2. *Créez une page* avec le bouton =+= de la liste des pages.
 3. Tapez =[[Autre page]]= pour faire un lien vers une autre page ; Ctrl+clic
    l'ouvre, et la crée au besoin.

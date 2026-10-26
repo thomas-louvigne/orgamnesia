@@ -179,6 +179,23 @@ pub async fn open_vault(path: &str) -> Result<Vec<FileEntry>, String> {
     call("open_vault", serde_json::json!({ "path": path })).await
 }
 
+/// An `assets/` folder to offer the project (see `src-tauri/src/commands/projects.rs`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct AssetsOffer {
+    /// The folder around the project, whose `assets/` may be used.
+    pub parent: Option<String>,
+}
+
+/// What `assets/` folder to offer the project `path`, if any.
+pub async fn assets_offer(path: &str) -> Result<Option<AssetsOffer>, String> {
+    call("assets_offer", serde_json::json!({ "path": path })).await
+}
+
+/// Make the `assets/` folder of the project `path`, or remember it isn't wanted.
+pub async fn answer_assets(path: &str, create: bool) -> Result<(), String> {
+    call("answer_assets", serde_json::json!({ "path": path, "create": create })).await
+}
+
 pub async fn remove_project(path: &str) -> Result<Vec<String>, String> {
     call("remove_project", serde_json::json!({ "path": path })).await
 }
@@ -272,13 +289,9 @@ pub async fn open_folder(path: &str) -> Result<(), String> {
     call("open_folder", serde_json::json!({ "path": path })).await
 }
 
-pub async fn pick_folder() -> Result<Option<String>, String> {
-    call("pick_folder", serde_json::json!({})).await
-}
-
-/// Save dialog naming a new folder, created by the backend.
-pub async fn pick_new_folder(title: &str) -> Result<Option<String>, String> {
-    call("pick_new_folder", serde_json::json!({ "title": title })).await
+/// Folder picker (titled `title`), where a folder may also be created.
+pub async fn pick_folder(title: Option<&str>) -> Result<Option<String>, String> {
+    call("pick_folder", serde_json::json!({ "title": title })).await
 }
 
 pub async fn get_keybindings() -> Result<Keybindings, String> {

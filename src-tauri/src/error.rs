@@ -126,6 +126,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_error_has_a_code_and_a_text() {
+        let all = [
+            AppError::Io(std::io::Error::other("disk")), AppError::NoProject, AppError::VaultNotFound("v".into()),
+            AppError::NotAFolder("f".into()), AppError::NotAPage("p".into()), AppError::PageExists("e".into()),
+            AppError::InvalidName("n".into()), AppError::OrgBloom("o".into()), AppError::OrgBloomNotFound("b".into()),
+            AppError::CannotRun { program: "x".into(), error: "y".into() }, AppError::FolderNotFound("d".into()),
+            AppError::Settings("s".into()), AppError::ConfigInvalid("c".into()), AppError::Dialog,
+            AppError::Git("g".into()), AppError::NoRemote, AppError::NotAnImage("i".into()),
+            AppError::NoDictionary("fr".into()), AppError::BadDictionary("bad".into()),
+        ];
+        for e in all {
+            let (code, _, _) = e.parts();
+            assert!(!code.is_empty() && !e.to_string().is_empty(), "{e:?}");
+        }
+        let from_json: AppError = serde_json::from_str::<serde_json::Value>("{").unwrap_err().into();
+        assert!(matches!(from_json, AppError::Settings(_)));
+    }
+
+    #[test]
     fn sent_as_code_and_detail() {
         let json = |e: AppError| serde_json::to_string(&e).unwrap();
         assert_eq!(json(AppError::PageExists("Idée".into())), r#"{"code":"page_exists","detail":"Idée","cause":null}"#);

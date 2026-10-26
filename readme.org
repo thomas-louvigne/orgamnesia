@@ -23,8 +23,8 @@ other contribution.
 
 * Features
 
-- *New project in one click*: a folder created with =pages/= and =assets/=, ready
-  to write in; an existing folder of =.org= files opens as is.
+- *Open or create a folder of notes* in the same dialog: a new folder gets =pages/=
+  and =assets/=, ready to write in; an existing folder of =.org= files opens as is.
 - *Links and tags*: =[[Page]]=, =#keywords= and =:tags:=, with completion;
   renaming a page rewrites the links to it.
 - *Frames* around the editor: pages, backlinks, tags, to do, git…, placed as you
@@ -45,8 +45,8 @@ Every feature, with screenshots: [[file:docs/features.org][docs/features.org]].
 
 * Getting started
 
-1. Launch Orgamnesia and *create a project* (a new folder, set up with =pages/=
-   and =assets/=), or *open a folder* that already holds =.org= files.
+1. Launch Orgamnesia and *open or create a folder of notes*: a new folder is set
+   up with =pages/= and =assets/=, one that already holds =.org= files opens as is.
 2. *Create a page* with the =+= button of the list of pages.
 3. Type =[[Other page]]= to link to another page; Ctrl+click opens it, and creates
    it if needed.

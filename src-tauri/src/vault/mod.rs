@@ -80,6 +80,23 @@ pub fn ensure_structure(vault_path: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Whether the project `vault_path` is a plain folder of `.org` files (used as
+/// is) without an `assets/` folder for the images of its pages.
+pub fn lacks_assets(vault_path: &str) -> bool {
+    let base = Path::new(vault_path);
+    !base.join("pages").is_dir() && has_org_files(base) && !base.join("assets").exists()
+}
+
+/// The project `vault_path` lacks its `assets/` folder and is called `pages`,
+/// next to an `assets/` folder: the `pages/` of a project (Logseq's layout)
+/// opened instead of the project itself. That project's folder.
+pub fn parent_with_assets(vault_path: &str) -> Option<PathBuf> {
+    let base = Path::new(vault_path);
+    let parent = base.parent()?;
+    let named_pages = base.file_name().is_some_and(|n| n == "pages");
+    (named_pages && lacks_assets(vault_path) && parent.join("assets").is_dir()).then(|| parent.to_path_buf())
+}
+
 /// File stem of a `.org` path (the page name).
 pub fn page_name(path: &str) -> String {
     Path::new(path)
@@ -130,6 +147,30 @@ pub fn delete_blank_pages(vault_path: &str, empty: bool, title_only: bool) -> Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_folder_of_pages_may_lack_its_assets() {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-vault-assets-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.to_string_lossy().to_string();
+        // Empty: it gets both folders
+        assert!(!lacks_assets(&path));
+        std::fs::write(dir.join("note.org"), "* Note\n").unwrap();
+        assert!(lacks_assets(&path));
+        std::fs::create_dir_all(dir.join("assets")).unwrap();
+        assert!(!lacks_assets(&path));
+        assert_eq!(parent_with_assets(&path), None);
+        // The `pages/` of a project with its `assets/` beside
+        let pages = dir.join("projet/pages");
+        std::fs::create_dir_all(&pages).unwrap();
+        std::fs::write(pages.join("note.org"), "* Note\n").unwrap();
+        let pages = pages.to_string_lossy().to_string();
+        assert_eq!(parent_with_assets(&pages), None);
+        std::fs::create_dir_all(dir.join("projet/assets")).unwrap();
+        assert_eq!(parent_with_assets(&pages), Some(dir.join("projet")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn blank_pages() {

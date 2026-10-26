@@ -12,28 +12,26 @@ async fn dialog<T>(show: impl FnOnce(tokio::sync::oneshot::Sender<T>)) -> Cmd<T>
     rx.await.map_err(|_| AppError::Dialog)
 }
 
+/// Folder picker, titled `title` when there is one. The folder may be created
+/// there (or named when it doesn't exist yet: then created); its path.
 #[tauri::command]
-pub async fn pick_folder(app: AppHandle) -> Cmd<Option<String>> {
+pub async fn pick_folder(app: AppHandle, title: Option<String>) -> Cmd<Option<String>> {
     use tauri_plugin_dialog::DialogExt;
-    dialog(|tx| app.dialog().file().pick_folder(move |folder| {
-        let _ = tx.send(folder.map(|f| f.to_string()));
-    })).await
-}
-
-/// Save dialog naming the folder of a new project, titled `title`: the folder is
-/// created (kept when it already is one) and its path returned.
-#[tauri::command]
-pub async fn pick_new_folder(app: AppHandle, title: String) -> Cmd<Option<String>> {
-    use tauri_plugin_dialog::DialogExt;
-    let picked = dialog(|tx| app.dialog().file().set_title(title).save_file(move |folder| {
+    let mut picker = app.dialog().file().set_can_create_directories(true);
+    if let Some(title) = title { picker = picker.set_title(title); }
+    let picked = dialog(|tx| picker.pick_folder(move |folder| {
         let _ = tx.send(folder.map(|f| f.to_string()));
     })).await?;
-    let Some(path) = picked else { return Ok(None) };
-    if std::path::Path::new(&path).exists() && !std::path::Path::new(&path).is_dir() {
-        return Err(AppError::NotAFolder(path));
+    picked.map(|path| ensure_folder(&path).map(|()| path)).transpose()
+}
+
+/// `path` is a folder: created when there is nothing there.
+fn ensure_folder(path: &str) -> Cmd<()> {
+    let p = std::path::Path::new(path);
+    if p.exists() && !p.is_dir() {
+        return Err(AppError::NotAFolder(path.to_string()));
     }
-    std::fs::create_dir_all(&path)?;
-    Ok(Some(path))
+    Ok(std::fs::create_dir_all(p)?)
 }
 
 /// File picker (for the SSH key), opening in `start` when it exists.
@@ -99,7 +97,12 @@ pub fn quit_app(app: AppHandle) {
 /// When the application exits: delete the blank pages of the open project and
 /// save the open pages and panes, as chosen in the settings.
 pub fn on_exit(app: &AppHandle) {
-    let state = app.state::<AppState>();
+    if let Ok(dir) = config_dir(app) {
+        save_on_exit(&app.state::<AppState>(), &dir);
+    }
+}
+
+fn save_on_exit(state: &AppState, dir: &std::path::Path) {
     let prefs = state.prefs();
     let path = crate::lock(&state.project).as_ref().map(|p| p.path.clone());
     if let Some(path) = path {
@@ -109,7 +112,41 @@ pub fn on_exit(app: &AppHandle) {
     if !prefs.restore_session {
         s.session = None;
     }
-    if let Ok(dir) = config_dir(app) {
-        let _ = settings::save_state(&dir, &s);
+    let _ = settings::save_state(dir, &s);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::testing::{folder, open_project};
+
+    #[test]
+    fn a_folder_picked_is_one() {
+        let dir = folder("cmd-ensure-folder");
+        let new = dir.join("notes/neuves");
+        ensure_folder(&new.to_string_lossy()).unwrap();
+        assert!(new.is_dir());
+        ensure_folder(&new.to_string_lossy()).unwrap();
+        std::fs::write(dir.join("fichier"), "").unwrap();
+        assert!(matches!(ensure_folder(&dir.join("fichier").to_string_lossy()), Err(AppError::NotAFolder(_))));
+    }
+
+    #[test]
+    fn on_exit_blank_pages_go_and_the_session_is_kept_as_set() {
+        let state = AppState::new();
+        let path = open_project(&state, "cmd-exit", &[("Vide", "  \n"), ("Une", "* Une\ntexte\n")]);
+        let config = folder("cmd-exit-config");
+        {
+            let mut s = crate::lock(&state.settings);
+            s.config.delete_empty_pages = Some(true);
+            s.session = Some(orgamnesia_core::Session { project: path.clone(), ..Default::default() });
+        }
+        save_on_exit(&state, &config);
+        assert!(!std::path::Path::new(&path).join("pages/Vide.org").exists());
+        assert!(std::fs::read_to_string(config.join("state.json")).unwrap().contains("\"session\": {"));
+        // Not to be restored: not kept
+        crate::lock(&state.settings).config.restore_session = Some(false);
+        save_on_exit(&state, &config);
+        assert!(std::fs::read_to_string(config.join("state.json")).unwrap().contains("\"session\": null"));
     }
 }
