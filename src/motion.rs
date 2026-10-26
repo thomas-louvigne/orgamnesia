@@ -9,9 +9,9 @@ fn line_end(chars: &[char], pos: usize) -> usize {
     chars[pos..].iter().position(|&c| c == '\n').map(|i| pos + i).unwrap_or(chars.len())
 }
 
-/// `[start..end)` holds only whitespace.
-fn is_blank(chars: &[char], start: usize, end: usize) -> bool {
-    chars[start..end].iter().all(|c| c.is_whitespace())
+/// Line with no text: only whitespace, or a heading's bare `*`s. Separates paragraphs.
+fn is_empty_line(chars: &[char], start: usize, end: usize) -> bool {
+    chars[start..end].iter().all(|&c| c.is_whitespace() || c == '*')
 }
 
 fn is_terminator(c: char) -> bool {
@@ -25,50 +25,103 @@ pub fn back_to_indentation(chars: &[char], pos: usize) -> usize {
     i
 }
 
+/// Where the text of the headline starting at `ls` begins (after its stars and
+/// spaces), if the line is one.
+fn heading_text(chars: &[char], ls: usize) -> Option<usize> {
+    let stars = chars[ls..].iter().take_while(|&&c| c == '*').count();
+    if stars == 0 || !matches!(chars.get(ls + stars), Some(' ' | '\n') | None) { return None; }
+    let mut i = ls + stars;
+    while i < chars.len() && chars[i] == ' ' { i += 1; }
+    Some(i)
+}
+
+/// A line that ends a paragraph of sentences: empty, or a headline (a paragraph
+/// of its own, as in org-mode).
+fn is_paragraph_break(chars: &[char], ls: usize) -> bool {
+    is_empty_line(chars, ls, line_end(chars, ls)) || heading_text(chars, ls).is_some()
+}
+
+/// Where the text of the paragraph holding `pos` starts.
+fn sentence_paragraph_start(chars: &[char], pos: usize) -> usize {
+    let mut ls = line_start(chars, pos);
+    if let Some(t) = heading_text(chars, ls) { return t; }
+    while ls > 0 {
+        let prev = line_start(chars, ls - 1);
+        if is_paragraph_break(chars, prev) { break; }
+        ls = prev;
+    }
+    ls
+}
+
+/// Where the text of the paragraph holding `pos` ends.
+fn sentence_paragraph_end(chars: &[char], pos: usize) -> usize {
+    let mut le = line_end(chars, pos);
+    if heading_text(chars, line_start(chars, pos)).is_some() { return le; }
+    while le < chars.len() && !is_paragraph_break(chars, le + 1) {
+        le = line_end(chars, le + 1);
+    }
+    le
+}
+
 /// End of the current sentence (just after its `.`, `!` or `?`), or of the
-/// paragraph text when it ends first (Emacs `forward-sentence`, `M-e`).
+/// paragraph text when it ends first (Emacs `forward-sentence`, `M-e`). A
+/// headline is a paragraph of its own.
 pub fn forward_sentence(chars: &[char], pos: usize) -> usize {
     let n = chars.len();
     let mut i = pos;
-    while i < n && chars[i].is_whitespace() { i += 1; }
-    while i < n {
-        if is_terminator(chars[i]) && (i + 1 == n || chars[i + 1].is_whitespace()) {
-            return i + 1;
+    // Past the blanks and the stars of headlines, to the next text
+    loop {
+        while i < n && chars[i].is_whitespace() { i += 1; }
+        let ls = line_start(chars, i);
+        match heading_text(chars, ls) {
+            Some(t) if i < t => i = t,
+            _ => break,
         }
-        if chars[i] == '\n' && i + 1 < n && chars[i + 1] == '\n' {
-            return i;
+    }
+    let end = sentence_paragraph_end(chars, i);
+    while i < end {
+        if is_terminator(chars[i]) && (i + 1 == end || chars[i + 1].is_whitespace()) {
+            return i + 1;
         }
         i += 1;
     }
-    n
+    end.max(pos)
 }
 
 /// Start of the current sentence, or of the previous one when already at a start
-/// (Emacs `backward-sentence`, `M-a`).
+/// (Emacs `backward-sentence`, `M-a`). A headline is a paragraph of its own.
 pub fn backward_sentence(chars: &[char], pos: usize) -> usize {
     let mut j = pos;
-    while j > 0 && chars[j - 1].is_whitespace() { j -= 1; }
+    // Back past the blanks and the stars of headlines, to the previous text
+    while j > 0 {
+        if chars[j - 1].is_whitespace() { j -= 1; continue; }
+        let ls = line_start(chars, j);
+        match heading_text(chars, ls) {
+            Some(t) if j <= t && ls < j => j = ls,
+            _ => break,
+        }
+    }
     if j > 0 && is_terminator(chars[j - 1]) { j -= 1; }
-    let mut start = 0;
+    let para = sentence_paragraph_start(chars, j);
+    let mut start = para;
     let mut i = j;
-    while i > 0 {
-        let boundary = (is_terminator(chars[i - 1]) && chars[i].is_whitespace())
-            || (chars[i - 1] == '\n' && chars[i] == '\n');
-        if i < chars.len() && boundary { start = i; break; }
+    while i > para {
+        if i < chars.len() && is_terminator(chars[i - 1]) && chars[i].is_whitespace() { start = i; break; }
         i -= 1;
     }
     while start < pos && start < chars.len() && chars[start].is_whitespace() { start += 1; }
-    start
+    start.min(pos)
 }
 
-/// Blank line that ends the current paragraph (Emacs `forward-paragraph`).
+/// Empty line that ends the current paragraph (Emacs `forward-paragraph`); lands
+/// at its end, so after the `*`s of a bare heading.
 pub fn forward_paragraph(chars: &[char], pos: usize) -> usize {
     let n = chars.len();
     let mut ls = line_start(chars, pos);
     // skip blank lines, land on the first line of text
     while ls < n {
         let e = line_end(chars, ls);
-        if !is_blank(chars, ls, e) { break; }
+        if !is_empty_line(chars, ls, e) { break; }
         if e >= n { return n; }
         ls = e + 1;
     }
@@ -78,26 +131,26 @@ pub fn forward_paragraph(chars: &[char], pos: usize) -> usize {
         if e >= n { return n; }
         ls = e + 1;
         if ls >= n { return n; }
-        if is_blank(chars, ls, line_end(chars, ls)) { return ls; }
+        if is_empty_line(chars, ls, line_end(chars, ls)) { return line_end(chars, ls); }
     }
 }
 
-/// Blank line that starts the current paragraph (Emacs `backward-paragraph`).
+/// Empty line that starts the current paragraph (Emacs `backward-paragraph`).
 pub fn backward_paragraph(chars: &[char], pos: usize) -> usize {
     let mut ls = line_start(chars, pos);
     // on a blank line: first hop up to the text of the previous paragraph
-    if is_blank(chars, ls, line_end(chars, ls)) {
+    if is_empty_line(chars, ls, line_end(chars, ls)) {
         loop {
             if ls == 0 { return 0; }
             ls = line_start(chars, ls - 1);
-            if !is_blank(chars, ls, line_end(chars, ls)) { break; }
+            if !is_empty_line(chars, ls, line_end(chars, ls)) { break; }
         }
     }
     // walk up to the blank line above this paragraph
     loop {
         if ls == 0 { return 0; }
         let prev = line_start(chars, ls - 1);
-        if is_blank(chars, prev, line_end(chars, prev)) { return prev; }
+        if is_empty_line(chars, prev, line_end(chars, prev)) { return line_end(chars, prev); }
         ls = prev;
     }
 }
@@ -412,6 +465,21 @@ mod tests {
     }
 
     #[test]
+    fn sentences_stop_at_headlines() {
+        let t = c("* Titre\nUn. Deux\ntrois\n** Sous\nQuatre");
+        // From the text under `** Sous`: up to it, not to the top
+        assert_eq!(backward_sentence(&t, t.len()), 31);
+        assert_eq!(backward_sentence(&t, 31), 26);      // the headline's text
+        assert_eq!(backward_sentence(&t, 26), 12);      // "Deux\ntrois"
+        assert_eq!(backward_sentence(&t, 12), 8);
+        assert_eq!(backward_sentence(&t, 8), 2);
+        assert_eq!(forward_sentence(&t, 0), 7);
+        assert_eq!(forward_sentence(&t, 7), 11);
+        assert_eq!(forward_sentence(&t, 11), 22);       // stops before `** Sous`
+        assert_eq!(forward_sentence(&t, 22), 30);
+    }
+
+    #[test]
     fn sentence_stops_at_blank_line() {
         let t = c("Fin sans point\n\nSuite.");
         assert_eq!(forward_sentence(&t, 0), 14);
@@ -427,6 +495,17 @@ mod tests {
         assert_eq!(backward_paragraph(&t, 5), 4);
         assert_eq!(backward_paragraph(&t, 10), 9);
         assert_eq!(backward_paragraph(&t, 2), 0);
+    }
+
+    #[test]
+    fn bare_stars_line_is_empty() {
+        let t = c("a\n** \nb\n*\nc");
+        assert_eq!(forward_paragraph(&t, 0), 5);
+        assert_eq!(forward_paragraph(&t, 5), 9);
+        assert_eq!(backward_paragraph(&t, 10), 9);
+        assert_eq!(backward_paragraph(&t, 6), 5);
+        let t = c("* Titre\ntexte\n\nsuite");
+        assert_eq!(forward_paragraph(&t, 0), 14);
     }
 
     #[test]

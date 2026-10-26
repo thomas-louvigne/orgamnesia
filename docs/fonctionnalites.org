@@ -185,6 +185,9 @@ Avec le profil Emacs : déplacements (caractère, mot, ligne, phrase, paragraphe
 titre, début et fin de document, page), couper jusqu'à la fin de ligne, couper un
 mot, kill ring (couper puis coller avec Ctrl+Y), marqueur de sélection.
 
+Comme dans org-mode, un titre est un paragraphe à lui seul : Alt+A / Alt+E (début /
+fin de phrase) s'y arrêtent au lieu de le traverser.
+
 Ctrl+L (=recenter-top-bottom=) fait défiler la page pour mettre la ligne du curseur
 au milieu de l'éditeur ; appuyé de nouveau, en haut, puis en bas, puis de nouveau
 au milieu. Le curseur ne bouge pas.
@@ -198,7 +201,9 @@ marchent aussi dans les autres champs de l'application
 
 ** Déplacer des lignes
 Alt+↑ / Alt+↓ montent ou descendent la ligne du curseur, ou les lignes
-sélectionnées. Pas à travers un titre plié.
+sélectionnées. Pas à travers un titre plié. Sur un titre, c'est tout son
+sous-arbre (son texte et ses sous-titres, pliés ou non) qui passe au-dessus ou
+au-dessous du titre de même niveau voisin.
 
 *** Marqueur de sélection
 Ctrl+Espace pose une marque : la sélection suit ensuite le curseur, comme la région

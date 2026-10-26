@@ -262,26 +262,47 @@ fn shift_subtree(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: 
 }
 
 /// Move the line of the caret, or the lines of the selection, one line up or down.
+/// On a headline, its whole subtree goes past its sibling's (org-mode's `M-<up>`).
 fn move_line(pane: Pane, el: &Textarea, up: bool) {
     let (start, end) = get_pos(el);
     let (start, end) = (pane.page_pos(el, start), pane.page_pos(el, end));
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+    let line = folding::line_start(&page, start);
+    if folding::line_start(&page, end) == line && folding::is_headline(&page, line) {
+        let Some(s) = folding::move_subtree(&page, line, up) else { return };
+        // The folds inside go with their text
+        let folds = pane.folds.with_untracked(|f| {
+            let mut f: Vec<_> = f.iter().map(|&(a, b)| if a >= s.a && b <= s.b { (s.pos(a), s.pos(b)) } else { (a, b) }).collect();
+            f.sort();
+            f
+        });
+        replace_lines(pane, el, &page, s.a, s.b, &s.text(&page), (s.pos(start), s.pos(end)), Some(folds));
+        return;
+    }
     let Some(m) = edit::move_line(&page, start, end, up) else { return };
     // Not across a fold: the hidden text would be moved with no sight of it
     if pane.folds.with_untracked(|f| f.iter().any(|&(a, b)| a < m.b && m.a <= b)) { return; }
-    let (va, vb) = (pane.view_pos(m.a), pane.view_pos(m.b));
+    replace_lines(pane, el, &page, m.a, m.b, &m.text, m.sel, None);
+}
+
+/// The page range `a..b` becomes `text`, the selection `sel` (page positions), and
+/// the folds `folds` when they change.
+#[allow(clippy::too_many_arguments)]
+fn replace_lines(pane: Pane, el: &Textarea, page: &[char], a: usize, b: usize, text: &str, sel: (usize, usize), folds: Option<Vec<(usize, usize)>>) {
+    let (va, vb) = (pane.view_pos(a), pane.view_pos(b));
     let shown: String = el.value().chars().skip(va).take(vb.saturating_sub(va)).collect();
-    let page_span: String = page[m.a..m.b].iter().collect();
+    let page_span: String = page[a..b].iter().collect();
     if shown == page_span {
         // The lines are shown as they are: edit the textarea, so the move can be undone
-        splice(el, va, vb, &m.text);
-        set_selection(el, pane.view_pos(m.sel.0), pane.view_pos(m.sel.1));
+        splice(el, va, vb, text);
+        set_selection(el, pane.view_pos(sel.0), pane.view_pos(sel.1));
         pane.commit(el);
         pane.track_caret(el);
     } else {
-        // A table drawn among them: change the page
-        let (before, after): (String, String) = (page[..m.a].iter().collect(), page[m.b..].iter().collect());
-        pane.set_page(format!("{before}{}{after}", m.text), m.sel.1);
+        // A table drawn or a fold among them: change the page
+        if let Some(f) = folds { pane.folds.set(f); }
+        let (before, after): (String, String) = (page[..a].iter().collect(), page[b..].iter().collect());
+        pane.set_page(format!("{before}{text}{after}"), sel.1);
     }
 }
 

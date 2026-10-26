@@ -192,6 +192,9 @@ With the Emacs profile: movements (character, word, line, sentence, paragraph,
 headline, start and end of document, page), kill to end of line, kill a word, kill
 ring (kill then yank with Ctrl+Y), selection mark.
 
+As in org-mode, a headline is a paragraph of its own: Alt+A / Alt+E (sentence
+start / end) stop at it instead of crossing it.
+
 Ctrl+L (=recenter-top-bottom=) scrolls the page so the line of the cursor is in the
 middle of the editor; pressed again, at the top, then at the bottom, then in the
 middle again. The cursor doesn't move.
@@ -205,7 +208,9 @@ message…).
 
 ** Moving lines
 Alt+↑ / Alt+↓ move the line of the cursor, or the selected lines, up or down. Not
-across a folded headline.
+across a folded headline. On a headline, its whole subtree (its text and its
+sub-headlines, folded or not) moves past the headline of the same level above or
+below it.
 
 *** Selection mark
 Ctrl+Space sets a mark: the selection then follows the cursor, like Emacs' region.

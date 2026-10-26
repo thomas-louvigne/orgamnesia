@@ -127,6 +127,55 @@ pub fn shift_page(page: &[char], lines: &[usize], demote: bool, folds: &[(usize,
     (out, folds.iter().map(|&(a, b)| (shift(a), shift(b))).collect())
 }
 
+/// Two neighbour ranges to swap: `a..mid` and `mid + 1..b`, the `\n` at `mid`
+/// between them.
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct Swap {
+    pub a: usize,
+    pub mid: usize,
+    pub b: usize,
+}
+
+impl Swap {
+    /// The text of `a..b` once swapped.
+    pub fn text(self, chars: &[char]) -> String {
+        let first: String = chars[self.a..self.mid].iter().collect();
+        let second: String = chars[self.mid + 1..self.b].iter().collect();
+        format!("{second}\n{first}")
+    }
+
+    /// Where the position `p` goes once swapped (a fold's `\n` ends follow their text).
+    pub fn pos(self, p: usize) -> usize {
+        let Swap { a, mid, b } = self;
+        if (a..=mid).contains(&p) { p + (b - mid) } else if p > mid && p <= b { p - (mid + 1 - a) } else { p }
+    }
+}
+
+/// The subtree of the headline starting at `ls` and the one of its sibling above
+/// (`up`) or below, to swap them as org-mode's `M-<up>` / `M-<down>`. `None` when the
+/// line is not a headline, or has no sibling there (a headline above it in between).
+pub fn move_subtree(chars: &[char], ls: usize, up: bool) -> Option<Swap> {
+    let level_of = level(chars, ls)?;
+    let (_, end, _) = subtree(chars, ls, level_of);
+    if up {
+        let mut p = ls;
+        while p > 0 {
+            p = line_start(chars, p - 1);
+            match level(chars, p) {
+                Some(l) if l == level_of => return Some(Swap { a: p, mid: ls - 1, b: end }),
+                Some(l) if l < level_of => return None,
+                _ => {}
+            }
+        }
+        None
+    } else {
+        let next = end + 1;
+        if next >= chars.len() || level(chars, next) != Some(level_of) { return None; }
+        let (_, next_end, _) = subtree(chars, next, level_of);
+        Some(Swap { a: ls, mid: end, b: next_end })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,5 +244,25 @@ mod tests {
         assert_eq!(cycle(&t, 4, &[]), Some(vec![(7, 13)]));
         // Without children, FOLDED shows everything again
         assert_eq!(cycle(&t, 4, &[(7, 13)]), Some(vec![]));
+    }
+    #[test]
+    fn subtree_moves_past_its_sibling() {
+        let t = c("* A\ntexte\n** A1\n* B\n** B1\n* C\n");
+        let up = move_subtree(&t, 16, true).unwrap();
+        assert_eq!(up.text(&t), "* B\n** B1\n* A\ntexte\n** A1");
+        assert_eq!(up.pos(16), 0);
+        let down = move_subtree(&t, 0, false).unwrap();
+        assert_eq!(down, up);
+        assert_eq!(down.pos(0), 10);
+        // The last one, no line break after it
+        let t = c("* A\n** A1\n* B");
+        assert_eq!(move_subtree(&t, 0, false).unwrap().text(&t), "* B\n* A\n** A1");
+        // No sibling: not past a headline above, nor at the ends
+        let t = c("* A\ntexte\n** A1\n** A2\n* B\n");
+        assert_eq!(move_subtree(&t, 10, true), None);
+        assert_eq!(move_subtree(&t, 16, false), None);
+        assert_eq!(move_subtree(&t, 0, true), None);
+        assert_eq!(move_subtree(&t, 22, false), None);
+        assert_eq!(move_subtree(&t, 4, true), None);
     }
 }
