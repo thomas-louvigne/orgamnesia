@@ -185,8 +185,9 @@ Avec le profil Emacs : déplacements (caractère, mot, ligne, phrase, paragraphe
 titre, début et fin de document, page), couper jusqu'à la fin de ligne, couper un
 mot, kill ring (couper puis coller avec Ctrl+Y), marqueur de sélection.
 
-Comme dans org-mode, un titre est un paragraphe à lui seul : Alt+A / Alt+E (début /
-fin de phrase) s'y arrêtent au lieu de le traverser.
+Alt+A / Alt+E vont au titre précédent / suivant de même niveau, comme =M-{= / =M-}=
+dans org-mode : Alt+A remonte au parent quand il n'y a plus de titre de même niveau
+au-dessus, et depuis le texte sous un titre, à ce titre.
 
 Ctrl+L (=recenter-top-bottom=) fait défiler la page pour mettre la ligne du curseur
 au milieu de l'éditeur ; appuyé de nouveau, en haut, puis en bas, puis de nouveau
@@ -445,7 +446,7 @@ connaissait pas.
 | Caractère suivant / précédent | —                 | Ctrl+F / Ctrl+B             |
 | Ligne suivante / précédente  | —                  | Ctrl+N / Ctrl+P             |
 | Mot suivant / précédent      | —                  | Alt+F / Alt+B               |
-| Phrase : fin / début         | —                  | Alt+E / Alt+A               |
+| Titre frère : suivant / précédent (ou parent) | — | Alt+E / Alt+A |
 | Paragraphe : fin / début     | —                  | Alt+} / Alt+{ (Ctrl+↓ / ↑)  |
 | Premier caractère non blanc  | —                  | Alt+M                       |
 | Titre suivant / précédent    | —                  | Ctrl+C Ctrl+N / Ctrl+C Ctrl+P |

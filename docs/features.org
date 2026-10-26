@@ -192,8 +192,9 @@ With the Emacs profile: movements (character, word, line, sentence, paragraph,
 headline, start and end of document, page), kill to end of line, kill a word, kill
 ring (kill then yank with Ctrl+Y), selection mark.
 
-As in org-mode, a headline is a paragraph of its own: Alt+A / Alt+E (sentence
-start / end) stop at it instead of crossing it.
+Alt+A / Alt+E go to the previous / next headline of the same level, as org-mode's
+=M-{= / =M-}=: Alt+A goes up to the parent when there is no headline of the same
+level above, and from the text under a headline, to that headline.
 
 Ctrl+L (=recenter-top-bottom=) scrolls the page so the line of the cursor is in the
 middle of the editor; pressed again, at the top, then at the bottom, then in the
@@ -449,7 +450,7 @@ profile gets those of the actions it didn't know.
 | Next / previous character      | —                   | Ctrl+F / Ctrl+B               |
 | Next / previous line           | —                   | Ctrl+N / Ctrl+P               |
 | Next / previous word           | —                   | Alt+F / Alt+B                 |
-| Sentence: end / start          | —                   | Alt+E / Alt+A                 |
+| Sibling headline: next / previous (or parent) | — | Alt+E / Alt+A |
 | Paragraph: end / start         | —                   | Alt+} / Alt+{ (Ctrl+↓ / ↑)    |
 | First non-blank character      | —                   | Alt+M                         |
 | Next / previous headline       | —                   | Ctrl+C Ctrl+N / Ctrl+C Ctrl+P |

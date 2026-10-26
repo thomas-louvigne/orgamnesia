@@ -112,7 +112,8 @@ pub fn run(ctx: AppCtx, e: &web_sys::KeyboardEvent, action: EditorAction) -> boo
 
     let single_line = matches!(field, Field::Input(_));
     if single_line && matches!(action, NextLine | PreviousLine | ScrollDown | ScrollUp
-        | ForwardParagraph | BackwardParagraph | NextHeading | PreviousHeading)
+        | ForwardParagraph | BackwardParagraph | NextHeading | PreviousHeading
+        | BackwardHeading | ForwardHeading)
     {
         return false;
     }

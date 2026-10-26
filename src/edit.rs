@@ -160,6 +160,8 @@ pub fn motion_target(action: EditorAction, chars: &[char], pos: usize) -> Option
         BackToIndentation => motion::back_to_indentation(chars, pos),
         NextHeading => motion::next_heading(chars, pos),
         PreviousHeading => motion::previous_heading(chars, pos),
+        BackwardHeading => motion::backward_heading(chars, pos),
+        ForwardHeading => motion::forward_heading(chars, pos),
         BeginningOfLine => line_bounds(chars, pos).0,
         EndOfLine => line_bounds(chars, pos).1,
         _ => return None,

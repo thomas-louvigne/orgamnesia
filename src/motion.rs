@@ -184,6 +184,52 @@ pub fn previous_heading(chars: &[char], pos: usize) -> usize {
     pos
 }
 
+fn heading_level(chars: &[char], ls: usize) -> Option<usize> {
+    heading_text(chars, ls).map(|_| chars[ls..].iter().take_while(|&&c| c == '*').count())
+}
+
+/// The previous headline of the same level, or the parent when there is none
+/// (org `M-{` on headlines). From the text under a headline, or inside its line:
+/// the start of that headline.
+pub fn backward_heading(chars: &[char], pos: usize) -> usize {
+    let ls = line_start(chars, pos);
+    let Some(level) = heading_level(chars, ls).filter(|_| pos == ls) else {
+        // Up to the start of the headline holding the caret
+        let mut s = ls;
+        loop {
+            if heading_level(chars, s).is_some() { return s; }
+            if s == 0 { return 0; }
+            s = line_start(chars, s - 1);
+        }
+    };
+    let mut s = ls;
+    while s > 0 {
+        s = line_start(chars, s - 1);
+        if heading_level(chars, s).is_some_and(|l| l <= level) { return s; }
+    }
+    pos
+}
+
+/// The next headline of the same level (org `M-}` on headlines); none past the
+/// end of the parent's subtree. From the text under a headline: the next headline.
+pub fn forward_heading(chars: &[char], pos: usize) -> usize {
+    let n = chars.len();
+    let ls = line_start(chars, pos);
+    let level = heading_level(chars, ls);
+    let mut e = line_end(chars, pos);
+    while e < n {
+        let s = e + 1;
+        match (heading_level(chars, s), level) {
+            (Some(l), Some(level)) if l < level => return pos,
+            (Some(l), Some(level)) if l > level => {}
+            (Some(_), _) => return s,
+            _ => {}
+        }
+        e = line_end(chars, s);
+    }
+    pos
+}
+
 pub use orgamnesia_core::hashtags::{hashtag_at, Hashtags};
 
 /// The `#tag` being typed when the caret is at `caret`: returns the index of the
@@ -477,6 +523,25 @@ mod tests {
         assert_eq!(forward_sentence(&t, 7), 11);
         assert_eq!(forward_sentence(&t, 11), 22);       // stops before `** Sous`
         assert_eq!(forward_sentence(&t, 22), 30);
+    }
+
+    #[test]
+    fn heading_siblings_and_parent() {
+        let t = c("intro\n* A\ntexte\n** A1\n** A2\n*** A21\n* B\n** B1\n");
+        // intro 0, * A 6, texte 10, ** A1 16, ** A2 22, *** A21 28, * B 36, ** B1 40
+        assert_eq!(backward_heading(&t, 12), 6);        // from the text: its headline
+        assert_eq!(backward_heading(&t, 24), 22);       // inside the line: its start
+        assert_eq!(backward_heading(&t, 22), 16);       // sibling above
+        assert_eq!(backward_heading(&t, 16), 6);        // no sibling: the parent
+        assert_eq!(backward_heading(&t, 36), 6);        // over the sub-headlines of A
+        assert_eq!(backward_heading(&t, 6), 6);
+        assert_eq!(backward_heading(&t, 3), 0);
+        assert_eq!(forward_heading(&t, 6), 36);         // over the sub-headlines of A
+        assert_eq!(forward_heading(&t, 16), 22);
+        assert_eq!(forward_heading(&t, 22), 22);        // last of its parent: stays
+        assert_eq!(forward_heading(&t, 12), 16);        // from the text: next headline
+        assert_eq!(forward_heading(&t, 0), 6);
+        assert_eq!(forward_heading(&t, 36), 36);
     }
 
     #[test]
