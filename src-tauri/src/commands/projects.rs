@@ -120,7 +120,8 @@ mod tests {
         // The last opened first, and the open one
         assert_eq!(state.settings().projects, vec![b.clone(), a.clone()]);
         assert_eq!(state.settings().vault_path.as_deref(), Some(b.as_str()));
-        assert!(std::fs::read_to_string(config.join("state.json")).unwrap().contains(&a));
+        // Written as JSON: a path of Windows has its `\` doubled there
+        assert!(std::fs::read_to_string(config.join("state.json")).unwrap().contains(&serde_json::to_string(&a).unwrap()));
         assert_eq!(forget(&state, &config, &a).unwrap(), vec![b.clone()]);
         assert!(open(&state, &config, "/no/such/folder").is_err());
     }
@@ -144,7 +145,7 @@ mod tests {
         let pages = project.join("pages");
         std::fs::create_dir_all(&pages).unwrap();
         std::fs::write(pages.join("note.org"), "* Note\n").unwrap();
-        assert_eq!(offer(&pages.to_string_lossy()), Some(AssetsOffer { parent: Some(path.clone()) }));
+        assert_eq!(offer(&pages.to_string_lossy()), Some(AssetsOffer { parent: Some(crate::slash(&project)) }));
     }
 
     #[test]

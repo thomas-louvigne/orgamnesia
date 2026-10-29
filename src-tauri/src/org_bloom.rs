@@ -170,8 +170,11 @@ mod tests {
 
     #[test]
     fn local_bin_first_in_path() {
-        let path = child_path(Some(Path::new("/home/me")), Some("/usr/bin:/home/me/.local/bin:/bin".into())).unwrap();
-        assert_eq!(path, "/home/me/.local/bin:/usr/bin:/bin");
+        // Built with the system's separators (`;` and `\` on Windows)
+        let local = Path::new("/home/me").join(".local/bin");
+        let given = std::env::join_paths([Path::new("/usr/bin"), &local, Path::new("/bin")]).unwrap();
+        let path = child_path(Some(Path::new("/home/me")), Some(given)).unwrap();
+        assert_eq!(path, std::env::join_paths([&local, Path::new("/usr/bin"), Path::new("/bin")]).unwrap());
         assert_eq!(child_path(None, Some("/usr/bin".into())), None);
     }
 

@@ -301,7 +301,9 @@ fn repo_name(url: &str) -> Option<String> {
 
 fn git(path: &str) -> Command {
     let mut c = crate::command(crate::git_program());
-    c.arg("-C").arg(path).env("LC_ALL", "C");
+    // The files as they are in the repository, never with the `\r\n` of
+    // Windows that git there may be set to write (`core.autocrlf`)
+    c.arg("-C").arg(path).args(["-c", "core.autocrlf=false"]).env("LC_ALL", "C");
     c
 }
 
@@ -447,7 +449,7 @@ mod tests {
     }
 
     fn sh(dir: &Path, args: &[&str]) {
-        let out = Command::new("git").arg("-C").arg(dir).args(args).output().unwrap();
+        let out = Command::new("git").arg("-C").arg(dir).args(["-c", "core.autocrlf=false"]).args(args).output().unwrap();
         assert!(out.status.success(), "{args:?}: {}", String::from_utf8_lossy(&out.stderr));
     }
 
