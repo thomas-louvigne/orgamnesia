@@ -27,7 +27,7 @@ $Gcm = @{
     Sha256 = '9d2bef6e42a37654ea7ef33172bbcf1b6a1df6191fcf6a57dfbf39e1cbc27a0f'
 }
 # LibreOffice's dictionaries, at a fixed commit; saved under the names the app looks for
-$Dicts = 'https://raw.githubusercontent.com/LibreOffice/dictionaries/4f1df64b2e8e14751aa7c2205d170ca016071315'
+$DictsUrl = 'https://raw.githubusercontent.com/LibreOffice/dictionaries/4f1df64b2e8e14751aa7c2205d170ca016071315'
 $DictFiles = @(
     @{ Path = 'fr_FR/dictionaries/fr.aff';             Name = 'fr_FR.aff';          Sha256 = 'c176610cd5dc4846806a65ddd029f422d87978bf58f224aa44222662a16a2de5' }
     @{ Path = 'fr_FR/dictionaries/fr.dic';             Name = 'fr_FR.dic';          Sha256 = 'b78a868e31dd6e373b6c3217969afb898a9acde828a5e7ef97308da42218c88c' }
@@ -68,7 +68,7 @@ Set-Content -NoNewline -Path $config -Value ($text -replace 'autocrlf = true', '
 $dicts = Join-Path $Out 'dictionaries'
 New-Item -ItemType Directory -Force $dicts | Out-Null
 foreach ($d in $DictFiles) {
-    Get-Checked "$Dicts/$($d.Path)" $d.Sha256 (Join-Path $dicts $d.Name)
+    Get-Checked "$DictsUrl/$($d.Path)" $d.Sha256 (Join-Path $dicts $d.Name)
 }
 
 Remove-Item -Recurse -Force $Tmp
