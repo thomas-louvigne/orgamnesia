@@ -149,7 +149,9 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
     view! {
         <div class="tab-content">
             <Check draft get=|p| p.org_bloom set=|p, v| p.org_bloom = v
-                label="org_bloom_enabled" hint="org_bloom_hint" />
+                label="org_bloom_enabled"
+                hint=if crate::preferences::on_windows() { "org_bloom_windows" } else { "org_bloom_hint" }
+                disabled=|_| crate::preferences::on_windows() />
             <div class="setting-row setting-sub">
                 <label>{move || t("org_bloom_path", lang())}</label>
                 <PathField

@@ -137,7 +137,7 @@ fn DiskConflictDialog() -> impl IntoView {
 /// open when the app was last quit. `owner` is the app's: the tabs' signals belong to it.
 async fn load_startup(ctx: AppCtx, owner: Owner) {
     if let Ok(settings) = invoke::get_settings().await {
-        let prefs = settings.prefs();
+        let prefs = crate::preferences::prefs_of(&settings);
         ctx.prefs.set(prefs.clone());
         ctx.project.projects.set(settings.projects);
         if let Some(path) = settings.vault_path {

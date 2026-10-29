@@ -125,7 +125,7 @@ pub fn SettingsModal() -> impl IntoView {
     // Load current settings
     spawn_local(async move {
         if let Ok(s) = invoke::get_settings().await {
-            draft.set(Prefs::from_settings(&s));
+            draft.set(preferences::prefs_of(&s));
         }
         baseline.set(Some(untrack(snapshot)));
     });

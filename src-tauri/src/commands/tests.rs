@@ -113,18 +113,16 @@ fn org_bloom_builds_with_the_command_set() {
     std::fs::write(Path::new(&path).join("org-bloom.toml"), "[site]\noutput_dir = \"public\"\n").unwrap();
     let config = org_bloom::site_config(s()).unwrap().unwrap();
     assert!(config.exists && config.output_dir.unwrap().ends_with("public"));
-    // A stand-in for org-bloom, telling the options it got (a batch file on Windows)
-    let bin = folder("cmd-org-bloom-bin");
-    let bin = if cfg!(windows) {
-        let bin = bin.join("org-bloom.cmd");
-        std::fs::write(&bin, "@echo off\r\necho Done. Site written to %3%4\r\n").unwrap();
-        bin
-    } else {
-        let bin = bin.join("org-bloom");
-        std::fs::write(&bin, "#!/bin/sh\necho \"Done. Site written to $3$4\"\n").unwrap();
-        std::process::Command::new("chmod").arg("+x").arg(&bin).status().unwrap();
-        bin
-    };
+    assert!(org_bloom::open_folder("/no/such/folder".into()).is_err());
+    // Not offered on Windows
+    if cfg!(windows) {
+        assert!(block_on(org_bloom::build_site(s())).is_err());
+        return;
+    }
+    // A stand-in for org-bloom, telling the options it got
+    let bin = folder("cmd-org-bloom-bin").join("org-bloom");
+    std::fs::write(&bin, "#!/bin/sh\necho \"Done. Site written to $3$4\"\n").unwrap();
+    std::process::Command::new("chmod").arg("+x").arg(&bin).status().unwrap();
     {
         let state = s();
         let mut settings = crate::lock(&state.settings);
@@ -132,7 +130,6 @@ fn org_bloom_builds_with_the_command_set() {
         settings.config.org_bloom_zip = Some(true);
     }
     assert_eq!(block_on(org_bloom::build_site(s())).unwrap(), "--zip");
-    assert!(org_bloom::open_folder("/no/such/folder".into()).is_err());
 }
 
 #[test]

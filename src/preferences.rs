@@ -19,6 +19,19 @@ use crate::{
 /// Name of the project, as the project menu shows it.
 pub const NAME: &str = "preference";
 
+/// Whether the app runs on Windows, where org-bloom is not offered.
+pub fn on_windows() -> bool {
+    web_sys::window().and_then(|w| w.navigator().platform().ok()).is_some_and(|p| p.starts_with("Win"))
+}
+
+/// The settings as the app uses them on this system: org-bloom off on Windows,
+/// whatever `settings.json` says.
+pub fn prefs_of(settings: &Settings) -> Prefs {
+    let mut prefs = settings.prefs();
+    prefs.org_bloom &= !on_windows();
+    prefs
+}
+
 /// The open project, put aside while the "preference" project is shown.
 #[derive(Clone, Debug)]
 pub struct Aside {
@@ -202,7 +215,7 @@ pub fn restore(ctx: AppCtx, file: File, version: Option<u64>) {
 /// the views depending on the settings are not drawn again for nothing).
 fn put_in_effect(ctx: AppCtx, effect: InEffect) {
     let vault = ctx.prefs.with_untracked(|p| p.vault.clone());
-    let prefs = Prefs { vault, ..Settings { config: effect.settings, ..Settings::default() }.prefs() };
+    let prefs = Prefs { vault, ..prefs_of(&Settings { config: effect.settings, ..Settings::default() }) };
     if ctx.prefs.with_untracked(|p| *p != prefs) {
         ctx.prefs.set(prefs);
         ctx.bump_links();

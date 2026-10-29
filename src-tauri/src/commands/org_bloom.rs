@@ -8,8 +8,12 @@ use crate::{error::AppError, AppState};
 
 /// Build the site of the open project with org-bloom, away from the async
 /// runtime (it takes a while); returns the folder the site was written to.
+/// Not on Windows, where org-bloom is not offered.
 #[tauri::command]
 pub async fn build_site(state: State<'_, AppState>) -> Cmd<String> {
+    if cfg!(windows) {
+        return Err(AppError::OrgBloom("org-bloom is not available on Windows".into()));
+    }
     let path = state.with_project(|p| Ok(p.path.clone()))?;
     let prefs = state.prefs();
     let options: Vec<&str> = [(prefs.org_bloom_zip, "--zip"), (prefs.org_bloom_no_external_deps, "--no-external-deps")]

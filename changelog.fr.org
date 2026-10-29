@@ -4,6 +4,10 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 0.21.1
+- Windows : org-bloom n'est pas disponible ; son réglage est grisé.
+- Correction : sous Windows, les pages gardent les fins de ligne qu'elles ont dans le dépôt git, quel que soit le réglage core.autocrlf de git.
+
 * 0.21.0 (2026-10-29)
 - Windows (expérimental, pas encore testé) : un installeur, sans droits d'administrateur, avec git fourni.
 - Connexion aux dépôts git en https par une fenêtre (navigateur pour GitHub, GitLab, Bitbucket ; identifiant et jeton pour Codeberg et les autres serveurs).

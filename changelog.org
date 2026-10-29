@@ -4,6 +4,10 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 0.21.1
+- Windows: org-bloom is not available; its setting is greyed out.
+- Fix: on Windows, pages are written with the line endings they have in the git repository, whatever git's core.autocrlf setting.
+
 * 0.21.0 (2026-10-29)
 - Windows (experimental, not tested yet): an installer, without administrator rights, with git included.
 - Signing in to git repositories over https in a window (browser for GitHub, GitLab, Bitbucket; user name and token for Codeberg and other servers).

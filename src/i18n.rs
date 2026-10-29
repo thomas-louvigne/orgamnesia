@@ -255,6 +255,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("org_bloom_enabled", Lang::Fr) => "Activer l'extension org-bloom (bouton org-bloom)",
         ("org_bloom_hint",   Lang::En) => "The org-bloom button builds the static site of the project. Where it goes is set by output_dir in the [site] table of org-bloom.toml, at the root of the project (wiped on every build). Place the button in Display.",
         ("org_bloom_hint",   Lang::Fr) => "Le bouton org-bloom construit le site statique du projet. Son dossier est l'output_dir de la table [site] de org-bloom.toml, à la racine du projet (vidé à chaque construction). Placez le bouton dans Affichage.",
+        ("org_bloom_windows", Lang::En) => "Not available on Windows.",
+        ("org_bloom_windows", Lang::Fr) => "Pas disponible sous Windows.",
         ("org_bloom_path",   Lang::En) => "org-bloom command (empty: org-bloom, also looked for in ~/.local/bin)",
         ("org_bloom_path",   Lang::Fr) => "Commande org-bloom (vide : org-bloom, cherché aussi dans ~/.local/bin)",
         ("browse",           Lang::En) => "Browse",
