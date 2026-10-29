@@ -42,6 +42,13 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 </button>
             </div>
             <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />
+            <Check draft get=|p| p.check_updates set=|p, v| p.check_updates = v
+                label="check_updates" hint="check_updates_hint" />
+            <div class="setting-row setting-sub">
+                <button class="btn-secondary update-check-now" on:click=move |_| crate::update::check_now(ctx)>
+                    {move || t("update_check_now", lang())}
+                </button>
+            </div>
 
             <div class="setting-row">
                 <label>{move || t("language", lang())}</label>

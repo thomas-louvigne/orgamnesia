@@ -950,6 +950,12 @@ kbd {
     .bloom-mark.running { animation: none; }
 }
 .commit-modal { width: 600px; }
+/* A new version: what changed in each version since the running one */
+.update-modal { width: min(620px, 94vw); }
+.update-body { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; }
+.update-version h3 { margin: 4px 0; font-size: var(--fs-ui); color: var(--accent2); }
+.update-version ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; }
+.update-check-now { align-self: flex-start; }
 /* The link / date window: the text it will insert */
 .insert-preview {
     align-self: flex-start; font-family: var(--font-mono); font-size: var(--fs-meta);

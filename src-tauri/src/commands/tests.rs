@@ -99,6 +99,8 @@ fn git_of_the_project() {
     std::fs::write(&page, "* Une\ndeux\n").unwrap();
     assert!(block_on(git::git_diff(s(), "pages/Une.org".into(), None)).unwrap().contains("+deux"));
     block_on(git::git_add_remote(s(), "/nowhere.git".into())).unwrap();
+    // The repository's own identity is read (the global one is not touched here)
+    assert_eq!(block_on(git::git_identity(s())).unwrap(), ("T".to_string(), "t@example.com".to_string()));
     assert!(block_on(git::git_status(path.clone())).unwrap().unwrap().remote);
 }
 

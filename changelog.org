@@ -1,0 +1,32 @@
+#+TITLE: Orgamnesia — changelog
+
+What changes in each version, newest first. The app shows these notes when a new
+version is available; they are also the text of the versions published on GitHub.
+The French version is in [[file:changelog.fr.org][changelog.fr.org]].
+
+* 0.21.0 (2026-10-29)
+- Windows (experimental, not tested yet): an installer, without administrator rights, with git included.
+- Signing in to git repositories over https in a window (browser for GitHub, GitLab, Bitbucket; user name and token for Codeberg and other servers).
+- On the first commit, the app asks the name and email to write in the commits.
+- Updates: a new version is offered with what is new in it, to install, postpone or skip.
+- Fix: the "~" folder offered to clone a repository is the home folder.
+
+* 0.20.0 (2026-10-29)
+- Git: history of a page (right-click on a tab or a page), with its changes and restoring a version.
+- Git: the commit window lets you choose the files and see what changed.
+- Git: automatic sync (commit, pull, push) every N minutes, and on quitting if you wish.
+- Git: create a repository, add a remote, clone a repository as a new project.
+- Git: a ↑ marks the pages not pushed yet; a click on "in conflict" opens the files in conflict, counted as resolved once fixed.
+- Git: pull puts uncommitted changes aside and replays your commits on a diverged history.
+- YouTube videos: a link alone on its line shows the thumbnail; Logseq's {{video}} macro is marked, and replaced by a link in one click.
+- "Import a file…" in the right-click menu: any file is copied into assets/ and linked from the page.
+- Ctrl+click on a web link opens the browser, on a link to a file its application.
+
+* 0.19.0 (2026-10-26)
+- Settings as text: the settings and shortcuts open in the editor, checked as you type, with a history.
+- One "Open or create a folder of notes…", which can also create the folder.
+- A folder of notes without assets/: the app offers to create it, or to open the Logseq project around it.
+
+* 0.18.0 (2026-10-26)
+- Emacs profile closer to org-mode: Tab folds lists, blocks and drawers; windows to insert a link or a date; moving from cell to cell in tables.
+- Alt+Up / Alt+Down moves a headline with all its content.

@@ -35,6 +35,8 @@ pub enum AppError {
     Git(String),
     /// The project's repository has no remote to pull from or push to.
     NoRemote,
+    /// Looking for, downloading or installing a new version failed; why.
+    Update(String),
     /// The file added as an image is not one (by its extension).
     NotAnImage(String),
     /// No spelling dictionary found for this language.
@@ -62,6 +64,7 @@ impl std::fmt::Display for AppError {
             Self::Dialog           => write!(f, "The folder picker could not be shown"),
             Self::Git(e)           => write!(f, "{e}"),
             Self::NoRemote         => write!(f, "no remote: add one with git remote add origin <url>"),
+            Self::Update(e)        => write!(f, "{e}"),
             Self::NotAnImage(p)    => write!(f, "Not an image: {p}"),
             Self::NoDictionary(l)  => write!(f, "No spelling dictionary for {l}"),
             Self::BadDictionary(e) => write!(f, "Unreadable spelling dictionary: {e}"),
@@ -101,6 +104,7 @@ impl AppError {
             Self::Dialog           => ("dialog", None, None),
             Self::Git(e)           => ("tool_output", some(e), None),
             Self::NoRemote         => ("no_remote", None, None),
+            Self::Update(e)        => ("tool_output", some(e), None),
             Self::NotAnImage(p)    => ("not_an_image", some(p), None),
             Self::NoDictionary(l)  => ("no_dictionary", some(l), None),
             Self::BadDictionary(e) => ("bad_dictionary", some(e), None),
@@ -133,7 +137,7 @@ mod tests {
             AppError::InvalidName("n".into()), AppError::OrgBloom("o".into()), AppError::OrgBloomNotFound("b".into()),
             AppError::CannotRun { program: "x".into(), error: "y".into() }, AppError::FolderNotFound("d".into()),
             AppError::Settings("s".into()), AppError::ConfigInvalid("c".into()), AppError::Dialog,
-            AppError::Git("g".into()), AppError::NoRemote, AppError::NotAnImage("i".into()),
+            AppError::Git("g".into()), AppError::NoRemote, AppError::Update("u".into()), AppError::NotAnImage("i".into()),
             AppError::NoDictionary("fr".into()), AppError::BadDictionary("bad".into()),
         ];
         for e in all {

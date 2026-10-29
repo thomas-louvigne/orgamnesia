@@ -157,6 +157,10 @@ pub struct Config {
     /// Git extension: the commit message proposed, with `{date}`, `{time}`,
     /// `{count}` and `{files}` replaced; empty: a summary and the list of the files.
     pub git_commit_template: Option<String>,
+    /// Look for a new version of the app when it starts.
+    pub check_updates: Option<bool>,
+    /// The new version the user chose to skip: not offered again at start.
+    pub skipped_update: Option<String>,
     /// The keybinding profile in effect: a built-in one (`classic`, `emacs`) or
     /// the name of one of the user's (`keybindings/<name>.json`). Kept apart from
     /// `Prefs`: the keybindings are saved on their own.
@@ -243,6 +247,9 @@ pub struct Prefs {
     pub git_unpushed_marker: bool,
     pub git_commit_push: bool,
     pub git_commit_template: String,
+    pub check_updates: bool,
+    /// See `Settings::skipped_update`; empty: none.
+    pub skipped_update: String,
     pub spell: bool,
     /// See `Settings::spell_language`; empty: the interface language's.
     pub spell_lang: String,
@@ -314,6 +321,8 @@ impl Prefs {
             git_unpushed_marker: s.git_unpushed_marker.unwrap_or(true),
             git_commit_push: s.git_commit_push.unwrap_or(false),
             git_commit_template: s.git_commit_template.clone().unwrap_or_default(),
+            check_updates: s.check_updates.unwrap_or(true),
+            skipped_update: s.skipped_update.clone().unwrap_or_default(),
             spell: s.spell_enabled.unwrap_or(true),
             spell_lang: s.spell_language.clone().unwrap_or_default(),
             spell_dict_dir: s.spell_dict_dir.clone().unwrap_or_default(),
@@ -396,6 +405,8 @@ impl Prefs {
             git_unpushed_marker: Some(self.git_unpushed_marker),
             git_commit_push: Some(self.git_commit_push),
             git_commit_template: some(&self.git_commit_template),
+            check_updates: Some(self.check_updates),
+            skipped_update: some(&self.skipped_update),
             spell_enabled: Some(self.spell),
             spell_language: some(&self.spell_lang),
             spell_dict_dir: some(&self.spell_dict_dir),

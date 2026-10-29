@@ -79,7 +79,7 @@ pub async fn assets_offer(state: State<'_, AppState>, path: String) -> Cmd<Optio
     if !crate::vault::lacks_assets(&path) || state.settings().assets_declined.contains(&path) {
         return Ok(None);
     }
-    let parent = crate::vault::parent_with_assets(&path).map(|p| p.to_string_lossy().to_string());
+    let parent = crate::vault::parent_with_assets(&path).map(crate::slash);
     Ok(Some(AssetsOffer { parent }))
 }
 

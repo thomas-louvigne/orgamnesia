@@ -247,6 +247,20 @@ pub fn show(path: &str, hash: &str, file: &str) -> Result<String, AppError> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+/// The name and email git signs the commits of `path` with (empty when not set).
+pub fn identity(path: &str) -> (String, String) {
+    let get = |key: &str| run(git(path).args(["config", "--get", key])).unwrap_or_default();
+    (get("user.name"), get("user.email"))
+}
+
+/// Set the name and email git signs the commits with, for every repository of
+/// the user (`git config --global`).
+pub fn set_identity(path: &str, name: &str, email: &str) -> Result<(), AppError> {
+    run(git(path).args(["config", "--global", "user.name", name.trim()]))?;
+    run(git(path).args(["config", "--global", "user.email", email.trim()]))?;
+    Ok(())
+}
+
 /// Make `path` a repository, with a `.gitignore` for the editors' backups when
 /// it has none.
 pub fn init(path: &str) -> Result<String, AppError> {
@@ -275,7 +289,7 @@ pub fn clone(parent: &str, url: &str, ssh_key: &str) -> Result<String, AppError>
     }
     std::fs::create_dir_all(&parent)?;
     run(remote(git(&parent), &parent, ssh_key).args(["clone", "--quiet", "--", url]).arg(&name))?;
-    Ok(dest.to_string_lossy().into_owned())
+    Ok(crate::slash(&dest))
 }
 
 /// The folder name of a clone of `url`: its last part, without `.git`.
@@ -286,20 +300,32 @@ fn repo_name(url: &str) -> Option<String> {
 }
 
 fn git(path: &str) -> Command {
-    let mut c = Command::new("git");
+    let mut c = crate::command(crate::git_program());
     c.arg("-C").arg(path).env("LC_ALL", "C");
     c
 }
 
 /// A git command that talks to the remote: it must never wait for an answer no
 /// one can give (password, passphrase, unknown host), so git and ssh run in
-/// batch mode. With `ssh_key`, ssh uses that key only.
+/// batch mode; on Windows, https identifiers are asked in a window. With
+/// `ssh_key`, ssh uses that key only.
 fn remote(mut c: Command, path: &str, ssh_key: &str) -> Command {
-    // The ssh command of the repository's settings, if any, else `ssh`
+    // The ssh command of the repository's settings, if any, else `ssh`; on
+    // Windows, its own OpenSSH, which uses Windows' ssh agent (MinGit's doesn't)
+    let windows_ssh = std::path::Path::new("C:/Windows/System32/OpenSSH/ssh.exe");
     let base = run(git(path).args(["config", "--get", "core.sshCommand"])).ok()
         .map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "ssh".into());
-    c.env("GIT_TERMINAL_PROMPT", "0").env("GIT_SSH_COMMAND", ssh_command(&base, ssh_key));
+        .unwrap_or_else(|| if cfg!(windows) && windows_ssh.is_file() { crate::slash(windows_ssh) } else { "ssh".into() });
+    c.env("GIT_SSH_COMMAND", ssh_command(&base, ssh_key));
+    if cfg!(windows) {
+        // No terminal to wait on (no console window): an https identifier is
+        // asked by Git Credential Manager in a window of its own, signing in
+        // with the browser on GitHub, GitLab, Bitbucket; a name and password
+        // (or token) elsewhere (Codeberg, a server of one's own…)
+        c.env("GCM_INTERACTIVE", "always").env("GCM_GUI_PROMPT", "true");
+    } else {
+        c.env("GIT_TERMINAL_PROMPT", "0");
+    }
     c
 }
 

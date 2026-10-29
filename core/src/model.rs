@@ -57,6 +57,31 @@ pub struct GitStatus {
     pub unpushed: Vec<String>,
 }
 
+/// A newer version of the app, found by the updater.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct UpdateInfo {
+    pub version: String,
+    /// The version running.
+    pub current: String,
+    /// What changed in each version since the one running, newest first.
+    pub changes: Vec<VersionNotes>,
+    /// The app can install it itself; else (a package of the system's package
+    /// manager, Arch…) it is only told about, with the page to get it.
+    pub can_install: bool,
+}
+
+/// What changed in a version, as the changelogs say it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct VersionNotes {
+    pub version: String,
+    #[serde(default)]
+    pub date: Option<String>,
+    #[serde(default)]
+    pub en: Vec<String>,
+    #[serde(default)]
+    pub fr: Vec<String>,
+}
+
 /// A commit of the history of a page (`git log --follow`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GitCommit {

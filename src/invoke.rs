@@ -5,7 +5,7 @@ use wasm_bindgen_futures::JsFuture;
 
 use orgamnesia_core::config::{File as ConfigFile, InEffect, Problem};
 
-use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitCommit, GitStatus, TagCount, TagHit, TodoHit, VaultChanges, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
+use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitCommit, GitStatus, UpdateInfo, TagCount, TagHit, TodoHit, VaultChanges, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -359,6 +359,15 @@ pub async fn git_fetch() -> Result<String, String> {
     call("git_fetch", serde_json::json!({})).await
 }
 
+/// The name and email git signs the commits with (empty when not set).
+pub async fn git_identity() -> Result<(String, String), String> {
+    call("git_identity", serde_json::json!({})).await
+}
+
+pub async fn git_set_identity(name: &str, email: &str) -> Result<(), String> {
+    call("git_set_identity", serde_json::json!({ "name": name, "email": email })).await
+}
+
 pub async fn git_init() -> Result<String, String> {
     call("git_init", serde_json::json!({})).await
 }
@@ -393,6 +402,17 @@ pub async fn git_pull() -> Result<String, String> {
 
 pub async fn git_push() -> Result<String, String> {
     call("git_push", serde_json::json!({})).await
+}
+
+/// A newer version of the app, with what changed since this one; `None` when
+/// this one is the latest.
+pub async fn check_update() -> Result<Option<UpdateInfo>, String> {
+    call("check_update", serde_json::json!({})).await
+}
+
+/// Download and install the version `check_update` found, then restart on it.
+pub async fn install_update() -> Result<(), String> {
+    call("install_update", serde_json::json!({})).await
 }
 
 /// A file picker opening in `start`.

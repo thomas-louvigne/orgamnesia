@@ -14,12 +14,13 @@ const PERSONAL: &str = "dictionary.txt";
 const MAX_SUGGESTIONS: usize = 8;
 
 /// Folders where dictionaries are looked for, first ones first: the one of the
-/// settings, `$DICPATH`, then the system's (Hunspell, Myspell, LibreOffice).
+/// settings, `$DICPATH`, the system's (Hunspell, Myspell, LibreOffice), then
+/// those installed with the app (Windows, which has none).
 pub fn dict_dirs(extra: &str) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = Vec::new();
     if !extra.trim().is_empty() { dirs.push(PathBuf::from(extra.trim())); }
     if let Some(paths) = std::env::var_os("DICPATH") { dirs.extend(std::env::split_paths(&paths)); }
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
+    let home = crate::home_dir();
     if let Some(home) = &home {
         dirs.push(home.join(".local/share/hunspell"));
         dirs.push(home.join("Library/Spelling"));
@@ -36,6 +37,7 @@ pub fn dict_dirs(extra: &str) -> Vec<PathBuf> {
             dirs.extend(entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()));
         }
     }
+    if let Some(res) = crate::resource_dir() { dirs.push(res.join("dictionaries")); }
     dirs
 }
 

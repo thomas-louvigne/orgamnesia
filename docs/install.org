@@ -6,12 +6,16 @@ The quick install, from the ready-made packages, is in the
 
 * From the sources
 
-Works on any Linux distribution and on macOS.
+Works on any Linux distribution, on macOS and on Windows.
 
 1. Install the system prerequisites:
    - *Linux*: the [[https://v2.tauri.app/start/prerequisites/#linux][Tauri prerequisites]]
      (=webkit2gtk-4.1= and the build tools);
-   - *macOS*: the Xcode command line tools (=xcode-select --install=).
+   - *macOS*: the Xcode command line tools (=xcode-select --install=);
+   - *Windows*: the [[https://v2.tauri.app/start/prerequisites/#windows][Tauri prerequisites]]
+     (Microsoft C++ Build Tools), then, from the cloned repository,
+     =pwsh packaging/windows/fetch-tools.ps1=, which downloads the git and the
+     dictionaries installed with the app.
 2. Install Rust through [[https://rustup.rs][rustup]], then:
 
 #+BEGIN_SRC sh
@@ -21,6 +25,7 @@ rustup target add wasm32-unknown-unknown
 cargo install trunk tauri-cli --locked
 cargo tauri build --bundles deb   # Linux; or --no-bundle
 cargo tauri build --bundles app   # macOS; or dmg
+cargo tauri build --bundles nsis  # Windows
 #+END_SRC
 
 The result lands in =src-tauri/target/release/=:
@@ -28,7 +33,8 @@ The result lands in =src-tauri/target/release/=:
 - =bundle/deb/=: the =.deb= package;
 - =orgamnesia=: the bare program, with =--no-bundle=;
 - =bundle/macos/Orgamnesia.app=: drag it to =/Applications=. Built on the machine,
-  it opens without the quarantine permission.
+  it opens without the quarantine permission;
+- =bundle/nsis/Orgamnesia_<version>_x64-setup.exe=: the Windows installer.
 
 * Arch Linux
 
@@ -66,8 +72,9 @@ the package.
 
 * macOS
 
-*Not tested on a Mac yet*: the application is built for macOS, but no one has tried
-it so far. Feedback (bugs, screenshots) is welcome.
+*Experimental, not tested*: the application is built for macOS, but no one has
+tried it on a Mac so far; it may not work, or not entirely. Feedback (bugs,
+screenshots) is welcome.
 
 ** First launch
 
@@ -96,3 +103,56 @@ or, without a terminal: launch it once, then /System Settings › Privacy & Secu
   Cmd+V, Cmd+S, Cmd+Z…).
 - *org-bloom extension*: =org-bloom= and =pandoc= are also looked for in Homebrew's
   folders (=/opt/homebrew/bin=, =/usr/local/bin=).
+
+* Windows
+
+*Experimental, not tested*: the installer is built and the code checked for Windows,
+but nobody has tried it on a Windows computer yet; it may not work, or not
+entirely. Feedback (bugs, screenshots) is welcome.
+
+** Installing
+
+Double-click =Orgamnesia_<version>_x64-setup.exe=, then "Next". The app is installed
+for the user alone, without administrator rights, and uninstalled from
+/Settings › Apps/. It needs WebView2, Windows' web engine, present on an up to date
+Windows 10 or 11; when missing, the installer downloads it.
+
+The installer is not signed: if Windows says "Windows protected your PC", click
+/More info/, then /Run anyway/.
+
+** Git comes with the app
+
+Nothing to install: the app brings its git (MinGit, the Git for Windows made to be
+bundled) and Git Credential Manager. When git is already installed on the computer,
+that one is used, with its settings.
+
+On the first commit, the app asks the name and email written in the commits, once
+for all projects.
+
+** Signing in to a remote repository
+
+The repositories may be anywhere. Two ways to sign in:
+
+- *https address* (=https://…=), the simplest. On the first pull or push, a window
+  opens:
+  - *GitHub, GitLab, Bitbucket*: sign in in the browser, as on the site;
+  - *Codeberg, or another server* (Forgejo, Gitea, a server of one's own…): user
+    name and password. With two-factor authentication on, the password is an
+    /access token/: on Codeberg, /Settings › Applications › Generate new token/,
+    with read and write access to the repositories.
+
+  The identifiers are then kept by Windows' credential manager: the window doesn't
+  come back.
+- *ssh address* (=git@…=): choose the private key in /Settings › Extensions/. To
+  make one, in PowerShell: =ssh-keygen -t ed25519=, then add the content of the
+  =.pub= file to your account (GitHub, GitLab, Codeberg: /Settings › SSH keys/). A
+  key protected by a passphrase must be loaded in Windows' ssh agent.
+
+** Particulars
+
+- *Line endings*: the git that comes with the app keeps the Unix line endings of
+  the pages, as Emacs, Linux and macOS write them.
+- *Spelling*: the French and English dictionaries come with the app (LibreOffice's).
+  Others can be chosen in the settings.
+- *org-bloom extension*: not included; to install apart.
+- *Settings*: in =%APPDATA%\com.orgamnesia.app\=.

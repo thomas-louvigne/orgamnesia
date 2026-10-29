@@ -59,27 +59,36 @@ Every feature, with screenshots: [[file:docs/features.org][docs/features.org]].
 Download the file for your system from the
 [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Releases page]]:
 
-| System                  | File               | Install                                       |
-|-------------------------+--------------------+-----------------------------------------------|
-| Debian, Ubuntu, Mint…   | =.deb=             | =sudo apt install ./Orgamnesia_*.deb=         |
-| Arch Linux              | =.pkg.tar.zst=     | =sudo pacman -U orgamnesia-*.pkg.tar.zst=     |
-| Any Linux               | =.AppImage=        | =chmod +x Orgamnesia_*.AppImage=, then run it |
-| macOS 11+ (not tested)  | =.dmg=             | drag Orgamnesia to Applications               |
+| System                         | File           | Install                                       |
+|--------------------------------+----------------+-----------------------------------------------|
+| Debian, Ubuntu, Mint…          | =.deb=         | =sudo apt install ./Orgamnesia_*.deb=         |
+| Arch Linux                     | =.pkg.tar.zst= | =sudo pacman -U orgamnesia-*.pkg.tar.zst=     |
+| Any Linux                      | =.AppImage=    | =chmod +x Orgamnesia_*.AppImage=, then run it |
+| macOS 11+ (experimental)       | =.dmg=         | drag Orgamnesia to Applications               |
+| Windows 10, 11 (experimental)  | =-setup.exe=   | double-click, then "Next"                     |
+
+*The macOS and Windows versions are experimental*: they are built automatically,
+but have not been tested on a Mac or a Windows computer yet. They may not work, or
+not entirely. Linux is the system the app is used and tested on. Feedback (bugs,
+screenshots) is welcome in the [[https://github.com/thomas-louvigne/orgamnesia/issues][issues]].
 
 *macOS*: the application is not signed, so macOS refuses to open it the first time.
 Allow it once with =xattr -dr com.apple.quarantine /Applications/Orgamnesia.app=,
 or /System Settings › Privacy & Security › Open Anyway/.
 
-Windows is not supported for now.
+*Windows*: installing needs no administrator rights, and git comes with the app. It
+is not signed: if Windows says "Windows protected your PC", click /More info/, then
+/Run anyway/.
 
-Building from the sources, the latest =main= on Arch, and macOS particulars
-(dictionaries, Cmd and Option keys): [[file:docs/install.org][docs/install.org]].
+Building from the sources, the latest =main= on Arch, and macOS and Windows
+particulars (dictionaries, keys, signing in to git repositories): [[file:docs/install.org][docs/install.org]].
 
 * Your data
 
 - Pages: the =.org= files in the project folder.
 - Settings: =~/.config/com.orgamnesia.app/= on Linux,
-  =~/Library/Application Support/com.orgamnesia.app/= on macOS. They can be edited
+  =~/Library/Application Support/com.orgamnesia.app/= on macOS,
+  =%APPDATA%\com.orgamnesia.app\= on Windows. They can be edited
   as text from the app, checked as you type, with a history of the valid versions
   (see [[file:docs/features.org::*Settings as text][Settings as text]]).
 
@@ -94,6 +103,22 @@ cargo test --lib    # tests (also in src-tauri/ and core/)
 #+END_SRC
 
 Setting up the tools: [[file:docs/install.org][docs/install.org]].
+
+** Releasing a version
+
+1. Write what is new for the users in [[file:changelog.org][changelog.org]] and
+   [[file:changelog.fr.org][changelog.fr.org]]: a =* X.Y.Z (date)= headline, then
+   =- = items in plain text. The release fails without them.
+2. Raise the version (=Cargo.toml= files, =Cargo.lock= files,
+   =src-tauri/tauri.conf.json=, =packaging/arch-release/PKGBUILD=) and push to
+   =main=: the release workflow builds the packages, signs them for the updater,
+   publishes them with the notes, then =latest.json=, which the installed apps read.
+
+The packages are signed with the key made by =cargo tauri signer generate=: its
+public half is in =tauri.conf.json= (=plugins.updater.pubkey=), the private one and
+its password in the =TAURI_SIGNING_PRIVATE_KEY= and
+=TAURI_SIGNING_PRIVATE_KEY_PASSWORD= secrets of the repository. Keep the private
+key: without it, the installed apps can't be updated any more.
 
 * TODO-LIST
 

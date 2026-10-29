@@ -83,6 +83,18 @@ pub async fn git_show(state: State<'_, AppState>, hash: String, file: String) ->
     with_git(&state, false, move |path, _| crate::git::show(path, &hash, &file)).await
 }
 
+/// The name and email git signs the commits of the open project with (empty when not set).
+#[tauri::command]
+pub async fn git_identity(state: State<'_, AppState>) -> Cmd<(String, String)> {
+    with_git(&state, false, |path, _| Ok(crate::git::identity(path))).await
+}
+
+/// Set the name and email git signs the commits with, for all the user's repositories.
+#[tauri::command]
+pub async fn git_set_identity(state: State<'_, AppState>, name: String, email: String) -> Cmd<()> {
+    with_git(&state, true, move |path, _| crate::git::set_identity(path, &name, &email)).await
+}
+
 /// Make the open project a repository.
 #[tauri::command]
 pub async fn git_init(state: State<'_, AppState>) -> Cmd<String> {

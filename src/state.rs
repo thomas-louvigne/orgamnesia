@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::{i18n::{t, Lang}, keybindings::Keybindings};
 
-pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitCommit, GitStatus, Prefs, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults, Session, Settings, SiteConfig, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
+pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitCommit, GitStatus, UpdateInfo, VersionNotes, Prefs, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults, Session, Settings, SiteConfig, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
 
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
@@ -154,6 +154,10 @@ pub struct Ui {
     pub show_git_remote: RwSignal<bool>,
     /// The window cloning a repository as a new project.
     pub show_clone: RwSignal<bool>,
+    /// The window asking the name and email git signs the commits with.
+    pub show_git_identity: RwSignal<bool>,
+    /// The new version offered, in its window.
+    pub update: RwSignal<Option<UpdateInfo>>,
     /// The cheat sheet of the shortcuts (F1).
     pub show_shortcuts: RwSignal<bool>,
     pub search: ProjectSearch,
@@ -235,6 +239,8 @@ impl AppCtx {
                 git_history: RwSignal::new(None),
                 show_git_remote: RwSignal::new(false),
                 show_clone: RwSignal::new(false),
+                show_git_identity: RwSignal::new(false),
+                update: RwSignal::new(None),
                 show_shortcuts: RwSignal::new(false),
                 tag_add: RwSignal::new(false),
                 disk_conflicts: RwSignal::new(vec![]),

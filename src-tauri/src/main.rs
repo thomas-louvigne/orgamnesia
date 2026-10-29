@@ -5,9 +5,12 @@ use orgamnesia_lib::{AppState, commands};
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new())
         .setup(|app| {
             use tauri::Manager;
+            // Git and the dictionaries installed with the app (Windows)
+            if let Ok(dir) = app.path().resource_dir() { orgamnesia_lib::set_resource_dir(dir); }
             if let Ok(dir) = app.path().app_config_dir() {
                 orgamnesia_lib::settings::migrate_legacy_config(&dir);
                 let state = app.state::<AppState>();
@@ -66,6 +69,10 @@ fn main() {
             commands::git::git_init,
             commands::git::git_add_remote,
             commands::git::git_clone,
+            commands::git::git_identity,
+            commands::update::check_update,
+            commands::update::install_update,
+            commands::git::git_set_identity,
             commands::app::pick_file,
             commands::app::pick_image,
             commands::app::import_image,

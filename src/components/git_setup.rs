@@ -63,6 +63,77 @@ pub fn RemoteModal() -> impl IntoView {
     }
 }
 
+/// The name and email git signs the commits with, asked before the first
+/// commit; saved for all the user's repositories, then the commit window opens.
+#[component]
+pub fn IdentityModal() -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let close = move || ctx.ui.show_git_identity.set(false);
+    let name = RwSignal::new(String::new());
+    let email = RwSignal::new(String::new());
+    let busy = RwSignal::new(false);
+    let input_ref = NodeRef::<leptos::html::Input>::new();
+    Effect::new(move |_| if let Some(el) = input_ref.get() { let _ = el.focus(); });
+    let esc = window_event_listener(ev::keydown, move |e| if e.key() == "Escape" { close(); });
+    on_cleanup(move || esc.remove());
+    // What git knew already, if anything
+    spawn_local(async move {
+        if let Ok((n, e)) = invoke::git_identity().await {
+            let _ = name.try_set(n);
+            let _ = email.try_set(e);
+        }
+    });
+
+    let valid = move || name.with(|n| !n.trim().is_empty()) && email.with(|e| e.contains('@') && !e.trim().contains(' '));
+    let save = move || {
+        if !valid() || busy.get_untracked() { return; }
+        busy.set(true);
+        spawn_local(async move {
+            match invoke::git_set_identity(&name.get_untracked(), &email.get_untracked()).await {
+                Ok(()) => {
+                    ctx.ui.show_git_identity.set(false);
+                    git::open_commit(ctx);
+                }
+                Err(e) => {
+                    let _ = busy.try_set(false);
+                    ctx.error("git_identity_error", &e);
+                }
+            }
+        });
+    };
+    let keys = move |e: web_sys::KeyboardEvent| {
+        e.stop_propagation();
+        if e.key() == "Enter" { save(); } else if e.key() == "Escape" { close(); }
+    };
+
+    view! {
+        <div class="modal-overlay" on:click=move |_| close()>
+            <div class="modal" role="dialog" aria-label=move || t("git_identity_title", lang()) on:click=|e| e.stop_propagation()>
+                <div class="modal-header">
+                    <h2>{move || t("git_identity_title", lang())}</h2>
+                    <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
+                </div>
+                <div class="modal-body">
+                    <p class="setting-hint">{move || t("git_identity_hint", lang())}</p>
+                    <label class="commit-label" for="git-name">{move || t("git_identity_name", lang())}</label>
+                    <input id="git-name" node_ref=input_ref type="text" class="setting-input" autocomplete="name"
+                        prop:value=move || name.get() on:input=move |e| name.set(event_target_value(&e)) on:keydown=keys />
+                    <label class="commit-label" for="git-email">{move || t("git_identity_email", lang())}</label>
+                    <input id="git-email" type="email" class="setting-input" autocomplete="email"
+                        prop:value=move || email.get() on:input=move |e| email.set(event_target_value(&e)) on:keydown=keys />
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                    <button class="btn-primary" prop:disabled=move || !valid() || busy.get() on:click=move |_| save()>
+                        {move || t("git_identity_save", lang())}
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
 /// The address of a repository and the folder to clone it in; the clone is
 /// then opened as the project.
 #[component]

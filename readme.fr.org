@@ -63,29 +63,41 @@ Toutes les fonctionnalités en détail : [[file:docs/fonctionnalites.org][docs/f
 Téléchargez le fichier de votre système sur la
 [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]] :
 
-| Système                  | Fichier            | Installation                                     |
-|--------------------------+--------------------+--------------------------------------------------|
-| Debian, Ubuntu, Mint…    | =.deb=             | =sudo apt install ./Orgamnesia_*.deb=            |
-| Arch Linux               | =.pkg.tar.zst=     | =sudo pacman -U orgamnesia-*.pkg.tar.zst=        |
-| Tout Linux               | =.AppImage=        | =chmod +x Orgamnesia_*.AppImage=, puis le lancer |
-| macOS 11+ (non testé)    | =.dmg=             | glisser Orgamnesia dans Applications             |
+| Système                        | Fichier        | Installation                                     |
+|--------------------------------+----------------+--------------------------------------------------|
+| Debian, Ubuntu, Mint…          | =.deb=         | =sudo apt install ./Orgamnesia_*.deb=            |
+| Arch Linux                     | =.pkg.tar.zst= | =sudo pacman -U orgamnesia-*.pkg.tar.zst=        |
+| Tout Linux                     | =.AppImage=    | =chmod +x Orgamnesia_*.AppImage=, puis le lancer |
+| macOS 11+ (expérimental)       | =.dmg=         | glisser Orgamnesia dans Applications             |
+| Windows 10, 11 (expérimental)  | =-setup.exe=   | double-cliquer, puis « Suivant »                 |
+
+*Les versions macOS et Windows sont expérimentales* : elles sont compilées
+automatiquement, mais n'ont pas encore été testées sur un Mac ni sur un ordinateur
+Windows. Elles peuvent ne pas fonctionner, ou pas entièrement. Linux est le système
+sur lequel l'application est utilisée et testée. Les retours (bugs, captures) sont
+les bienvenus dans les [[https://github.com/thomas-louvigne/orgamnesia/issues][issues]].
 
 *macOS* : l'application n'est pas signée, donc macOS refuse de l'ouvrir la première
 fois. Autorisez-la une fois avec
 =xattr -dr com.apple.quarantine /Applications/Orgamnesia.app=, ou par
 /Réglages Système › Confidentialité et sécurité › Ouvrir quand même/.
 
-Windows n'est pas pris en charge pour le moment.
+*Windows* : l'installation ne demande pas de droits d'administrateur, et git est
+fourni avec l'application. Elle n'est pas signée : si Windows affiche « Windows a
+protégé votre ordinateur », cliquez sur /Informations complémentaires/ puis
+/Exécuter quand même/.
 
 Compiler depuis les sources, la dernière version de =main= sur Arch, et les
-particularités de macOS (dictionnaires, touches Cmd et Option) :
+particularités de macOS et de Windows (dictionnaires, touches, connexion aux
+dépôts git) :
 [[file:docs/installation.org][docs/installation.org]].
 
 * Vos données
 
 - Les pages : les fichiers =.org= du dossier du projet.
 - Les réglages : =~/.config/com.orgamnesia.app/= sous Linux,
-  =~/Library/Application Support/com.orgamnesia.app/= sous macOS. Ils se modifient
+  =~/Library/Application Support/com.orgamnesia.app/= sous macOS,
+  =%APPDATA%\com.orgamnesia.app\= sous Windows. Ils se modifient
   en texte depuis l'application, vérifiés pendant la frappe, avec un historique des
   versions valides (voir [[file:docs/fonctionnalites.org::*Préférences en texte][Préférences en texte]]).
 
@@ -100,6 +112,24 @@ cargo test --lib    # tests (aussi dans src-tauri/ et core/)
 #+END_SRC
 
 Installer les outils : [[file:docs/installation.org][docs/installation.org]].
+
+** Publier une version
+
+1. Écrire les nouveautés pour les utilisateurs dans
+   [[file:changelog.fr.org][changelog.fr.org]] et [[file:changelog.org][changelog.org]] :
+   un titre =* X.Y.Z (date)=, puis des puces =- = en texte simple. Sans elles, la
+   publication échoue.
+2. Monter la version (les =Cargo.toml=, les =Cargo.lock=,
+   =src-tauri/tauri.conf.json=, =packaging/arch-release/PKGBUILD=) et pousser sur
+   =main= : la publication compile les paquets, les signe pour les mises à jour,
+   les publie avec les notes, puis =latest.json=, que lisent les applications
+   installées.
+
+Les paquets sont signés avec la clé créée par =cargo tauri signer generate= : sa
+moitié publique est dans =tauri.conf.json= (=plugins.updater.pubkey=), la privée et
+son mot de passe dans les secrets =TAURI_SIGNING_PRIVATE_KEY= et
+=TAURI_SIGNING_PRIVATE_KEY_PASSWORD= du dépôt. Gardez la clé privée : sans elle,
+les applications installées ne peuvent plus être mises à jour.
 
 * TODO-LIST
 

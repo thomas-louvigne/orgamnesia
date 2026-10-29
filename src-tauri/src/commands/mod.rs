@@ -11,6 +11,7 @@ pub mod pages;
 pub mod projects;
 pub mod search;
 pub mod spell;
+pub mod update;
 #[cfg(test)]
 mod tests;
 

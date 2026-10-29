@@ -197,9 +197,16 @@ pub fn fetch(ctx: AppCtx) {
 }
 
 /// Open the commit window (the pages are saved first, so their changes show).
+/// When git doesn't know who signs the commits yet, their name and email are
+/// asked first.
 pub fn open_commit(ctx: AppCtx) {
     if !git_ready(ctx) || ctx.project.git_busy.get_untracked().is_some() { return; }
     spawn_local(async move {
+        let known = invoke::git_identity().await.is_ok_and(|(name, email)| !name.is_empty() && !email.is_empty());
+        if !known {
+            ctx.ui.show_git_identity.set(true);
+            return;
+        }
         if actions::save_dirty_tabs(ctx).await { ctx.ui.show_commit.set(true); }
     });
 }
@@ -216,7 +223,10 @@ pub fn commit(ctx: AppCtx, message: String, files: Option<Vec<String>>, and_push
                     push_now(ctx).await;
                 }
             }
-            Err(e) => report(ctx, "git_commit_error", &e),
+            Err(e) => {
+                report(ctx, "git_commit_error", &e);
+                if hint(&e) == Some("git_hint_identity") { ctx.ui.show_git_identity.set(true); }
+            }
         }
     });
 }

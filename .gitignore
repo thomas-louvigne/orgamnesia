@@ -9,3 +9,6 @@
 
 # Tauri generated schemas
 /src-tauri/gen/schemas
+
+# Windows installer: git and dictionaries fetched by packaging/windows/fetch-tools.ps1
+/src-tauri/windows-tools

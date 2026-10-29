@@ -455,6 +455,7 @@ pub fn App() -> impl IntoView {
     watch_disk(ctx);
     watch_git(ctx);
     git_timers(ctx);
+    crate::update::at_start(ctx);
     watch_tags(ctx);
     reset_search(ctx);
 
@@ -569,6 +570,8 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.git_history.get().map(|file| view! { <crate::components::git_history::GitHistoryModal file /> })}
             {move || ctx.ui.show_git_remote.get().then(|| view! { <crate::components::git_setup::RemoteModal /> })}
             {move || ctx.ui.show_clone.get().then(|| view! { <crate::components::git_setup::CloneModal /> })}
+            {move || ctx.ui.show_git_identity.get().then(|| view! { <crate::components::git_setup::IdentityModal /> })}
+            {move || ctx.ui.update.get().map(|info| view! { <crate::components::update_modal::UpdateModal info /> })}
             {move || ctx.ui.show_shortcuts.get().then(|| view! { <crate::components::shortcuts_help::ShortcutsHelp /> })}
             {move || ctx.ui.status.get().map(|msg| {
                 // The "Undo" button of this message, if it has one

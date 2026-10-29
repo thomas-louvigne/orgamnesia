@@ -2,7 +2,6 @@
 //! `org-bloom` command (https://github.com/thomas-louvigne/org-bloom).
 
 use std::path::{Component, Path, PathBuf};
-use std::process::Command;
 
 use orgamnesia_core::SiteConfig;
 
@@ -21,10 +20,10 @@ const DEFAULT_COMMAND: &str = "org-bloom";
 /// project's `org-bloom.toml`) and the archive, or what org-bloom said.
 pub fn build(project: &str, command: &str, options: &[&str]) -> Result<String, AppError> {
     let mut last_err = None;
-    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let home = crate::home_dir();
     let path = child_path(home.as_deref(), std::env::var_os("PATH"));
     for bin in candidates(command, home) {
-        let mut cmd = Command::new(&bin);
+        let mut cmd = crate::command(&bin);
         cmd.arg("build").arg(project).args(options).current_dir(project);
         if let Some(path) = &path {
             cmd.env("PATH", path);
@@ -60,7 +59,7 @@ pub fn site_config(project: &str) -> SiteConfig {
     }
     let text = std::fs::read_to_string(&config).ok();
     let output_dir = text.as_deref().and_then(output_dir_of).map(|dir| {
-        resolve(&dir, project, std::env::var_os("HOME").map(PathBuf::from)).display().to_string()
+        resolve(&dir, project, crate::home_dir()).display().to_string()
     });
     let built_at = output_dir.as_deref().and_then(built_at);
     SiteConfig { config: config.display().to_string(), exists: text.is_some(), output_dir, built_at }

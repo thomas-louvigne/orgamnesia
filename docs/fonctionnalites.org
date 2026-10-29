@@ -83,6 +83,25 @@ Deux options (désactivées par défaut) suppriment en quittant :
 
 Ces pages sont effacées définitivement, sans passer par la corbeille.
 
+** Nouvelles versions
+Quelques secondes après le démarrage, l'application cherche une version plus
+récente (désactivable dans Préférences > Général, où « Rechercher une nouvelle
+version maintenant » le fait tout de suite). S'il y en a une, une fenêtre montre
+les nouveautés de chaque version depuis celle utilisée, dans la langue de
+l'interface, et propose :
+
+- *Installer et redémarrer* : les pages sont enregistrées, la nouvelle version est
+  téléchargée, vérifiée par sa signature et installée, puis l'application
+  redémarre. Installeur Windows, application macOS, AppImage ; un paquet =.deb=
+  demande le mot de passe administrateur, comme tout paquet du système.
+- *Plus tard* : proposée de nouveau au prochain démarrage.
+- *Ignorer cette version* : plus proposée au démarrage (une suivante le sera).
+
+Une copie installée par le gestionnaire de paquets du système (le paquet Arch) ne
+peut pas se remplacer elle-même : la fenêtre montre les nouveautés et ouvre la page
+de téléchargement ; mettez-la à jour avec le gestionnaire de paquets. Les
+nouveautés de chaque version sont aussi dans [[file:../changelog.fr.org][changelog.fr.org]].
+
 ** Session
 Au démarrage, les onglets et les volets ouverts à la fermeture sont rouverts
 (désactivable).

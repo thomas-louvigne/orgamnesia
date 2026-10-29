@@ -20,6 +20,7 @@ mod state;
 mod storage;
 mod tables;
 mod text_field;
+mod update;
 
 use app::App;
 use leptos::prelude::*;

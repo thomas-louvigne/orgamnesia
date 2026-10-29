@@ -24,8 +24,8 @@ pub async fn read_page(path: &str) -> Result<String, String> {
 
 /// Last path component, used as the project's display name.
 pub fn project_name(path: &str) -> String {
-    path.trim_end_matches('/')
-        .rsplit('/')
+    path.trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
         .next()
         .filter(|s| !s.is_empty())
         .unwrap_or(path)
@@ -174,7 +174,9 @@ pub fn outside(target: &str) -> Option<Outside> {
     let t = target.trim();
     if t.contains("://") && !t.starts_with("file://") { return Some(Outside::Web(t.to_string())); }
     let path = t.strip_prefix("file://").or_else(|| t.strip_prefix("file:")).unwrap_or(t);
-    (path != t || ["./", "../", "/", "~/"].iter().any(|p| path.starts_with(p))).then(|| Outside::File(path.to_string()))
+    // `C:/…` or `C:\…`: a Windows path
+    let drive = path.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) && matches!(path.get(1..3), Some(":/" | ":\\"));
+    (path != t || drive || ["./", "../", "/", "~/"].iter().any(|p| path.starts_with(p))).then(|| Outside::File(path.to_string()))
 }
 
 /// Open the page a link points to, creating it when it doesn't exist yet; a web
@@ -547,6 +549,7 @@ mod tests {
         assert_eq!(outside("../assets/doc_1_0.pdf"), Some(Outside::File("../assets/doc_1_0.pdf".into())));
         assert_eq!(outside("file:~/notes.txt"), Some(Outside::File("~/notes.txt".into())));
         assert_eq!(outside("file:///tmp/a.pdf"), Some(Outside::File("/tmp/a.pdf".into())));
+        assert_eq!(outside("C:/Users/moi/doc.pdf"), Some(Outside::File("C:/Users/moi/doc.pdf".into())));
         assert_eq!(outside("Une page"), None);
     }
 

@@ -1,6 +1,6 @@
 name: Release
 
-# A version bump in tauri.conf.json pushed on main builds the Linux and macOS packages and
+# A version bump in tauri.conf.json pushed on main builds the Linux, macOS and Windows packages and
 # publishes them in a GitHub release `vX.Y.Z`, creating the tag. Pushing a tag
 # `vX.Y.Z` by hand, or running the workflow from the Actions tab, does the same.
 on:
@@ -19,6 +19,10 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # The key signing the packages for the app's updater (cargo tauri signer generate):
+  # the app only installs a new version signed by it
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
 jobs:
   version:
@@ -45,6 +49,8 @@ jobs:
             echo "Release $tag already published, nothing to do"
             echo "release=false" >> "$GITHUB_OUTPUT"
           else
+            # What's new in it, shown by the app and on the release: written first
+            python3 packaging/release/changelog.py check "$version"
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -75,7 +81,13 @@ jobs:
         with:
           tool: trunk,tauri-cli
 
-      - run: cargo tauri build --bundles deb,appimage
+      # With their signatures for the updater (tauri.updater.conf.json)
+      - run: cargo tauri build --bundles deb,appimage --config src-tauri/tauri.updater.conf.json
+
+      - name: Release notes, from the changelogs
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: python3 packaging/release/changelog.py body "${TAG#v}" > release-notes.md
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -83,10 +95,12 @@ jobs:
           # On main the tag does not exist yet: it is created on this commit
           target_commitish: ${{ github.sha }}
           name: Orgamnesia ${{ needs.version.outputs.tag }}
-          generate_release_notes: true
+          body_path: release-notes.md
           files: |
             src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/deb/*.deb.sig
             src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/appimage/*.AppImage.sig
 
   macos:
     name: macOS disk image (.dmg)
@@ -109,12 +123,16 @@ jobs:
         with:
           tool: trunk,tauri-cli
 
-      - run: cargo tauri build --target universal-apple-darwin --bundles dmg
+      # The .dmg to install, the app archived and signed for the updater
+      - run: cargo tauri build --target universal-apple-darwin --bundles app,dmg --config src-tauri/tauri.updater.conf.json
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
-          files: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          files: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
 
   arch:
     name: Arch Linux package (.pkg.tar.zst)
@@ -144,3 +162,55 @@ jobs:
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           files: ./*.pkg.tar.zst
+
+  windows:
+    name: Windows installer (setup.exe)
+    # Adds to the release that the linux job has just created
+    needs: [version, linux]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            src-tauri
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli
+
+      # Git (MinGit, Git Credential Manager) and the dictionaries, installed with the app
+      - run: pwsh packaging/windows/fetch-tools.ps1
+
+      # Installed for the user alone, without administrator rights (see tauri.windows.conf.json)
+      - run: cargo tauri build --bundles nsis --config src-tauri/tauri.updater.conf.json
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          files: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/*-setup.exe.sig
+
+  updater:
+    name: Updater manifest (latest.json)
+    # Once every package the updater installs is published, with its signature
+    needs: [version, linux, macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: latest.json, from the signatures and the changelogs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          mkdir signatures
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir signatures --pattern '*.sig'
+          python3 packaging/release/changelog.py latest "${TAG#v}" signatures \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" > latest.json
+          gh release upload "$TAG" latest.json --repo "$GITHUB_REPOSITORY" --clobber

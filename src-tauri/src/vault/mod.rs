@@ -30,7 +30,7 @@ pub fn list_org_files(vault_path: &str) -> Result<Vec<FileEntry>, AppError> {
         .map(|e| {
             let path = e.path();
             let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
-            FileEntry { name, path: path.to_string_lossy().to_string() }
+            FileEntry { name, path: crate::slash(&path) }
         })
         .collect();
     files.sort_by(|a, b| a.name.cmp(&b.name));

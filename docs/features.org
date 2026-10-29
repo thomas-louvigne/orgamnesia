@@ -92,6 +92,24 @@ These pages are deleted for good, without going through the trash.
 On start, the tabs and panes open when the app was quit are opened again (can be
 turned off).
 
+** New versions
+A few seconds after the start, the app looks for a newer version (can be turned
+off in Settings > General, where "Look for a new version now" does it at once).
+When there is one, a window shows what is new in each version since the one
+running, in the interface language, and offers:
+
+- *Install and restart*: the pages are saved, the new version is downloaded,
+  checked against its signature and installed, then the app starts again. Windows
+  installer, macOS app, AppImage; a =.deb= package asks for the administrator
+  password, as any system package.
+- *Later*: offered again at the next start.
+- *Skip this version*: not offered again at start (but a later one will be).
+
+A copy installed by the system's package manager (the Arch package) can't replace
+itself: the window shows the news and opens the download page; update it with the
+package manager. What is new in each version is also in
+[[file:../changelog.org][changelog.org]].
+
 * Editor
 
 ** Org-mode highlighting

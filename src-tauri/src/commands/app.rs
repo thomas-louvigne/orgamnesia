@@ -22,6 +22,8 @@ pub async fn pick_folder(app: AppHandle, title: Option<String>) -> Cmd<Option<St
     let picked = dialog(|tx| picker.pick_folder(move |folder| {
         let _ = tx.send(folder.map(|f| f.to_string()));
     })).await?;
+    // The interface splits paths by `/`
+    let picked = picked.map(crate::slash);
     picked.map(|path| ensure_folder(&path).map(|()| path)).transpose()
 }
 
@@ -43,7 +45,7 @@ pub async fn pick_file(app: AppHandle, start: Option<String>) -> Cmd<Option<Stri
         picker = picker.set_directory(dir);
     }
     dialog(|tx| picker.pick_file(move |file| {
-        let _ = tx.send(file.map(|f| f.to_string()));
+        let _ = tx.send(file.map(|f| crate::slash(f.to_string())));
     })).await
 }
 
@@ -53,7 +55,7 @@ pub async fn pick_image(app: AppHandle) -> Cmd<Option<String>> {
     use tauri_plugin_dialog::DialogExt;
     dialog(|tx| app.dialog().file()
         .add_filter("Images", orgamnesia_core::assets::EXTENSIONS)
-        .pick_file(move |file| { let _ = tx.send(file.map(|f| f.to_string())); })).await
+        .pick_file(move |file| { let _ = tx.send(file.map(|f| crate::slash(f.to_string()))); })).await
 }
 
 /// Copy the image `source` into the project's assets; returns the link to it from `page`.
@@ -86,7 +88,12 @@ pub fn open_file_link(path: String) -> Cmd<()> {
 
 /// A file that would be run rather than shown: executable, or a launcher.
 fn runnable(p: &std::path::Path) -> bool {
-    const LAUNCHERS: &[&str] = &["desktop", "sh", "bash", "zsh", "fish", "py", "pl", "rb", "appimage", "exe", "bat", "cmd", "com", "msi", "jar", "command", "app", "run", "bin"];
+    const LAUNCHERS: &[&str] = &[
+        "desktop", "sh", "bash", "zsh", "fish", "py", "pyw", "pl", "rb", "appimage", "jar", "command", "app", "run", "bin",
+        // Windows: programs, scripts, shortcuts, installers, settings
+        "exe", "bat", "cmd", "com", "msi", "msp", "scr", "pif", "cpl", "msc", "hta", "lnk", "url", "reg", "inf",
+        "ps1", "psm1", "psd1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "appref-ms", "application", "gadget", "diagcab",
+    ];
     let ext = p.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
     if ext.is_some_and(|e| LAUNCHERS.contains(&e.as_str())) { return true; }
     #[cfg(unix)]

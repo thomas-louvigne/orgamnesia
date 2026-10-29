@@ -61,3 +61,23 @@ jobs:
         working-directory: src-tauri
       - run: cargo test
         working-directory: src-tauri
+
+  backend-windows:
+    name: Backend (Tauri, Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # The installer's git and dictionaries: the build copies them
+      - run: pwsh packaging/windows/fetch-tools.ps1
+      # The interface is not built here; Tauri only needs its folder to exist
+      - run: New-Item -ItemType Directory -Force dist
+      - run: cargo clippy --all-targets
+        working-directory: src-tauri
+      - run: cargo test
+        working-directory: src-tauri

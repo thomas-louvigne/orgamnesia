@@ -1,0 +1,32 @@
+#+TITLE: Orgamnesia — nouveautés
+
+Ce qui change à chaque version, la plus récente en premier. L'application montre ces
+notes quand une nouvelle version est disponible ; elles sont aussi le texte des
+versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
+
+* 0.21.0 (2026-10-29)
+- Windows (expérimental, pas encore testé) : un installeur, sans droits d'administrateur, avec git fourni.
+- Connexion aux dépôts git en https par une fenêtre (navigateur pour GitHub, GitLab, Bitbucket ; identifiant et jeton pour Codeberg et les autres serveurs).
+- Au premier commit, l'application demande le nom et l'e-mail à inscrire dans les commits.
+- Mises à jour : une nouvelle version est proposée avec ses nouveautés, à installer, remettre à plus tard ou ignorer.
+- Correction : le dossier « ~ » proposé pour cloner un dépôt est bien le dossier personnel.
+
+* 0.20.0 (2026-10-29)
+- Git : historique d'une page (clic droit sur un onglet ou une page), avec ses modifications et la restauration d'une version.
+- Git : la fenêtre de commit permet de choisir les fichiers et de voir ce qui a changé.
+- Git : synchronisation automatique (commit, pull, push) toutes les N minutes, et en quittant si on le souhaite.
+- Git : créer un dépôt, ajouter un dépôt distant, cloner un dépôt comme nouveau projet.
+- Git : une flèche ↑ marque les pages pas encore poussées ; un clic sur « en conflit » ouvre les fichiers en conflit, comptés résolus une fois corrigés.
+- Git : le pull met de côté les modifications non commitées et rejoue vos commits sur un historique divergent.
+- Vidéos YouTube : un lien seul sur sa ligne affiche la vignette ; la macro {{video}} de Logseq est signalée, et remplacée par un lien d'un clic.
+- « Importer un fichier… » dans le clic droit : tout fichier est copié dans assets/ et lié depuis la page.
+- Ctrl+clic sur un lien web ouvre le navigateur, sur un lien vers un fichier son application.
+
+* 0.19.0 (2026-10-26)
+- Préférences en texte : les réglages et les raccourcis s'ouvrent dans l'éditeur, vérifiés pendant la frappe, avec un historique.
+- Un seul « Ouvrir ou créer un dossier de notes… », qui peut aussi créer le dossier.
+- Un dossier de notes sans assets/ : l'application propose de le créer, ou d'ouvrir le projet Logseq autour.
+
+* 0.18.0 (2026-10-26)
+- Profil Emacs plus proche d'org-mode : Tab replie listes, blocs et tiroirs ; fenêtres pour insérer un lien ou une date ; déplacement de cellule en cellule dans les tableaux.
+- Alt+Haut / Alt+Bas déplace un titre avec tout son contenu.

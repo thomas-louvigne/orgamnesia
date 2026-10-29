@@ -78,7 +78,7 @@ pub async fn config_files(app: AppHandle) -> Cmd<Vec<FileEntry>> {
 fn list_files(dir: &Path) -> Vec<FileEntry> {
     File::FIXED.into_iter().chain(config_files::profiles_on_disk(dir)).map(|f| FileEntry {
         name: f.name(),
-        path: config_files::path(dir, &f).to_string_lossy().to_string(),
+        path: crate::slash(config_files::path(dir, &f)),
     }).collect()
 }
 

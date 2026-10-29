@@ -27,6 +27,7 @@ impl Project {
     /// Open the folder `path` (creating `pages/` and `assets/` if needed) and read its pages.
     pub fn open(path: &str, tags: TagSyntax) -> Result<Self, AppError> {
         vault::ensure_structure(path)?;
+        let path = &crate::slash(path);
         let mut project = Self {
             path: path.to_string(),
             pages_dir: std::fs::canonicalize(vault::pages_dir(path))?,
@@ -88,7 +89,7 @@ impl Project {
         }
         let content = format!("* {name}\n");
         std::fs::write(&path, &content)?;
-        let path = path.to_string_lossy().to_string();
+        let path = crate::slash(&path);
         self.store(&path, content, tags);
         self.remember(&path);
         Ok(FileEntry { name, path })
@@ -131,7 +132,7 @@ impl Project {
         let to = self.trash_dir()?.join(format!("{stamp}-{}.org", vault::page_name(path)));
         std::fs::rename(path, &to)?;
         self.forget(path);
-        Ok(to.to_string_lossy().to_string())
+        Ok(crate::slash(&to))
     }
 
     /// Bring back a page `delete` put in the trash, under its name.
@@ -148,7 +149,7 @@ impl Project {
             return Err(AppError::PageExists(name.to_string()));
         }
         std::fs::rename(p, &path)?;
-        let path = path.to_string_lossy().to_string();
+        let path = crate::slash(&path);
         self.store(&path, std::fs::read_to_string(&path).unwrap_or_default(), tags);
         self.remember(&path);
         Ok(FileEntry { name: name.to_string(), path })
@@ -224,7 +225,7 @@ impl Project {
         // Keep the folder as the interface knows it (not the canonical one)
         let new_path = Path::new(old_path).with_file_name(format!("{new_name}.org"));
         std::fs::rename(old_path, &new_path)?;
-        let new_path = new_path.to_string_lossy().to_string();
+        let new_path = crate::slash(&new_path);
         let tags = prefs.tags();
 
         self.forget(old_path);
