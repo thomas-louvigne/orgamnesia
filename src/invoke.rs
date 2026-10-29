@@ -411,6 +411,17 @@ pub async fn import_image(page: &str, source: &str) -> Result<String, String> {
     call("import_image", serde_json::json!({ "page": page, "source": source })).await
 }
 
+/// Copy the file `source` into the project's assets; returns the link to it from
+/// the page `page`.
+pub async fn import_file(page: &str, source: &str) -> Result<String, String> {
+    call("import_file", serde_json::json!({ "page": page, "source": source })).await
+}
+
+/// Open the file at `path` with the system's application for it.
+pub async fn open_file_link(path: &str) -> Result<(), String> {
+    call("open_file_link", serde_json::json!({ "path": path })).await
+}
+
 /// Open the web page `url` in the browser.
 pub async fn open_url(url: &str) -> Result<(), String> {
     call("open_url", serde_json::json!({ "url": url })).await

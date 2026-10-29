@@ -9,7 +9,7 @@ use super::{
     dom::{after_tick, caret, set_cursor, splice, Textarea},
     pane::Pane,
 };
-use crate::{i18n::t, images, invoke};
+use crate::{images, invoke};
 
 /// Natural size of an image, by `image_src`; `None` when it could not be loaded.
 pub type ImageSizes = std::collections::HashMap<String, Option<(f64, f64)>>;
@@ -85,6 +85,16 @@ fn image_at(wrap: &web_sys::Element, x: f64, y: f64) -> Option<(web_sys::HtmlEle
     })
 }
 
+/// Size of the red cross of Logseq's `{{video url}}`, at the bottom left of its thumbnail.
+const CROSS: f64 = 26.0;
+
+/// The point `x`, `y` is on the red cross of the thumbnail box `frame`, if it has one.
+fn on_cross(frame: &web_sys::HtmlElement, x: f64, y: f64) -> bool {
+    if !frame.has_attribute("data-macro") { return false; }
+    let r = frame.get_bounding_client_rect();
+    x <= r.left() + CROSS && y >= r.bottom() - CROSS
+}
+
 /// An image being resized with the mouse.
 #[derive(Clone)]
 struct ImageDrag {
@@ -113,6 +123,8 @@ pub struct Images {
     mouse_focus: StoredValue<bool>,
     drag: StoredValue<Option<ImageDrag>>,
     hovered: StoredValue<Option<web_sys::HtmlElement>>,
+    /// The pointer is over the red cross of a `{{video url}}` macro.
+    on_cross: StoredValue<bool>,
 }
 
 impl Images {
@@ -125,6 +137,7 @@ impl Images {
             mouse_focus,
             drag: StoredValue::new(None),
             hovered: StoredValue::new(None),
+            on_cross: StoredValue::new(false),
         };
         this.watch_drops();
         let drag = this.drag;
@@ -180,6 +193,40 @@ impl Images {
         });
     }
 
+    /// Copy other files into the project and link them from the page, by their name.
+    fn add_files(self, paths: Vec<String>) {
+        let ctx = self.pane.ctx;
+        let page = self.page.get_value();
+        spawn_local(async move {
+            let mut links = Vec::new();
+            for path in paths {
+                let name = path.rsplit(['/', '\\']).next().unwrap_or(&path).replace(['[', ']'], "");
+                match invoke::import_file(&page, &path).await {
+                    Ok(link) => links.push(format!("[[{link}][{name}]]")),
+                    Err(e) => ctx.error("file_import_error", &e),
+                }
+            }
+            let Some(el) = self.pane.area.try_get_untracked().flatten() else { return };
+            if links.is_empty() { return; }
+            let _ = el.focus();
+            self.insert_links(&el, &links);
+        });
+    }
+
+    /// Ask for a file, whatever it is, and add it: an image is drawn, another
+    /// file linked by its name.
+    pub fn pick_file(self) {
+        let ctx = self.pane.ctx;
+        spawn_local(async move {
+            match invoke::pick_file(None).await {
+                Ok(Some(path)) if images::is_image(&path) => self.add(vec![path]),
+                Ok(Some(path)) => self.add_files(vec![path]),
+                Ok(None) => {}
+                Err(e) => ctx.error("file_import_error", &e),
+            }
+        });
+    }
+
     /// Ask for an image file and add it.
     pub fn pick(self) {
         let ctx = self.pane.ctx;
@@ -205,11 +252,28 @@ impl Images {
             let r = wrap.get_bounding_client_rect();
             if x < r.left() || x > r.right() || y < r.top() || y > r.bottom() { return; }
             let (pictures, others): (Vec<String>, Vec<String>) = drop.paths.into_iter().partition(|p| images::is_image(p));
-            if !others.is_empty() {
-                ctx.ui.status.set(Some(t("image_only", ctx.lang.get_untracked()).to_string()));
-            }
             if !pictures.is_empty() { self.add(pictures); }
+            if !others.is_empty() { self.add_files(others); }
         });
+    }
+
+    /// Replace Logseq's `{{video url}}` of the line at page position `at` with `[[url]]`.
+    fn macro_to_link(self, at: usize) {
+        let pane = self.pane;
+        let Some(el) = pane.area.get_untracked() else { return };
+        let Some((from, to, text)) = pane.content.with_untracked(|c| images::macro_to_link(c, at)) else { return };
+        let before = pane.focus_pos.get_untracked();
+        let (a, b) = (pane.view_pos(from), pane.view_pos(to));
+        let mouse_focus = self.mouse_focus;
+        mouse_focus.set_value(true);
+        let _ = el.focus();
+        after_tick(move || mouse_focus.set_value(false));
+        splice(&el, a, b, &text);
+        // The caret back where it was, out of the video's line: the thumbnail is drawn again
+        let grown = text.chars().count() as isize - (to - from) as isize;
+        let back = before.map_or(0, |p| if p >= to { (p as isize + grown) as usize } else { p.min(from) });
+        pane.focus_pos.set(Some(back));
+        pane.ctx.notify_t("video_macro_fixed", "");
     }
 
     /// Give the image of the link at page position `at` the size `w` x `h`, in the file.
@@ -241,10 +305,38 @@ impl Images {
         }
         if let Some((b, ..)) = &hit { b.class_list().add_1("hover").ok(); }
         let corner = hit.as_ref().is_some_and(|&(_, _, c)| c);
+        let video = hit.as_ref().is_some_and(|(b, ..)| b.has_attribute("data-video"));
+        let cross = hit.as_ref().is_some_and(|(b, ..)| on_cross(b, e.client_x() as f64, e.client_y() as f64));
+        // Over the red cross, what it is about and what a click does
+        if cross && !self.on_cross.get_value() {
+            self.pane.ctx.notify_t("video_macro_warning", "");
+        }
+        self.on_cross.set_value(cross);
         self.hovered.set_value(hit.map(|(b, ..)| b));
         if let Some(el) = self.pane.area.get_untracked() {
-            let _ = web_sys::HtmlElement::style(&el).set_property("cursor", if corner { "nwse-resize" } else { "" });
+            let cursor = if corner { "nwse-resize" } else if video { "pointer" } else { "" };
+            let _ = web_sys::HtmlElement::style(&el).set_property("cursor", cursor);
         }
+    }
+
+    /// A press on a video's thumbnail, off its corner, opens the video in the
+    /// browser; on the red cross of Logseq's `{{video url}}`, the macro becomes the
+    /// link `[[url]]`. True when it did.
+    pub fn open_video(self, e: &web_sys::MouseEvent) -> bool {
+        let Some(wrap) = self.wrap.get_untracked() else { return false };
+        let (x, y) = (e.client_x() as f64, e.client_y() as f64);
+        let Some((frame, at, false)) = image_at(&wrap, x, y) else { return false };
+        let Some(url) = frame.get_attribute("data-video") else { return false };
+        e.prevent_default();
+        if on_cross(&frame, x, y) {
+            self.macro_to_link(at);
+            return true;
+        }
+        let ctx = self.pane.ctx;
+        spawn_local(async move {
+            if let Err(err) = invoke::open_url(&url).await { ctx.error("error", &err); }
+        });
+        true
     }
 
     /// A press on an image's corner starts resizing it; true when it did.

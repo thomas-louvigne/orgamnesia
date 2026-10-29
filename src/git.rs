@@ -321,6 +321,35 @@ pub fn add_remote(ctx: AppCtx, url: String) {
     });
 }
 
+// ─── Conflicts ───────────────────────────────────────────────────────────────
+
+/// Open the `n`-th file in conflict (cycling through them), the cursor on its
+/// first conflict marker. Saved without its markers, it is marked resolved (by
+/// the backend, as the page changes on disk) and the count goes down.
+pub fn open_conflict(ctx: AppCtx, n: usize) {
+    let files = ctx.project.git.with_untracked(|g| g.as_ref().map(|g| g.conflict_files.clone()).unwrap_or_default());
+    if files.is_empty() {
+        ctx.notify_t("git_conflict_outside", "");
+        return;
+    }
+    let path = files[n % files.len()].clone();
+    let Some(file) = ctx.project.files.with_untracked(|fs| fs.iter().find(|f| f.path == path).cloned()) else {
+        // Not a page (an image…): to resolve elsewhere
+        ctx.notify_t("git_conflict_not_page", &path);
+        return;
+    };
+    spawn_local(async move {
+        // The open tab's text, else the page on disk
+        let text = match ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| t.path == file.path).map(|t| t.content.get_untracked())) {
+            Some(text) => text,
+            None => invoke::read_file(&file.path).await.unwrap_or_default(),
+        };
+        let line = text.lines().position(|l| l.starts_with("<<<<<<<")).unwrap_or(0);
+        ctx.notify_t("git_conflict_help", "");
+        actions::open_file(ctx, file, Some(crate::state::Goto::Line(line)));
+    });
+}
+
 // ─── History of a page ───────────────────────────────────────────────────────
 
 /// Open the history window of `file`.

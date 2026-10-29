@@ -37,6 +37,9 @@ pub struct GitStatus {
     /// Files in conflict (a merge or a rebase stopped on them).
     #[serde(default)]
     pub conflicts: u32,
+    /// Full paths of the files in conflict that are in the project.
+    #[serde(default)]
+    pub conflict_files: Vec<String>,
     /// A merge or a rebase is in progress, to finish elsewhere.
     #[serde(default)]
     pub merging: bool,

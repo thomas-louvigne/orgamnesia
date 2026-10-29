@@ -32,7 +32,37 @@ pub fn status(path: &str) -> Option<GitStatus> {
     s.merging = in_progress(path);
     s.remote = run(git(path).arg("remote")).is_ok_and(|r| !r.trim().is_empty());
     s.unpushed = unpushed(path, s.upstream);
+    if s.conflicts > 0 {
+        s.conflict_files = run(git(path).args(["diff", "--name-only", "--relative", "--diff-filter=U", "-z"]))
+            .map(|o| split_z(&o)).unwrap_or_default()
+            .into_iter().map(|r| format!("{}/{r}", path.trim_end_matches('/'))).collect();
+    }
     Some(s)
+}
+
+/// The files in conflict on both sides (`UU`, `AA`) whose conflict markers are
+/// all gone, fixed by hand, are marked resolved (`git add`). Returns how many.
+pub fn mark_resolved(path: &str) -> usize {
+    let Ok(out) = run(git(path).args(["status", "--porcelain=v2", "-z"]).env("GIT_OPTIONAL_LOCKS", "0")) else { return 0 };
+    let fixed: Vec<&str> = out.split('\0')
+        .filter_map(|e| {
+            // u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>, from the root
+            let f: Vec<&str> = e.splitn(11, ' ').collect();
+            (f.len() == 11 && f[0] == "u" && matches!(f[1], "UU" | "AA")).then(|| f[10])
+        })
+        .collect();
+    if fixed.is_empty() { return 0; }
+    let Ok(root) = toplevel(path) else { return 0 };
+    let fixed: Vec<&str> = fixed.into_iter()
+        .filter(|f| std::fs::read_to_string(Path::new(&root).join(f)).is_ok_and(|t| !has_markers(&t)))
+        .collect();
+    if fixed.is_empty() || run(git(&root).args(["add", "--"]).args(&fixed)).is_err() { return 0; }
+    fixed.len()
+}
+
+/// `text` still holds conflict markers.
+fn has_markers(text: &str) -> bool {
+    text.lines().any(|l| l.starts_with("<<<<<<<") || l.starts_with(">>>>>>>"))
 }
 
 /// Read the output of `git status --porcelain=v2 --branch`.
@@ -368,6 +398,12 @@ mod tests {
     }
 
     #[test]
+    fn conflict_markers() {
+        assert!(has_markers("a\n<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> abc\n"));
+        assert!(!has_markers("a\n=======\n<<< pas un marqueur\n"));
+    }
+
+    #[test]
     fn clone_folder_names() {
         assert_eq!(repo_name("git@github.com:me/notes.git").as_deref(), Some("notes"));
         assert_eq!(repo_name("https://example.com/me/wiki/").as_deref(), Some("wiki"));
@@ -518,6 +554,19 @@ mod tests {
         let st = status(t).unwrap();
         assert_eq!((st.merging, st.conflicts, st.ahead), (false, 0, 1));
         assert_eq!(std::fs::read_to_string(two.join("a.org")).unwrap(), "* a\nOne\n2\ntrois\n");
+
+        // A merge made in a terminal stops on the conflict: shown, then resolved
+        // once the markers are gone
+        let _ = Command::new("git").arg("-C").arg(&two).args(["merge", "-q", "origin/main"]).output();
+        let st = status(t).unwrap();
+        assert_eq!((st.conflicts, st.merging), (1, true));
+        assert_eq!(st.conflict_files, vec![format!("{t}/a.org")]);
+        assert_eq!(mark_resolved(t), 0);
+        std::fs::write(two.join("a.org"), "* a\nOne, UN\n2\ntrois\n").unwrap();
+        assert_eq!(mark_resolved(t), 1);
+        let st = status(t).unwrap();
+        assert_eq!((st.conflicts, st.changes), (0, 1));
+        assert!(st.conflict_files.is_empty());
         std::fs::remove_dir_all(base).unwrap();
     }
 }

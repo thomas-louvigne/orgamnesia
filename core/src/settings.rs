@@ -68,6 +68,8 @@ pub struct Config {
     pub mark_broken_links: Option<bool>,
     /// Draw the images of the page (a line holding only a link to an image).
     pub show_images: Option<bool>,
+    /// A line holding only a link to a YouTube video is drawn as its thumbnail.
+    pub show_video_thumbnails: Option<bool>,
     /// How a size given to an image is written: `org` (`#+ATTR_ORG: :width 300` on
     /// the line above, Emacs) or `logseq` (`{:height 200, :width 300}` after the link).
     pub image_size_format: Option<String>,
@@ -257,6 +259,7 @@ pub struct Prefs {
     pub todo_enabled: bool,
     pub todo_keywords: String,
     pub show_images: bool,
+    pub show_video_thumbnails: bool,
     pub mark_broken_links: bool,
     /// `org` or `logseq`: see `Settings::image_size_format`.
     pub image_size_format: String,
@@ -327,6 +330,7 @@ impl Prefs {
             todo_keywords: s.todo_keywords.clone().filter(|k| !k.trim().is_empty())
                 .unwrap_or_else(|| DEFAULT_TODO_KEYWORDS.to_string()),
             show_images: s.show_images.unwrap_or(true),
+            show_video_thumbnails: s.show_video_thumbnails.unwrap_or(true),
             mark_broken_links: s.mark_broken_links.unwrap_or(true),
             image_size_format: s.image_size_format.clone().filter(|f| f == "logseq")
                 .unwrap_or_else(|| "org".to_string()),
@@ -353,6 +357,7 @@ impl Prefs {
             todo_enabled: Some(self.todo_enabled),
             todo_keywords: Some(self.todo_keywords.clone()),
             show_images: Some(self.show_images),
+            show_video_thumbnails: Some(self.show_video_thumbnails),
             mark_broken_links: Some(self.mark_broken_links),
             image_size_format: Some(self.image_size_format.clone()),
             emacs_mark: Some(self.emacs_mark),

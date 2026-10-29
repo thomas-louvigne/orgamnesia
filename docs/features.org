@@ -348,14 +348,40 @@ As in org-mode, a keyword after the stars of a headline gives its state.
 - A line holding only a link to an image (=[[../assets/photo.png]]=, maybe after the
   stars of a headline or a list dash) is drawn as the image while the cursor is not
   on it; it turns back into text to be edited.
-- The button at the bottom right of the editor, or dropping a file on the page,
-  copies the image into the project's =assets/= folder, named as Logseq names them
+- The button at the bottom right of the editor, "Insert an image…" in the
+  right-click menu, or dropping a file on the page, copies the image into the
+  project's =assets/= folder, named as Logseq names them
   (=photo_1759520598218_0.png=), and adds its link on a line of its own.
+- "Import a file…" in the right-click menu (or dropping it on the page) does the
+  same with any file (PDF, document…), linked by its name:
+  =[[../assets/report_1759520598218_0.pdf][report.pdf]]=. Ctrl+click on the link
+  opens it with the system's application; programs and launchers are never run.
+  Ctrl+click on a web link opens it in the browser.
 - The bottom right corner of an image resizes it with the mouse. The size is written
   in the org-mode format (=#+ATTR_ORG: :width 300= on the line above, the default) or
   the Logseq one (={:height 200, :width 300}= after the link). Both are read; Logseq
   adds one at each resize, the last one counts.
 - Can be turned off: the links then stay text.
+
+** YouTube videos
+A video is linked like any web page, with a plain org-mode link, which every tool
+reads (Emacs, Logseq, GitHub…):
+
+#+begin_src org
+[[https://www.youtube.com/watch?v=dQw4w9WgXcQ]]
+#+end_src
+
+Alone on its line (maybe after headline stars or a list dash), the link is drawn as
+the video's thumbnail, with a play button, while the cursor is not on it; a click
+opens the video in the browser. The thumbnail is downloaded from YouTube (shown as
+text offline), and is resized like an image. =youtube.com/watch?v==, =youtu.be/=,
+=/shorts/= and =/embed/= addresses are recognized; a link with a description
+(=[[url][title]]=) stays a link. Can be turned off in Settings > Display.
+
+Logseq's ={{video url}}= macro (or ={{youtube url}}=) is read too, but marked: a
+red cross at the bottom left of its thumbnail, and a message saying to use the
+link instead, which Emacs and other tools read. A click on the cross replaces the
+macro with the link.
 
 * Window
 
@@ -534,6 +560,12 @@ In the pages list, a small ↑ marks the pages that differ from the remote branc
 changed, or committed and not pushed yet. Without a remote branch, those changed
 since the last commit. It can be turned off in Settings > Extensions.
 
+A click on "⚠ N in conflict" opens a page in conflict (the next one at each click),
+the cursor on its first =<<<<<<<= marker. Keep what you want, remove the markers and
+save: the page is marked resolved (=git add=) and the count goes down; also when it
+is fixed in another editor. A merge is then concluded with Commit; a rebase, in a
+terminal (=git rebase --continue=).
+
 When git can't read the folder (for example a folder belonging to another user,
 "dubious ownership"), the frame says so, with what to do.
 
@@ -652,6 +684,7 @@ closes without saving. The explanations under a setting are in italics.
 - Appearance: page title, line numbers, headline stars hidden but the last.
 - Mark the broken links.
 - Images: show them, and the format of their size (org-mode or Logseq).
+- Thumbnails of the YouTube videos.
 - Frames around the editor: which are shown, in which column and in which order
   (see [[*Left and right columns]]).
 

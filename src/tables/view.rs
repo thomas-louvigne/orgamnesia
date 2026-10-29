@@ -27,6 +27,10 @@ pub struct Shown {
     /// Size drawn, in px.
     pub width: f64,
     pub height: f64,
+    /// The thumbnail of this video: a click opens it.
+    pub video: Option<String>,
+    /// Written with Logseq's `{{video url}}` macro: marked, to be replaced by a link.
+    pub logseq_macro: bool,
 }
 
 /// What `View::build` replaces.
@@ -410,7 +414,7 @@ mod tests {
         let mut seen = None;
         let build = |keep, seen: &mut Option<_>| View::build(page, keep, 80, |_| 1, |img, attr, before| {
             *seen = Some((img.target.clone(), attr, before));
-            Some((Shown { src: "x".into(), width: 10.0, height: 40.0 }, 3))
+            Some((Shown { src: "x".into(), width: 10.0, height: 40.0, video: None, logseq_macro: false }, 3))
         }, true, false, &[]);
         let v = build(None, &mut seen);
         assert_eq!(seen, Some(("x.png".into(), Some(images::Width::Part(0.5)), 2)));

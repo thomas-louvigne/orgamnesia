@@ -247,6 +247,7 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
         let el = area.get_untracked();
         let columns = text_columns(w.max(0), digits);
         let show_images = ctx.pref(|p| p.show_images);
+        let show_videos = ctx.pref(|p| p.show_video_thumbnails);
         tables::View::build(&content, pane.focus_pos.get(), columns, |raw| {
             let key = (raw.to_string(), w, digits);
             if let Some(n) = heights.with_value(|h| h.get(&key).copied()) { return n; }
@@ -254,8 +255,12 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
             heights.update_value(|h| { h.insert(key, n); });
             n
         }, |image, attr, before| {
-            if !show_images { return None; }
-            let src = image_src(&page_path, &image.target);
+            let video = images::youtube_id(&image.target);
+            if !(if video.is_some() { show_videos } else { show_images }) { return None; }
+            let src = match &video {
+                Some(id) => images::youtube_thumbnail(id),
+                None => image_src(&page_path, &image.target),
+            };
             // Shown as text until its size is known, and when it can't be loaded
             let Some(natural) = sizes.with(|s| s.get(&src).copied()) else {
                 if loading.with_value(|l| !l.contains(&src)) {
@@ -267,8 +272,19 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
             let max = (columns.saturating_sub(before) as f64 * CHAR_WIDTH).max(16.0);
             let (width, height) = images::display_size(natural?, attr, image, max);
             let lines = ((height + 4.0) / LINE_HEIGHT).ceil() as usize;
-            Some((tables::Shown { src: image_url(&src), width, height }, lines))
+            Some((tables::Shown {
+                src: image_url(&src), width, height,
+                video: video.map(|_| image.target.clone()),
+                logseq_macro: image.logseq_macro,
+            }, lines))
         }, collapse, indent, &pane.folds.get())
+    });
+    // Logseq's `{{video url}}`: said once for the page, while it holds one
+    let warned = StoredValue::new(false);
+    Effect::new(move |_| {
+        let any = view.with(|v| v.tables.iter().any(|t| t.image.as_ref().is_some_and(|i| i.logseq_macro)));
+        if any && !warned.get_value() { ctx.notify_t("video_macro_warning", ""); }
+        warned.set_value(any);
     });
     Effect::new(move |_| {
         let v = view.get();

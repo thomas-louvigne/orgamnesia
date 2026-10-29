@@ -62,6 +62,41 @@ pub async fn import_image(state: State<'_, AppState>, page: String, source: Stri
     state.with_project(|p| p.import_image(&page, &source))
 }
 
+/// Copy the file `source` into the project's assets; returns the link to it from `page`.
+#[tauri::command]
+pub async fn import_file(state: State<'_, AppState>, page: String, source: String) -> Cmd<String> {
+    state.with_project(|p| p.import_file(&page, &source))
+}
+
+/// Open the file a link points to (`~/`: the home folder) with the system's
+/// application for it. Programs and launchers are refused: a link in a note
+/// (maybe one cloned from elsewhere) must never run anything.
+#[tauri::command]
+pub fn open_file_link(path: String) -> Cmd<()> {
+    let path = crate::expand_home(&path);
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(AppError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, format!("not found: {path}"))));
+    }
+    if runnable(p) {
+        return Err(AppError::Io(std::io::Error::new(std::io::ErrorKind::PermissionDenied, format!("a program, not opened: {path}"))));
+    }
+    crate::open_with_system(&path)
+}
+
+/// A file that would be run rather than shown: executable, or a launcher.
+fn runnable(p: &std::path::Path) -> bool {
+    const LAUNCHERS: &[&str] = &["desktop", "sh", "bash", "zsh", "fish", "py", "pl", "rb", "appimage", "exe", "bat", "cmd", "com", "msi", "jar", "command", "app", "run", "bin"];
+    let ext = p.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
+    if ext.is_some_and(|e| LAUNCHERS.contains(&e.as_str())) { return true; }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if p.is_file() && std::fs::metadata(p).is_ok_and(|m| m.permissions().mode() & 0o111 != 0) { return true; }
+    }
+    false
+}
+
 /// Of `paths`, those that are neither files nor folders on the disk (`~/`: the home
 /// folder), to mark the links to them.
 #[tauri::command]
@@ -80,10 +115,10 @@ pub async fn read_image(path: String) -> Cmd<tauri::ipc::Response> {
     Ok(tauri::ipc::Response::new(std::fs::read(crate::expand_home(&path)).map_err(AppError::Io)?))
 }
 
-/// Open the web page `url` (`https://` only) in the browser.
+/// Open the web page `url` (`https://` or `http://` only) in the browser.
 #[tauri::command]
 pub fn open_url(url: String) -> Cmd<()> {
-    if !url.starts_with("https://") {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err(AppError::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a web page")));
     }
     crate::open_with_system(&url)

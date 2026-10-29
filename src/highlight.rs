@@ -109,9 +109,17 @@ fn render_lines(view: &crate::tables::View, numbers: bool) -> String {
         if let Some((at, img)) = image {
             let before = &line[..line.len() - line.chars().last().map_or(0, char::len_utf8)];
             if !before.is_empty() { out.push_str(&highlight_line(before)); }
+            // A video's thumbnail: a play button over it, and the video to open
+            let (class, video, play) = match &img.video {
+                // Logseq's `{{video url}}`: a red cross at the bottom left, to replace it
+                Some(url) if img.logseq_macro => ("img-box img-video img-macro", format!(" data-video='{}' data-macro='1'", escape(url)),
+                    "<span class='img-play'></span><span class='img-warn'>✕</span>"),
+                Some(url) => ("img-box img-video", format!(" data-video='{}'", escape(url)), "<span class='img-play'></span>"),
+                None => ("img-box", String::new(), ""),
+            };
             out.push_str(&format!(
-                "<span class='img-view'><span class='img-box' data-at='{at}'>\
-                 <img class='img-pic' src='{}' style='width: {}px; height: {}px' alt=''></span></span>\n",
+                "<span class='img-view'><span class='{class}' data-at='{at}'{video}>\
+                 <img class='img-pic' src='{}' style='width: {}px; height: {}px' alt=''>{play}</span></span>\n",
                 escape(&img.src), img.width, img.height,
             ));
             continue;

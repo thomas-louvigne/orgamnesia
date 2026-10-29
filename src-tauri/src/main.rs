@@ -51,6 +51,8 @@ fn main() {
             commands::org_bloom::site_config,
             commands::org_bloom::open_folder,
             commands::app::pick_folder,
+            commands::app::import_file,
+            commands::app::open_file_link,
             commands::git::git_status,
             commands::git::git_changes,
             commands::git::git_commit,

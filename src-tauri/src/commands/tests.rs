@@ -139,4 +139,14 @@ fn files_and_images() {
     let link = block_on(app::import_image(s(), format!("{path}/pages/Une.org"), png.to_string_lossy().to_string())).unwrap();
     assert!(link.starts_with("../assets/") && link.ends_with(".png"), "{link}");
     assert!(app::open_url("file:///etc/passwd".into()).is_err());
+    // Any file goes to the assets, linked from the page
+    let doc = std::path::Path::new(&path).join("Compte rendu.pdf");
+    std::fs::write(&doc, "%PDF").unwrap();
+    let link = block_on(app::import_file(s(), format!("{path}/pages/Une.org"), doc.to_string_lossy().to_string())).unwrap();
+    assert!(link.starts_with("../assets/Compte_rendu_") && link.ends_with("_0.pdf"), "{link}");
+    // A program is never opened from a link
+    let script = std::path::Path::new(&path).join("x.sh");
+    std::fs::write(&script, "#!/bin/sh\n").unwrap();
+    assert!(app::open_file_link(script.to_string_lossy().to_string()).is_err());
+    assert!(app::open_file_link(format!("{path}/missing.pdf")).is_err());
 }

@@ -48,6 +48,11 @@ pub fn watch(app: AppHandle, path: &str) -> Result<Watcher, AppError> {
                 let _ = app.emit(VAULT_CHANGED, changes);
             }
         }
+        // A page in conflict saved without its markers is resolved; skipped while
+        // a git command writes to the repository
+        if pages && let Ok(_one) = crate::git::WRITING.try_lock() {
+            crate::git::mark_resolved(&project_path);
+        }
         // Editing a page changes what there is to commit
         if pages || git {
             let _ = app.emit(GIT_CHANGED, ());

@@ -103,7 +103,6 @@ pub fn GitLine() -> impl IntoView {
         let mut items: Vec<(&'static str, String)> = vec![];
         if busy() == Some(crate::state::GitOp::Sync) { items.push(("git-syncing", format!("⟳ {}", t("git_syncing", lang())))); }
         if st.merging { items.push(("git-conflict", format!("⚠ {}", t("git_merging", lang())))); }
-        if st.conflicts > 0 { items.push(("git-conflict", format!("⚠ {} {}", st.conflicts, t("git_in_conflict", lang())))); }
         if st.changes > 0 { items.push(("git-dirty", format!("● {} {}", st.changes, t("git_to_commit", lang())))); }
         if st.ahead > 0 { items.push(("git-ahead", format!("↑ {} {}", st.ahead, t("git_to_push", lang())))); }
         if st.behind > 0 { items.push(("git-behind", format!("↓ {} {}", st.behind, t("git_to_pull", lang())))); }
@@ -113,6 +112,10 @@ pub fn GitLine() -> impl IntoView {
         items
     };
     let error = move || git().error.unwrap_or_default();
+    // Built again only when conflicts appear or go: the button stays the same
+    // element, and the file it opens next is remembered
+    let in_conflict = Memo::new(move |_| ctx.project.git.with(|g| g.as_ref().is_some_and(|g| g.conflicts > 0)));
+    let next = StoredValue::new(0usize);
     move || match repo.get()? {
         Repo::No => Some(view! {
             <div class="frame git-status git-off">
@@ -152,6 +155,20 @@ pub fn GitLine() -> impl IntoView {
                     <span class="git-branch" title=branch>{branch}</span>
                 </div>
                 <div class="git-items">
+                    // A click opens a file in conflict, the next one at each click
+                    {move || in_conflict.get().then(|| {
+                        view! {
+                            <button class="git-item git-conflict git-conflict-btn"
+                                title=move || t("git_open_conflict", lang())
+                                on:click=move |_| {
+                                    let n = next.get_value();
+                                    next.set_value(n + 1);
+                                    crate::git::open_conflict(ctx, n);
+                                }>
+                                {move || format!("⚠ {} {}", git().conflicts, t("git_in_conflict", lang()))}
+                            </button>
+                        }
+                    })}
                     {move || items().into_iter().map(|(cls, text)| view! {
                         <span class=format!("git-item {cls}")>{text}</span>
                     }).collect_view()}

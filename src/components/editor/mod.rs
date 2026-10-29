@@ -270,7 +270,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 on:click=on_click
                 on:mouseup=on_pointer
                 on:mousedown=move |e: web_sys::MouseEvent| {
-                    if images.start_drag(&e) { return; }
+                    if images.start_drag(&e) || images.open_video(&e) { return; }
                     completion.close();
                     mouse_focus.set_value(true);
                     after_tick(move || mouse_focus.set_value(false));
@@ -362,6 +362,7 @@ fn context_menu(
             {with_images.then(|| view! {
                 <div class="ctx-menu-sep" role="separator" />
                 {item("image_insert", None, true, Box::new(move || images.pick()))}
+                {item("file_import", None, true, Box::new(move || images.pick_file()))}
             })}
         </div>
     }

@@ -165,8 +165,37 @@ pub fn open_page_named(ctx: AppCtx, name: &str, goto: Option<Goto>) {
     }
 }
 
-/// Open the page a link points to, creating it when it doesn't exist yet.
+/// Where a link points outside the project's pages: a web page, or a file
+/// (`file:`, `./`, `../`, `/`, `~/`).
+#[derive(Debug, PartialEq)]
+pub enum Outside { Web(String), File(String) }
+
+pub fn outside(target: &str) -> Option<Outside> {
+    let t = target.trim();
+    if t.contains("://") && !t.starts_with("file://") { return Some(Outside::Web(t.to_string())); }
+    let path = t.strip_prefix("file://").or_else(|| t.strip_prefix("file:")).unwrap_or(t);
+    (path != t || ["./", "../", "/", "~/"].iter().any(|p| path.starts_with(p))).then(|| Outside::File(path.to_string()))
+}
+
+/// Open the page a link points to, creating it when it doesn't exist yet; a web
+/// link opens in the browser, a link to a file with its application.
 pub fn follow_link(ctx: AppCtx, name: String) {
+    if let Some(target) = outside(&name) {
+        spawn_local(async move {
+            let done = match target {
+                Outside::Web(url) => invoke::open_url(&url).await,
+                Outside::File(path) => {
+                    // From the folder of the pages (every page is in it)
+                    let base = ctx.work.active_tab_data().map(|t| t.path)
+                        .or_else(|| ctx.project.files.with_untracked(|f| f.first().map(|f| f.path.clone())))
+                        .unwrap_or_default();
+                    invoke::open_file_link(&crate::images::resolve(&base, &path)).await
+                }
+            };
+            if let Err(e) = done { ctx.error("open_link_failed", &e); }
+        });
+        return;
+    }
     let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().position(|t| ctx.same_page(&t.name, &name)));
     if let Some(idx) = open {
         ctx.work.active_tab.set(Some(idx));
@@ -511,6 +540,15 @@ pub async fn apply_disk_changes(ctx: AppCtx, changes: VaultChanges) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn links_outside_the_pages() {
+        assert_eq!(outside("https://example.com"), Some(Outside::Web("https://example.com".into())));
+        assert_eq!(outside("../assets/doc_1_0.pdf"), Some(Outside::File("../assets/doc_1_0.pdf".into())));
+        assert_eq!(outside("file:~/notes.txt"), Some(Outside::File("~/notes.txt".into())));
+        assert_eq!(outside("file:///tmp/a.pdf"), Some(Outside::File("/tmp/a.pdf".into())));
+        assert_eq!(outside("Une page"), None);
+    }
 
     #[test]
     fn closing_a_tab_keeps_a_sensible_active_one() {

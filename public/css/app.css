@@ -206,6 +206,8 @@ html, body { height: 100%; overflow: hidden; }
 .git-dirty { color: var(--yellow); }
 .git-ahead, .git-behind, .git-syncing { color: var(--accent2); }
 .git-conflict { color: var(--red); white-space: normal; }
+.git-conflict-btn { font: inherit; cursor: pointer; }
+.git-conflict-btn:hover { border-color: var(--red); text-decoration: underline; }
 .git-error { color: var(--red); overflow-wrap: anywhere; }
 .project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .project-caret { color: var(--fg-dim); margin-left: 6px; }
@@ -600,6 +602,24 @@ kbd {
     opacity: 0; transition: opacity .12s;
 }
 .img-box.hover::after, .img-box.resizing::after { opacity: 1; }
+/* A video's thumbnail: a play button in its middle */
+.img-play {
+    position: absolute; left: 50%; top: 50%; width: 48px; height: 34px; transform: translate(-50%, -50%);
+    border-radius: 9px; background: rgba(0, 0, 0, .65); transition: background .12s;
+}
+.img-play::before {
+    content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-35%, -50%);
+    border-style: solid; border-width: 8px 0 8px 14px; border-color: transparent transparent transparent #fff;
+}
+.img-video.hover .img-play { background: #e62117; }
+/* Logseq's {{video url}}: a red cross at the bottom left, to replace it with a link */
+.img-macro .img-pic { outline: 2px solid var(--red); outline-offset: -2px; }
+.img-warn {
+    position: absolute; left: 4px; bottom: 4px; width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--red); color: #fff; font: 700 12px/1 sans-serif;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, .35);
+}
 
 
 /* Add an image: bottom right of the editor, quiet until pointed at */

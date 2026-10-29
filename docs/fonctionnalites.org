@@ -349,15 +349,42 @@ Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
   éventuellement après les étoiles d'un titre ou un tiret de liste) est dessinée
   comme l'image tant que le curseur n'est pas dessus ; elle redevient du texte pour
   l'éditer.
-- Le bouton en bas à droite de l'éditeur, ou le dépôt d'un fichier sur la page,
-  copie l'image dans le dossier =assets/= du projet, nommée comme le fait Logseq
-  (=photo_1759520598218_0.png=), et ajoute son lien sur une ligne à part.
+- Le bouton en bas à droite de l'éditeur, « Insérer une image… » dans le menu du
+  clic droit, ou le dépôt d'un fichier sur la page, copie l'image dans le dossier
+  =assets/= du projet, nommée comme le fait Logseq (=photo_1759520598218_0.png=),
+  et ajoute son lien sur une ligne à part.
+- « Importer un fichier… » dans le menu du clic droit (ou son dépôt sur la page)
+  fait de même avec n'importe quel fichier (PDF, document…), lié par son nom :
+  =[[../assets/rapport_1759520598218_0.pdf][rapport.pdf]]=. Ctrl+clic sur le lien
+  l'ouvre avec l'application du système ; les programmes et lanceurs ne sont jamais
+  exécutés. Ctrl+clic sur un lien web l'ouvre dans le navigateur.
 - Le coin en bas à droite d'une image la redimensionne à la souris. La taille est
   écrite au choix au format org-mode (=#+ATTR_ORG: :width 300= sur la ligne du
   dessus, par défaut) ou au format Logseq (={:height 200, :width 300}= après le
   lien). Les deux formats sont lus ; Logseq en ajoute un à chaque redimensionnement,
   le dernier compte.
 - Désactivable : les liens restent alors du texte.
+
+** Vidéos YouTube
+Une vidéo se lie comme n'importe quelle page web, avec un lien org-mode classique,
+que tous les outils lisent (Emacs, Logseq, GitHub…) :
+
+#+begin_src org
+[[https://www.youtube.com/watch?v=dQw4w9WgXcQ]]
+#+end_src
+
+Seul sur sa ligne (éventuellement après les étoiles d'un titre ou un tiret de liste),
+le lien est dessiné comme la vignette de la vidéo, avec un bouton lecture, tant que
+le curseur n'est pas dessus ; un clic ouvre la vidéo dans le navigateur. La vignette
+est téléchargée depuis YouTube (affichée comme du texte hors connexion) et se
+redimensionne comme une image. Les adresses =youtube.com/watch?v==, =youtu.be/=,
+=/shorts/= et =/embed/= sont reconnues ; un lien avec une description
+(=[[url][titre]]=) reste un lien. Désactivable dans Préférences > Affichage.
+
+La macro ={{video url}}= de Logseq (ou ={{youtube url}}=) est lue aussi, mais
+signalée : une croix rouge en bas à gauche de sa vignette, et un message invitant à
+utiliser plutôt le lien, que lisent Emacs et les autres outils. Un clic sur la croix
+remplace la macro par le lien.
 
 * Fenêtre
 
@@ -533,6 +560,12 @@ branche distante : modifiées, ou commitées et pas encore poussées. Sans branc
 distante, celles modifiées depuis le dernier commit. Elle se désactive dans
 Préférences > Extensions.
 
+Un clic sur « ⚠ N en conflit » ouvre une page en conflit (la suivante à chaque clic),
+le curseur sur son premier marqueur =<<<<<<<=. Gardez ce que vous voulez, retirez
+les marqueurs et enregistrez : la page est marquée résolue (=git add=) et le compteur
+baisse ; de même quand elle est corrigée dans un autre éditeur. Une fusion se
+termine ensuite avec Commit ; un rebase, dans un terminal (=git rebase --continue=).
+
 Quand git ne peut pas lire le dossier (par exemple un dossier appartenant à un autre
 utilisateur, « dubious ownership »), le cadre le dit, avec ce qu'il faut faire.
 
@@ -661,6 +694,7 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
   la dernière.
 - Signaler les liens cassés.
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
+- Vignettes des vidéos YouTube.
 - Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans
   quel ordre (voir [[*Colonnes de gauche et de droite]]).
 

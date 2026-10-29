@@ -1,6 +1,8 @@
 //! Images in the page: a line holding only a link to an image file
 //! (`[[../assets/photo.png]]`, maybe after headline stars or a list bullet) is
-//! drawn as the image while the caret is elsewhere (see `tables::View`).
+//! drawn as the image while the caret is elsewhere (see `tables::View`). A link
+//! to a YouTube video (`[[https://www.youtube.com/watch?v=…]]`) is drawn the same
+//! way, as its thumbnail.
 //!
 //! Its size is read as Emacs and Logseq write it: `#+ATTR_ORG: :width 300` on
 //! the line above (org-mode), or `{:height 200, :width 300}` after the link
@@ -20,6 +22,9 @@ pub struct ImageLine {
     /// Size given after the link (Logseq), in px.
     pub width: Option<f64>,
     pub height: Option<f64>,
+    /// Not a link but Logseq's `{{video url}}` macro: read, but to be replaced
+    /// by a plain link, which other tools read.
+    pub logseq_macro: bool,
 }
 
 /// A width given by `#+ATTR_ORG:`.
@@ -36,8 +41,34 @@ pub fn is_image(target: &str) -> bool {
     name.rsplit_once('.').is_some_and(|(_, ext)| EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
+/// The id of a YouTube video a link points to (`youtube.com/watch?v=ID`,
+/// `youtu.be/ID`, `/shorts/ID`, `/embed/ID`, `/live/ID`).
+pub fn youtube_id(target: &str) -> Option<String> {
+    let rest = target.split_once("://").map_or(target, |(_, r)| r);
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let host = host.strip_prefix("www.").or_else(|| host.strip_prefix("m.")).or_else(|| host.strip_prefix("music.")).unwrap_or(host);
+    let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    let id = match host {
+        "youtu.be" => path.split('/').next(),
+        "youtube.com" | "youtube-nocookie.com" => match path.split_once('/') {
+            Some(("shorts" | "embed" | "live" | "v", id)) => id.split('/').next(),
+            _ if path == "watch" => query.split('&').find_map(|kv| kv.strip_prefix("v=")),
+            _ => None,
+        },
+        _ => None,
+    }?;
+    let id = id.split('#').next().unwrap_or(id);
+    (id.len() == 11 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')).then(|| id.to_string())
+}
+
+/// The thumbnail of the YouTube video `id` (320 x 180, without black bars).
+pub fn youtube_thumbnail(id: &str) -> String {
+    format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg")
+}
+
 /// The image of a line, when the line holds only that: a link with no description to an
-/// image, maybe after headline stars or a list bullet, maybe followed by Logseq sizes.
+/// image or a YouTube video, maybe after headline stars or a list bullet, maybe
+/// followed by Logseq sizes.
 pub fn parse(line: &[char]) -> Option<ImageLine> {
     let mut i = 0;
     let stars = line.iter().take_while(|&&c| c == '*').count();
@@ -48,13 +79,18 @@ pub fn parse(line: &[char]) -> Option<ImageLine> {
         if matches!(line.get(i), Some('-' | '+')) && line.get(i + 1) == Some(&' ') { i += 2; }
     }
     let prefix = i;
-    if line.get(i..i + 2) != Some(&['[', '['][..]) { return None; }
-    let close = (i + 2..line.len().saturating_sub(1)).find(|&j| line[j] == ']' && line[j + 1] == ']')?;
-    let inner: String = line[i + 2..close].iter().collect();
-    if inner.contains(['[', ']']) { return None; }
-    let target = inner.strip_prefix("file:").unwrap_or(&inner).to_string();
-    if target.is_empty() || !is_image(&target) { return None; }
-    let link_end = close + 2;
+    let (target, link_end, logseq_macro) = if line.get(i..i + 2) == Some(&['{', '{'][..]) {
+        let (target, end) = video_macro(&line[i..])?;
+        (target, i + end, true)
+    } else {
+        if line.get(i..i + 2) != Some(&['[', '['][..]) { return None; }
+        let close = (i + 2..line.len().saturating_sub(1)).find(|&j| line[j] == ']' && line[j + 1] == ']')?;
+        let inner: String = line[i + 2..close].iter().collect();
+        if inner.contains(['[', ']']) { return None; }
+        let target = inner.strip_prefix("file:").unwrap_or(&inner).to_string();
+        if target.is_empty() || !(is_image(&target) || youtube_id(&target).is_some()) { return None; }
+        (target, close + 2, false)
+    };
     let (mut width, mut height) = (None, None);
     let mut j = link_end;
     loop {
@@ -78,7 +114,28 @@ pub fn parse(line: &[char]) -> Option<ImageLine> {
             Some(_) => return None,
         }
     }
-    Some(ImageLine { prefix, link_end, target, width, height })
+    Some(ImageLine { prefix, link_end, target, width, height, logseq_macro })
+}
+
+/// Logseq's `{{video url}}` (or `{{youtube url}}`) macro at the start of `chars`,
+/// for a YouTube video: its url, and the chars it takes.
+fn video_macro(chars: &[char]) -> Option<(String, usize)> {
+    let close = (2..chars.len().saturating_sub(1)).find(|&j| chars[j] == '}' && chars[j + 1] == '}')?;
+    let inner: String = chars[2..close].iter().collect();
+    let (name, url) = inner.trim().split_once(char::is_whitespace)?;
+    let url = url.trim();
+    (matches!(name, "video" | "youtube") && youtube_id(url).is_some()).then(|| (url.to_string(), close + 2))
+}
+
+/// The edit turning Logseq's `{{video url}}` macro of the line at page position
+/// `at` into the link `[[url]]`: the page range to replace and its new text.
+pub fn macro_to_link(content: &str, at: usize) -> Option<(usize, usize, String)> {
+    let chars: Vec<char> = content.chars().collect();
+    let at = at.min(chars.len());
+    let start = chars[..at].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
+    let end = chars[at..].iter().position(|&c| c == '\n').map_or(chars.len(), |i| at + i);
+    let image = parse(&chars[start..end]).filter(|i| i.logseq_macro)?;
+    Some((start + image.prefix, start + image.link_end, format!("[[{}]]", image.target)))
 }
 
 /// Whether a line is an `#+ATTR_ORG:` keyword.
@@ -184,6 +241,50 @@ pub fn resolve(page: &str, target: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn youtube_links() {
+        let id = Some("dQw4w9WgXcQ".to_string());
+        for url in [
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://youtube.com/watch?feature=share&v=dQw4w9WgXcQ&t=42",
+            "https://m.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://youtu.be/dQw4w9WgXcQ?si=abc",
+            "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+            "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "youtu.be/dQw4w9WgXcQ",
+        ] {
+            assert_eq!(youtube_id(url), id, "{url}");
+        }
+        for url in ["https://www.youtube.com/", "https://www.youtube.com/watch?v=short", "https://vimeo.com/123", "https://example.com/watch?v=dQw4w9WgXcQ"] {
+            assert_eq!(youtube_id(url), None, "{url}");
+        }
+        let line: Vec<char> = "- [[https://youtu.be/dQw4w9WgXcQ]] {:width 400}".chars().collect();
+        let image = parse(&line).unwrap();
+        assert_eq!((image.target.as_str(), image.width), ("https://youtu.be/dQw4w9WgXcQ", Some(400.0)));
+        // With a description, it stays a link
+        let line: Vec<char> = "[[https://youtu.be/dQw4w9WgXcQ][Clip]]".chars().collect();
+        assert!(parse(&line).is_none());
+        assert!(!parse(&"[[https://youtu.be/dQw4w9WgXcQ]]".chars().collect::<Vec<_>>()).unwrap().logseq_macro);
+    }
+
+    #[test]
+    fn logseq_video_macro() {
+        let line: Vec<char> = "- {{video https://www.youtube.com/watch?v=dQw4w9WgXcQ}}".chars().collect();
+        let image = parse(&line).unwrap();
+        assert!(image.logseq_macro);
+        assert_eq!((image.prefix, image.link_end, image.target.as_str()), (2, line.len(), "https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(parse(&"{{youtube https://youtu.be/dQw4w9WgXcQ}}".chars().collect::<Vec<_>>()).is_some());
+        // Another video site, another macro: text
+        assert!(parse(&"{{video https://vimeo.com/123}}".chars().collect::<Vec<_>>()).is_none());
+        assert!(parse(&"{{embed [[Page]]}}".chars().collect::<Vec<_>>()).is_none());
+        let page = "* Vidéos\n- {{video https://youtu.be/dQw4w9WgXcQ}}\nfin\n";
+        let (a, b, text) = macro_to_link(page, 12).unwrap();
+        let mut fixed: Vec<char> = page.chars().collect();
+        fixed.splice(a..b, text.chars());
+        assert_eq!(fixed.into_iter().collect::<String>(), "* Vidéos\n- [[https://youtu.be/dQw4w9WgXcQ]]\nfin\n");
+        assert!(macro_to_link("[[https://youtu.be/dQw4w9WgXcQ]]", 0).is_none());
+    }
 
     fn line(s: &str) -> Option<ImageLine> {
         parse(&s.chars().collect::<Vec<_>>())

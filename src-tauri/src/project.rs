@@ -97,12 +97,21 @@ impl Project {
     /// Copy the image `source` into the project's `assets/` folder, named as Logseq
     /// names them; returns the link to it from the page `page`.
     pub fn import_image(&self, page: &str, source: &str) -> Result<String, AppError> {
+        let ext = Path::new(source).extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
+        if !ext.is_some_and(|e| orgamnesia_core::assets::EXTENSIONS.contains(&e.as_str())) {
+            return Err(AppError::NotAnImage(source.to_string()));
+        }
+        self.import_file(page, source)
+    }
+
+    /// Copy the file `source`, whatever it is, into the project's `assets/`, named
+    /// as Logseq names them; returns the link to it from the page `page`.
+    pub fn import_file(&self, page: &str, source: &str) -> Result<String, AppError> {
         self.check_page(page)?;
         let src = Path::new(source);
         let name = src.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let ext = src.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
-        if !src.is_file() || !ext.is_some_and(|e| orgamnesia_core::assets::EXTENSIONS.contains(&e.as_str())) {
-            return Err(AppError::NotAnImage(source.to_string()));
+        if !src.is_file() {
+            return Err(AppError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, format!("not a file: {source}"))));
         }
         let dir = Path::new(&self.path).join("assets");
         std::fs::create_dir_all(&dir)?;
