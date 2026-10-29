@@ -137,6 +137,24 @@ pub struct Config {
     pub git_status_enabled: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
     pub git_ssh_key: Option<String>,
+    /// Git extension: every so many minutes, commit the changes, pull and push
+    /// (0: never).
+    pub git_auto_sync_minutes: Option<u64>,
+    /// Git extension: the same sync on quitting the app.
+    pub git_sync_on_quit: Option<bool>,
+    /// Git extension: fetch the remote every so many minutes, and when the
+    /// project opens, so that the commits to pull are counted (0: never).
+    pub git_fetch_minutes: Option<u64>,
+    /// Git extension: a pull on a history that diverged from the remote replays
+    /// the local commits on the remote's (`--rebase`); off, it is refused.
+    pub git_pull_rebase: Option<bool>,
+    /// Git extension: mark the pages differing from the remote in the pages list.
+    pub git_unpushed_marker: Option<bool>,
+    /// Git extension: the commit window's main button also pushes.
+    pub git_commit_push: Option<bool>,
+    /// Git extension: the commit message proposed, with `{date}`, `{time}`,
+    /// `{count}` and `{files}` replaced; empty: a summary and the list of the files.
+    pub git_commit_template: Option<String>,
     /// The keybinding profile in effect: a built-in one (`classic`, `emacs`) or
     /// the name of one of the user's (`keybindings/<name>.json`). Kept apart from
     /// `Prefs`: the keybindings are saved on their own.
@@ -214,6 +232,15 @@ pub struct Prefs {
     pub org_bloom_no_external_deps: bool,
     pub git_ext: bool,
     pub git_ssh_key: String,
+    /// See `Settings::git_auto_sync_minutes`.
+    pub git_auto_sync: u64,
+    pub git_sync_on_quit: bool,
+    /// See `Settings::git_fetch_minutes`.
+    pub git_fetch: u64,
+    pub git_pull_rebase: bool,
+    pub git_unpushed_marker: bool,
+    pub git_commit_push: bool,
+    pub git_commit_template: String,
     pub spell: bool,
     /// See `Settings::spell_language`; empty: the interface language's.
     pub spell_lang: String,
@@ -277,6 +304,13 @@ impl Prefs {
             org_bloom_no_external_deps: s.org_bloom_no_external_deps.unwrap_or(false),
             git_ext: s.git_status_enabled.unwrap_or(true),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
+            git_auto_sync: s.git_auto_sync_minutes.unwrap_or(0),
+            git_sync_on_quit: s.git_sync_on_quit.unwrap_or(false),
+            git_fetch: s.git_fetch_minutes.unwrap_or(5),
+            git_pull_rebase: s.git_pull_rebase.unwrap_or(true),
+            git_unpushed_marker: s.git_unpushed_marker.unwrap_or(true),
+            git_commit_push: s.git_commit_push.unwrap_or(false),
+            git_commit_template: s.git_commit_template.clone().unwrap_or_default(),
             spell: s.spell_enabled.unwrap_or(true),
             spell_lang: s.spell_language.clone().unwrap_or_default(),
             spell_dict_dir: s.spell_dict_dir.clone().unwrap_or_default(),
@@ -350,6 +384,13 @@ impl Prefs {
             org_bloom_no_external_deps: Some(self.org_bloom_no_external_deps),
             git_status_enabled: Some(self.git_ext),
             git_ssh_key: some(&self.git_ssh_key),
+            git_auto_sync_minutes: Some(self.git_auto_sync),
+            git_sync_on_quit: Some(self.git_sync_on_quit),
+            git_fetch_minutes: Some(self.git_fetch),
+            git_pull_rebase: Some(self.git_pull_rebase),
+            git_unpushed_marker: Some(self.git_unpushed_marker),
+            git_commit_push: Some(self.git_commit_push),
+            git_commit_template: some(&self.git_commit_template),
             spell_enabled: Some(self.spell),
             spell_language: some(&self.spell_lang),
             spell_dict_dir: some(&self.spell_dict_dir),

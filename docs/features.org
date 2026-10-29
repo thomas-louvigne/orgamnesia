@@ -517,12 +517,79 @@ Shift+arrows…). In a profile, the browser's editing shortcuts that are not ass
 * Extensions
 
 ** Git
-Under the project name: its branch and what is left to commit, push or pull ("Up to
-date", "no remote branch", "detached"…). Needs git; commits to pull are counted
-since the last =git fetch= (no automatic fetch). The state is updated when the
-repository changes. On by default.
+Needs git installed. On by default; turned off in Settings > Extensions.
 
 [[file:images/git-status.png]]
+
+*** State of the project
+Under the project name: its branch and what is left to commit, push or pull ("Up to
+date", "no remote branch", "no remote repository", "detached"…), the files in
+conflict and a merge in progress. The state is updated when the repository changes.
+The remote is fetched (=git fetch=) when the project opens, then every 5 minutes, so
+that the commits to pull are counted; offline, it simply fails until the next time.
+The interval is set in Settings > Extensions (0: never fetched; the commits to pull
+are then counted as of the last pull).
+
+In the pages list, a small ↑ marks the pages that differ from the remote branch:
+changed, or committed and not pushed yet. Without a remote branch, those changed
+since the last commit. It can be turned off in Settings > Extensions.
+
+When git can't read the folder (for example a folder belonging to another user,
+"dubious ownership"), the frame says so, with what to do.
+
+*** Commit, pull, push
+Three buttons under the state; their shortcuts are in Settings > Shortcuts
+(Classic: Ctrl+Shift+G, Ctrl+Shift+U, Ctrl+Shift+P; Emacs: =C-x g c c=,
+=C-x g F p=, =C-x g P p=). Unsaved pages are saved first. Push shows the number of
+commits to push; a branch with no remote branch yet is pushed to =origin= and set to
+track it.
+
+- *Commit* opens a window listing the files changed, each with a box: only the files
+  ticked are committed. A click on a file shows what changed in it. The message
+  proposed lists the files ticked, and follows them until you type in it.
+  Ctrl+Enter does what the main button does (=C-c C-c= in Emacs), Escape cancels
+  (=C-c C-k=). "Commit and push" pushes right after. With "Commit and push by
+  default", the main button is "Commit and push", the other "Commit only".
+- The message proposed can come from a template (Settings > Extensions):
+  ={date}=, ={time}=, ={count}= and ={files}= are replaced, for example
+  =Notes {date} ({count} files)=. Empty: a summary and the list of the files.
+- *Pull* puts the changes not committed aside meanwhile, then back
+  (=--autostash=). When the history diverged from the remote, your commits are
+  replayed on the remote's (=--rebase=); with "Pull: rebase a diverged history" off,
+  the pull only moves forward and is refused then. When both change the same lines, nothing is
+  changed: the app never resolves conflicts, it tells you to merge in a terminal or
+  a git tool.
+- The common errors come with what to do: SSH key, https identifiers, name and email
+  of git, push refused because the remote has new commits…
+- Pull and push never ask a question: ssh runs in batch mode. A key with a
+  passphrase must be loaded in =ssh-agent=; the key to use can be set in
+  Settings > Extensions (empty: the system's SSH setup). An =https://= remote needs
+  a credential helper.
+
+*** History of a page
+"Git history…" in the right-click menu of a tab or of a page of the pages list: the
+commits that changed the page, newest first, following its renames. For each, what
+it changed, or the page as it was then. "Restore this version" puts it back: in its
+tab when the page is open (the editor's undo takes it back), else on disk, after
+confirmation.
+
+*** Automatic sync
+Settings > Extensions > "Sync automatically every (minutes)": every so many minutes,
+the changes are committed with the proposed message, then pulled and pushed. Quiet
+when there is nothing to do. "Also sync on quitting" does the same when quitting the
+app (with the Quit button or its shortcut), whatever the interval. It stops at the first failure (a conflict…), said in the status bar,
+and starts again after a pull or a push that works, or in another project; on
+quitting, the app asks whether to quit all the same. 0 (the default): never.
+
+*** Setting up
+- A project that is not a repository: "Create a repository" in the git frame runs
+  =git init= and writes a =.gitignore= for the editors' backups (=*~=, =#*#=…).
+- A repository without a remote: "Add a remote repository…" asks for its address
+  (an empty repository made on GitHub, GitLab…), which becomes =origin=; the first
+  push sends the branch there.
+- "Clone a git repository…", in the projects menu and on the welcome screen: the
+  repository is cloned into a new folder named after it, in the folder chosen, then
+  opened as the project. The SSH key of the settings is used.
 
 ** org-bloom: the site of the project
 [[https://github.com/thomas-louvigne/org-bloom][org-bloom]] (formerly logseq-site-builder) turns the project into a static
@@ -590,7 +657,10 @@ closes without saving. The explanations under a setting are in italics.
 
 ** Extensions
 - org-bloom and its command.
-- Git.
+- Git (see [[*Git]]): on or off, the SSH key for pull / push, how often the remote
+  is fetched, rebasing a diverged history on pull, the marker of the pages not
+  pushed, commit and push by default, the commit message proposed, the automatic
+  sync and the sync on quitting.
 
 ** Spelling
 - Underline the misspelled words.

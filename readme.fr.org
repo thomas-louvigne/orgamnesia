@@ -40,7 +40,9 @@ relisez-le comme n'importe quelle contribution.
   autre programme rechargées.
 - *Préférences en texte* : les fichiers de réglages et de raccourcis ouverts dans
   l'éditeur, vérifiés pendant la frappe, appliqués à chaud, avec historique.
-- *Extensions* : état git, site web statique avec
+- *Git* : état du projet, commit (choix des fichiers, aperçu des modifications),
+  pull, push, historique d'une page, synchronisation automatique, clonage.
+- *Extensions* : site web statique avec
   [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
 - Interface en français et en anglais.
 

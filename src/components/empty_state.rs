@@ -38,6 +38,11 @@ pub fn EmptyState() -> impl IntoView {
                             <button class="btn-primary" on:click=move |_| spawn_local(actions::pick_and_open_project(ctx))>
                                 {t("open_project", lang())}
                             </button>
+                            {ctx.pref(|p| p.git_ext).then(|| view! {
+                                <button class="btn-secondary" on:click=move |_| ctx.ui.show_clone.set(true)>
+                                    {t("git_clone_title", lang())}
+                                </button>
+                            })}
                         </div>
                         {(!recent.is_empty()).then(|| view! {
                             <div class="empty-recent">

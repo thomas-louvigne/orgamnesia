@@ -3,6 +3,8 @@ pub mod config_bar;
 pub mod editor;
 pub mod empty_state;
 pub mod frames;
+pub mod git_history;
+pub mod git_setup;
 pub mod new_page_modal;
 pub mod page_title;
 pub mod project_search;

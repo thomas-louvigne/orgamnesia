@@ -40,8 +40,8 @@ pub fn Check(
     }
 }
 
-/// A whole number setting of the trash, greyed out while it is not emptied automatically.
-/// With `readable`, the size in bytes is also given in kB / MB.
+/// A whole number setting, greyed out while `disabled` (the setting it depends on
+/// is off). With `readable`, the size in bytes is also given in kB / MB.
 #[component]
 pub fn NumberField(
     draft: RwSignal<Prefs>,
@@ -49,6 +49,7 @@ pub fn NumberField(
     set: fn(&mut Prefs, u64),
     label: &'static str,
     hint: &'static str,
+    disabled: fn(&Prefs) -> bool,
     #[prop(optional)] readable: bool,
 ) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
@@ -62,7 +63,7 @@ pub fn NumberField(
                     min="0"
                     step="1"
                     class="setting-input setting-number"
-                    prop:disabled=move || !draft.with(|p| p.trash_auto_empty)
+                    prop:disabled=move || draft.with(disabled)
                     prop:value=move || draft.with(get).to_string()
                     on:input=move |e| {
                         // A field left empty or invalid counts as 0 (no limit)

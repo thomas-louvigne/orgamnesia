@@ -118,6 +118,14 @@ pub fn ProjectSwitcher() -> impl IntoView {
                     }>
                         {move || t("open_project", ctx.lang.get())}
                     </button>
+                    {move || ctx.pref(|p| p.git_ext).then(|| view! {
+                        <button class="project-open-btn" on:click=move |_| {
+                            ctx.ui.show_projects.set(false);
+                            ctx.ui.show_clone.set(true);
+                        }>
+                            {move || t("git_clone_title", ctx.lang.get())}
+                        </button>
+                    })}
                 </div>
             })}
         </div>

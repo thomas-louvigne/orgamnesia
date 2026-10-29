@@ -272,6 +272,35 @@ fn watch_git(ctx: AppCtx) {
     invoke::listen(invoke::GIT_CHANGED, move |()| refresh());
 }
 
+/// The remote fetched once the project is known to have one, then every few
+/// minutes; the automatic sync every so many minutes, as set.
+fn git_timers(ctx: AppCtx) {
+    use std::time::Duration;
+    // Another project: its sync isn't held back by the last one's failure
+    Effect::new(move |_| {
+        ctx.project.vault_path.track();
+        ctx.project.git_sync_paused.set(false);
+    });
+    let fetchable = Memo::new(move |_| (
+        ctx.project.vault_path.get(),
+        ctx.project.git.with(|g| g.as_ref().is_some_and(|g| g.repo && g.remote)),
+    ));
+    let fetch_minutes = Memo::new(move |_| ctx.pref(|p| p.git_fetch));
+    Effect::new(move |_| if fetchable.get().1 && fetch_minutes.get() > 0 { crate::git::fetch(ctx); });
+    // Started again whenever the setting changes; 0: never
+    let every = move |minutes: u64, job: fn(AppCtx)| (minutes > 0).then(|| {
+        set_interval_with_handle(move || job(ctx), Duration::from_secs(minutes * 60)).ok()
+    }).flatten();
+    Effect::new(move |prev: Option<Option<IntervalHandle>>| {
+        if let Some(Some(tick)) = prev { tick.clear(); }
+        every(fetch_minutes.get(), crate::git::fetch)
+    });
+    Effect::new(move |prev: Option<Option<IntervalHandle>>| {
+        if let Some(Some(tick)) = prev { tick.clear(); }
+        every(ctx.pref(|p| p.git_auto_sync), crate::git::auto_sync)
+    });
+}
+
 /// Another project: the project search starts afresh (its undo was the other project's).
 fn reset_search(ctx: AppCtx) {
     Effect::new(move |_| {
@@ -353,11 +382,12 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
         AppAction::GitPull         => crate::git::pull(ctx),
         AppAction::GitPush         => crate::git::push(ctx),
         AppAction::Quit => {
-            let quit = move || spawn_local(async move {
+            // With the automatic sync on, the project is synced first
+            let quit = move || crate::git::sync_then(ctx, move || spawn_local(async move {
                 if let Err(err) = invoke::quit_app().await {
                     ctx.error("quit_error", &err);
                 }
-            });
+            }));
             if ctx.work.has_unsaved_tabs() || crate::preferences::aside_unsaved(ctx) {
                 ctx.ask_confirm(t("quit_unsaved_confirm", ctx.lang.get_untracked()).to_string(), quit);
             } else {
@@ -424,6 +454,7 @@ pub fn App() -> impl IntoView {
     spawn_local(load_startup(ctx, Owner::current().expect("App owner")));
     watch_disk(ctx);
     watch_git(ctx);
+    git_timers(ctx);
     watch_tags(ctx);
     reset_search(ctx);
 
@@ -535,6 +566,9 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <DiskConflictDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
             {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_modal::CommitModal /> })}
+            {move || ctx.ui.git_history.get().map(|file| view! { <crate::components::git_history::GitHistoryModal file /> })}
+            {move || ctx.ui.show_git_remote.get().then(|| view! { <crate::components::git_setup::RemoteModal /> })}
+            {move || ctx.ui.show_clone.get().then(|| view! { <crate::components::git_setup::CloneModal /> })}
             {move || ctx.ui.show_shortcuts.get().then(|| view! { <crate::components::shortcuts_help::ShortcutsHelp /> })}
             {move || ctx.ui.status.get().map(|msg| {
                 // The "Undo" button of this message, if it has one

@@ -37,7 +37,9 @@ other contribution.
 - *Trash* with undo, *autosave*, pages changed by another program reloaded.
 - *Settings as text*: the settings and shortcut files opened in the editor,
   checked as you type, applied at once, with a history.
-- *Extensions*: git state, static website with
+- *Git*: state of the project, commit (choosing the files, seeing the changes),
+  pull, push, history of a page, automatic sync, clone.
+- *Extensions*: static website with
   [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
 - French and English interface.
 

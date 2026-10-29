@@ -72,10 +72,14 @@ fn GitButtons() -> impl IntoView {
             {button(GitOp::Pull, "git_pull", "git_pull", "↓", |g| g.upstream, |_| 0, crate::git::pull)}
             // Also with no change seen yet: unsaved pages are saved first
             {button(GitOp::Commit, "git_commit", "git_commit", "●", |_| true, |_| 0, crate::git::open_commit)}
-            {button(GitOp::Push, "git_push", "git_push", "↑", |g| g.ahead > 0 || !g.upstream, |g| g.ahead, crate::git::push)}
+            {button(GitOp::Push, "git_push", "git_push", "↑", |g| g.remote && (g.ahead > 0 || !g.upstream), |g| g.ahead, crate::git::push)}
         </div>
     }
 }
+
+/// What the project folder is to git.
+#[derive(Clone, Copy, PartialEq)]
+enum Repo { Yes, No, Unreadable }
 
 /// Git state of the open project (git extension).
 #[component]
@@ -87,28 +91,61 @@ pub fn GitLine() -> impl IntoView {
     // same elements (one replaced between the press and the release of the mouse
     // gets no click)
     let repo = Memo::new(move |_| {
-        ctx.project.vault_path.with(Option::is_some).then(|| ctx.project.git.with(|g| g.as_ref().map(|g| g.repo))).flatten()
+        ctx.project.vault_path.with(Option::is_some)
+            .then(|| ctx.project.git.with(|g| g.as_ref().map(|g| if g.repo { Repo::Yes } else if g.error.is_some() { Repo::Unreadable } else { Repo::No })))
+            .flatten()
     });
+    let busy = move || ctx.project.git_busy.get();
     let git = move || ctx.project.git.get().unwrap_or_default();
     let branch = move || git().branch.unwrap_or_else(|| t("git_detached", lang()).to_string());
     let items = move || {
         let st = git();
         let mut items: Vec<(&'static str, String)> = vec![];
+        if busy() == Some(crate::state::GitOp::Sync) { items.push(("git-syncing", format!("⟳ {}", t("git_syncing", lang())))); }
+        if st.merging { items.push(("git-conflict", format!("⚠ {}", t("git_merging", lang())))); }
+        if st.conflicts > 0 { items.push(("git-conflict", format!("⚠ {} {}", st.conflicts, t("git_in_conflict", lang())))); }
         if st.changes > 0 { items.push(("git-dirty", format!("● {} {}", st.changes, t("git_to_commit", lang())))); }
         if st.ahead > 0 { items.push(("git-ahead", format!("↑ {} {}", st.ahead, t("git_to_push", lang())))); }
         if st.behind > 0 { items.push(("git-behind", format!("↓ {} {}", st.behind, t("git_to_pull", lang())))); }
-        if !st.upstream { items.push(("git-local", t("git_no_upstream", lang()).to_string())); }
+        if !st.remote { items.push(("git-local", t("git_no_remote", lang()).to_string())); }
+        else if !st.upstream { items.push(("git-local", t("git_no_upstream", lang()).to_string())); }
         if items.is_empty() { items.push(("git-clean", format!("✓ {}", t("git_up_to_date", lang())))); }
         items
     };
+    let error = move || git().error.unwrap_or_default();
     move || match repo.get()? {
-        false => Some(view! {
+        Repo::No => Some(view! {
             <div class="frame git-status git-off">
-                <GitIcon />
-                <span class="git-branch">{move || t("git_no_repo", lang())}</span>
+                <div class="git-head">
+                    <GitIcon />
+                    <span class="git-branch">{move || t("git_no_repo", lang())}</span>
+                </div>
+                <button class="git-setup-btn" prop:disabled=move || busy().is_some()
+                    title=move || t("git_init_title", lang())
+                    on:click=move |_| crate::git::init(ctx)>
+                    {move || t("git_init", lang())}
+                </button>
             </div>
         }.into_any()),
-        true => Some(view! {
+        Repo::Unreadable => Some(view! {
+            <div class="frame git-status git-off">
+                <div class="git-head">
+                    <GitIcon />
+                    <span class="git-branch">{move || t("git_unreadable", lang())}</span>
+                </div>
+                <span class="git-error" title=error>
+                    {move || {
+                        let e = error();
+                        let last = e.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or_default().to_string();
+                        match crate::git::hint(&e) {
+                            Some(h) => format!("{last} — {}", t(h, lang())),
+                            None => last,
+                        }
+                    }}
+                </span>
+            </div>
+        }.into_any()),
+        Repo::Yes => Some(view! {
             <div class="frame git-status">
                 <div class="git-head">
                     <GitIcon />
@@ -120,6 +157,12 @@ pub fn GitLine() -> impl IntoView {
                     }).collect_view()}
                 </div>
                 <GitButtons />
+                {move || (!git().remote).then(|| view! {
+                    <button class="git-setup-btn" prop:disabled=move || busy().is_some()
+                        on:click=move |_| ctx.ui.show_git_remote.set(true)>
+                        {move || t("git_remote_title", lang())}
+                    </button>
+                })}
             </div>
         }.into_any()),
     }

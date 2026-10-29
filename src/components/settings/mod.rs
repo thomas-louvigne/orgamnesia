@@ -1,7 +1,7 @@
 //! The settings window: a draft of the settings and keybindings, edited in
 //! tabs, applied or saved together.
 
-mod fields;
+pub mod fields;
 mod layout;
 mod shortcuts;
 mod tabs;

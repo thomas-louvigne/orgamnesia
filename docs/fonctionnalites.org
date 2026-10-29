@@ -514,10 +514,88 @@ qui ne sont pas attribués (par exemple Ctrl+C en Emacs) ne font rien.
 * Extensions
 
 ** Git
+Nécessite git. Activé par défaut ; se désactive dans Préférences > Extensions.
+
+[[file:images/git-status.png]]
+
+*** État du projet
 Sous le nom du projet : sa branche et ce qu'il reste à commiter, à pousser ou à
-récupérer (« À jour », « pas de branche distante », « détachée »…). Nécessite
-git ; les commits à récupérer sont comptés depuis le dernier =git fetch= (pas de
-fetch automatique). L'état se met à jour quand le dépôt change. Activé par défaut.
+récupérer (« À jour », « pas de branche distante », « pas de dépôt distant »,
+« détachée »…), les fichiers en conflit et une fusion en cours. L'état se met à jour
+quand le dépôt change. Le dépôt distant est consulté (=git fetch=) à l'ouverture du
+projet puis toutes les 5 minutes, pour compter les commits à récupérer ; hors
+connexion, cela échoue simplement jusqu'à la fois suivante. L'intervalle se règle
+dans Préférences > Extensions (0 : jamais ; les commits à récupérer sont alors
+comptés depuis le dernier pull).
+
+Dans la liste des pages, une petite flèche ↑ marque les pages qui diffèrent de la
+branche distante : modifiées, ou commitées et pas encore poussées. Sans branche
+distante, celles modifiées depuis le dernier commit. Elle se désactive dans
+Préférences > Extensions.
+
+Quand git ne peut pas lire le dossier (par exemple un dossier appartenant à un autre
+utilisateur, « dubious ownership »), le cadre le dit, avec ce qu'il faut faire.
+
+*** Commit, pull, push
+Trois boutons sous l'état ; leurs raccourcis sont dans Préférences > Raccourcis
+(Classique : Ctrl+Maj+G, Ctrl+Maj+U, Ctrl+Maj+P ; Emacs : =C-x g c c=,
+=C-x g F p=, =C-x g P p=). Les pages non enregistrées le sont d'abord. Push affiche
+le nombre de commits à pousser ; une branche sans branche distante est poussée vers
+=origin= et la suit.
+
+- *Commit* ouvre une fenêtre listant les fichiers modifiés, chacun avec une case :
+  seuls les fichiers cochés sont commités. Un clic sur un fichier montre ses
+  modifications. Le message proposé liste les fichiers cochés, et les suit tant que
+  vous ne l'avez pas modifié. Ctrl+Entrée fait comme le bouton principal
+  (=C-c C-c= en Emacs), Échap annule (=C-c C-k=). « Commit et push » pousse juste
+  après. Avec « Commit et push par défaut », le bouton principal est « Commit et
+  push », l'autre « Commit seulement ».
+- Le message proposé peut venir d'un modèle (Préférences > Extensions) : ={date}=,
+  ={time}=, ={count}= et ={files}= y sont remplacés, par exemple
+  =Notes {date} ({count} fichiers)=. Vide : un résumé et la liste des fichiers.
+- *Pull* met de côté les modifications non commitées le temps de récupérer, puis les
+  remet (=--autostash=). Quand l'historique a divergé du dépôt distant, vos commits
+  sont rejoués sur les siens (=--rebase=) ; avec « Pull : rebaser un historique
+  divergent » désactivé, le pull ne fait qu'avancer et il est alors refusé. Quand
+  les deux modifient les mêmes
+  lignes, rien n'est changé : le programme ne résout jamais les conflits, il vous
+  invite à fusionner dans un terminal ou un outil git.
+- Les erreurs courantes sont accompagnées de ce qu'il faut faire : clé SSH,
+  identifiants https, nom et e-mail de git, push refusé parce que le dépôt distant
+  a de nouveaux commits…
+- Pull et push ne posent jamais de question : ssh tourne en mode non interactif. Une
+  clé avec phrase de passe doit être chargée dans =ssh-agent= ; la clé à utiliser
+  se choisit dans Préférences > Extensions (vide : la configuration SSH du système).
+  Un dépôt distant en =https://= a besoin d'un gestionnaire d'identifiants.
+
+*** Historique d'une page
+« Historique git… » dans le menu du clic droit d'un onglet ou d'une page de la liste
+des pages : les commits qui ont modifié la page, du plus récent au plus ancien, en
+suivant ses renommages. Pour chacun, ses modifications, ou la page telle qu'elle
+était alors. « Restaurer cette version » la remet : dans son onglet si la page est
+ouverte (l'annulation de l'éditeur la défait), sinon sur le disque, après
+confirmation.
+
+*** Synchronisation automatique
+Préférences > Extensions > « Synchroniser automatiquement toutes les (minutes) » :
+toutes les N minutes, les modifications sont commitées avec le message proposé,
+puis récupérées (pull) et poussées (push). Silencieuse quand il n'y a rien à faire.
+« Synchroniser aussi en quittant » fait de même en quittant le programme (bouton
+Quitter ou son raccourci), quel que soit l'intervalle. Elle s'arrête à
+la première erreur (un conflit…), indiquée dans la barre d'état, et reprend après
+un pull ou un push réussi, ou dans un autre projet ; en quittant, le programme
+demande s'il faut quitter quand même. 0 (par défaut) : jamais.
+
+*** Mise en place
+- Un projet qui n'est pas un dépôt : « Créer un dépôt » dans le cadre git lance
+  =git init= et écrit un =.gitignore= pour les sauvegardes des éditeurs (=*~=,
+  =#*#=…).
+- Un dépôt sans dépôt distant : « Ajouter un dépôt distant… » demande son adresse
+  (un dépôt vide créé sur GitHub, GitLab…), qui devient =origin= ; le premier push y
+  envoie la branche.
+- « Cloner un dépôt git… », dans le menu des projets et sur l'écran d'accueil : le
+  dépôt est cloné dans un nouveau dossier à son nom, dans le dossier choisi, puis
+  ouvert comme projet. La clé SSH des préférences est utilisée.
 
 ** org-bloom : le site du projet
 [[https://github.com/thomas-louvigne/org-bloom][org-bloom]] (anciennement logseq-site-builder) transforme le projet en site
@@ -588,7 +666,10 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 
 ** Extensions
 - org-bloom et sa commande.
-- Git.
+- Git (voir [[*Git]]) : activé ou non, la clé SSH pour pull / push, la fréquence de
+  consultation du dépôt distant, le rebase d'un historique divergent au pull, le
+  marqueur des pages non poussées, commit et push par défaut, le message de commit
+  proposé, la synchronisation automatique et celle en quittant.
 
 ** Orthographe
 - Souligner les fautes d'orthographe.

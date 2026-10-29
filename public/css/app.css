@@ -186,7 +186,8 @@ html, body { height: 100%; overflow: hidden; }
     padding: 8px 8px 8px 12px;
     font-size: var(--fs-meta); color: var(--fg-dim);
 }
-.git-status.git-off { flex-direction: row; align-items: center; gap: 6px; font-style: italic; }
+.git-status.git-off { align-items: flex-start; }
+.git-off .git-branch { font-style: italic; }
 .git-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .git-logo { width: 13px; height: 13px; flex-shrink: 0; color: var(--orange); }
 .git-off .git-logo { color: var(--fg-dim); }
@@ -203,7 +204,9 @@ html, body { height: 100%; overflow: hidden; }
 .git-local { font-style: italic; }
 .git-clean { color: var(--green); }
 .git-dirty { color: var(--yellow); }
-.git-ahead, .git-behind { color: var(--accent2); }
+.git-ahead, .git-behind, .git-syncing { color: var(--accent2); }
+.git-conflict { color: var(--red); white-space: normal; }
+.git-error { color: var(--red); overflow-wrap: anywhere; }
 .project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .project-caret { color: var(--fg-dim); margin-left: 6px; }
 .project-menu {
@@ -257,6 +260,7 @@ html, body { height: 100%; overflow: hidden; }
 .sidebar-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0; }
 
 .file-item {
+    position: relative;
     padding: 5px 16px;
     cursor: pointer;
     white-space: nowrap;
@@ -267,6 +271,11 @@ html, body { height: 100%; overflow: hidden; }
     border-left: 2px solid transparent;
 }
 .file-item:hover { background: var(--bg3); color: var(--accent2); }
+/* Git extension: the page differs from the remote, to push */
+.file-unpushed {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    color: var(--accent2); font-size: var(--fs-meta); font-weight: 600;
+}
 .file-item.active {
     background: var(--bg3);
     color: var(--accent2);
@@ -892,6 +901,13 @@ kbd {
     background: var(--accent); color: var(--bg); font-size: .85em; font-weight: 600;
 }
 .git-btn.running { color: var(--accent2); border-color: var(--accent); opacity: 1; cursor: progress; }
+/* Setting up: create the repository, add a remote */
+.git-setup-btn {
+    align-self: stretch; background: none; border: 1px dashed var(--border); border-radius: 4px;
+    color: var(--fg-dim); font: inherit; font-size: var(--fs-meta); padding: 2px 6px; cursor: pointer;
+}
+.git-setup-btn:hover:not(:disabled) { color: var(--accent2); border-color: var(--accent); }
+.git-setup-btn:disabled { opacity: .4; cursor: default; }
 .git-spinner {
     width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%;
     border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
@@ -922,7 +938,7 @@ kbd {
 .commit-body { display: flex; flex-direction: column; gap: 8px; }
 .commit-files-title, .commit-label { font-size: var(--fs-meta); color: var(--fg-dim); }
 .commit-files {
-    list-style: none; margin: 0; padding: 6px 0; max-height: 150px; overflow-y: auto;
+    list-style: none; margin: 0; padding: 6px 0; max-height: 280px; overflow-y: auto;
     border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
 }
 .commit-files li { display: flex; gap: 8px; align-items: baseline; padding: 2px 10px; font-size: var(--fs-meta); }
@@ -931,7 +947,44 @@ kbd {
 .commit-modified { color: var(--orange); }
 .commit-deleted { color: var(--red); }
 .commit-renamed { color: var(--cyan); }
-.commit-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace); }
+.commit-files-title { display: flex; align-items: center; gap: 6px; }
+.commit-files li > input { align-self: center; margin: 0; }
+.commit-path {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace);
+    background: none; border: none; padding: 0; color: inherit; font-size: inherit; text-align: left; cursor: pointer;
+}
+.commit-path:hover, .commit-path[aria-expanded="true"] { color: var(--accent2); text-decoration: underline; }
+.commit-files li.commit-diff { display: block; padding: 2px 10px 8px; }
+/* A diff: lines added, removed, and where they are */
+.diff-view {
+    margin: 0; padding: 6px 0; max-height: 260px; overflow: auto;
+    font-family: var(--font-mono, monospace); font-size: var(--fs-meta); line-height: 1.5;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px; white-space: pre;
+}
+pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
+.diff-line { padding: 0 10px; min-height: 1.5em; }
+.diff-add { color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+.diff-del { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+.diff-hunk { color: var(--cyan); margin-top: 4px; }
+/* History of a page: its commits, and the one chosen */
+.history-modal { width: min(920px, 94vw); }
+.history-body { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; gap: 12px; height: 62vh; }
+.history-list {
+    list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; min-height: 0;
+    border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
+}
+.history-item { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; cursor: pointer; border-left: 2px solid transparent; }
+.history-item:hover { background: var(--bg3); }
+.history-item.active { background: var(--bg3); border-left-color: var(--accent); }
+.history-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-ui); color: var(--fg); }
+.history-meta { font-size: var(--fs-meta); color: var(--fg-dim); }
+.history-view { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+.history-view .diff-view { flex: 1; max-height: none; }
+.history-switch { display: flex; gap: 4px; }
+.history-switch .active { color: var(--accent2); border-color: var(--accent); }
+@media (max-width: 640px) {
+    .history-body { grid-template-columns: 1fr; grid-template-rows: 35% 1fr; }
+}
 .commit-message { min-height: 150px; resize: vertical; font-family: var(--font-mono, monospace); line-height: 1.5; }
 /* Site folder of org-bloom: a link opening it */
 .bloom-site.off { opacity: 0.5; }

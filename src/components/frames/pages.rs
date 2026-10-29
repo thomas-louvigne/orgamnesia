@@ -41,6 +41,11 @@ pub fn PagesFrame() -> impl IntoView {
     };
 
     let active_path = Memo::new(move |_| ctx.work.active_tab_data().map(|t| t.path));
+    // Pages differing from the remote (git extension): marked, to push
+    let unpushed = Memo::new(move |_| {
+        if !ctx.pref(|p| p.git_ext && p.git_unpushed_marker) || ctx.project.preference.get() { return std::collections::HashSet::new(); }
+        ctx.project.git.with(|g| g.iter().flat_map(|g| g.unpushed.iter().cloned()).collect::<std::collections::HashSet<String>>())
+    });
 
     let trigger_new_page = move || {
         if ctx.project.vault_path.get_untracked().is_none() {
@@ -90,6 +95,7 @@ pub fn PagesFrame() -> impl IntoView {
                         let path = file.path.clone();
                         let path_r = file.path.clone();
                         let path_c = file.path.clone();
+                        let path_u = file.path.clone();
                         let name = file.name.clone();
                         let file_open = file.clone();
                         let file_menu = file.clone();
@@ -138,6 +144,11 @@ pub fn PagesFrame() -> impl IntoView {
                                 } else {
                                     name.clone().into_any()
                                 }}
+                                {move || unpushed.with(|u| u.contains(&path_u)).then(|| view! {
+                                    <span class="file-unpushed"
+                                        title=move || t("git_unpushed_file", ctx.lang.get())
+                                        aria-label=move || t("git_unpushed_file", ctx.lang.get())>"↑"</span>
+                                })}
                             </div>
                         }
                     }
@@ -175,6 +186,14 @@ pub fn PagesFrame() -> impl IntoView {
                                 }
                             >
                                 {move || t("no_export", ctx.lang.get())}
+                            </button>
+                        })}
+                        {target.clone().filter(|_| crate::git::history_available(ctx)).map(|f| view! {
+                            <button class="ctx-menu-item" on:click=move |_| {
+                                close();
+                                crate::git::open_history(ctx, f.clone());
+                            }>
+                                {move || t("git_history_menu", ctx.lang.get())}
                             </button>
                         })}
                         <button class="ctx-menu-item" on:click=move |_| {

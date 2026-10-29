@@ -144,6 +144,7 @@ fn TabItem(
             {move || menu.get().map(|(x, y)| {
                 let start_rename = start_rename.clone();
                 let name = name_for_delete.clone();
+                let name_for_history = name.clone();
                 view! {
                     <div>
                         <div class="ctx-overlay" on:click=move |_| menu.set(None) />
@@ -181,6 +182,21 @@ fn TabItem(
                             >
                                 {move || t("rename", ctx.lang.get())}
                             </button>
+                            {move || crate::git::history_available(ctx).then(|| {
+                                let name = name_for_history.clone();
+                                view! {
+                                    <button
+                                        class="ctx-menu-item"
+                                        on:click=move |e: web_sys::MouseEvent| {
+                                            e.stop_propagation();
+                                            menu.set(None);
+                                            crate::git::open_history(ctx, FileEntry { name: name.clone(), path: path.get_value() });
+                                        }
+                                    >
+                                        {move || t("git_history_menu", ctx.lang.get())}
+                                    </button>
+                                }
+                            })}
                             <div class="ctx-menu-sep" role="separator" />
                             <button
                                 class="ctx-menu-item ctx-menu-danger"

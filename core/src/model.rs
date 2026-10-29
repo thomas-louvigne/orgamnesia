@@ -34,6 +34,38 @@ pub struct GitStatus {
     pub ahead: u32,
     /// Commits of the remote not pulled yet (as of the last fetch).
     pub behind: u32,
+    /// Files in conflict (a merge or a rebase stopped on them).
+    #[serde(default)]
+    pub conflicts: u32,
+    /// A merge or a rebase is in progress, to finish elsewhere.
+    #[serde(default)]
+    pub merging: bool,
+    /// The repository has a remote.
+    #[serde(default)]
+    pub remote: bool,
+    /// Git can't read the folder for another reason than it not being a
+    /// repository: what it says.
+    #[serde(default)]
+    pub error: Option<String>,
+    /// Files of the project that differ from the remote branch (changed, or
+    /// committed and not pushed): their full paths. Without a remote branch,
+    /// those differing from the last commit.
+    #[serde(default)]
+    pub unpushed: Vec<String>,
+}
+
+/// A commit of the history of a page (`git log --follow`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GitCommit {
+    pub hash: String,
+    /// Seconds since the epoch.
+    pub date: i64,
+    pub author: String,
+    /// First line of the message.
+    pub subject: String,
+    /// Path of the page in that commit, relative to the root of the repository
+    /// (it may have been renamed since).
+    pub path: String,
 }
 
 /// Where org-bloom builds the site of a project, as its config file says.
@@ -62,6 +94,9 @@ pub struct GitChange {
     /// Path relative to the root of the repository.
     pub path: String,
     pub kind: GitChangeKind,
+    /// Path before a rename.
+    #[serde(default)]
+    pub old_path: Option<String>,
 }
 
 /// An org-mode tag of the project and how many pages and headlines carry it.

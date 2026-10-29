@@ -5,7 +5,7 @@ use wasm_bindgen_futures::JsFuture;
 
 use orgamnesia_core::config::{File as ConfigFile, InEffect, Problem};
 
-use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitStatus, TagCount, TagHit, TodoHit, VaultChanges, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
+use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitCommit, GitStatus, TagCount, TagHit, TodoHit, VaultChanges, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
 
 #[wasm_bindgen]
 extern "C" {
@@ -345,9 +345,46 @@ pub async fn git_changes() -> Result<Vec<GitChange>, String> {
     call("git_changes", serde_json::json!({})).await
 }
 
-/// Each returns what git says.
-pub async fn git_commit(message: &str) -> Result<String, String> {
-    call("git_commit", serde_json::json!({ "message": message })).await
+/// What changed in `file` (relative to the root of the repository) since the last commit.
+pub async fn git_diff(file: &str, old_path: Option<&str>) -> Result<String, String> {
+    call("git_diff", serde_json::json!({ "file": file, "oldPath": old_path })).await
+}
+
+/// Each returns what git says. With `files`, only those are committed.
+pub async fn git_commit(message: &str, files: Option<&[String]>) -> Result<String, String> {
+    call("git_commit", serde_json::json!({ "message": message, "files": files })).await
+}
+
+pub async fn git_fetch() -> Result<String, String> {
+    call("git_fetch", serde_json::json!({})).await
+}
+
+pub async fn git_init() -> Result<String, String> {
+    call("git_init", serde_json::json!({})).await
+}
+
+pub async fn git_add_remote(url: &str) -> Result<String, String> {
+    call("git_add_remote", serde_json::json!({ "url": url })).await
+}
+
+/// Clone `url` into a new folder of `parent`; returns that folder.
+pub async fn git_clone(parent: &str, url: &str) -> Result<String, String> {
+    call("git_clone", serde_json::json!({ "parent": parent, "url": url })).await
+}
+
+/// The commits that changed the page `file` (full path), newest first.
+pub async fn git_log(file: &str) -> Result<Vec<GitCommit>, String> {
+    call("git_log", serde_json::json!({ "file": file })).await
+}
+
+/// What `hash` changed in `file` (relative to the root of the repository).
+pub async fn git_commit_diff(hash: &str, file: &str) -> Result<String, String> {
+    call("git_commit_diff", serde_json::json!({ "hash": hash, "file": file })).await
+}
+
+/// The text of `file` (relative to the root of the repository) in `hash`.
+pub async fn git_show(hash: &str, file: &str) -> Result<String, String> {
+    call("git_show", serde_json::json!({ "hash": hash, "file": file })).await
 }
 
 pub async fn git_pull() -> Result<String, String> {

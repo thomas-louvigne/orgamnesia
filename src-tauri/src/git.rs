@@ -1,22 +1,38 @@
-//! The git extension: the state of the project and pull / commit / push, by
-//! running the `git` command (no git library).
+//! The git extension: the state of the project, pull / commit / push, the
+//! history of a page, and setting up a repository, by running the `git` command
+//! (no git library).
 
+use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 
 use crate::error::AppError;
-pub use orgamnesia_core::{GitChange, GitChangeKind, GitStatus};
+pub use orgamnesia_core::{GitChange, GitChangeKind, GitCommit, GitStatus};
+
+/// Held by the commands writing to the repository (fetch, pull, commit, push…):
+/// one at a time, so that a fetch in the background never makes a pull fail on
+/// a locked ref.
+pub static WRITING: Mutex<()> = Mutex::new(());
+
+/// What `git init` writes in `.gitignore`: the backups of the editors.
+const GITIGNORE: &str = "# Editor backups\n*~\n\\#*\\#\n.#*\n.DS_Store\n";
 
 /// Git state of `path`; `None` when git itself can't be run.
 pub fn status(path: &str) -> Option<GitStatus> {
-    let out = Command::new("git")
-        .args(["-C", path, "status", "--porcelain=v2", "--branch"])
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .output()
-        .ok()?;
+    let out = git(path).args(["status", "--porcelain=v2", "--branch"])
+        .env("GIT_OPTIONAL_LOCKS", "0").stdin(Stdio::null())
+        .output().ok()?;
     if !out.status.success() {
-        return Some(GitStatus::default());
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        // Any other failure is said, not taken for a folder without git
+        let error = (!err.to_lowercase().contains("not a git repository")).then_some(err);
+        return Some(GitStatus { error, ..Default::default() });
     }
-    Some(parse(&String::from_utf8_lossy(&out.stdout)))
+    let mut s = parse(&String::from_utf8_lossy(&out.stdout));
+    s.merging = in_progress(path);
+    s.remote = run(git(path).arg("remote")).is_ok_and(|r| !r.trim().is_empty());
+    s.unpushed = unpushed(path, s.upstream);
+    Some(s)
 }
 
 /// Read the output of `git status --porcelain=v2 --branch`.
@@ -32,11 +48,39 @@ fn parse(out: &str) -> GitStatus {
                 if let Some(a) = n.strip_prefix('+') { s.ahead = a.parse().unwrap_or(0); }
                 if let Some(b) = n.strip_prefix('-') { s.behind = b.parse().unwrap_or(0); }
             }
+        } else if line.starts_with("u ") {
+            s.conflicts += 1;
         } else if !line.starts_with('#') && !line.is_empty() {
             s.changes += 1;
         }
     }
     s
+}
+
+/// A merge or a rebase stopped in `path`'s repository.
+fn in_progress(path: &str) -> bool {
+    let Ok(out) = run(git(path).args(["rev-parse", "--git-path", "MERGE_HEAD", "--git-path", "rebase-merge", "--git-path", "rebase-apply"])) else {
+        return false;
+    };
+    out.lines().any(|p| Path::new(path).join(p.trim()).exists())
+}
+
+/// Full paths of the files of `path` differing from the remote branch (from the
+/// last commit without one), untracked ones included.
+fn unpushed(path: &str, upstream: bool) -> Vec<String> {
+    let base = if upstream { "@{u}" } else { "HEAD" };
+    // Paths relative to `path`, the files outside it left out
+    let mut rel: Vec<String> = run(git(path).args(["diff", "--name-only", "--relative", "-z", base]).env("GIT_OPTIONAL_LOCKS", "0"))
+        .map(|o| split_z(&o)).unwrap_or_default();
+    rel.extend(run(git(path).args(["ls-files", "--others", "--exclude-standard", "-z"])).map(|o| split_z(&o)).unwrap_or_default());
+    rel.sort();
+    rel.dedup();
+    let root = path.trim_end_matches('/');
+    rel.into_iter().map(|r| format!("{root}/{r}")).collect()
+}
+
+fn split_z(out: &str) -> Vec<String> {
+    out.split('\0').map(str::trim).filter(|p| !p.is_empty()).map(String::from).collect()
 }
 
 /// Files changed since the last commit (untracked ones included).
@@ -45,13 +89,42 @@ pub fn changes(path: &str) -> Result<Vec<GitChange>, AppError> {
     Ok(parse_changes(&out))
 }
 
-/// Stage every change of the project (`git add -A`) and commit it with `message`.
-/// Returns what git says.
-pub fn commit(path: &str, message: &str) -> Result<String, AppError> {
-    run(git(path).args(["add", "-A"]))?;
-    let mut child = git(path).args(["commit", "--file", "-"])
-        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
-        .spawn()?;
+/// What changed in `file` (relative to the root of the repository) since the
+/// last commit, as a unified diff; a new file is shown whole, added.
+pub fn diff(path: &str, file: &str, old_path: Option<&str>) -> Result<String, AppError> {
+    let root = toplevel(path)?;
+    let mut c = git(&root);
+    c.args(["diff", "--no-color", "-M", "HEAD", "--"]).arg(file);
+    if let Some(old) = old_path { c.arg(old); }
+    let out = run(&mut c).unwrap_or_default();
+    if !out.is_empty() {
+        return Ok(out);
+    }
+    // Untracked, or no commit yet
+    let text = std::fs::read_to_string(Path::new(&root).join(file)).unwrap_or_default();
+    Ok(text.lines().map(|l| format!("+{l}\n")).collect())
+}
+
+/// The root of the repository holding `path`.
+fn toplevel(path: &str) -> Result<String, AppError> {
+    run(git(path).args(["rev-parse", "--show-toplevel"]))
+}
+
+/// Commit the changes of the project with `message`; with `files` (relative to
+/// the root of the repository), only those. Returns what git says.
+pub fn commit(path: &str, message: &str, files: Option<&[String]>) -> Result<String, AppError> {
+    let mut c = git(path);
+    match files {
+        None => { run(git(path).args(["add", "-A"]))?; c.args(["commit", "--file", "-"]); }
+        Some(files) => {
+            // Paths from the root, wherever the project is in the repository
+            let root = toplevel(path)?;
+            run(git(&root).args(["add", "-A", "--"]).args(files))?;
+            c = git(&root);
+            c.args(["commit", "--file", "-", "--"]).args(files);
+        }
+    }
+    let mut child = c.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
     if let Some(mut stdin) = child.stdin.take() {
         use std::io::Write;
         stdin.write_all(message.as_bytes())?;
@@ -59,9 +132,34 @@ pub fn commit(path: &str, message: &str) -> Result<String, AppError> {
     output(child.wait_with_output()?)
 }
 
-/// `git pull --ff-only`: only moves forward, never merges. Returns what git says.
-pub fn pull(path: &str, ssh_key: &str) -> Result<String, AppError> {
-    run(remote(git(path), path, ssh_key).args(["pull", "--ff-only"]))
+/// `git fetch`, so that the commits to pull are counted; nothing to do without
+/// a remote.
+pub fn fetch(path: &str, ssh_key: &str) -> Result<String, AppError> {
+    if run(git(path).arg("remote"))?.trim().is_empty() {
+        return Ok(String::new());
+    }
+    run(remote(git(path), path, ssh_key).args(["fetch", "--quiet"]))
+}
+
+/// Pull, local changes put aside meanwhile (`--autostash`). Moves forward when
+/// it can; when the histories diverged and `rebase`, the local commits are
+/// replayed on the remote ones (`--rebase`), and on a conflict everything is put
+/// back as it was. Returns what git says.
+pub fn pull(path: &str, ssh_key: &str, rebase: bool) -> Result<String, AppError> {
+    match run(remote(git(path), path, ssh_key).args(["pull", "--ff-only", "--autostash"])) {
+        Err(AppError::Git(e)) if rebase && diverged(&e) => {
+            run(remote(git(path), path, ssh_key).args(["pull", "--rebase", "--autostash"])).inspect_err(|_| {
+                if in_progress(path) { let _ = run(git(path).args(["rebase", "--abort"])); }
+            })
+        }
+        r => r,
+    }
+}
+
+/// Git refused to pull because the histories diverged.
+fn diverged(err: &str) -> bool {
+    let e = err.to_lowercase();
+    e.contains("not possible to fast-forward") || e.contains("divergent") || e.contains("diverging")
 }
 
 /// `git push`; a branch with no remote branch yet is pushed to `origin` (or the
@@ -77,6 +175,84 @@ pub fn push(path: &str, ssh_key: &str) -> Result<String, AppError> {
         return Err(AppError::NoRemote);
     };
     run(remote(git(path), path, ssh_key).args(["push", "--set-upstream", name, "HEAD"]))
+}
+
+/// The commits that changed `file` (a full path), newest first, following its renames.
+pub fn log(path: &str, file: &str) -> Result<Vec<GitCommit>, AppError> {
+    let root = toplevel(path)?;
+    let out = run(git(&root).args(["log", "--follow", "--name-only", "--format=%x1e%H%x1f%at%x1f%an%x1f%s", "--"]).arg(file))?;
+    Ok(parse_log(&out))
+}
+
+/// Read the output of `git log --name-only --format=%x1e%H%x1f%at%x1f%an%x1f%s`.
+fn parse_log(out: &str) -> Vec<GitCommit> {
+    out.split('\x1e').filter_map(|rec| {
+        let mut lines = rec.lines().filter(|l| !l.trim().is_empty());
+        let mut head = lines.next()?.split('\x1f');
+        let (hash, date, author, subject) = (head.next()?, head.next()?, head.next()?, head.next().unwrap_or_default());
+        Some(GitCommit {
+            hash: hash.to_string(),
+            date: date.parse().unwrap_or(0),
+            author: author.to_string(),
+            subject: subject.to_string(),
+            path: lines.next_back()?.trim().to_string(),
+        })
+    }).collect()
+}
+
+/// What `commit` changed in `file` (relative to the root of the repository).
+pub fn commit_diff(path: &str, hash: &str, file: &str) -> Result<String, AppError> {
+    let root = toplevel(path)?;
+    run(git(&root).args(["show", "--no-color", "--format=", "-M", hash, "--", file]))
+}
+
+/// The text of `file` (relative to the root of the repository) in `commit`.
+pub fn show(path: &str, hash: &str, file: &str) -> Result<String, AppError> {
+    let root = toplevel(path)?;
+    let out = git(&root).arg("show").arg(format!("{hash}:{file}")).stdin(Stdio::null()).output()?;
+    if !out.status.success() {
+        return Err(AppError::Git(String::from_utf8_lossy(&out.stderr).trim().to_string()));
+    }
+    // Not trimmed: the page comes back as it was
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Make `path` a repository, with a `.gitignore` for the editors' backups when
+/// it has none.
+pub fn init(path: &str) -> Result<String, AppError> {
+    let out = run(git(path).arg("init"))?;
+    let ignore = Path::new(path).join(".gitignore");
+    if !ignore.exists() {
+        std::fs::write(ignore, GITIGNORE)?;
+    }
+    Ok(out)
+}
+
+/// Add the remote `origin` at `url`.
+pub fn add_remote(path: &str, url: &str) -> Result<String, AppError> {
+    run(git(path).args(["remote", "add", "origin", url.trim()]))
+}
+
+/// Clone `url` into a new folder of `parent`, named after the repository;
+/// returns the folder.
+pub fn clone(parent: &str, url: &str, ssh_key: &str) -> Result<String, AppError> {
+    let url = url.trim();
+    let name = repo_name(url).ok_or_else(|| AppError::Git(format!("not a repository address: {url}")))?;
+    let parent = crate::expand_home(parent.trim());
+    let dest = Path::new(&parent).join(&name);
+    if dest.read_dir().is_ok_and(|mut d| d.next().is_some()) {
+        return Err(AppError::Git(format!("destination path '{}' already exists and is not an empty directory", dest.display())));
+    }
+    std::fs::create_dir_all(&parent)?;
+    run(remote(git(&parent), &parent, ssh_key).args(["clone", "--quiet", "--", url]).arg(&name))?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+/// The folder name of a clone of `url`: its last part, without `.git`.
+fn repo_name(url: &str) -> Option<String> {
+    let last = url.trim_end_matches('/').rsplit(['/', ':', '\\']).next()?;
+    let name = last.strip_suffix(".git").unwrap_or(last);
+    (!name.is_empty() && name != "." && name != "..").then(|| name.to_string())
 }
 
 fn git(path: &str) -> Command {
@@ -116,7 +292,8 @@ fn run(c: &mut Command) -> Result<String, AppError> {
 fn output(out: std::process::Output) -> Result<String, AppError> {
     let text = |b: &[u8]| String::from_utf8_lossy(b).trim().to_string();
     if out.status.success() {
-        Ok(text(&out.stdout))
+        // Only the end: `git status` starts with a column of its own (` M a.org`)
+        Ok(String::from_utf8_lossy(&out.stdout).trim_end().to_string())
     } else {
         let err = text(&out.stderr);
         Err(AppError::Git(if err.is_empty() { text(&out.stdout) } else { err }))
@@ -129,17 +306,18 @@ fn parse_changes(out: &str) -> Vec<GitChange> {
     let mut entries = out.split('\0').filter(|e| !e.is_empty());
     while let Some(entry) = entries.next() {
         let (Some(xy), Some(path)) = (entry.get(..2), entry.get(3..)) else { continue };
+        let mut old_path = None;
         let kind = match xy {
             "??" => GitChangeKind::Added,
             _ if xy.contains('R') || xy.contains('C') => {
-                entries.next(); // the old path
+                old_path = entries.next().map(String::from);
                 GitChangeKind::Renamed
             }
             _ if xy.contains('D') => GitChangeKind::Deleted,
             _ if xy.starts_with('A') => GitChangeKind::Added,
             _ => GitChangeKind::Modified,
         };
-        changes.push(GitChange { path: path.to_string(), kind });
+        changes.push(GitChange { path: path.to_string(), kind, old_path });
     }
     changes
 }
@@ -156,8 +334,8 @@ mod tests {
 
     #[test]
     fn changes_ahead_behind() {
-        let s = parse("# branch.head main\n# branch.upstream origin/main\n# branch.ab +2 -3\n1 .M N... 100644 100644 100644 a b x.org\n? y.org\n");
-        assert_eq!((s.changes, s.ahead, s.behind), (2, 2, 3));
+        let s = parse("# branch.head main\n# branch.upstream origin/main\n# branch.ab +2 -3\n1 .M N... 100644 100644 100644 a b x.org\n? y.org\nu UU N... 1 2 3 4 a b c z.org\n");
+        assert_eq!((s.changes, s.ahead, s.behind, s.conflicts), (2, 2, 3, 1));
     }
 
     #[test]
@@ -170,14 +348,31 @@ mod tests {
     fn changes_from_porcelain() {
         let out = " M pages/a.org\0?? pages/b c.org\0D  pages/d.org\0R  pages/new.org\0pages/old.org\0A  assets/x.png\0";
         let got = parse_changes(out);
-        let seen: Vec<(String, GitChangeKind)> = got.into_iter().map(|c| (c.path, c.kind)).collect();
+        let seen: Vec<(String, GitChangeKind, Option<String>)> = got.into_iter().map(|c| (c.path, c.kind, c.old_path)).collect();
         assert_eq!(seen, vec![
-            ("pages/a.org".into(), GitChangeKind::Modified),
-            ("pages/b c.org".into(), GitChangeKind::Added),
-            ("pages/d.org".into(), GitChangeKind::Deleted),
-            ("pages/new.org".into(), GitChangeKind::Renamed),
-            ("assets/x.png".into(), GitChangeKind::Added),
+            ("pages/a.org".into(), GitChangeKind::Modified, None),
+            ("pages/b c.org".into(), GitChangeKind::Added, None),
+            ("pages/d.org".into(), GitChangeKind::Deleted, None),
+            ("pages/new.org".into(), GitChangeKind::Renamed, Some("pages/old.org".into())),
+            ("assets/x.png".into(), GitChangeKind::Added, None),
         ]);
+    }
+
+    #[test]
+    fn log_records() {
+        let out = "\x1eabc\x1f1700000000\x1fT\x1fSecond\n\npages/b.org\n\x1edef\x1f1600000000\x1fT\x1fFirst\n\npages/a.org\n";
+        let got = parse_log(out);
+        assert_eq!(got.len(), 2);
+        assert_eq!((got[0].hash.as_str(), got[0].date, got[0].path.as_str()), ("abc", 1_700_000_000, "pages/b.org"));
+        assert_eq!((got[1].subject.as_str(), got[1].path.as_str()), ("First", "pages/a.org"));
+    }
+
+    #[test]
+    fn clone_folder_names() {
+        assert_eq!(repo_name("git@github.com:me/notes.git").as_deref(), Some("notes"));
+        assert_eq!(repo_name("https://example.com/me/wiki/").as_deref(), Some("wiki"));
+        assert_eq!(repo_name("/srv/git/notes.git").as_deref(), Some("notes"));
+        assert_eq!(repo_name(""), None);
     }
 
     #[test]
@@ -189,32 +384,140 @@ mod tests {
         assert!(c.ends_with(" -i '/k/it'\\''s key' -o IdentitiesOnly=yes"), "{c}");
     }
 
-    #[test]
-    fn commit_pull_and_push_through_git() {
-        let base = std::env::temp_dir().join(format!("orgamnesia-git-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
-        let (server, work) = (base.join("server.git"), base.join("work"));
-        std::fs::create_dir_all(&work).unwrap();
-        let sh = |dir: &std::path::Path, args: &[&str]| {
-            assert!(Command::new("git").arg("-C").arg(dir).args(args).output().unwrap().status.success(), "{args:?}");
-        };
-        sh(&base, &["init", "-q", "--bare", "-b", "main", server.to_str().unwrap()]);
-        sh(&work, &["init", "-q", "-b", "main"]);
+    fn sh(dir: &Path, args: &[&str]) {
+        let out = Command::new("git").arg("-C").arg(dir).args(args).output().unwrap();
+        assert!(out.status.success(), "{args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    }
+
+    /// A bare repository `server.git` and a clone of it, `name`, in `base`.
+    fn work_tree(base: &Path, name: &str) -> std::path::PathBuf {
+        let work = base.join(name);
+        sh(base, &["clone", "-q", base.join("server.git").to_str().unwrap(), name]);
         sh(&work, &["config", "user.name", "t"]);
         sh(&work, &["config", "user.email", "t@example.com"]);
-        sh(&work, &["remote", "add", "origin", server.to_str().unwrap()]);
+        sh(&work, &["config", "pull.rebase", "false"]);
+        work
+    }
+
+    fn temp(test: &str) -> std::path::PathBuf {
+        let base = std::env::temp_dir().join(format!("orgamnesia-git-{test}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        base
+    }
+
+    #[test]
+    fn commit_pull_and_push_through_git() {
+        let base = temp("cpp");
+        let work = base.join("work");
+        std::fs::create_dir_all(&work).unwrap();
+        sh(&base, &["init", "-q", "--bare", "-b", "main", "server.git"]);
         let w = work.to_str().unwrap();
+        assert!(!status(w).unwrap().repo && status(w).unwrap().error.is_none());
+        init(w).unwrap();
+        assert!(work.join(".gitignore").exists());
+        sh(&work, &["checkout", "-q", "-b", "main"]);
+        sh(&work, &["config", "user.name", "t"]);
+        sh(&work, &["config", "user.email", "t@example.com"]);
+        assert!(!status(w).unwrap().remote);
+        add_remote(w, base.join("server.git").to_str().unwrap()).unwrap();
+        assert!(status(w).unwrap().remote);
 
         std::fs::write(work.join("a.org"), "* a\n").unwrap();
-        assert_eq!(changes(w).unwrap(), vec![GitChange { path: "a.org".into(), kind: GitChangeKind::Added }]);
-        commit(w, "Premier\n\n- a.org").unwrap();
+        std::fs::remove_file(work.join(".gitignore")).unwrap();
+        assert_eq!(changes(w).unwrap(), vec![GitChange { path: "a.org".into(), kind: GitChangeKind::Added, old_path: None }]);
+        assert!(diff(w, "a.org", None).unwrap().starts_with("+* a"));
+        // No remote branch: marked while it differs from the last commit
+        assert_eq!(status(w).unwrap().unpushed, vec![format!("{w}/a.org")]);
+        commit(w, "Premier\n\n- a.org", None).unwrap();
         assert!(changes(w).unwrap().is_empty());
         // No remote branch yet: pushed and tracked
         push(w, "").unwrap();
-        assert!(status(w).unwrap().upstream);
-        assert!(pull(w, "").is_ok());
+        let st = status(w).unwrap();
+        assert!(st.upstream && st.unpushed.is_empty());
+        // Committed, not pushed: marked
+        std::fs::write(work.join("a.org"), "* a\n2\n").unwrap();
+        commit(w, "2", None).unwrap();
+        assert_eq!(status(w).unwrap().unpushed, vec![format!("{w}/a.org")]);
+        push(w, "").unwrap();
+        assert!(pull(w, "", true).is_ok());
+        assert!(fetch(w, "").is_ok());
         // Nothing to commit: git says so
-        assert!(matches!(commit(w, "vide"), Err(AppError::Git(_))));
+        assert!(matches!(commit(w, "vide", None), Err(AppError::Git(_))));
+
+        // Only the files chosen are committed
+        std::fs::write(work.join("a.org"), "* a\n2\nplus\n").unwrap();
+        std::fs::write(work.join("b.org"), "* b\n").unwrap();
+        assert!(diff(w, "a.org", None).unwrap().contains("+plus"));
+        commit(w, "b seul", Some(&["b.org".into()])).unwrap();
+        assert_eq!(changes(w).unwrap().len(), 1);
+        // A deletion too
+        std::fs::remove_file(work.join("b.org")).unwrap();
+        commit(w, "sans b", Some(&["b.org".into()])).unwrap();
+        assert_eq!(changes(w).unwrap()[0].path, "a.org");
+
+        // History of a page, and its text then
+        let file = work.join("b.org");
+        let hist = log(w, file.to_str().unwrap()).unwrap();
+        assert_eq!(hist.iter().map(|c| c.subject.as_str()).collect::<Vec<_>>(), vec!["sans b", "b seul"]);
+        assert_eq!(show(w, &hist[1].hash, &hist[1].path).unwrap(), "* b\n");
+        assert!(commit_diff(w, &hist[1].hash, &hist[1].path).unwrap().contains("+* b"));
+
+        // A clone, in a new folder named after the repository
+        let cloned = clone(base.to_str().unwrap(), base.join("server.git").to_str().unwrap(), "").unwrap();
+        assert!(cloned.ends_with("/server") && Path::new(&cloned).join("a.org").exists());
+        assert!(clone(base.to_str().unwrap(), base.join("server.git").to_str().unwrap(), "").is_err());
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn pull_over_local_changes_and_diverged_history() {
+        let base = temp("pull");
+        sh(&base, &["init", "-q", "--bare", "-b", "main", "server.git"]);
+        let one = work_tree(&base, "one");
+        std::fs::write(one.join("a.org"), "* a\n1\n2\n3\n").unwrap();
+        std::fs::write(one.join("b.org"), "* b\n").unwrap();
+        sh(&one, &["add", "-A"]);
+        sh(&one, &["commit", "-qm", "base"]);
+        sh(&one, &["push", "-q", "-u", "origin", "HEAD:main"]);
+        let two = work_tree(&base, "two");
+        let (o, t) = (one.to_str().unwrap(), two.to_str().unwrap());
+
+        // The remote moves on; a page changed here, not committed: put aside, then back
+        std::fs::write(one.join("a.org"), "* a\nun\n2\n3\n").unwrap();
+        commit(o, "un", None).unwrap();
+        push(o, "").unwrap();
+        std::fs::write(two.join("b.org"), "* b\nlocal\n").unwrap();
+        fetch(t, "").unwrap();
+        assert_eq!(status(t).unwrap().behind, 1);
+        pull(t, "", true).unwrap();
+        assert_eq!(std::fs::read_to_string(two.join("a.org")).unwrap(), "* a\nun\n2\n3\n");
+        assert_eq!(std::fs::read_to_string(two.join("b.org")).unwrap(), "* b\nlocal\n");
+
+        // Both committed apart, on other lines: refused without the rebase, else
+        // replayed on the remote's
+        std::fs::write(one.join("a.org"), "* a\nun\n2\ntrois\n").unwrap();
+        commit(o, "trois", None).unwrap();
+        push(o, "").unwrap();
+        commit(t, "local", None).unwrap();
+        assert!(diverged(&pull(t, "", false).unwrap_err().to_string()));
+        pull(t, "", true).unwrap();
+        let st = status(t).unwrap();
+        assert_eq!((st.ahead, st.behind, st.merging), (1, 0, false));
+        push(t, "").unwrap();
+
+        // On the same line: refused, and everything as before
+        pull(o, "", true).unwrap();
+        std::fs::write(one.join("a.org"), "* a\nUN\n2\ntrois\n").unwrap();
+        commit(o, "UN", None).unwrap();
+        push(o, "").unwrap();
+        std::fs::write(two.join("a.org"), "* a\nOne\n2\ntrois\n").unwrap();
+        commit(t, "One", None).unwrap();
+        let err = pull(t, "", true).unwrap_err().to_string();
+        assert!(err.to_lowercase().contains("conflict"), "{err}");
+        let st = status(t).unwrap();
+        assert_eq!((st.merging, st.conflicts, st.ahead), (false, 0, 1));
+        assert_eq!(std::fs::read_to_string(two.join("a.org")).unwrap(), "* a\nOne\n2\ntrois\n");
         std::fs::remove_dir_all(base).unwrap();
     }
 }

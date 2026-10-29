@@ -84,11 +84,22 @@ fn git_of_the_project() {
     sh(&["config", "user.name", "T"]);
     assert!(block_on(git::git_status(path.clone())).unwrap().is_some());
     assert_eq!(block_on(git::git_changes(s())).unwrap().len(), 1);
-    block_on(git::git_commit(s(), "Première".into())).unwrap();
+    block_on(git::git_commit(s(), "Première".into(), None)).unwrap();
     assert!(block_on(git::git_changes(s())).unwrap().is_empty());
     // No remote to pull from nor push to
     assert!(block_on(git::git_pull(s())).is_err());
     assert!(block_on(git::git_push(s())).is_err());
+    // Nothing to fetch from
+    assert!(block_on(git::git_fetch(s())).is_ok());
+    let page = format!("{path}/pages/Une.org");
+    let hist = block_on(git::git_log(s(), page.clone())).unwrap();
+    assert_eq!(hist.len(), 1);
+    assert_eq!(block_on(git::git_show(s(), hist[0].hash.clone(), hist[0].path.clone())).unwrap(), "* Une\n");
+    assert!(block_on(git::git_commit_diff(s(), hist[0].hash.clone(), hist[0].path.clone())).unwrap().contains("+* Une"));
+    std::fs::write(&page, "* Une\ndeux\n").unwrap();
+    assert!(block_on(git::git_diff(s(), "pages/Une.org".into(), None)).unwrap().contains("+deux"));
+    block_on(git::git_add_remote(s(), "/nowhere.git".into())).unwrap();
+    assert!(block_on(git::git_status(path.clone())).unwrap().unwrap().remote);
 }
 
 #[test]

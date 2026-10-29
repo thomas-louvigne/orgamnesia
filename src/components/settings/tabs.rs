@@ -180,6 +180,32 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     <p>{move || t("git_ssh_help_https", lang())}</p>
                 </div>
             </div>
+            <NumberField draft get=|p| p.git_fetch set=|p, v| p.git_fetch = v
+                label="git_fetch_minutes" hint="git_fetch_minutes_hint" disabled=|p| !p.git_ext />
+            <Check draft get=|p| p.git_pull_rebase set=|p, v| p.git_pull_rebase = v
+                label="git_pull_rebase" hint="git_pull_rebase_hint" sub=true disabled=|p| !p.git_ext />
+            <Check draft get=|p| p.git_unpushed_marker set=|p, v| p.git_unpushed_marker = v
+                label="git_unpushed_marker" hint="git_unpushed_marker_hint" sub=true disabled=|p| !p.git_ext />
+            <Check draft get=|p| p.git_commit_push set=|p, v| p.git_commit_push = v
+                label="git_commit_push_setting" hint="git_commit_push_hint" sub=true disabled=|p| !p.git_ext />
+            <div class="setting-row setting-sub">
+                <label for="git-commit-template">{move || t("git_commit_template", lang())}</label>
+                <input
+                    id="git-commit-template"
+                    type="text"
+                    class="setting-input"
+                    spellcheck="false"
+                    prop:disabled=move || !draft.with(|p| p.git_ext)
+                    placeholder=move || t("git_commit_template_ph", lang())
+                    prop:value=move || draft.with(|p| p.git_commit_template.clone())
+                    on:input=move |e| draft.update(|p| p.git_commit_template = event_target_value(&e))
+                />
+                <span class="setting-hint">{move || t("git_commit_template_hint", lang())}</span>
+            </div>
+            <NumberField draft get=|p| p.git_auto_sync set=|p, v| p.git_auto_sync = v
+                label="git_auto_sync" hint="git_auto_sync_hint" disabled=|p| !p.git_ext />
+            <Check draft get=|p| p.git_sync_on_quit set=|p, v| p.git_sync_on_quit = v
+                label="git_sync_on_quit" hint="git_sync_on_quit_hint" sub=true disabled=|p| !p.git_ext />
         </div>
     }
 }
@@ -337,9 +363,9 @@ fn TrashSettings(draft: RwSignal<Prefs>) -> impl IntoView {
         <Check draft get=|p| p.trash_auto_empty set=|p, v| p.trash_auto_empty = v
             label="trash_auto_empty" hint="trash_auto_empty_hint" />
         <NumberField draft get=|p| p.trash_keep_days set=|p, v| p.trash_keep_days = v
-            label="trash_keep_days" hint="trash_keep_days_hint" />
+            label="trash_keep_days" hint="trash_keep_days_hint" disabled=|p| !p.trash_auto_empty />
         <NumberField draft get=|p| p.trash_max_bytes set=|p, v| p.trash_max_bytes = v
-            label="trash_max_bytes" hint="trash_max_bytes_hint" readable=true />
+            label="trash_max_bytes" hint="trash_max_bytes_hint" disabled=|p| !p.trash_auto_empty readable=true />
     }
 }
 

@@ -1,5 +1,8 @@
-//! The commit window of the git extension: the files changed, and the message,
-//! proposed from them, to edit before committing.
+//! The commit window of the git extension: the files changed, each with what
+//! changed in it and a box to leave it out, and the message, proposed from them,
+//! to edit before committing.
+
+use std::collections::HashSet;
 
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -19,6 +22,13 @@ pub fn CommitModal() -> impl IntoView {
     // None while git is read
     let changes = RwSignal::new(None::<Vec<GitChange>>);
     let message = RwSignal::new(String::new());
+    // The message was typed: no longer proposed again when the files chosen change
+    let edited = StoredValue::new(false);
+    // The files to commit (paths), all at first
+    let chosen = RwSignal::new(HashSet::<String>::new());
+    // The file whose changes are shown, and them (None while read)
+    let open_diff = RwSignal::new(None::<String>);
+    let diff_text = RwSignal::new(None::<Result<String, String>>);
     let area_ref = NodeRef::<leptos::html::Textarea>::new();
 
     spawn_local(async move {
@@ -28,7 +38,8 @@ pub fn CommitModal() -> impl IntoView {
                 let _ = ctx.ui.show_commit.try_set(false);
             }
             Ok(list) => {
-                let _ = message.try_set(git::default_message(&list, ctx.lang.get_untracked()));
+                let _ = message.try_set(git::proposed_message(ctx, &list));
+                let _ = chosen.try_set(list.iter().map(|c| c.path.clone()).collect());
                 let _ = changes.try_set(Some(list));
             }
             Err(e) => {
@@ -46,12 +57,45 @@ pub fn CommitModal() -> impl IntoView {
         }
     });
 
-    let can_commit = move || changes.with(|c| c.as_ref().is_some_and(|c| !c.is_empty()))
-        && message.with(|m| !m.trim().is_empty());
+    let all = move || changes.with(|c| c.as_ref().map_or(0, Vec::len)) == chosen.with(HashSet::len);
+    // A box ticked or not: the message proposed follows, unless typed
+    let toggle = move |path: Option<String>| {
+        chosen.update(|set| match path {
+            Some(p) => { if !set.remove(&p) { set.insert(p); } }
+            None if all() => set.clear(),
+            None => *set = changes.with_untracked(|c| c.iter().flatten().map(|c| c.path.clone()).collect()),
+        });
+        if !edited.get_value() {
+            let picked: Vec<GitChange> = changes.with_untracked(|c| c.iter().flatten()
+                .filter(|c| chosen.with_untracked(|s| s.contains(&c.path))).cloned().collect());
+            message.set(if picked.is_empty() { String::new() } else { git::proposed_message(ctx, &picked) });
+        }
+    };
+    let show_diff = move |c: GitChange| {
+        if open_diff.get_untracked().as_deref() == Some(c.path.as_str()) {
+            open_diff.set(None);
+            return;
+        }
+        open_diff.set(Some(c.path.clone()));
+        diff_text.set(None);
+        spawn_local(async move {
+            let got = invoke::git_diff(&c.path, c.old_path.as_deref()).await;
+            if open_diff.get_untracked().as_deref() == Some(c.path.as_str()) { let _ = diff_text.try_set(Some(got)); }
+        });
+    };
+
+    let can_commit = move || chosen.with(|c| !c.is_empty()) && message.with(|m| !m.trim().is_empty());
+    // The main button (and its keys) also pushes, when the settings say so
+    let main_push = ctx.pref_untracked(|p| p.git_commit_push);
     let do_commit = move |and_push: bool| {
         if !can_commit() { return; }
+        // All of them: every change of the project, as `git add -A` sees it
+        let files = (!all()).then(|| changes.with_untracked(|c| c.iter().flatten()
+            .filter(|c| chosen.with_untracked(|s| s.contains(&c.path)))
+            .flat_map(|c| std::iter::once(c.path.clone()).chain(c.old_path.clone()))
+            .collect::<Vec<_>>()));
         close();
-        git::commit(ctx, message.get_untracked(), and_push);
+        git::commit(ctx, message.get_untracked(), files, and_push);
     };
     // Magit's `C-c C-c` (commit) and `C-c C-k` (cancel) with the Emacs keys
     let emacs = move || ctx.keybindings.with_untracked(|kb| kb.editor_preset == "emacs");
@@ -64,14 +108,14 @@ pub fn CommitModal() -> impl IntoView {
         if pending_c.get_value() {
             pending_c.set_value(false);
             match key.as_str() {
-                "c" if ctrl_only => { e.prevent_default(); do_commit(false); return; }
+                "c" if ctrl_only => { e.prevent_default(); do_commit(main_push); return; }
                 "k" if ctrl_only => { e.prevent_default(); close(); return; }
                 _ => {}
             }
         }
         match key.as_str() {
             "escape" => close(),
-            "enter" if ctrl_only => { e.prevent_default(); do_commit(false); }
+            "enter" if ctrl_only => { e.prevent_default(); do_commit(main_push); }
             "c" if ctrl_only && emacs() => { e.prevent_default(); pending_c.set_value(true); }
             // The Emacs kills and yank, the caret movements… as in the other fields
             _ => { crate::text_field::on_keydown(ctx, &e); }
@@ -89,21 +133,43 @@ pub fn CommitModal() -> impl IntoView {
                 <div class="modal-body commit-body">
                     {move || match changes.get() {
                         None => view! { <p class="setting-hint">{t("git_reading", lang())}</p> }.into_any(),
-                        Some(list) => view! {
-                            <div class="commit-files-title">
-                                {format!("{} ({})", t("git_files_changed", lang()), list.len())}
-                            </div>
+                        Some(list) => { let total = list.len(); view! {
+                            <label class="commit-files-title setting-check">
+                                <input type="checkbox" prop:checked=all on:change=move |_| toggle(None) />
+                                {move || format!("{} ({}/{})", t("git_files_changed", lang()), chosen.with(HashSet::len), total)}
+                            </label>
                             <ul class="commit-files">
-                                {list.into_iter().map(|c| view! {
+                                {list.into_iter().map(|c| {
+                                    let (p_check, p_box, p_open, p_diff) = (c.path.clone(), c.path.clone(), c.path.clone(), c.path.clone());
+                                    let change = c.clone();
+                                    view! {
                                     <li>
+                                        <input type="checkbox"
+                                            aria-label=c.path.clone()
+                                            prop:checked=move || chosen.with(|s| s.contains(&p_check))
+                                            on:change=move |_| toggle(Some(p_box.clone())) />
                                         <span class=format!("commit-kind commit-{:?}", c.kind).to_lowercase()>
                                             {t(git::kind_key(c.kind), lang()).trim_end_matches([':', ' ']).to_string()}
                                         </span>
-                                        <span class="commit-path" title=c.path.clone()>{c.path.clone()}</span>
+                                        <button class="commit-path"
+                                            title=move || t("git_show_diff", lang())
+                                            aria-expanded=move || (open_diff.get().as_deref() == Some(p_open.as_str())).to_string()
+                                            on:click=move |_| show_diff(change.clone())>
+                                            {c.path.clone()}
+                                        </button>
                                     </li>
-                                }).collect_view()}
+                                    {move || (open_diff.get().as_deref() == Some(p_diff.as_str())).then(|| view! {
+                                        <li class="commit-diff">
+                                            {move || match diff_text.get() {
+                                                None => view! { <p class="setting-hint">{t("git_reading", lang())}</p> }.into_any(),
+                                                Some(Err(e)) => view! { <p class="setting-hint">{e}</p> }.into_any(),
+                                                Some(Ok(text)) => crate::components::git_history::diff_view(&text).into_any(),
+                                            }}
+                                        </li>
+                                    })}
+                                }}).collect_view()}
                             </ul>
-                        }.into_any(),
+                        }.into_any() }
                     }}
                     <label class="commit-label" for="commit-message">{move || t("git_message", lang())}</label>
                     <textarea
@@ -112,7 +178,10 @@ pub fn CommitModal() -> impl IntoView {
                         class="setting-input commit-message"
                         spellcheck="true"
                         prop:value=move || message.get()
-                        on:input=move |e| message.set(event_target_value(&e))
+                        on:input=move |e| {
+                            edited.set_value(true);
+                            message.set(event_target_value(&e));
+                        }
                     />
                     <span class="setting-hint">{move || format!("{} {}",
                         t(if emacs() { "git_commit_keys_emacs" } else { "git_commit_keys" }, lang()),
@@ -120,11 +189,11 @@ pub fn CommitModal() -> impl IntoView {
                 </div>
                 <div class="modal-footer">
                     <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
-                    <button class="btn-secondary" prop:disabled=move || !can_commit() on:click=move |_| do_commit(true)>
-                        {move || t("git_commit_push", lang())}
+                    <button class="btn-secondary" prop:disabled=move || !can_commit() on:click=move |_| do_commit(!main_push)>
+                        {move || t(if main_push { "git_commit_only" } else { "git_commit_push" }, lang())}
                     </button>
-                    <button class="btn-primary" prop:disabled=move || !can_commit() on:click=move |_| do_commit(false)>
-                        {move || t("git_commit", lang())}
+                    <button class="btn-primary" prop:disabled=move || !can_commit() on:click=move |_| do_commit(main_push)>
+                        {move || t(if main_push { "git_commit_push" } else { "git_commit" }, lang())}
                     </button>
                 </div>
             </div>

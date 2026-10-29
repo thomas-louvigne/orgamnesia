@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::{i18n::{t, Lang}, keybindings::Keybindings};
 
-pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitStatus, Prefs, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults, Session, Settings, SiteConfig, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
+pub use orgamnesia_core::{BrokenLink, FileEntry, GitChange, GitChangeKind, GitCommit, GitStatus, Prefs, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults, Session, Settings, SiteConfig, SplitKind, TagCount, TagHit, TodoHit, VaultChanges};
 
 /// Where to put the cursor in a page being opened.
 #[derive(Debug, Clone, PartialEq)]
@@ -70,7 +70,7 @@ pub struct ConfirmReq {
 
 /// A git command of the git extension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GitOp { Pull, Commit, Push }
+pub enum GitOp { Pull, Commit, Push, Sync, Setup }
 
 /// Which resize bar is being dragged.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -101,6 +101,9 @@ pub struct ProjectState {
     pub git: RwSignal<Option<GitStatus>>,
     /// The git command running (pull, commit, push): one at a time.
     pub git_busy: RwSignal<Option<GitOp>>,
+    /// The automatic sync stopped on a failure (a conflict…): it starts again
+    /// after a pull or a push that works, or in another project.
+    pub git_sync_paused: RwSignal<bool>,
     /// Org-bloom is building the site.
     pub bloom_busy: RwSignal<bool>,
     /// When the site of the project was last built (seconds since the epoch);
@@ -145,6 +148,12 @@ pub struct Ui {
     pub show_new_page: RwSignal<bool>,
     pub show_quick_open: RwSignal<bool>,
     pub show_commit: RwSignal<bool>,
+    /// The history window of this page (git extension).
+    pub git_history: RwSignal<Option<FileEntry>>,
+    /// The window adding a remote to the project's repository.
+    pub show_git_remote: RwSignal<bool>,
+    /// The window cloning a repository as a new project.
+    pub show_clone: RwSignal<bool>,
     /// The cheat sheet of the shortcuts (F1).
     pub show_shortcuts: RwSignal<bool>,
     pub search: ProjectSearch,
@@ -198,6 +207,7 @@ impl AppCtx {
                 tag_query: RwSignal::new(String::new()),
                 git: RwSignal::new(None),
                 git_busy: RwSignal::new(None),
+                git_sync_paused: RwSignal::new(false),
                 bloom_busy: RwSignal::new(false),
                 bloom_built: RwSignal::new(None),
                 links_version: RwSignal::new(0),
@@ -222,6 +232,9 @@ impl AppCtx {
                 show_new_page: RwSignal::new(false),
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
+                git_history: RwSignal::new(None),
+                show_git_remote: RwSignal::new(false),
+                show_clone: RwSignal::new(false),
                 show_shortcuts: RwSignal::new(false),
                 tag_add: RwSignal::new(false),
                 disk_conflicts: RwSignal::new(vec![]),
