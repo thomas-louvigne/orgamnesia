@@ -339,7 +339,7 @@ fn watch_tags(ctx: AppCtx) {
 pub fn run_app_action(ctx: AppCtx, action: AppAction) {
     // What acts on the pages of a project has nothing to act on in the "preference" one
     let project_only = matches!(action, AppAction::NewPage | AppAction::ProjectSearch | AppAction::ProjectReplace
-        | AppAction::AddTag | AppAction::GitCommit | AppAction::GitPull | AppAction::GitPush);
+        | AppAction::AddTag | AppAction::GitCommit | AppAction::GitPull | AppAction::GitPush | AppAction::ExportPdf | AppAction::ExportHtml);
     if project_only && ctx.project.preference.get_untracked() {
         ctx.notify_t("pref_unavailable", "");
         return;
@@ -381,6 +381,11 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
         AppAction::GitCommit       => crate::git::open_commit(ctx),
         AppAction::GitPull         => crate::git::pull(ctx),
         AppAction::GitPush         => crate::git::push(ctx),
+        AppAction::ExportPdf | AppAction::ExportHtml => match ctx.work.active_tab_data() {
+            Some(tab) if action == AppAction::ExportPdf => crate::export::export_pdf(ctx, tab),
+            Some(tab) => crate::export::export_html(ctx, tab),
+            None => ctx.notify_t("export_no_page", ""),
+        },
         AppAction::Quit => {
             // With the automatic sync on, the project is synced first
             let quit = move || crate::git::sync_then(ctx, move || spawn_local(async move {

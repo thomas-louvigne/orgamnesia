@@ -198,6 +198,25 @@ fn TabItem(
                                 }
                             })}
                             <div class="ctx-menu-sep" role="separator" />
+                            {[(false, "export_pdf_menu", "export_pdf"), (true, "export_html_menu", "export_html")].map(|(html, label, action)| view! {
+                                <button
+                                    class="ctx-menu-item"
+                                    on:click=move |e: web_sys::MouseEvent| {
+                                        e.stop_propagation();
+                                        menu.set(None);
+                                        let tab = path.with_value(|p| ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| &t.path == p).cloned()));
+                                        match tab {
+                                            Some(tab) if html => crate::export::export_html(ctx, tab),
+                                            Some(tab) => crate::export::export_pdf(ctx, tab),
+                                            None => {}
+                                        }
+                                    }
+                                >
+                                    <span>{move || t(label, ctx.lang.get())}</span>
+                                    {move || ctx.shortcut(action).map(|k| view! { <span class="ctx-menu-key">{k}</span> })}
+                                </button>
+                            })}
+                            <div class="ctx-menu-sep" role="separator" />
                             <button
                                 class="ctx-menu-item ctx-menu-danger"
                                 on:click=move |_| {

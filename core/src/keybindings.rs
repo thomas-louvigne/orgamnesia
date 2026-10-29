@@ -242,7 +242,7 @@ pub struct ActionDef<A: 'static> {
 pub enum AppAction {
     NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
-    GitCommit, GitPull, GitPush,
+    GitCommit, GitPull, GitPush, ExportPdf, ExportHtml,
 }
 
 /// Editor actions.
@@ -298,6 +298,8 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::GitCommit, id: "git_commit",  label_key: "shortcut_git_commit" },
     ActionDef { action: AppAction::GitPull, id: "git_pull",      label_key: "shortcut_git_pull" },
     ActionDef { action: AppAction::GitPush, id: "git_push",      label_key: "shortcut_git_push" },
+    ActionDef { action: AppAction::ExportPdf, id: "export_pdf",  label_key: "shortcut_export_pdf" },
+    ActionDef { action: AppAction::ExportHtml, id: "export_html", label_key: "shortcut_export_html" },
 ];
 
 /// Every editor action, whatever the profile: a profile simply leaves the ones
@@ -411,6 +413,8 @@ pub fn default_app() -> Bindings {
         ("git_commit",       &["ctrl+shift+g"]),
         ("git_pull",         &["ctrl+shift+u"]),
         ("git_push",         &["ctrl+shift+p"]),
+        ("export_pdf",       &["ctrl+p"]),
+        ("export_html",      &["ctrl+shift+e"]),
     ])
 }
 
@@ -521,6 +525,9 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("git_commit",       &["ctrl+x g c c"]),
             ("git_pull",         &["ctrl+x g shift+f p"]),
             ("git_push",         &["ctrl+x g shift+p p"]),
+            // org-export-dispatch: `C-c C-e l p` (PDF), `C-c C-e h h` (HTML file)
+            ("export_pdf",       &["ctrl+c ctrl+e l p"]),
+            ("export_html",      &["ctrl+c ctrl+e h h"]),
         ]),
         _ => default_app(),
     }

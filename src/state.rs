@@ -13,6 +13,8 @@ pub enum Goto {
     Line(usize),
     /// Select this char range (a match of the project search).
     Range(usize, usize),
+    /// The place a link names in the page: `*Titre` (a headline), `cible` (a `<<cible>>`).
+    Place(String),
 }
 
 /// What the project search pop-in shows; kept while it is closed.

@@ -12,6 +12,7 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 - [[*Tableaux][Tableaux]]
 - [[*Images][Images]]
 - [[*Fenêtre][Fenêtre]]
+- [[*Export en PDF et en HTML][Export en PDF et en HTML]]
 - [[*Colonnes de gauche et de droite][Colonnes de gauche et de droite]]
 - [[*Corbeille][Corbeille]]
 - [[*Raccourcis clavier][Raccourcis clavier]]
@@ -162,6 +163,8 @@ est dessiné ou un titre plié.
 ** Complétion
 Pendant la frappe, une liste propose :
 - les noms de pages après =[[= (accepter ferme le lien avec =]]=) ;
+- les titres d'une page après =[[Page::= ou =[[Page::*=, et ceux de la page
+  ouverte après =[[*= (voir [[*Liens vers un titre ou une cible]]) ;
 - les noms de pages après =#= ;
 - les tags existants dans les tags d'un titre (=* Titre :pro=), dans =#+FILETAGS:= ou
   après =:= dans le texte (accepter ajoute le =:= final).
@@ -277,6 +280,38 @@ abandonnée après 4 secondes. On peut garder Ctrl enfoncé pour la deuxième to
 - « Insérer un lien » (Ctrl+L en Classique, Ctrl+C Ctrl+L en Emacs, comme
   org-mode) demande sa cible (les pages sont proposées) et le texte affiché ; le
   texte sélectionné devient ce texte. Sur un lien, il le modifie.
+
+** Liens vers un titre ou une cible
+Un lien peut viser un endroit d'une page, écrit comme l'option de recherche
+d'org-mode (=[[file:page.org::*Titre]]=) :
+- =[[Page::*Titre]]= : le titre =Titre= de la page =Page= ;
+- =[[Page::cible]]= : la cible =<<cible>>= écrite dans =Page= (à défaut, un titre
+  nommé =cible=, comme org-mode) ;
+- =[[*Titre]]= : un titre de la page où se trouve le lien.
+
+Suivre le lien ouvre la page, le curseur au début du titre ou de la cible ; si
+l'endroit n'existe pas (ou plus), la page s'ouvre et la barre d'état le signale.
+Le titre se compare sans ses étoiles, son mot-clé TODO, sa priorité =[#A]=, ses
+compteurs =[1/3]= et ses tags, en ignorant la casse et les accents. Les
+identifiants =:CUSTOM_ID:= (=[[Page::#id]]=) ne sont pas pris en charge.
+
+Pour les liens entrants, les liens cassés et le renommage, =[[Page::*Titre]]= est
+un lien vers =Page= : renommer =Page= réécrit =[[Nouveau nom::*Titre]]=. Un lien
+est marqué cassé quand sa page n'existe pas, pas quand le titre manque.
+
+** Aperçu d'un lien
+La souris sur un lien vers une page (ou un =#tag=) montre la page dans une bulle :
+son texte coloré comme dans l'éditeur, tronqué après 40 lignes. Pour
+=[[Page::*Titre]]=, seulement ce titre et ses sous-titres ; pour une cible, la
+suite jusqu'au titre suivant. Le nom en haut de la bulle ouvre la page. Une page
+qui n'existe pas encore le dit.
+
+Dans Préférences > Affichage, l'aperçu s'active ou se désactive, et s'affiche :
+- Ctrl enfoncé, la souris sur le lien (par défaut, comme Ctrl+clic qui le suit) ;
+- ou la souris posée sur le lien une demi-seconde.
+
+La bulle se ferme quand la souris quitte le lien et la bulle, à la frappe ou au
+défilement.
 
 ** Dates
 « Insérer une date » (Ctrl+; en Classique, Ctrl+C . en Emacs) demande un jour,
@@ -409,7 +444,7 @@ remplace la macro par le lien.
 
 ** Onglets
 Chaque volet a ses onglets. Clic pour activer, double-clic pour renommer la page,
-clic droit pour renommer ou supprimer, =×= pour fermer.
+clic droit pour renommer, exporter en PDF ou en HTML, ou supprimer, =×= pour fermer.
 
 ** Deux volets
 Comme les fenêtres d'Emacs : séparer l'éditeur côte à côte ou l'un au-dessus de
@@ -431,6 +466,29 @@ Sans page ouverte : un bouton pour aller à une page et les raccourcis essentiel
 ** Barre d'état
 En bas de la fenêtre : messages (page enregistrée, erreur, combinaison en cours…).
 Après une suppression, elle propose « Annuler ». =×= la ferme.
+
+* Export en PDF et en HTML
+Une page s'exporte depuis le menu du clic droit de son onglet (« Exporter en
+PDF… », « Exporter en HTML… ») ou par raccourci, pour la page active : Ctrl+P et
+Ctrl+Maj+E en Classique, Ctrl+C Ctrl+E L P et Ctrl+C Ctrl+E H H en Emacs (les
+touches d'org-mode). Le texte exporté est celui de l'onglet, même pas encore
+sauvegardé.
+
+La page est mise en forme : son =#+TITLE:= (ou son nom) en titre, les titres avec
+leur mot-clé TODO et leurs tags, paragraphes, listes (numérotées, cases à cocher,
+définitions =terme :: texte=), tableaux (en-tête au-dessus du premier =|---|=),
+blocs =#+BEGIN_SRC=, =EXAMPLE=, =QUOTE=, =CENTER=, =VERSE=, lignes =: texte=,
+filets =-----=, gras, italique, souligné, barré, =code=, images (avec la largeur
+de =#+ATTR_ORG: :width=), liens web cliquables. Les liens entre pages sont écrits
+comme du texte (=Page › Titre= pour un lien vers un titre). Les lignes =#+…=, les
+commentaires et les tiroirs =:PROPERTIES:= ne sont pas exportés.
+
+- *PDF* : la boîte d'impression du système s'ouvre ; choisir « Enregistrer en PDF »
+  (ou « Imprimer dans un fichier ») comme imprimante. Le PDF est proposé au nom de
+  la page.
+- *HTML* : un fichier =.html= unique, à enregistrer où l'on veut : il contient sa
+  mise en forme et les images de la page, et s'ouvre dans n'importe quel
+  navigateur.
 
 * Colonnes de gauche et de droite
 L'éditeur est entre deux colonnes de cadres. Dans Préférences > Affichage, chaque
@@ -511,6 +569,8 @@ connaissait pas.
 | Autre volet                 | Ctrl+O           | Ctrl+X O, Ctrl+O          |
 | Zone suivante / précédente  | F6 / Maj+F6      | F6 / Maj+F6               |
 | Quitter                     | Ctrl+Q           | Ctrl+X Ctrl+C             |
+| Exporter la page en PDF     | Ctrl+P           | Ctrl+C Ctrl+E L P         |
+| Exporter la page en HTML    | Ctrl+Maj+E       | Ctrl+C Ctrl+E H H         |
 
 *** Éditeur
 | Action                       | Classique          | Emacs                       |
@@ -712,6 +772,8 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 - Apparence : titre de la page, numéros de ligne, étoiles des titres masquées sauf
   la dernière.
 - Signaler les liens cassés.
+- Aperçu d'un lien : activé ou non, et quand il s'affiche (Ctrl enfoncé ou souris
+  posée).
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
 - Vignettes des vidéos YouTube.
 - Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans

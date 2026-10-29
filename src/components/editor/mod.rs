@@ -9,6 +9,7 @@ mod images;
 mod insert;
 mod keys;
 mod pane;
+mod preview;
 mod spell;
 
 use leptos::prelude::*;
@@ -31,6 +32,8 @@ use find::Find;
 use images::{ImageSizes, Images};
 use insert::Insert;
 use pane::Pane;
+use preview::Preview;
+pub use images::loaded_image_url;
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
@@ -147,6 +150,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     // The textarea gets the focus from the mouse: no caret ping
     let mouse_focus = StoredValue::new(false);
     let images = Images::new(pane, wrap_ref, tab.path.clone(), mouse_focus);
+    let preview = Preview::new(pane, wrap_ref);
     goto_target(pane, tab.clone(), second);
     let checked = config.clone().map(|f| preferences::checked(ctx, content, f));
     let config = config.is_some();
@@ -256,7 +260,11 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 aria-label=format!("{} {}", t("editor_label", ctx.lang.get_untracked()), tab.name)
                 spellcheck=false
                 on:input=on_input
-                on:keydown=move |e| keys::on_keydown(pane, completion, find, insert, e)
+                on:keydown=move |e: web_sys::KeyboardEvent| {
+                    // Ctrl alone may be showing the preview
+                    if e.key() != "Control" { preview.hide(); }
+                    keys::on_keydown(pane, completion, find, insert, e)
+                }
                 // Undo / redo from the context menu: the page's own history, as the keys
                 on:beforeinput=move |e: web_sys::InputEvent| {
                     let redo = match e.input_type().as_str() {
@@ -272,10 +280,12 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 on:mousedown=move |e: web_sys::MouseEvent| {
                     if images.start_drag(&e) || images.open_video(&e) { return; }
                     completion.close();
+                    preview.hide();
                     mouse_focus.set_value(true);
                     after_tick(move || mouse_focus.set_value(false));
                 }
-                on:mousemove=move |e| images.on_hover(&e)
+                on:mousemove=move |e| { images.on_hover(&e); preview.on_move(&e); }
+                on:mouseleave=move |e| preview.on_leave(&e)
                 // Our own menu: the webview's can't add an image
                 on:contextmenu=move |e: web_sys::MouseEvent| {
                     e.prevent_default();
@@ -286,7 +296,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 }
                 on:focus=on_focus
                 on:blur=move |_| completion.close()
-                on:scroll=move |_| completion.close()
+                on:scroll=move |_| { completion.close(); preview.hide(); }
             />
             {(!config).then(|| view! {
             <button
@@ -314,6 +324,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
                 />
             })}
             {completion.popup()}
+            {preview.bubble()}
             {insert.dialog()}
             {move || menu.get().map(|(x, y)| context_menu(pane, find, insert, images, menu, menu_word.get_untracked(), x, y, !config))}
         </div>
@@ -383,8 +394,8 @@ fn menu_item(label: impl IntoView + 'static, enabled: bool, menu: RwSignal<Optio
     }
 }
 
-/// Jump to a link (from the "pages not created" list) or a line (from a tag search)
-/// asked for this page, in the focused pane.
+/// Jump to a link (from the "pages not created" list), a line (from a tag search)
+/// or the place a link names, asked for this page, in the focused pane.
 fn goto_target(pane: Pane, tab: Tab, second: bool) {
     let ctx = pane.ctx;
     Effect::new(move |_| {
@@ -404,6 +415,13 @@ fn goto_target(pane: Pane, tab: Tab, second: bool) {
                 Some((start, start))
             }
             Goto::Range(a, b) => Some((a.min(chars.len()), b.min(chars.len()))),
+            Goto::Place(place) => {
+                let text = tab.content.get_untracked();
+                let found = orgamnesia_core::links::find(&text, &place, pane.todo_keywords.get_untracked().as_ref());
+                if found.is_none() { ctx.notify_t("link_place_missing", &place); }
+                // The caret at the start of the headline or target, nothing selected
+                found.map(|(a, _)| (a, a))
+            }
         };
         if let Some((start, end)) = range { pane.select_page_range(start, end, true); }
     });

@@ -17,6 +17,7 @@ keybindings.
 - [[*Tables][Tables]]
 - [[*Images][Images]]
 - [[*Window][Window]]
+- [[*Export as PDF and HTML][Export as PDF and HTML]]
 - [[*Left and right columns][Left and right columns]]
 - [[*Trash][Trash]]
 - [[*Keyboard shortcuts][Keyboard shortcuts]]
@@ -168,6 +169,8 @@ drawn or a headline folded.
 ** Completion
 While typing, a list offers:
 - page names after =[[= (accepting closes the link with =]]=);
+- the headlines of a page after =[[Page::= or =[[Page::*=, and those of the open
+  page after =[[*= (see [[*Links to a headline or a target]]);
 - page names after =#=;
 - existing tags in the tags of a headline (=* Title :pro=), in =#+FILETAGS:= or after
   =:= in the text (accepting adds the closing =:=).
@@ -280,6 +283,38 @@ can be kept down for the second key (=Ctrl+X Ctrl+O= works as =Ctrl+X O=).
 - "Insert a link" (Ctrl+L in Classic, Ctrl+C Ctrl+L in Emacs, as org-mode) asks
   for its target (the pages are proposed) and the text shown; the selected text
   becomes that text. On a link, it edits it.
+
+** Links to a headline or a target
+A link can lead to a place in a page, written as org-mode's search option
+(=[[file:page.org::*Title]]=):
+- =[[Page::*Title]]=: the headline =Title= of the page =Page=;
+- =[[Page::target]]=: the target =<<target>>= written in =Page= (failing that, a
+  headline called =target=, as org-mode does);
+- =[[*Title]]=: a headline of the page the link is in.
+
+Following the link opens the page with the cursor at the start of the headline or
+target; when the place isn't there (any more), the page opens and the status bar
+says so. The headline is compared without its stars, TODO keyword, priority
+=[#A]=, statistics cookies =[1/3]= and tags, ignoring case and accents.
+=:CUSTOM_ID:= ids (=[[Page::#id]]=) are not supported.
+
+For backlinks, broken links and renaming, =[[Page::*Title]]= is a link to =Page=:
+renaming =Page= rewrites =[[New name::*Title]]=. A link is marked broken when its
+page doesn't exist, not when the headline is missing.
+
+** Link preview
+The mouse over a link to a page (or a =#tag=) shows the page in a bubble: its text
+highlighted as in the editor, cut after 40 lines. For =[[Page::*Title]]=, only that
+headline and its subheadlines; for a target, what follows it up to the next
+headline. The name at the top of the bubble opens the page. A page that doesn't
+exist yet says so.
+
+In Settings > Display, the preview is turned on or off, and shows:
+- with Ctrl held, the mouse over the link (the default, as Ctrl+click follows it);
+- or once the mouse has rested on the link for half a second.
+
+The bubble closes when the mouse leaves the link and the bubble, on typing or
+scrolling.
 
 ** Dates
 "Insert a date" (Ctrl+; in Classic, Ctrl+C . in Emacs) asks for a day, today's
@@ -405,7 +440,7 @@ macro with the link.
 
 ** Tabs
 Each pane has its own tabs. Click to activate, double click to rename the page,
-right click to rename or delete, =×= to close.
+right click to rename, export as PDF or HTML, or delete, =×= to close.
 
 ** Two panes
 Like Emacs windows: split the editor side by side or one above the other, move to
@@ -428,6 +463,26 @@ With no page open: a button to go to a page and the essential shortcuts.
 ** Status bar
 At the bottom of the window: messages (page saved, error, keys of a shortcut being
 typed…). After a deletion, it offers "Undo". =×= closes it.
+
+* Export as PDF and HTML
+A page is exported from the right-click menu of its tab ("Export as PDF…",
+"Export as HTML…") or with a shortcut, for the active page: Ctrl+P and
+Ctrl+Shift+E in Classic, Ctrl+C Ctrl+E L P and Ctrl+C Ctrl+E H H in Emacs
+(org-mode's keys). The text exported is the tab's, even when not saved yet.
+
+The page is laid out: its =#+TITLE:= (or its name) as the title, headlines with
+their TODO keyword and tags, paragraphs, lists (numbered, checkboxes, definitions
+=term :: text=), tables (header above the first =|---|=), =#+BEGIN_SRC=,
+=EXAMPLE=, =QUOTE=, =CENTER=, =VERSE= blocks, =: text= lines, =-----= rules, bold,
+italic, underline, strike-through, =code=, images (with the width of
+=#+ATTR_ORG: :width=), clickable web links. Links between pages are written as
+text (=Page › Title= for a link to a headline). =#+…= lines, comments and
+=:PROPERTIES:= drawers are not exported.
+
+- *PDF*: the system's print dialog opens; choose "Save as PDF" (or "Print to
+  file") as the printer. The PDF is offered under the page's name.
+- *HTML*: a single =.html= file, saved where you like: it holds its layout and the
+  images of the page, and opens in any browser.
 
 * Left and right columns
 The editor stands between two columns of frames. In Settings > Display, each frame
@@ -512,6 +567,8 @@ profile gets those of the actions it didn't know.
 | Other pane                  | Ctrl+O           | Ctrl+X O, Ctrl+O          |
 | Next / previous region      | F6 / Shift+F6    | F6 / Shift+F6             |
 | Quit                        | Ctrl+Q           | Ctrl+X Ctrl+C             |
+| Export the page as PDF      | Ctrl+P           | Ctrl+C Ctrl+E L P         |
+| Export the page as HTML     | Ctrl+Shift+E     | Ctrl+C Ctrl+E H H         |
 
 *** Editor
 | Action                         | Classic             | Emacs                         |
@@ -701,6 +758,7 @@ closes without saving. The explanations under a setting are in italics.
 ** Display
 - Appearance: page title, line numbers, headline stars hidden but the last.
 - Mark the broken links.
+- Link preview: on or off, and when it shows (Ctrl held or mouse resting).
 - Images: show them, and the format of their size (org-mode or Logseq).
 - Thumbnails of the YouTube videos.
 - Frames around the editor: which are shown, in which column and in which order

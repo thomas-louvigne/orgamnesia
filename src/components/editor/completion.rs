@@ -8,6 +8,8 @@ use super::{
     pane::Pane,
 };
 use crate::motion;
+use orgamnesia_core::links;
+use wasm_bindgen_futures::spawn_local;
 
 const MAX_SUGGESTIONS: usize = 8;
 /// Characters to type after `[[` before pages are suggested.
@@ -24,13 +26,16 @@ enum Kind {
     Hashtag,
     /// An org-mode tag (`* Title :tag`, `#+FILETAGS:`): accepting adds the closing `:`.
     OrgTag,
+    /// A headline of a page in `[[Page::*Titre` or `[[*Titre`: accepting also
+    /// closes the link with `]]`.
+    Place,
 }
 
 impl Kind {
     /// What closes the name once accepted.
     fn close(self) -> &'static str {
         match self {
-            Kind::Link => "]]",
+            Kind::Link | Kind::Place => "]]",
             Kind::OrgTag => ":",
             Kind::Hashtag => "",
         }
@@ -42,7 +47,17 @@ impl Kind {
             Kind::Link => "[[",
             Kind::Hashtag => "#",
             Kind::OrgTag => ":",
+            Kind::Place => "::",
         }
+    }
+}
+
+/// The place being typed in a link: `Page::*Ti` → (`Page`, `*Ti`, where `*Ti`
+/// starts); `*Ti` → (``, `*Ti`, 0), a headline of this page.
+fn place_prefix(prefix: &str) -> Option<(String, String, usize)> {
+    match prefix.split_once(links::SEPARATOR) {
+        Some((page, place)) => Some((page.trim().to_string(), place.to_string(), page.chars().count() + 2)),
+        None => prefix.starts_with('*').then(|| (String::new(), prefix.to_string(), 0)),
     }
 }
 
@@ -97,6 +112,10 @@ impl Completion {
                     .map(|(hash, p)| (hash + 1, p, Kind::Hashtag)))
         };
         let Some((start, prefix, kind)) = found else { self.close(); return };
+        if kind == Kind::Link && let Some((page, typed, at)) = place_prefix(&prefix) {
+            self.complete_place(el, start + at, caret, page, typed);
+            return;
+        }
         let items = match kind {
             Kind::OrgTag => {
                 let names: Vec<String> = ctx.project.tags.get_untracked().into_iter().map(|t| t.name).collect();
@@ -108,8 +127,34 @@ impl Completion {
                 motion::complete_page(&names, &prefix, tag, MAX_SUGGESTIONS)
             }
         };
+        self.show(el, &chars, start, caret, kind, items);
+    }
+
+    /// Suggest the headlines of `page` (this one when empty) for the place typed
+    /// after `[[page::`, which starts at `start`. The page may have to be read first.
+    fn complete_place(self, el: &Textarea, start: usize, caret: usize, page: String, typed: String) {
+        let el = el.clone();
+        spawn_local(async move {
+            let Some((text, keywords)) = self.pane.named_page_text(&page).await else { self.close(); return };
+            let titles = links::headlines(&text, keywords.as_ref());
+            let typed = typed.strip_prefix('*').unwrap_or(&typed);
+            let titles: Vec<String> = if typed.trim().is_empty() {
+                titles.into_iter().take(MAX_SUGGESTIONS).collect()
+            } else {
+                motion::complete_page(&titles, typed, None, MAX_SUGGESTIONS)
+            };
+            // The caret moved while the page was read: this is not the question any more
+            if self.shown.try_get_untracked().is_none() || get_pos(&el) != (caret, caret) { return; }
+            let items = titles.into_iter().map(|t| format!("*{t}")).collect();
+            let chars: Vec<char> = el.value().chars().collect();
+            self.show(&el, &chars, start, caret, Kind::Place, items);
+        });
+    }
+
+    /// Show `items` in the popup, for the name typed between `start` and `caret`.
+    fn show(self, el: &Textarea, chars: &[char], start: usize, caret: usize, kind: Kind, items: Vec<String>) {
         if items.is_empty() { self.close(); return; }
-        let Some((x, top, bottom)) = caret_coords(el, &chars, start) else { return };
+        let Some((x, top, bottom)) = caret_coords(el, chars, start) else { return };
         // Keep the popup inside the editor: flip above the line near the bottom edge
         let height = items.len() as f64 * ITEM_HEIGHT + 8.0;
         let y = if bottom + height > el.client_height() as f64 && top > height { top - height } else { bottom };
@@ -121,10 +166,19 @@ impl Completion {
     fn accept(self, el: &Textarea, name: &str) {
         let Some(c) = self.shown.get_untracked() else { return };
         self.accepting.set_value(true);
-        let mut cursor = splice(el, c.start, c.caret, name);
+        // In a link already closed (`[[jeu de r|ôle][texte]]`), the name replaces
+        // the whole target, and the link keeps its end
+        let chars: Vec<char> = el.value().chars().collect();
+        let target_end = c.caret + chars[c.caret..].iter().take_while(|&&ch| !matches!(ch, ']' | '[' | '\n')).count();
+        let closed = matches!(c.kind, Kind::Link | Kind::Place)
+            && matches!((chars.get(target_end), chars.get(target_end + 1)), (Some(']'), Some(']' | '[')));
+        let mut cursor = splice(el, c.start, if closed { target_end } else { c.caret }, name);
         // Close the link / tag: step over the closing characters if already there, else add them
         let close = c.kind.close();
-        if !close.is_empty() {
+        if closed {
+            // Past `]]`; before `][`, to the text shown
+            cursor += if el.value().chars().nth(cursor + 1) == Some(']') { 2 } else { 0 };
+        } else if !close.is_empty() {
             let n = close.chars().count();
             let after: String = el.value().chars().skip(cursor).take(n).collect();
             cursor = if after == close { cursor + n } else { splice(el, cursor, cursor, close) };

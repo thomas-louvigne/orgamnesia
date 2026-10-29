@@ -102,6 +102,16 @@
 /* ── Layout ────────────────────────────────────────────────── */
 html, body { height: 100%; overflow: hidden; }
 
+/* A page exported as a PDF (see export.rs): hidden on screen; when printing,
+   shown alone in place of the app */
+#print-root { display: none; }
+@media print {
+    html, body { height: auto; overflow: visible; background: #fff; }
+    body > :not(#print-root) { display: none !important; }
+    #print-root { display: block; }
+    #print-root .org-page { max-width: none; padding: 0; }
+}
+
 .app {
     display: flex;
     flex-direction: column;
@@ -1576,6 +1586,35 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .page-completion-item:hover { background: var(--bg3); }
 .page-completion-item.selected { background: var(--bg3); color: var(--accent2); }
 .page-completion-sigil { color: var(--fg-dim); margin-right: 2px; }
+
+/* Preview of the page a link leads to (see preview.rs): the text drawn as in the editor */
+.link-preview {
+    position: absolute;
+    z-index: 20;
+    display: flex; flex-direction: column;
+    max-width: calc(100% - 8px);
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.4);
+    overflow: hidden;
+}
+.link-preview-title {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    background: none; border: none; border-bottom: 1px solid var(--border);
+    font: inherit; font-size: var(--fs-ui); font-weight: 600; text-align: left;
+    color: var(--link); cursor: pointer;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.link-preview-title:hover { text-decoration: underline; }
+.link-preview-text {
+    padding: 8px 12px;
+    overflow: auto;
+    white-space: pre-wrap; word-wrap: break-word;
+    font-size: calc(var(--fs-body) * .9);
+}
+.link-preview-message { padding: 10px 12px; color: var(--fg-dim); font-size: var(--fs-ui); }
 
 /* ── The preference project (configuration files as text) ──── */
 /* The frames about the pages of a project have nothing to show there */

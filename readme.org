@@ -26,7 +26,9 @@ other contribution.
 - *Open or create a folder of notes* in the same dialog: a new folder gets =pages/=
   and =assets/=, ready to write in; an existing folder of =.org= files opens as is.
 - *Links and tags*: =[[Page]]=, =#keywords= and =:tags:=, with completion;
-  renaming a page rewrites the links to it.
+  renaming a page rewrites the links to it. Links to a headline
+  (=[[Page::*Title]]=) or a target (=[[Page::target]]=), preview of the page on hover.
+- *Export* of a page as PDF or HTML.
 - *Frames* around the editor: pages, backlinks, tags, to do, git…, placed as you
   like.
 - *Quick open* (Ctrl+K) and *project search and replace* (Ctrl+Shift+F).
@@ -122,12 +124,14 @@ key: without it, the installed apps can't be updated any more.
 
 * TODO-LIST
 
+- [ ] Test on Windows
 - [ ] Test on macOS
 - [ ] Package in the AUR for Arch Linux
 - [ ] Package in the Debian repositories
 - [ ] Regular expressions in searches
 - [ ] Vi keybindings
 - [ ] Theme management
+- [ ] Markdown mode
 
 * License
 

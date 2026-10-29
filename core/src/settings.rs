@@ -73,6 +73,11 @@ pub struct Config {
     /// How a size given to an image is written: `org` (`#+ATTR_ORG: :width 300` on
     /// the line above, Emacs) or `logseq` (`{:height 200, :width 300}` after the link).
     pub image_size_format: Option<String>,
+    /// A preview of the page a link leads to, shown over the link.
+    pub link_preview: Option<bool>,
+    /// When the preview shows: `ctrl` (the mouse over the link with Ctrl held) or
+    /// `hover` (the mouse resting on the link).
+    pub link_preview_trigger: Option<String>,
     /// Emacs mark: Ctrl+Space starts a region that follows the cursor.
     pub emacs_mark: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
@@ -270,6 +275,9 @@ pub struct Prefs {
     pub mark_broken_links: bool,
     /// `org` or `logseq`: see `Settings::image_size_format`.
     pub image_size_format: String,
+    pub link_preview: bool,
+    /// `ctrl` or `hover`: see `Config::link_preview_trigger`.
+    pub link_preview_trigger: String,
     pub emacs_mark: bool,
     pub electric_mode: bool,
 }
@@ -343,6 +351,9 @@ impl Prefs {
             mark_broken_links: s.mark_broken_links.unwrap_or(true),
             image_size_format: s.image_size_format.clone().filter(|f| f == "logseq")
                 .unwrap_or_else(|| "org".to_string()),
+            link_preview: s.link_preview.unwrap_or(true),
+            link_preview_trigger: s.link_preview_trigger.clone().filter(|t| t == "hover")
+                .unwrap_or_else(|| "ctrl".to_string()),
             emacs_mark: s.emacs_mark.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
         }
@@ -369,6 +380,8 @@ impl Prefs {
             show_video_thumbnails: Some(self.show_video_thumbnails),
             mark_broken_links: Some(self.mark_broken_links),
             image_size_format: Some(self.image_size_format.clone()),
+            link_preview: Some(self.link_preview),
+            link_preview_trigger: Some(self.link_preview_trigger.clone()),
             emacs_mark: Some(self.emacs_mark),
             electric_mode: Some(self.electric_mode),
             autosave: Some(self.autosave),
@@ -489,6 +502,8 @@ mod tests {
         assert!(p.autosave && p.git_ext && !p.org_bloom && !p.delete_empty && p.restore_session);
         assert_eq!(p.lang, "fr");
         assert_eq!(p.image_size_format, "org");
+        assert!(p.link_preview);
+        assert_eq!(p.link_preview_trigger, "ctrl");
         assert_eq!(p.todo(), Some(TodoKeywords::parse(DEFAULT_TODO_KEYWORDS)));
         let blank = Settings { config: Config { todo_keywords: Some(" ".into()), ..Config::default() }, ..Settings::default() };
         assert_eq!(blank.prefs().todo_keywords, DEFAULT_TODO_KEYWORDS);

@@ -116,6 +116,19 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="show_line_numbers" />
             <Check draft get=|p| p.mark_broken_links set=|p, v| p.mark_broken_links = v
                 label="mark_broken_links" hint="mark_broken_links_hint" />
+            <Check draft get=|p| p.link_preview set=|p, v| p.link_preview = v
+                label="link_preview" hint="link_preview_hint" />
+            <div class="setting-row setting-sub">
+                <label>{move || t("link_preview_trigger", lang())}</label>
+                <select
+                    prop:disabled=move || !draft.with(|p| p.link_preview)
+                    prop:value=move || draft.with(|p| p.link_preview_trigger.clone())
+                    on:change=move |e| draft.update(|p| p.link_preview_trigger = event_target_value(&e))
+                >
+                    <option value="ctrl">{move || t("link_preview_ctrl", lang())}</option>
+                    <option value="hover">{move || t("link_preview_hover", lang())}</option>
+                </select>
+            </div>
             <Check draft get=|p| p.show_images set=|p, v| p.show_images = v
                 label="show_images" hint="show_images_hint" />
             <div class="setting-row setting-sub">

@@ -131,6 +131,28 @@ pub fn open_url(url: String) -> Cmd<()> {
     crate::open_with_system(&url)
 }
 
+/// The save dialog for a page exported as HTML (offered as `<name>.html`), then
+/// the file `html` written there: its path, `None` when the dialog was cancelled.
+#[tauri::command]
+pub async fn save_html(app: AppHandle, name: String, html: String) -> Cmd<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let picker = app.dialog().file().set_file_name(format!("{name}.html")).add_filter("HTML", &["html", "htm"]);
+    let picked = dialog(|tx| picker.save_file(move |file| { let _ = tx.send(file.map(|f| f.to_string())); })).await?;
+    let Some(path) = picked else { return Ok(None) };
+    std::fs::write(&path, html)?;
+    Ok(Some(crate::slash(path)))
+}
+
+/// The system's print dialog for the window: the page the interface made ready
+/// to print can be saved as a PDF there.
+/// Async: run on the main thread, the command would hold Tauri's lock on the
+/// webviews while the dialog runs its own event loop, and the next call from the
+/// interface, waiting for that lock, would stop the app (seen on Linux).
+#[tauri::command]
+pub async fn print_window(window: tauri::WebviewWindow) -> Cmd<()> {
+    window.print().map_err(|e| AppError::CannotRun { program: "print".into(), error: e.to_string() })
+}
+
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);

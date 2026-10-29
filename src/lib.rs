@@ -3,6 +3,7 @@ mod actions;
 mod app;
 mod components;
 mod edit;
+mod export;
 mod folding;
 mod git;
 mod history;

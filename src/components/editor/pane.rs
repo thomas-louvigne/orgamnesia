@@ -43,6 +43,22 @@ pub struct Pane {
 }
 
 impl Pane {
+    /// The text of the page `name` (this pane's page when empty) and its TODO keywords:
+    /// from its tab when open, else read from the disk.
+    pub async fn named_page_text(self, name: &str) -> Option<(String, Option<TodoKeywords>)> {
+        let ctx = self.ctx;
+        if name.is_empty() {
+            return Some((self.content.get_untracked(), self.todo_keywords.get_untracked()));
+        }
+        let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| ctx.same_page(&t.name, name)).map(|t| t.content));
+        let text = match open {
+            Some(content) => content.get_untracked(),
+            None => crate::actions::read_page(&ctx.find_page(name)?.path).await.ok()?,
+        };
+        let keywords = ctx.pref_untracked(|p| p.todo()).map(|d| TodoKeywords::for_page(&text, &d));
+        Some((text, keywords))
+    }
+
     pub fn new(ctx: AppCtx, tab: &Tab) -> Self {
         let content = tab.content;
         Self {

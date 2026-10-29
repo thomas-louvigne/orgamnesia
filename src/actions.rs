@@ -179,8 +179,9 @@ pub fn outside(target: &str) -> Option<Outside> {
     (path != t || drive || ["./", "../", "/", "~/"].iter().any(|p| path.starts_with(p))).then(|| Outside::File(path.to_string()))
 }
 
-/// Open the page a link points to, creating it when it doesn't exist yet; a web
-/// link opens in the browser, a link to a file with its application.
+/// Open the page a link points to, creating it when it doesn't exist yet, at the
+/// place the link names (`[[Page::*Titre]]`); a web link opens in the browser, a
+/// link to a file with its application.
 pub fn follow_link(ctx: AppCtx, name: String) {
     if let Some(target) = outside(&name) {
         spawn_local(async move {
@@ -198,13 +199,26 @@ pub fn follow_link(ctx: AppCtx, name: String) {
         });
         return;
     }
-    let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().position(|t| ctx.same_page(&t.name, &name)));
+    // `[[Page::*Titre]]`: the headline `Titre` of `Page`; `[[*Titre]]`: of this page
+    let (page, place) = orgamnesia_core::links::split(&name);
+    let goto = place.map(|p| Goto::Place(p.to_string()));
+    if page.is_empty() {
+        if let (Some(tab), Some(goto)) = (ctx.work.active_tab_data(), goto) {
+            ctx.work.goto.set(Some((tab.path, goto)));
+        }
+        return;
+    }
+    let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().position(|t| ctx.same_page(&t.name, page)));
     if let Some(idx) = open {
         ctx.work.active_tab.set(Some(idx));
-    } else if let Some(file) = ctx.find_page(&name) {
-        open_file(ctx, file, None);
+        if let Some(goto) = goto {
+            let path = ctx.work.tabs.with_untracked(|tabs| tabs[idx].path.clone());
+            ctx.work.goto.set(Some((path, goto)));
+        }
+    } else if let Some(file) = ctx.find_page(page) {
+        open_file(ctx, file, goto);
     } else {
-        create_and_open_page(ctx, name);
+        create_and_open_page(ctx, page.to_string());
     }
 }
 

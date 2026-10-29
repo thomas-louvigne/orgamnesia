@@ -12,8 +12,9 @@ pub fn file_target(target: &str) -> Option<&str> {
 
 /// Whether a link target names a page, as the backend reads it (`parser::is_page_link`):
 /// not a file, an address (`https://`, `mailto:`) nor a place in the page (`#id`, `*Titre`).
+/// `Page::*Titre` names `Page`.
 pub fn is_page_target(target: &str) -> bool {
-    let t = target.trim();
+    let t = orgamnesia_core::links::split(target).0;
     !(t.is_empty() || t.contains("://") || t.starts_with("mailto:") || t.starts_with('#')
         || t.starts_with('*') || file_target(t).is_some())
 }
@@ -48,6 +49,8 @@ mod tests {
         assert!(!is_page_target("../assets/a.png"));
         assert!(!is_page_target("https://example.org"));
         assert!(!is_page_target("*Titre"));
+        assert!(is_page_target("Ma page::*Titre"));
+        assert!(!is_page_target("file:a.org::*Titre"));
     }
 
     #[test]

@@ -79,6 +79,8 @@ fn main() {
             commands::app::missing_files,
             commands::app::read_image,
             commands::app::open_url,
+            commands::app::print_window,
+            commands::app::save_html,
             commands::app::quit_app,
             commands::clipboard::read_clipboard,
             commands::clipboard::write_clipboard,

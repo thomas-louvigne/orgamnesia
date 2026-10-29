@@ -74,7 +74,8 @@ impl BrokenLinks {
                 self.missing.with(|m| m.contains(&path))
                     || (images::is_image(file) && self.sizes.with(|s| s.get(&image_src(&page, file)) == Some(&None)))
             } else if links::is_page_target(target) {
-                !self.page_keys.with(|k| k.contains(&page_key(target.trim(), loose)))
+                let page = orgamnesia_core::links::split(target).0;
+                !self.page_keys.with(|k| k.contains(&page_key(page, loose)))
             } else {
                 false
             }

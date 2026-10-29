@@ -673,7 +673,7 @@ pub fn complete_page(names: &[String], prefix: &str, tag: Option<Hashtags>, limi
 }
 
 /// Char range of the target text of the first `[[target]]` / `[[target][label]]`
-/// link naming `target`, else of the first `#tag` or `:tag:` naming it (per `tags`).
+/// (or `[[target::place]]`) link naming `target`, else of the first `#tag` or `:tag:` naming it (per `tags`).
 pub fn find_link(chars: &[char], target: &str, ignore_case: bool, tags: TagSyntax) -> Option<(usize, usize)> {
     let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
     let wanted = norm(target);
@@ -687,7 +687,8 @@ pub fn find_link(chars: &[char], target: &str, ignore_case: bool, tags: TagSynta
             let mut end = start;
             while end < chars.len() && chars[end] != ']' && chars[end] != '[' { end += 1; }
             let raw: String = chars[start..end].iter().collect();
-            if norm(&raw) == wanted {
+            // `[[Page::*Titre]]` is a link to `Page`
+            if norm(&raw) == wanted || norm(orgamnesia_core::links::split(&raw).0) == wanted {
                 let lead = raw.chars().take_while(|c| c.is_whitespace()).count();
                 let trail = raw.chars().rev().take_while(|c| c.is_whitespace()).count();
                 return Some((start + lead, end - trail));

@@ -27,7 +27,9 @@ relisez-le comme n'importe quelle contribution.
 - *Ouvrir ou créer un dossier de notes* dans la même fenêtre : un nouveau dossier
   reçoit =pages/= et =assets/=, prêt à écrire ; un dossier de fichiers =.org= existant s'ouvre tel quel.
 - *Liens et tags* : =[[Page]]=, =#mots-clés= et =:tags:=, avec complétion ;
-  renommer une page réécrit les liens qui y mènent.
+  renommer une page réécrit les liens qui y mènent. Liens vers un titre
+  (=[[Page::*Titre]]=) ou une cible (=[[Page::cible]]=), aperçu de la page au survol.
+- *Export* d'une page en PDF ou en HTML.
 - *Cadres* autour de l'éditeur : pages, liens entrants, tags, à faire, git…, placés
   à votre guise.
 - *Ouverture rapide* (Ctrl+K) et *recherche et remplacement dans le projet*
@@ -133,12 +135,14 @@ les applications installées ne peuvent plus être mises à jour.
 
 * TODO-LIST
 
+- [ ] Tester la version Windows
 - [ ] Tester sur macOS
 - [ ] Paquet dans l'AUR pour Arch Linux
 - [ ] Paquet dans les dépôts Debian
 - [ ] Expressions régulières dans les recherches
 - [ ] Raccourcis clavier vi
 - [ ] Gestion des thèmes
+- [ ] Implémentation d'un mode Markdown
 
 * Licence
 

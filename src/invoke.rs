@@ -333,6 +333,17 @@ pub async fn config_problems() -> Result<Vec<ConfigInvalid>, String> {
     call("config_problems", serde_json::json!({})).await
 }
 
+/// The system's print dialog for the window (where a page is saved as a PDF).
+pub async fn print_window() -> Result<(), String> {
+    call("print_window", serde_json::json!({})).await
+}
+
+/// The save dialog for a page exported as HTML, then the file `html` written
+/// there: its path, `None` when the dialog was cancelled.
+pub async fn save_html(name: &str, html: &str) -> Result<Option<String>, String> {
+    call("save_html", serde_json::json!({ "name": name, "html": html })).await
+}
+
 pub async fn quit_app() -> Result<(), String> {
     call("quit_app", serde_json::json!({})).await
 }

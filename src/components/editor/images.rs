@@ -32,6 +32,17 @@ pub fn image_url(src: &str) -> String {
     BLOBS.with(|b| b.borrow().get(src).cloned()).unwrap_or_else(|| src.to_string())
 }
 
+/// URL the image `src` (an `image_src`) is shown from, its file read first when
+/// it hasn't been yet (for a page exported as a PDF).
+pub async fn loaded_image_url(src: &str) -> String {
+    if !src.contains("://") && BLOBS.with(|b| !b.borrow().contains_key(src))
+        && let Some(url) = invoke::read_image(src).await.ok().and_then(|bytes| blob_url(src, &bytes))
+    {
+        BLOBS.with(|b| { b.borrow_mut().insert(src.to_string(), url); });
+    }
+    image_url(src)
+}
+
 /// Load the image `src` (an `image_src`) to learn its natural size, into `sizes`.
 pub fn load_size(src: &str, sizes: RwSignal<ImageSizes>) {
     let src = src.to_string();
