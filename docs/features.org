@@ -58,6 +58,8 @@ A project is a folder of =.org= pages linked to each other.
 - *Rename*: right click on the page (list or tab), double click on the tab, double
   click or right click on the page title. Links to the page in the other pages are
   rewritten (can be turned off).
+- *Export as PDF or HTML*: right click on the page (list or tab). See
+  [[*Export as PDF and HTML][Export as PDF and HTML]].
 - *No export*: right click on the page in the list adds the =:noexport:= tag to
   its =#+FILETAGS:= (the line is created when missing).
 - *Delete*: right click on the page (list or tab), last in the menu. The page goes
@@ -465,10 +467,14 @@ At the bottom of the window: messages (page saved, error, keys of a shortcut bei
 typed…). After a deletion, it offers "Undo". =×= closes it.
 
 * Export as PDF and HTML
-A page is exported from the right-click menu of its tab ("Export as PDF…",
-"Export as HTML…") or with a shortcut, for the active page: Ctrl+P and
-Ctrl+Shift+E in Classic, Ctrl+C Ctrl+E L P and Ctrl+C Ctrl+E H H in Emacs
-(org-mode's keys). The text exported is the tab's, even when not saved yet.
+A single page is exported from the right-click menu of its tab or of the list of
+pages ("Export as PDF…", "Export as HTML…") or with a shortcut, for the active
+page: Ctrl+P and Ctrl+Shift+E in Classic, Ctrl+C Ctrl+E L P and Ctrl+C Ctrl+E H H
+in Emacs (org-mode's keys). The text exported is the tab's when the page is open,
+even when not saved yet, else the file's.
+
+To export the whole project at once, as a website whose pages link to each other,
+see [[*org-bloom: the site of the project][org-bloom]].
 
 The page is laid out: its =#+TITLE:= (or its name) as the title, headlines with
 their TODO keyword and tags, paragraphs, lists (numbered, checkboxes, definitions
@@ -700,7 +706,9 @@ quitting, the app asks whether to quit all the same. 0 (the default): never.
 
 ** org-bloom: the site of the project
 [[https://github.com/thomas-louvigne/org-bloom][org-bloom]] (formerly logseq-site-builder) turns the project into a static
-website. Off by default. When on, an "org-bloom" button (placed like the other frames,
+website: a site of the whole project, all its pages together, the links between
+pages made clickable (where exporting a single page, as PDF or HTML, only gives a
+document on its own). Off by default. When on, an "org-bloom" button (placed like the other frames,
 in Settings > Display) saves the pages, then runs =org-bloom build <project>=; the
 status bar shows the folder of the site, or what went wrong.
 

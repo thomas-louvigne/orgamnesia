@@ -12,7 +12,7 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 
-use crate::{components::editor::loaded_image_url, images, invoke, links, state::{AppCtx, Tab}};
+use crate::{actions, components::editor::loaded_image_url, images, invoke, links, state::{AppCtx, FileEntry, Tab}};
 use orgamnesia_core::{links as place, names::fold, TodoKeywords};
 
 /// Id of the element holding the page to print.
@@ -45,44 +45,72 @@ const STYLE: &str = "\
 .org-page pre, .org-page table, .org-page img { break-inside: avoid; }
 ";
 
-/// The HTML of the page of `tab`, inside `.org-page`; `image` gives the URL each
-/// image link target is shown from (read first).
-async fn tab_html(ctx: AppCtx, tab: &Tab, image: impl AsyncFn(&str) -> String) -> String {
-    let text = tab.content.get_untracked();
+/// The page to export: its file and its text.
+struct Page { path: String, name: String, text: String }
+
+impl Page {
+    fn of(tab: &Tab) -> Self {
+        Self { path: tab.path.clone(), name: tab.name.clone(), text: tab.content.get_untracked() }
+    }
+}
+
+/// The HTML of `page`, inside `.org-page`; `image` gives the URL each image
+/// link target is shown from (read first).
+async fn page_body(ctx: AppCtx, page: &Page, image: impl AsyncFn(&str) -> String) -> String {
+    let text = &page.text;
     let mut urls = HashMap::new();
-    for target in links::targets(&text).into_iter().filter(|t| images::is_image(t)) {
+    for target in links::targets(text).into_iter().filter(|t| images::is_image(t)) {
         urls.insert(target.to_string(), image(target).await);
     }
-    let keywords = ctx.pref_untracked(|p| p.todo()).map(|d| TodoKeywords::for_page(&text, &d));
+    let keywords = ctx.pref_untracked(|p| p.todo()).map(|d| TodoKeywords::for_page(text, &d));
     let url = |t: &str| urls.get(t).cloned().unwrap_or_else(|| t.to_string());
-    format!("<div class='org-page'>{}</div>", page_html(&text, &tab.name, keywords.as_ref(), &url))
+    format!("<div class='org-page'>{}</div>", page_html(text, &page.name, keywords.as_ref(), &url))
+}
+
+/// Export the page `file` (as HTML or as PDF), from the list of pages: the text
+/// of its tab when it is open (saved or not), else the file's.
+pub fn export_file(ctx: AppCtx, file: FileEntry, html: bool) {
+    let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| t.path == file.path).map(Page::of));
+    spawn_local(async move {
+        let page = match open {
+            Some(page) => page,
+            None => match actions::read_page(&file.path).await {
+                Ok(text) => Page { path: file.path, name: file.name, text },
+                Err(e) => return ctx.error("error", &e),
+            },
+        };
+        if html { html_file(ctx, page).await } else { print(ctx, page).await }
+    });
 }
 
 /// Export the page of `tab` as an HTML file holding its style and images.
 pub fn export_html(ctx: AppCtx, tab: Tab) {
-    spawn_local(async move {
-        // Local images go in the file
-        let page = tab.path.clone();
-        let body = tab_html(ctx, &tab, async |target: &str| {
-            if target.contains("://") { return target.to_string(); }
-            match invoke::read_image(&images::resolve(&page, target)).await {
-                Ok(bytes) => data_url(target, &bytes.to_vec()),
-                Err(_) => target.to_string(),
-            }
-        }).await;
-        let title = page_title(&tab.content.get_untracked()).unwrap_or_else(|| tab.name.clone());
-        let html = format!(
-            "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n\
-            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
-            <title>{}</title>\n<style>\nbody {{ margin: 0; background: #fff; }}\n{STYLE}</style>\n</head>\n\
-            <body>\n{body}\n</body>\n</html>\n",
-            escape(&title));
-        match invoke::save_html(&tab.name, &html).await {
-            Ok(Some(path)) => ctx.notify_t("html_exported", &path),
-            Ok(None) => {}
-            Err(e) => ctx.error("html_export_error", &e),
+    let page = Page::of(&tab);
+    spawn_local(html_file(ctx, page));
+}
+
+async fn html_file(ctx: AppCtx, page: Page) {
+    // Local images go in the file
+    let path = page.path.clone();
+    let body = page_body(ctx, &page, async |target: &str| {
+        if target.contains("://") { return target.to_string(); }
+        match invoke::read_image(&images::resolve(&path, target)).await {
+            Ok(bytes) => data_url(target, &bytes.to_vec()),
+            Err(_) => target.to_string(),
         }
-    });
+    }).await;
+    let title = page_title(&page.text).unwrap_or_else(|| page.name.clone());
+    let html = format!(
+        "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n\
+        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
+        <title>{}</title>\n<style>\nbody {{ margin: 0; background: #fff; }}\n{STYLE}</style>\n</head>\n\
+        <body>\n{body}\n</body>\n</html>\n",
+        escape(&title));
+    match invoke::save_html(&page.name, &html).await {
+        Ok(Some(path)) => ctx.notify_t("html_exported", &path),
+        Ok(None) => {}
+        Err(e) => ctx.error("html_export_error", &e),
+    }
 }
 
 /// A `data:` URL holding the image file `name` read as `bytes`.
@@ -111,41 +139,43 @@ fn base64(bytes: &[u8]) -> String {
 
 /// Export the page of `tab` as a PDF, from the print dialog.
 pub fn export_pdf(ctx: AppCtx, tab: Tab) {
-    spawn_local(async move {
-        let text = tab.content.get_untracked();
-        // Local images are shown from `blob:` URLs
-        let page = tab.path.clone();
-        let body = tab_html(ctx, &tab, async |target: &str| {
-            let src = if target.contains("://") { target.to_string() } else { images::resolve(&page, target) };
-            loaded_image_url(&src).await
-        }).await;
-        let html = format!("<style>{STYLE}</style>{body}");
-        let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return };
-        let Some(body) = doc.body() else { return };
-        // Kept after printing (hidden): the dialog may draw the page once it is closed
-        if let Some(old) = doc.get_element_by_id(PRINT_ROOT) { old.remove(); }
-        let Ok(root) = doc.create_element("div") else { return };
-        root.set_id(PRINT_ROOT);
-        root.set_inner_html(&html);
-        let _ = body.append_child(&root);
-        // The images drawn before the page is
-        if let Ok(imgs) = root.query_selector_all("img") {
-            for i in 0..imgs.length() {
-                if let Some(img) = imgs.item(i).and_then(|n| n.dyn_into::<web_sys::HtmlImageElement>().ok()) {
-                    let _ = JsFuture::from(img.decode()).await;
-                }
+    let page = Page::of(&tab);
+    spawn_local(print(ctx, page));
+}
+
+async fn print(ctx: AppCtx, page: Page) {
+    // Local images are shown from `blob:` URLs
+    let path = page.path.clone();
+    let body = page_body(ctx, &page, async |target: &str| {
+        let src = if target.contains("://") { target.to_string() } else { images::resolve(&path, target) };
+        loaded_image_url(&src).await
+    }).await;
+    let html = format!("<style>{STYLE}</style>{body}");
+    let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return };
+    let Some(body) = doc.body() else { return };
+    // Kept after printing (hidden): the dialog may draw the page once it is closed
+    if let Some(old) = doc.get_element_by_id(PRINT_ROOT) { old.remove(); }
+    let Ok(root) = doc.create_element("div") else { return };
+    root.set_id(PRINT_ROOT);
+    root.set_inner_html(&html);
+    let _ = body.append_child(&root);
+    // The images drawn before the page is
+    if let Ok(imgs) = root.query_selector_all("img") {
+        for i in 0..imgs.length() {
+            if let Some(img) = imgs.item(i).and_then(|n| n.dyn_into::<web_sys::HtmlImageElement>().ok()) {
+                let _ = JsFuture::from(img.decode()).await;
             }
         }
-        // The name the PDF is offered under
-        doc.set_title(&page_title(&text).unwrap_or_else(|| tab.name.clone()));
-        let restore = wasm_bindgen::closure::Closure::once_into_js(move || {
-            if let Some(doc) = web_sys::window().and_then(|w| w.document()) { doc.set_title("Orgamnesia"); }
-        });
-        if let Some(w) = web_sys::window() {
-            let _ = w.add_event_listener_with_callback("afterprint", restore.unchecked_ref());
-        }
-        if let Err(e) = invoke::print_window().await { ctx.error("pdf_export_error", &e); }
+    }
+    // The name the PDF is offered under
+    doc.set_title(&page_title(&page.text).unwrap_or_else(|| page.name.clone()));
+    let restore = wasm_bindgen::closure::Closure::once_into_js(move || {
+        if let Some(doc) = web_sys::window().and_then(|w| w.document()) { doc.set_title("Orgamnesia"); }
     });
+    if let Some(w) = web_sys::window() {
+        let _ = w.add_event_listener_with_callback("afterprint", restore.unchecked_ref());
+    }
+    if let Err(e) = invoke::print_window().await { ctx.error("pdf_export_error", &e); }
 }
 
 /// The `#+TITLE:` of the page.

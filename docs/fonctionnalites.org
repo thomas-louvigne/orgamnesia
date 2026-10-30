@@ -53,6 +53,8 @@ Un projet est un dossier de pages =.org= liées entre elles.
 - *Renommer* : clic droit sur la page (liste ou onglet), double-clic sur l'onglet,
   double-clic ou clic droit sur le titre de la page. Les liens vers la page dans
   les autres pages sont réécrits (réglable).
+- *Exporter en PDF ou en HTML* : clic droit sur la page (liste ou onglet). Voir
+  [[*Export en PDF et en HTML][Export en PDF et en HTML]].
 - *Ne pas exporter* : clic droit sur la page dans la liste ajoute le tag
   =:noexport:= à son =#+FILETAGS:= (la ligne est créée si besoin).
 - *Supprimer* : clic droit sur la page (liste ou onglet), en dernier dans le menu.
@@ -468,11 +470,15 @@ En bas de la fenêtre : messages (page enregistrée, erreur, combinaison en cour
 Après une suppression, elle propose « Annuler ». =×= la ferme.
 
 * Export en PDF et en HTML
-Une page s'exporte depuis le menu du clic droit de son onglet (« Exporter en
-PDF… », « Exporter en HTML… ») ou par raccourci, pour la page active : Ctrl+P et
-Ctrl+Maj+E en Classique, Ctrl+C Ctrl+E L P et Ctrl+C Ctrl+E H H en Emacs (les
-touches d'org-mode). Le texte exporté est celui de l'onglet, même pas encore
-sauvegardé.
+Une page seule s'exporte depuis le menu du clic droit de son onglet ou de la liste
+des pages (« Exporter en PDF… », « Exporter en HTML… »), ou par raccourci, pour la
+page active : Ctrl+P et Ctrl+Maj+E en Classique, Ctrl+C Ctrl+E L P et
+Ctrl+C Ctrl+E H H en Emacs (les touches d'org-mode). Le texte exporté est celui de
+l'onglet quand la page est ouverte, même pas encore sauvegardé, sinon celui du
+fichier.
+
+Pour exporter tout le projet d'un coup, en un site web dont les pages sont reliées
+entre elles, voir [[*org-bloom : le site du projet][org-bloom]].
 
 La page est mise en forme : son =#+TITLE:= (ou son nom) en titre, les titres avec
 leur mot-clé TODO et leurs tags, paragraphes, listes (numérotées, cases à cocher,
@@ -711,7 +717,9 @@ demande s'il faut quitter quand même. 0 (par défaut) : jamais.
 
 ** org-bloom : le site du projet
 [[https://github.com/thomas-louvigne/org-bloom][org-bloom]] (anciennement logseq-site-builder) transforme le projet en site
-web statique. Désactivé par défaut. Activé, un bouton « org-bloom » (placé comme les
+web statique : un site global, toutes les pages du projet ensemble, les liens entre
+pages devenus des liens cliquables (là où l'export d'une page seule, en PDF ou en
+HTML, n'en fait qu'un document isolé). Désactivé par défaut. Activé, un bouton « org-bloom » (placé comme les
 autres cadres, dans Préférences > Affichage) enregistre les pages puis lance
 =org-bloom build <projet>= ; la barre d'état affiche le dossier du site, ou l'erreur.
 

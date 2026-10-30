@@ -196,6 +196,21 @@ pub fn PagesFrame() -> impl IntoView {
                                 {move || t("git_history_menu", ctx.lang.get())}
                             </button>
                         })}
+                        {target.clone().map(|f| view! {
+                            <div class="ctx-menu-sep" role="separator" />
+                            {[(false, "export_pdf_menu"), (true, "export_html_menu")].map(|(html, label)| {
+                                let f = f.clone();
+                                view! {
+                                    <button class="ctx-menu-item" on:click=move |_| {
+                                        close();
+                                        crate::export::export_file(ctx, f.clone(), html);
+                                    }>
+                                        {move || t(label, ctx.lang.get())}
+                                    </button>
+                                }
+                            })}
+                            <div class="ctx-menu-sep" role="separator" />
+                        })}
                         <button class="ctx-menu-item" on:click=move |_| {
                             close();
                             trigger_new_page();
