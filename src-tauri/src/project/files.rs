@@ -1,3 +1,6 @@
+//! The files of a project on disk: its pages (in `pages/` when there is one),
+//! their state as last seen (to notice outside changes), and its folders.
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;

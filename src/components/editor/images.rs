@@ -4,6 +4,7 @@
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
+use orgamnesia_core::org::line_bounds;
 
 use super::{
     dom::{after_tick, caret, set_cursor, splice, Textarea},
@@ -174,8 +175,7 @@ impl Images {
     fn insert_links(self, el: &Textarea, links: &[String]) {
         let chars: Vec<char> = el.value().chars().collect();
         let p = caret(el).min(chars.len());
-        let ls = chars[..p].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
-        let le = chars[p..].iter().position(|&c| c == '\n').map_or(chars.len(), |i| p + i);
+        let (ls, le) = line_bounds(&chars, p);
         let empty = chars[ls..le].iter().all(|c| c.is_whitespace());
         let block = links.join("\n");
         let last = if le == chars.len() { "\n" } else { "" };

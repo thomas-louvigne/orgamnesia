@@ -76,7 +76,7 @@ pub fn QuickOpenModal() -> impl IntoView {
         if !tag_q.is_empty() && ctx.pref(|p| p.show_tags) {
             let names: Vec<String> = ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect());
             let exact = names.iter().find(|n| fold(n) == tag_q).cloned();
-            let found = crate::motion::complete_page(&names, tag_q, None, 8);
+            let found = crate::links::complete_page(&names, tag_q, None, 8);
             list.extend(exact.into_iter().chain(found).map(QuickItem::Tag));
         }
 

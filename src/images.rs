@@ -9,6 +9,8 @@
 //! (Logseq, which adds one at each resize: the last one counts). The first wins.
 
 use orgamnesia_core::assets::EXTENSIONS;
+use orgamnesia_core::links::link_at;
+use orgamnesia_core::org::{line_bounds, line_start};
 
 /// A line of the page that is an image.
 #[derive(Debug, Clone, PartialEq)]
@@ -83,13 +85,11 @@ pub fn parse(line: &[char]) -> Option<ImageLine> {
         let (target, end) = video_macro(&line[i..])?;
         (target, i + end, true)
     } else {
-        if line.get(i..i + 2) != Some(&['[', '['][..]) { return None; }
-        let close = (i + 2..line.len().saturating_sub(1)).find(|&j| line[j] == ']' && line[j + 1] == ']')?;
-        let inner: String = line[i + 2..close].iter().collect();
-        if inner.contains(['[', ']']) { return None; }
+        let link = link_at(line, i).filter(|l| l.description.is_none())?;
+        let inner = link.target(line);
         let target = inner.strip_prefix("file:").unwrap_or(&inner).to_string();
         if target.is_empty() || !(is_image(&target) || youtube_id(&target).is_some()) { return None; }
-        (target, close + 2, false)
+        (target, link.end, false)
     };
     let (mut width, mut height) = (None, None);
     let mut j = link_end;
@@ -132,8 +132,7 @@ fn video_macro(chars: &[char]) -> Option<(String, usize)> {
 pub fn macro_to_link(content: &str, at: usize) -> Option<(usize, usize, String)> {
     let chars: Vec<char> = content.chars().collect();
     let at = at.min(chars.len());
-    let start = chars[..at].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
-    let end = chars[at..].iter().position(|&c| c == '\n').map_or(chars.len(), |i| at + i);
+    let (start, end) = line_bounds(&chars, at);
     let image = parse(&chars[start..end]).filter(|i| i.logseq_macro)?;
     Some((start + image.prefix, start + image.link_end, format!("[[{}]]", image.target)))
 }
@@ -175,14 +174,13 @@ pub fn display_size(natural: (f64, f64), attr: Option<Width>, image: &ImageLine,
 pub fn resize(content: &str, at: usize, width: f64, height: f64, org: bool) -> Option<(usize, usize, String)> {
     let chars: Vec<char> = content.chars().collect();
     let at = at.min(chars.len());
-    let start = chars[..at].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
-    let end = chars[at..].iter().position(|&c| c == '\n').map_or(chars.len(), |i| at + i);
+    let (start, end) = line_bounds(&chars, at);
     let image = parse(&chars[start..end])?;
     let link: String = chars[start..start + image.link_end].iter().collect();
     let (w, h) = (width.round(), height.round());
     // The `#+ATTR_ORG:` line above, if any: where it starts and its text
     let above = (start > 0).then(|| {
-        let a = chars[..start - 1].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
+        let a = line_start(&chars, start - 1);
         (a, chars[a..start - 1].iter().collect::<String>())
     }).filter(|(_, l)| is_attr_org(l));
     Some(if org {

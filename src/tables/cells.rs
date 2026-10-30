@@ -2,6 +2,7 @@
 //! as org-mode does.
 
 use super::{is_number, is_table_line};
+use orgamnesia_core::org::{line_end, line_start};
 
 /// Where Tab / Shift+Tab takes the caret in a table.
 #[derive(Debug, PartialEq)]
@@ -84,14 +85,12 @@ fn align(rows: &[Row], indent: &str) -> (Vec<String>, Vec<Vec<usize>>) {
 /// previous cell; Tab past the last cell adds a row. `None` when `pos` is not in
 /// a table.
 pub fn move_cell(chars: &[char], pos: usize, forward: bool) -> Option<CellMove> {
-    let line_start = |p: usize| chars[..p].iter().rposition(|&c| c == '\n').map_or(0, |n| n + 1);
-    let line_end = |p: usize| chars[p..].iter().position(|&c| c == '\n').map_or(chars.len(), |n| p + n);
-    let here = line_start(pos.min(chars.len()));
-    if !is_table_line(&chars[here..line_end(here)]) { return None; }
+    let here = line_start(chars, pos);
+    if !is_table_line(&chars[here..line_end(chars, here)]) { return None; }
     // The table's lines
     let mut first = here;
     while first > 0 {
-        let prev = line_start(first - 1);
+        let prev = line_start(chars, first - 1);
         if !is_table_line(&chars[prev..first - 1]) { break; }
         first = prev;
     }
@@ -100,7 +99,7 @@ pub fn move_cell(chars: &[char], pos: usize, forward: bool) -> Option<CellMove> 
     let mut start = first;
     let mut table_end = first;
     loop {
-        let end = line_end(start);
+        let end = line_end(chars, start);
         if !is_table_line(&chars[start..end]) { break; }
         if start == here { here_row = rows.len(); }
         rows.push(Row::read(chars, start, end));

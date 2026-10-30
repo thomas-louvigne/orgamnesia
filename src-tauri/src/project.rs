@@ -6,19 +6,23 @@ use std::path::{Path, PathBuf};
 
 use orgamnesia_core::{BrokenLink, FileEntry, OrgTags, Prefs, TagCount, TagHit, TagSyntax, TodoHit, TodoKeywords, VaultChanges};
 
-use crate::{error::AppError, index::backlinks::BacklinkIndex, parser, tags, vault};
+use crate::{error::AppError, tags};
+use backlinks::BacklinkIndex;
 
+pub mod backlinks;
+pub mod files;
+pub mod links;
 mod search;
 
 pub struct Project {
     /// The folder chosen as the project.
     pub path: String,
-    /// Where its pages are, canonical (see `vault::pages_dir`).
+    /// Where its pages are, canonical (see `files::pages_dir`).
     pages_dir: PathBuf,
     /// Content of every page, by path.
     pages: HashMap<String, String>,
     links: BacklinkIndex,
-    snapshot: vault::Snapshot,
+    snapshot: files::Snapshot,
     /// The pages of the last project replacement, for its undo.
     last_replace: Vec<search::Replaced>,
 }
@@ -26,29 +30,29 @@ pub struct Project {
 impl Project {
     /// Open the folder `path` (creating `pages/` and `assets/` if needed) and read its pages.
     pub fn open(path: &str, tags: TagSyntax) -> Result<Self, AppError> {
-        vault::ensure_structure(path)?;
+        files::ensure_structure(path)?;
         let path = &crate::slash(path);
         let mut project = Self {
             path: path.to_string(),
-            pages_dir: std::fs::canonicalize(vault::pages_dir(path))?,
+            pages_dir: std::fs::canonicalize(files::pages_dir(path))?,
             pages: HashMap::new(),
             links: BacklinkIndex::new(),
-            snapshot: vault::Snapshot::new(),
+            snapshot: files::Snapshot::new(),
             last_replace: Vec::new(),
         };
-        let files = vault::list_org_files(path)?;
+        let files = files::list_org_files(path)?;
         for f in &files {
             let content = std::fs::read_to_string(&f.path).unwrap_or_default();
             project.store(&f.path, content, tags);
         }
-        project.snapshot = vault::snapshot(&files);
+        project.snapshot = files::snapshot(&files);
         Ok(project)
     }
 
     /// The pages, sorted by name.
     pub fn files(&self) -> Vec<FileEntry> {
         let mut files: Vec<FileEntry> = self.pages.keys()
-            .map(|p| FileEntry { name: vault::page_name(p), path: p.clone() })
+            .map(|p| FileEntry { name: files::page_name(p), path: p.clone() })
             .collect();
         files.sort_by(|a, b| a.name.cmp(&b.name));
         files
@@ -83,7 +87,7 @@ impl Project {
     /// Create the page `name`, holding its title heading.
     pub fn create(&mut self, name: &str, tags: TagSyntax) -> Result<FileEntry, AppError> {
         let name = valid_name(name)?;
-        let path = vault::page_path(&self.path, &name);
+        let path = files::page_path(&self.path, &name);
         if path.exists() {
             return Err(AppError::PageExists(name));
         }
@@ -129,7 +133,7 @@ impl Project {
     pub fn delete(&mut self, path: &str) -> Result<String, AppError> {
         self.check_page(path)?;
         let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
-        let to = self.trash_dir()?.join(format!("{stamp}-{}.org", vault::page_name(path)));
+        let to = self.trash_dir()?.join(format!("{stamp}-{}.org", files::page_name(path)));
         std::fs::rename(path, &to)?;
         self.forget(path);
         Ok(crate::slash(&to))
@@ -144,7 +148,7 @@ impl Project {
         let (Some(name), true) = (name, in_trash && p.extension().and_then(|e| e.to_str()) == Some("org")) else {
             return Err(AppError::NotAPage(trashed.to_string()));
         };
-        let path = vault::page_path(&self.path, name);
+        let path = files::page_path(&self.path, name);
         if path.exists() {
             return Err(AppError::PageExists(name.to_string()));
         }
@@ -218,7 +222,7 @@ impl Project {
         self.check_page(old_path)?;
         let new_name = valid_name(new_name)?;
         let new_path = self.pages_dir.join(format!("{new_name}.org"));
-        let old_name = vault::page_name(old_path);
+        let old_name = files::page_name(old_path);
         if new_path.exists() && new_name != old_name {
             return Err(AppError::PageExists(new_name));
         }
@@ -236,7 +240,7 @@ impl Project {
             let paths: Vec<String> = self.pages.keys().cloned().collect();
             for path in paths {
                 let Ok(text) = std::fs::read_to_string(&path) else { continue };
-                let updated = parser::rewrite_links(&text, &old_name, &new_name, prefs.case_insensitive_links, tags);
+                let updated = links::rewrite_links(&text, &old_name, &new_name, prefs.case_insensitive_links, tags);
                 if let Some(updated) = updated {
                     std::fs::write(&path, &updated)?;
                     self.store(&path, updated, tags);
@@ -250,9 +254,9 @@ impl Project {
     /// Pick up the pages created, modified or deleted outside the app since the
     /// last look. `None` when nothing changed.
     pub fn refresh(&mut self, tags: TagSyntax) -> Result<Option<VaultChanges>, AppError> {
-        let files = vault::list_org_files(&self.path)?;
-        let now = vault::snapshot(&files);
-        let (changed, removed) = vault::diff(&self.snapshot, &now);
+        let files = files::list_org_files(&self.path)?;
+        let now = files::snapshot(&files);
+        let (changed, removed) = files::diff(&self.snapshot, &now);
         if changed.is_empty() && removed.is_empty() {
             return Ok(None);
         }
@@ -271,7 +275,7 @@ impl Project {
     pub fn reindex(&mut self, tags: TagSyntax) {
         self.links = BacklinkIndex::new();
         for (path, content) in &self.pages {
-            self.links.index_file(&vault::page_name(path), &parser::extract_links(content, tags));
+            self.links.index_file(&files::page_name(path), &links::extract_links(content, tags));
         }
     }
 
@@ -287,13 +291,13 @@ impl Project {
     /// Links to pages that don't exist, most used first.
     pub fn broken_links(&self, ignore_case: bool) -> Vec<BrokenLink> {
         let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
-        let pages: HashSet<String> = self.pages.keys().map(|p| norm(&vault::page_name(p))).collect();
+        let pages: HashSet<String> = self.pages.keys().map(|p| norm(&files::page_name(p))).collect();
 
         // Group targets that only differ by case or accents when they are ignored
         let mut grouped: Vec<(String, BrokenLink)> = Vec::new();
         for (target, sources, count) in self.links.all_links() {
             let key = norm(&target);
-            if !parser::is_page_link(&target) || pages.contains(&key) {
+            if !orgamnesia_core::links::is_page_target(&target) || pages.contains(&key) {
                 continue;
             }
             match grouped.iter_mut().find(|(k, _)| *k == key) {
@@ -359,12 +363,12 @@ impl Project {
     }
 
     fn store(&mut self, path: &str, content: String, tags: TagSyntax) {
-        self.links.index_file(&vault::page_name(path), &parser::extract_links(&content, tags));
+        self.links.index_file(&files::page_name(path), &links::extract_links(&content, tags));
         self.pages.insert(path.to_string(), content);
     }
 
     fn forget(&mut self, path: &str) {
-        self.links.remove_source(&vault::page_name(path));
+        self.links.remove_source(&files::page_name(path));
         self.pages.remove(path);
         self.snapshot.remove(path);
     }
@@ -372,7 +376,7 @@ impl Project {
     /// Record the stamp of a page written by the app, so `refresh` doesn't
     /// report it as changed outside.
     fn remember(&mut self, path: &str) {
-        if let Some(s) = vault::stamp(path) {
+        if let Some(s) = files::stamp(path) {
             self.snapshot.insert(path.to_string(), s);
         }
     }
@@ -402,8 +406,7 @@ mod tests {
 
     /// A fresh project folder holding the given pages.
     pub(super) fn project(test: &str, pages: &[(&str, &str)]) -> (PathBuf, Project) {
-        let dir = std::env::temp_dir().join(format!("orgamnesia-project-{test}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = crate::commands::testing::folder(&format!("project-{test}"));
         std::fs::create_dir_all(dir.join("pages")).unwrap();
         for (name, content) in pages {
             std::fs::write(dir.join("pages").join(format!("{name}.org")), content).unwrap();

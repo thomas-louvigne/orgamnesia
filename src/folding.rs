@@ -6,24 +6,16 @@
 //! A fold is a page range: from the `\n` ending a line to the end of the last
 //! hidden line (see `tables::View`, which hides them).
 
+use orgamnesia_core::org::{headline_level, line_end, line_start};
+
 /// Level of the headline starting at `ls` (its stars), if the line is one.
 fn level(chars: &[char], ls: usize) -> Option<usize> {
-    let stars = chars[ls..].iter().take_while(|&&c| c == '*').count();
-    (stars > 0 && matches!(chars.get(ls + stars), Some(' ' | '\n') | None)).then_some(stars)
+    headline_level(&chars[ls..])
 }
 
 /// Whether the line starting at `ls` is a headline (`* Title`).
 pub fn is_headline(chars: &[char], ls: usize) -> bool {
     level(chars, ls).is_some()
-}
-
-fn line_end(chars: &[char], ls: usize) -> usize {
-    chars[ls..].iter().position(|&c| c == '\n').map_or(chars.len(), |p| ls + p)
-}
-
-/// Start of the line holding `pos`.
-pub fn line_start(chars: &[char], pos: usize) -> usize {
-    chars[..pos.min(chars.len())].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1)
 }
 
 /// The headline at `ls` (level `level`): the end of its line, the end of its subtree

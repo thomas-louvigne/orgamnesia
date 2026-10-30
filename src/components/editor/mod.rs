@@ -174,7 +174,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
         let pos = pane.page_pos(&el, el.selection_start().ok().flatten().unwrap_or(0) as usize);
         let chars: Vec<char> = content.get_untracked().chars().collect();
-        if let Some(name) = edit::link_at(&chars, pos, ctx.tags_untracked()) {
+        if let Some(name) = edit::linked_page_at(&chars, pos, ctx.tags_untracked()) {
             e.prevent_default();
             follow_link(ctx, name);
         }
@@ -408,10 +408,10 @@ fn goto_target(pane: Pane, tab: Tab, second: bool) {
         let range = match goto {
             Goto::Link(target) => {
                 let ci = ctx.pref_untracked(|p| p.case_insensitive_links);
-                crate::motion::find_link(&chars, &target, ci, ctx.tags_untracked())
+                crate::links::find_link(&chars, &target, ci, ctx.tags_untracked())
             }
             Goto::Line(n) => {
-                let start = edit::line_start(&chars, n);
+                let start = edit::nth_line_start(&chars, n);
                 Some((start, start))
             }
             Goto::Range(a, b) => Some((a.min(chars.len()), b.min(chars.len()))),

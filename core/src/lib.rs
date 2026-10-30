@@ -10,6 +10,7 @@ pub mod layout;
 pub mod links;
 pub mod model;
 pub mod names;
+pub mod org;
 pub mod search;
 pub mod settings;
 pub mod spell;

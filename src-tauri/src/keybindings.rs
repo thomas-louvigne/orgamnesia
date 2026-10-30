@@ -93,10 +93,7 @@ mod tests {
     use super::*;
 
     fn folder(test: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("orgamnesia-keybindings-{test}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+        crate::commands::testing::folder(&format!("keybindings-{test}"))
     }
 
     #[test]

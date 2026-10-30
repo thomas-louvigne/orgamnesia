@@ -7,8 +7,8 @@ use super::{
     dom::{caret_coords, get_pos, set_cursor, splice, Textarea},
     pane::Pane,
 };
-use crate::motion;
-use orgamnesia_core::links;
+use crate::{links, tags};
+use orgamnesia_core::links::{headlines, SEPARATOR};
 use wasm_bindgen_futures::spawn_local;
 
 const MAX_SUGGESTIONS: usize = 8;
@@ -55,7 +55,7 @@ impl Kind {
 /// The place being typed in a link: `Page::*Ti` → (`Page`, `*Ti`, where `*Ti`
 /// starts); `*Ti` → (``, `*Ti`, 0), a headline of this page.
 fn place_prefix(prefix: &str) -> Option<(String, String, usize)> {
-    match prefix.split_once(links::SEPARATOR) {
+    match prefix.split_once(SEPARATOR) {
         Some((page, place)) => Some((page.trim().to_string(), place.to_string(), page.chars().count() + 2)),
         None => prefix.starts_with('*').then(|| (String::new(), prefix.to_string(), 0)),
     }
@@ -103,12 +103,12 @@ impl Completion {
         let (caret, end) = get_pos(el);
         let chars: Vec<char> = el.value().chars().collect();
         let found = if caret != end { None } else {
-            motion::link_prefix(&chars, caret)
+            links::link_prefix(&chars, caret)
                 .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
                 .map(|(start, p)| (start, p, Kind::Link))
-                .or_else(|| motion::org_tag_prefix(&chars, caret, ctx.tags_untracked().org)
+                .or_else(|| tags::org_tag_prefix(&chars, caret, ctx.tags_untracked().org)
                     .map(|(start, p)| (start, p, Kind::OrgTag)))
-                .or_else(|| motion::hashtag_prefix(&chars, caret, ctx.tags_untracked().hashtags)
+                .or_else(|| tags::hashtag_prefix(&chars, caret, ctx.tags_untracked().hashtags)
                     .map(|(hash, p)| (hash + 1, p, Kind::Hashtag)))
         };
         let Some((start, prefix, kind)) = found else { self.close(); return };
@@ -119,12 +119,12 @@ impl Completion {
         let items = match kind {
             Kind::OrgTag => {
                 let names: Vec<String> = ctx.project.tags.get_untracked().into_iter().map(|t| t.name).collect();
-                motion::complete_page(&names, &prefix, None, MAX_SUGGESTIONS)
+                links::complete_page(&names, &prefix, None, MAX_SUGGESTIONS)
             }
             _ => {
                 let names: Vec<String> = ctx.project.files.get_untracked().into_iter().map(|f| f.name).collect();
                 let tag = (kind == Kind::Hashtag).then(|| ctx.tags_untracked().hashtags);
-                motion::complete_page(&names, &prefix, tag, MAX_SUGGESTIONS)
+                links::complete_page(&names, &prefix, tag, MAX_SUGGESTIONS)
             }
         };
         self.show(el, &chars, start, caret, kind, items);
@@ -136,12 +136,12 @@ impl Completion {
         let el = el.clone();
         spawn_local(async move {
             let Some((text, keywords)) = self.pane.named_page_text(&page).await else { self.close(); return };
-            let titles = links::headlines(&text, keywords.as_ref());
+            let titles = headlines(&text, keywords.as_ref());
             let typed = typed.strip_prefix('*').unwrap_or(&typed);
             let titles: Vec<String> = if typed.trim().is_empty() {
                 titles.into_iter().take(MAX_SUGGESTIONS).collect()
             } else {
-                motion::complete_page(&titles, typed, None, MAX_SUGGESTIONS)
+                links::complete_page(&titles, typed, None, MAX_SUGGESTIONS)
             };
             // The caret moved while the page was read: this is not the question any more
             if self.shown.try_get_untracked().is_none() || get_pos(&el) != (caret, caret) { return; }

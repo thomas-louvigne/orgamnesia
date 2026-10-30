@@ -2,6 +2,7 @@
 //! two slots per action to record its shortcuts in.
 
 use leptos::{html, prelude::*};
+use orgamnesia_core::names::fold;
 
 use super::fields::Check;
 use crate::{
@@ -231,7 +232,7 @@ pub fn ShortcutsTab(draft: RwSignal<Prefs>, kb: KbDraft) -> impl IntoView {
     ];
     let all = sections.clone();
     let nothing_found = move || {
-        let q = fold(&query.get());
+        let q = fold(query.get().trim());
         !q.is_empty() && !all.iter().any(|s| s.matches(&q, lang()))
     };
     view! {
@@ -318,11 +319,6 @@ pub fn ShortcutsTab(draft: RwSignal<Prefs>, kb: KbDraft) -> impl IntoView {
     }
 }
 
-/// Lowercase, without accents: what the search compares.
-fn fold(s: &str) -> String {
-    s.trim().chars().map(orgamnesia_core::names::fold_char).collect()
-}
-
 /// One action of the shortcuts tab: where its bindings are kept, its id and label.
 #[derive(Clone, Copy)]
 struct Row {
@@ -371,13 +367,13 @@ fn ShortcutSection(draft: RwSignal<Prefs>, section: Section, query: RwSignal<Str
     let check = section.check;
     let rows = section.rows.clone();
     let shown = move || {
-        let q = fold(&query.get());
+        let q = fold(query.get().trim());
         q.is_empty() || section.matches(&q, lang())
     };
     let whole = {
         let section = Section { title, check, rows: vec![] };
         move || {
-            let q = fold(&query.get());
+            let q = fold(query.get().trim());
             q.is_empty() || section.title_matches(&q, lang())
         }
     };
@@ -388,7 +384,7 @@ fn ShortcutSection(draft: RwSignal<Prefs>, section: Section, query: RwSignal<Str
             <KeybindingHeader lang=ctx.lang />
             {rows.into_iter().map(|row| {
                 let whole = whole.clone();
-                let row_shown = move || whole() || row.matches(&fold(&query.get()), lang());
+                let row_shown = move || whole() || row.matches(&fold(query.get().trim()), lang());
                 view! {
                     <div class="shortcut-row" class:hidden=move || !row_shown()>
                         <KeybindingRow map=row.map id=row.id label_key=row.label_key lang=ctx.lang />

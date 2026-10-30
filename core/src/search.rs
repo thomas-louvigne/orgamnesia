@@ -126,7 +126,7 @@ pub fn hits(chars: &[char], ranges: &[(usize, usize)]) -> Vec<SearchHit> {
             }
         }
         scanned = start;
-        let line_end = chars[end..].iter().position(|&c| c == '\n').map_or(chars.len(), |p| end + p);
+        let line_end = crate::org::line_end(chars, end);
         // The match itself may span lines: shown on one
         let flat = |s: &[char]| s.iter().map(|&c| if c == '\n' { ' ' } else { c }).collect::<String>();
         let from = start.saturating_sub(CONTEXT_BEFORE).max(line_start);

@@ -134,7 +134,7 @@ fn ranges(chars: &[char], org: OrgTags, zones: bool, in_text: bool) -> Vec<(usiz
     let mut out = Vec::new();
     let mut ls = 0;
     while ls <= chars.len() {
-        let le = chars[ls..].iter().position(|&c| c == '\n').map_or(chars.len(), |p| ls + p);
+        let le = crate::org::line_end(chars, ls);
         let line = &chars[ls..le];
         let filetags = filetags_value_start(line).map(|v| (v, line.len()));
         let zone = filetags.or_else(|| headline_tags_range(line, org));

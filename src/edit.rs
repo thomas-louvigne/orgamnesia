@@ -3,17 +3,13 @@
 //! applies the result to its textarea. See also `motion.rs`.
 
 use crate::keybindings::EditorAction;
-use crate::motion::{self, Hashtags, TagSyntax};
+use crate::{motion, tags};
+use orgamnesia_core::{hashtags::hashtag_at, links::link_at, Hashtags, TagSyntax};
 
 /// Lines moved by the page-up / page-down actions.
 pub const PAGE_LINES: i32 = 20;
 
-/// Start and end (before the `\n`) of the line holding `pos`.
-pub fn line_bounds(chars: &[char], pos: usize) -> (usize, usize) {
-    let start = chars[..pos].iter().rposition(|&c| c == '\n').map(|i| i + 1).unwrap_or(0);
-    let end   = chars[pos..].iter().position(|&c| c == '\n').map(|i| pos + i).unwrap_or(chars.len());
-    (start, end)
-}
+use orgamnesia_core::org::{headline_level, line_bounds};
 
 /// A move of lines one line up or down: the char range `a..b` becomes `text`,
 /// and the selection is now `sel`.
@@ -80,22 +76,13 @@ pub fn word_start_backward(chars: &[char], pos: usize) -> usize {
     i
 }
 
-/// If the line `[start..end)` is an org heading (`*`… followed by a space or EOL),
-/// its level (number of leading `*`).
-fn heading_level(chars: &[char], start: usize, end: usize) -> Option<usize> {
-    let mut i = start;
-    while i < end && chars[i] == '*' { i += 1; }
-    let level = i - start;
-    if level > 0 && (i >= end || chars[i] == ' ') { Some(level) } else { None }
-}
-
 /// Heading level in effect at `caret`: the current line if it is a heading,
 /// otherwise the nearest heading above it. Defaults to 1 when none is found.
 pub fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
     let (mut line_start, _) = line_bounds(chars, caret);
     loop {
         let (_, line_end) = line_bounds(chars, line_start);
-        if let Some(l) = heading_level(chars, line_start, line_end) { return l; }
+        if let Some(l) = headline_level(&chars[line_start..line_end]) { return l; }
         if line_start == 0 { return 1; }
         line_start = line_bounds(chars, line_start - 1).0;
     }
@@ -220,7 +207,7 @@ pub fn motion_target(action: EditorAction, chars: &[char], pos: usize) -> Option
 }
 
 /// Position of the start of line `n` (0-based); the end of the text past the last line.
-pub fn line_start(chars: &[char], n: usize) -> usize {
+pub fn nth_line_start(chars: &[char], n: usize) -> usize {
     if n == 0 { return 0; }
     chars.iter().enumerate().filter(|&(_, &c)| c == '\n').nth(n - 1)
         .map_or(chars.len(), |(i, _)| i + 1)
@@ -244,47 +231,21 @@ pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -
 
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
 /// `#tag` or an org-mode `:tag:` (per `tags`).
-pub fn link_at(chars: &[char], pos: usize, tags: TagSyntax) -> Option<String> {
+pub fn linked_page_at(chars: &[char], pos: usize, tags: TagSyntax) -> Option<String> {
     wiki_link_at(chars, pos, tags.hashtags)
-        .or_else(|| tags.org.links.then(|| motion::org_tag_at(chars, pos, tags.org)).flatten())
+        .or_else(|| tags.org.links.then(|| tags::org_tag_at(chars, pos, tags.org)).flatten())
 }
 
 fn wiki_link_at(chars: &[char], pos: usize, hashtags: Hashtags) -> Option<String> {
-    let n = chars.len();
     let mut i = 0;
-    while i < n {
-        if let Some((tag, end)) = motion::hashtag_at(chars, i, hashtags) {
-            if pos >= i && pos < end { return Some(tag); }
-            i = end;
-            continue;
-        }
-        if i + 1 >= n { break; }
-        if chars[i] != '[' || chars[i + 1] != '[' {
-            i += 1;
-            continue;
-        }
-        let link_start = i;
-        let content_start = i + 2;
-        // End of the target: `]]` or `][`
-        let mut j = content_start;
-        while j < n && !(chars[j] == ']' && j + 1 < n && (chars[j + 1] == ']' || chars[j + 1] == '[')) {
-            j += 1;
-        }
-        if j + 1 >= n { break; }
-        let target: String = chars[content_start..j].iter().collect();
-        let link_end = if chars[j + 1] == ']' {
-            j + 2
-        } else {
-            // [[target][text]]
-            let mut k = j + 2;
-            while k + 1 < n && !(chars[k] == ']' && chars[k + 1] == ']') { k += 1; }
-            if k + 1 >= n { i += 1; continue; }
-            k + 2
+    while i < chars.len() {
+        let (found, end) = match (hashtag_at(chars, i, hashtags), link_at(chars, i)) {
+            (Some((tag, end)), _) => (tag, end),
+            (None, Some(link)) => (link.target(chars).trim().to_string(), link.end),
+            (None, None) => { i += 1; continue; }
         };
-        if pos >= link_start && pos < link_end {
-            return Some(target.trim().to_string());
-        }
-        i = link_end;
+        if pos >= i && pos < end { return Some(found); }
+        i = end;
     }
     None
 }
@@ -459,8 +420,8 @@ mod tests {
         assert_eq!(move_lines(&t, 5, -1), 2);
         assert_eq!(move_lines(&t, 1, -1), 1);
         assert_eq!(move_lines(&t, 0, 50), t.len());
-        assert_eq!(line_start(&t, 2), 7);
-        assert_eq!(line_start(&t, 9), t.len());
+        assert_eq!(nth_line_start(&t, 2), 7);
+        assert_eq!(nth_line_start(&t, 9), t.len());
     }
 
     #[test]
@@ -564,15 +525,15 @@ mod tests {
     #[test]
     fn links_under_the_cursor() {
         let t = c("voir [[Ma page]] et [[cible][texte]] #tag fin");
-        assert_eq!(link_at(&t, 8, Hashtags::Dashes.into()).as_deref(), Some("Ma page"));
-        assert_eq!(link_at(&t, 30, Hashtags::Dashes.into()).as_deref(), Some("cible"));
-        assert_eq!(link_at(&t, 39, Hashtags::Dashes.into()).as_deref(), Some("tag"));
-        assert_eq!(link_at(&t, 39, Hashtags::Off.into()), None);
-        assert_eq!(link_at(&t, 1, Hashtags::Dashes.into()), None);
-        assert_eq!(link_at(&c("* Titre :projet:"), 11, Hashtags::Off.into()).as_deref(), Some("projet"));
-        assert_eq!(link_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into()).as_deref(), Some("exemple"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: motion::OrgTags { links: false, dashes: false } };
-        assert_eq!(link_at(&c("voir :exemple: ici"), 7, off), None);
+        assert_eq!(linked_page_at(&t, 8, Hashtags::Dashes.into()).as_deref(), Some("Ma page"));
+        assert_eq!(linked_page_at(&t, 30, Hashtags::Dashes.into()).as_deref(), Some("cible"));
+        assert_eq!(linked_page_at(&t, 39, Hashtags::Dashes.into()).as_deref(), Some("tag"));
+        assert_eq!(linked_page_at(&t, 39, Hashtags::Off.into()), None);
+        assert_eq!(linked_page_at(&t, 1, Hashtags::Dashes.into()), None);
+        assert_eq!(linked_page_at(&c("* Titre :projet:"), 11, Hashtags::Off.into()).as_deref(), Some("projet"));
+        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into()).as_deref(), Some("exemple"));
+        let off = TagSyntax { hashtags: Hashtags::Off, org: orgamnesia_core::OrgTags { links: false, dashes: false } };
+        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off), None);
     }
 
     #[test]

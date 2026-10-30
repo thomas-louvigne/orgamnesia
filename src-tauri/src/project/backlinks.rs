@@ -1,3 +1,6 @@
+//! The links between the pages of the project, both ways: the pages a page
+//! links to, and the pages that link to it (backlinks).
+
 use std::collections::{HashMap, HashSet};
 
 /// In-memory reverse index: page → set of pages that link TO it.

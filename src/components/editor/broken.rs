@@ -34,8 +34,8 @@ impl BrokenLinks {
         let file_links = Memo::new(move |_| {
             if !ctx.pref(|p| p.mark_broken_links) { return Vec::new(); }
             let page = page.get_value();
-            let mut paths: Vec<String> = content.with(|c| links::targets(c).into_iter()
-                .filter_map(links::file_target)
+            let mut paths: Vec<String> = content.with(|c| links::targets(c).iter()
+                .filter_map(|t| links::file_target(t))
                 .map(|t| images::resolve(&page, t))
                 .collect());
             paths.sort();

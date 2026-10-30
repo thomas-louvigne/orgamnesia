@@ -289,9 +289,7 @@ mod tests {
     use super::*;
 
     fn folder(test: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("orgamnesia-config-{test}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        dir
+        crate::commands::testing::folder(&format!("config-{test}"))
     }
 
     #[test]

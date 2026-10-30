@@ -442,7 +442,7 @@ pub fn tag_page(ctx: AppCtx, file: FileEntry, tag: &'static str) {
         ctx.ui.status.set(Some(format!("{} :{tag}:", t("tag_exists", lang))));
     };
     if let Some(tab) = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| t.path == path).cloned()) {
-        match crate::motion::add_filetag(&tab.content.get_untracked(), tag) {
+        match crate::tags::add_filetag(&tab.content.get_untracked(), tag) {
             Some(content) => {
                 // Marked unsaved, then auto-saved if enabled
                 tab.dirty.set(true);
@@ -458,7 +458,7 @@ pub fn tag_page(ctx: AppCtx, file: FileEntry, tag: &'static str) {
             Ok(c) => c,
             Err(e) => return ctx.error("error", &e),
         };
-        let Some(content) = crate::motion::add_filetag(&content, tag) else { return done(false) };
+        let Some(content) = crate::tags::add_filetag(&content, tag) else { return done(false) };
         match invoke::write_file(&path, &content).await {
             Ok(_) => {
                 ctx.bump_links();

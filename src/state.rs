@@ -308,11 +308,11 @@ impl AppCtx {
 
     /// How `#tags` and `:tags:` are read, from the settings (tracked: re-runs effects
     /// when they change).
-    pub fn tags(&self) -> crate::motion::TagSyntax {
+    pub fn tags(&self) -> orgamnesia_core::TagSyntax {
         self.pref(|p| p.tags())
     }
 
-    pub fn tags_untracked(&self) -> crate::motion::TagSyntax {
+    pub fn tags_untracked(&self) -> orgamnesia_core::TagSyntax {
         self.pref_untracked(|p| p.tags())
     }
 

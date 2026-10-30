@@ -170,7 +170,7 @@ fn save_on_exit(state: &AppState, dir: &std::path::Path) {
     let prefs = state.prefs();
     let path = crate::lock(&state.project).as_ref().map(|p| p.path.clone());
     if let Some(path) = path {
-        crate::vault::delete_blank_pages(&path, prefs.delete_empty, prefs.delete_title_only);
+        crate::project::files::delete_blank_pages(&path, prefs.delete_empty, prefs.delete_title_only);
     }
     let mut s = state.settings();
     if !prefs.restore_session {

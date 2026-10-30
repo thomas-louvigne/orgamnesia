@@ -1,6 +1,7 @@
 //! The cheat sheet (F1): the shortcuts of the active profile, by theme, with a search.
 
 use leptos::{ev, html, prelude::*};
+use orgamnesia_core::names::fold;
 
 use crate::{
     i18n::{t, Lang},
@@ -44,11 +45,6 @@ fn sections(kb: &Keybindings, prefs: &Prefs) -> Vec<(&'static str, Vec<Entry>)> 
     out
 }
 
-/// Lowercase, without accents: what the search compares.
-fn fold(s: &str) -> String {
-    s.trim().chars().map(orgamnesia_core::names::fold_char).collect()
-}
-
 /// The sections narrowed to the folded search `q`: a match on a section's
 /// title keeps all of it, otherwise the actions whose name or shortcut match.
 fn filter(sections: Vec<(&'static str, Vec<Entry>)>, q: &str, lang: Lang) -> Vec<(&'static str, Vec<Entry>)> {
@@ -82,7 +78,7 @@ pub fn ShortcutsHelp() -> impl IntoView {
 
     let shown = move || {
         let all = ctx.keybindings.with(|kb| ctx.prefs.with(|p| sections(kb, p)));
-        filter(all, &fold(&query.get()), lang())
+        filter(all, &fold(query.get().trim()), lang())
     };
 
     view! {

@@ -19,6 +19,84 @@ pub fn split(target: &str) -> (&str, Option<&str>) {
     if t.starts_with('*') || t.starts_with('#') { ("", Some(t)) } else { (t, None) }
 }
 
+/// A link `[[target]]` or `[[target][description]]` of a text, by char
+/// positions: `start..end` is the whole link, `target` and `description` the
+/// ranges of their text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Link {
+    pub start: usize,
+    pub end: usize,
+    pub target: (usize, usize),
+    pub description: Option<(usize, usize)>,
+}
+
+impl Link {
+    /// The target as written (not trimmed).
+    pub fn target(&self, chars: &[char]) -> String {
+        chars[self.target.0..self.target.1].iter().collect()
+    }
+
+    pub fn description(&self, chars: &[char]) -> Option<String> {
+        self.description.map(|(a, b)| chars[a..b].iter().collect())
+    }
+}
+
+/// The link whose `[[` is at `start`, if a whole one is written there: a target
+/// holding no bracket nor line break, then `]]`, or `][`, a description and `]]`.
+/// This is how every part of the app reads links.
+pub fn link_at(chars: &[char], start: usize) -> Option<Link> {
+    if chars.get(start) != Some(&'[') || chars.get(start + 1) != Some(&'[') { return None; }
+    let t0 = start + 2;
+    let t1 = (t0..chars.len()).find(|&i| matches!(chars[i], '[' | ']' | '\n'))?;
+    match (chars[t1], chars.get(t1 + 1)) {
+        (']', Some(']')) => Some(Link { start, end: t1 + 2, target: (t0, t1), description: None }),
+        (']', Some('[')) => {
+            let d0 = t1 + 2;
+            let d1 = (d0..chars.len().saturating_sub(1)).find(|&j| chars[j] == ']' && chars[j + 1] == ']')?;
+            Some(Link { start, end: d1 + 2, target: (t0, t1), description: Some((d0, d1)) })
+        }
+        _ => None,
+    }
+}
+
+/// The links of `chars`, in order.
+pub fn links(chars: &[char]) -> impl Iterator<Item = Link> + '_ {
+    let mut i = 0;
+    std::iter::from_fn(move || {
+        while i + 1 < chars.len() {
+            if let Some(link) = link_at(chars, i) {
+                i = link.end;
+                return Some(link);
+            }
+            i += 1;
+        }
+        None
+    })
+}
+
+/// The targets of the links of `text`, as written.
+pub fn targets(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    links(&chars).map(|l| l.target(&chars)).collect()
+}
+
+/// The path a link target points to when it names a file: `file:x`, `./x`, `../x`,
+/// `/x` or `~/x`.
+pub fn file_target(target: &str) -> Option<&str> {
+    let t = target.trim();
+    let t = t.strip_prefix("file:").unwrap_or(t);
+    let file = t.starts_with("./") || t.starts_with("../") || t.starts_with('/') || t.starts_with("~/");
+    (file || target.trim().starts_with("file:")).then_some(t).filter(|t| !t.is_empty())
+}
+
+/// Whether a link target names a page: not a file, an address (`https://`,
+/// `mailto:`) nor a place in the page (`#id`, `*Titre`). `Page::*Titre` names `Page`.
+pub fn is_page_target(target: &str) -> bool {
+    let t = split(target).0;
+    !(t.is_empty() || t.contains("://") || t.starts_with("mailto:") || t.starts_with("file:")
+        || t.starts_with('#') || t.starts_with('*') || file_target(t).is_some())
+}
+
 /// The title of the headline `line` as links name it, without its stars, TODO
 /// keyword, priority (`[#A]`), `COMMENT`, statistics cookies (`[1/3]`, `[50%]`)
 /// and tags; spaces collapsed. `None` when the line is not a headline.
@@ -118,10 +196,7 @@ fn target(text: &str, name: &str) -> Option<(usize, usize)> {
 /// Char position where the part of `text` shown for the place at `at` ends: the
 /// end of the subtree when `at` is on a headline, else the next headline.
 pub fn section_end(text: &str, at: usize) -> usize {
-    let level = |line: &str| {
-        let stars = line.chars().take_while(|&c| c == '*').count();
-        (stars > 0 && matches!(line.chars().nth(stars), Some(' ') | None)).then_some(stars)
-    };
+    let level = crate::org::headline_level_str;
     let mut lines = lines(text).skip_while(|(start, line)| start + line.chars().count() < at);
     let Some((_, first)) = lines.next() else { return text.chars().count() };
     let max = level(first).unwrap_or(usize::MAX);
@@ -134,6 +209,32 @@ mod tests {
     use super::*;
 
     fn kw() -> TodoKeywords { TodoKeywords::parse("TODO | DONE") }
+
+    #[test]
+    fn links_as_written() {
+        let c: Vec<char> = "[[a]] [[b][c d]]".chars().collect();
+        assert_eq!(link_at(&c, 0), Some(Link { start: 0, end: 5, target: (2, 3), description: None }));
+        assert_eq!(link_at(&c, 6), Some(Link { start: 6, end: 16, target: (8, 9), description: Some((11, 14)) }));
+        assert_eq!(link_at(&c, 1), None);
+        let text = "voir [[A]] et [[../b.png][image]], pas [[c\nd]] ni [[e] ni [[f ni [[g[h]]";
+        assert_eq!(targets(text), vec!["A", "../b.png"]);
+        assert_eq!(targets("[[x]]{:width 3} [[[y]]] [[z][a [b] c]]"), vec!["x", "y", "z"]);
+        assert_eq!(targets("[[ Page ::*Titre]]"), vec![" Page ::*Titre"]);
+    }
+
+    #[test]
+    fn targets_are_pages_or_files() {
+        assert_eq!(file_target("../assets/a.png"), Some("../assets/a.png"));
+        assert_eq!(file_target("file:notes.pdf"), Some("notes.pdf"));
+        assert_eq!(file_target("~/doc.pdf"), Some("~/doc.pdf"));
+        assert_eq!(file_target("Page"), None);
+        assert!(is_page_target("Ma page"));
+        assert!(is_page_target("Recettes::*Desserts"));
+        for other in ["../assets/a.png", "file:../assets/a.svg", "file:a.org::*Titre", "/home/a.pdf",
+            "https://orgmode.org", "mailto:a@b.c", "*Titre", "#id", "::cible"] {
+            assert!(!is_page_target(other), "{other}");
+        }
+    }
 
     #[test]
     fn splits_page_and_place() {

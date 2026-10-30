@@ -17,7 +17,7 @@ fn tag_active_page(ctx: AppCtx, tag: &str) {
         ctx.ui.status.set(Some(t("tag_add_no_page", lang).to_string()));
         return;
     };
-    match crate::motion::add_filetag(&tab.content.get_untracked(), tag) {
+    match crate::tags::add_filetag(&tab.content.get_untracked(), tag) {
         Some(content) => {
             // Like typing in the page: marked unsaved, then auto-saved if enabled
             tab.dirty.set(true);
@@ -62,7 +62,7 @@ pub fn TagAddField(on_close: Callback<()>) -> impl IntoView {
         let word = new_tag.get().trim().trim_matches(':').trim_start_matches('#').to_string();
         if word.is_empty() { return vec![]; }
         let names: Vec<String> = ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect());
-        crate::motion::complete_page(&names, &word, None, 8)
+        crate::links::complete_page(&names, &word, None, 8)
     };
     view! {
         <div class="tag-field">
@@ -184,7 +184,7 @@ pub fn TagsFrame() -> impl IntoView {
         let word = q[last_word(&q)..].trim_matches(':').to_string();
         if word.is_empty() { return vec![]; }
         let names: Vec<String> = ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect());
-        crate::motion::complete_page(&names, &word, None, 8)
+        crate::links::complete_page(&names, &word, None, 8)
     };
     let accept_suggestion = move |tag: String| {
         ctx.project.tag_query.update(|q| {

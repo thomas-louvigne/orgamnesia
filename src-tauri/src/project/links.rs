@@ -2,6 +2,7 @@
 //! page in the links to it.
 
 pub use orgamnesia_core::hashtags::{hashtag_at, Hashtags, OrgTags, TagSyntax};
+use orgamnesia_core::links::{link_at, split, SEPARATOR};
 
 /// Extract all `[[target]]` link targets — used for backlink indexing.
 /// Unless `tags.hashtags` is `Off`, every `#tag` counts as a link to the page `tag`.
@@ -12,28 +13,15 @@ pub fn extract_links(content: &str, tags: TagSyntax) -> Vec<String> {
     let mut links = Vec::new();
     let mut i = 0;
     while i + 1 < chars.len() {
-        if chars[i] == '[' && chars[i + 1] == '[' {
-            i += 2;
-            let mut target = String::new();
-            while i < chars.len() && chars[i] != ']' && chars[i] != '[' {
-                target.push(chars[i]);
-                i += 1;
-            }
-            // skip optional display text [display]]
-            if i < chars.len() && chars[i] == '[' {
-                while i < chars.len() && chars[i] != ']' { i += 1; }
-                if i < chars.len() { i += 1; }
-            }
-            // skip closing ]]
-            if i + 1 < chars.len() && chars[i] == ']' && chars[i + 1] == ']' {
-                i += 2;
-            }
+        if let Some(link) = link_at(&chars, i) {
+            let target = link.target(&chars);
             // `[[Page::*Titre]]` links to `Page`
-            let t = match orgamnesia_core::links::split(&target) {
+            let t = match split(&target) {
                 ("", _) => target.trim(),
                 (page, _) => page,
             };
             if !t.is_empty() { links.push(t.to_string()); }
+            i = link.end;
         } else if let Some((tag, end)) = hashtag_at(&chars, i, tags.hashtags) {
             links.push(tag);
             i = end;
@@ -47,19 +35,6 @@ pub fn extract_links(content: &str, tags: TagSyntax) -> Vec<String> {
             .map(|(a, b)| chars[a..b].iter().collect::<String>()));
     }
     links
-}
-
-/// True for `[[targets]]` that name a wiki page (not a URL, a file or an internal anchor).
-pub fn is_page_link(target: &str) -> bool {
-    let t = orgamnesia_core::links::split(target).0;
-    !(t.is_empty()
-        || t.contains("://")
-        || t.starts_with("file:")
-        || t.starts_with("mailto:")
-        || t.starts_with('#')
-        || t.starts_with('*')
-        || t.starts_with("./")
-        || t.starts_with("../"))
 }
 
 /// Rewrite every `[[old]]` / `[[old][label]]` link so it targets `new`.
@@ -76,16 +51,11 @@ pub fn rewrite_links(content: &str, old_name: &str, new: &str, ignore_case: bool
     let mut changed = false;
     let mut i = 0;
     while i < chars.len() {
-        if chars[i] == '[' && i + 1 < chars.len() && chars[i + 1] == '[' {
+        if let Some(link) = link_at(&chars, i) {
             out.push_str("[[");
-            i += 2;
-            let mut target = String::new();
-            while i < chars.len() && chars[i] != ']' && chars[i] != '[' {
-                target.push(chars[i]);
-                i += 1;
-            }
+            let target = link.target(&chars);
             // `[[old::*Titre]]` keeps its place in the page
-            let (page, place) = match target.split_once(orgamnesia_core::links::SEPARATOR) {
+            let (page, place) = match target.split_once(SEPARATOR) {
                 Some((page, place)) => (page, Some(place)),
                 None => (target.as_str(), None),
             };
@@ -96,13 +66,16 @@ pub fn rewrite_links(content: &str, old_name: &str, new: &str, ignore_case: bool
                 out.push_str(new);
                 out.push_str(&trail);
                 if let Some(place) = place {
-                    out.push_str(orgamnesia_core::links::SEPARATOR);
+                    out.push_str(SEPARATOR);
                     out.push_str(place);
                 }
                 changed = true;
             } else {
                 out.push_str(&target);
             }
+            // The rest of the link, its description too, as it is
+            out.extend(&chars[link.target.1..link.end]);
+            i = link.end;
         } else if let Some((tag, end)) = hashtag_at(&chars, i, hashtags) {
             if norm(&tag) == old {
                 // A name that is not a valid tag (spaces…) becomes a regular link
@@ -143,13 +116,6 @@ mod tests {
         assert_eq!(links, vec!["A", "B", "C"]);
     }
     #[test]
-    fn page_links_vs_others() {
-        assert!(is_page_link("My Page"));
-        assert!(!is_page_link("https://orgmode.org"));
-        assert!(!is_page_link("file:../assets/a.svg"));
-        assert!(!is_page_link("../assets/a.svg"));
-    }
-    #[test]
     fn rewrite_links_simple_and_labeled() {
         let out = rewrite_links("a [[Old]] b [[Old][lbl]] c [[Other]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "a [[New]] b [[New][lbl]] c [[Other]]");
@@ -158,11 +124,15 @@ mod tests {
     fn links_to_a_place_in_a_page() {
         let links = extract_links("[[Recettes::*Desserts]] [[ A :: cible ][x]] [[*Titre]]", Hashtags::Off.into());
         assert_eq!(links, vec!["Recettes", "A", "*Titre"]);
-        assert!(is_page_link("Recettes::*Desserts"));
-        assert!(!is_page_link("*Titre"));
-        assert!(!is_page_link("::cible"));
         let out = rewrite_links("[[Old::*Titre]] [[Old ::cible][l]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "[[New::*Titre]] [[New ::cible][l]]");
+    }
+    #[test]
+    fn only_whole_links_count() {
+        let links = extract_links("[[A]] [[B sans fin [[C][voir #x]] [[D]", Hashtags::Dashes.into());
+        assert_eq!(links, vec!["A", "C"]);
+        let out = rewrite_links("[[Old][voir #Old]] [[Old", "Old", "New", false, Hashtags::Dashes.into()).unwrap();
+        assert_eq!(out, "[[New][voir #Old]] [[Old");
     }
     #[test]
     fn rewrite_links_ignores_case() {

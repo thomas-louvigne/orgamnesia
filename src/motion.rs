@@ -1,13 +1,7 @@
 //! Pure cursor-motion helpers (Emacs-style sentence, paragraph and heading moves).
 //! Positions are char indexes into `chars`.
 
-fn line_start(chars: &[char], pos: usize) -> usize {
-    chars[..pos].iter().rposition(|&c| c == '\n').map(|i| i + 1).unwrap_or(0)
-}
-
-fn line_end(chars: &[char], pos: usize) -> usize {
-    chars[pos..].iter().position(|&c| c == '\n').map(|i| pos + i).unwrap_or(chars.len())
-}
+use orgamnesia_core::org::{headline_level, line_end, line_start};
 
 /// Line with no text: only whitespace, or a heading's bare `*`s. Separates paragraphs.
 fn is_empty_line(chars: &[char], start: usize, end: usize) -> bool {
@@ -28,9 +22,7 @@ pub fn back_to_indentation(chars: &[char], pos: usize) -> usize {
 /// Where the text of the headline starting at `ls` begins (after its stars and
 /// spaces), if the line is one.
 fn heading_text(chars: &[char], ls: usize) -> Option<usize> {
-    let stars = chars[ls..].iter().take_while(|&&c| c == '*').count();
-    if stars == 0 || !matches!(chars.get(ls + stars), Some(' ' | '\n') | None) { return None; }
-    let mut i = ls + stars;
+    let mut i = ls + headline_level(&chars[ls..])?;
     while i < chars.len() && chars[i] == ' ' { i += 1; }
     Some(i)
 }
@@ -205,12 +197,6 @@ pub fn backward_paragraph(chars: &[char], pos: usize) -> usize {
     }
 }
 
-/// `*`… followed by a space (or alone on the line): an org heading line.
-fn is_heading(chars: &[char], start: usize, end: usize) -> bool {
-    let stars = chars[start..end].iter().take_while(|&&c| c == '*').count();
-    stars > 0 && (start + stars == end || chars[start + stars] == ' ')
-}
-
 /// Start of the next heading line after the current line (org `C-c C-n`).
 pub fn next_heading(chars: &[char], pos: usize) -> usize {
     let n = chars.len();
@@ -218,7 +204,7 @@ pub fn next_heading(chars: &[char], pos: usize) -> usize {
     while e < n {
         let s = e + 1;
         let le = line_end(chars, s);
-        if is_heading(chars, s, le) { return s; }
+        if headline_level(&chars[s..le]).is_some() { return s; }
         e = le;
     }
     pos
@@ -229,20 +215,16 @@ pub fn previous_heading(chars: &[char], pos: usize) -> usize {
     let mut s = line_start(chars, pos);
     while s > 0 {
         s = line_start(chars, s - 1);
-        if is_heading(chars, s, line_end(chars, s)) { return s; }
+        if headline_level(&chars[s..]).is_some() { return s; }
     }
     pos
-}
-
-fn heading_level(chars: &[char], ls: usize) -> Option<usize> {
-    heading_text(chars, ls).map(|_| chars[ls..].iter().take_while(|&&c| c == '*').count())
 }
 
 /// Start of the headline holding the caret (its line or the text under it).
 fn enclosing_heading(chars: &[char], pos: usize) -> Option<usize> {
     let mut s = line_start(chars, pos);
     loop {
-        if heading_level(chars, s).is_some() { return Some(s); }
+        if headline_level(&chars[s..]).is_some() { return Some(s); }
         if s == 0 { return None; }
         s = line_start(chars, s - 1);
     }
@@ -256,7 +238,7 @@ fn heading_same_level(chars: &[char], pos: usize, forward: bool) -> usize {
     let Some(h) = enclosing_heading(chars, pos) else {
         return if forward { next_heading(chars, pos) } else { 0 };
     };
-    let level = heading_level(chars, h).unwrap_or(0);
+    let level = headline_level(&chars[h..]).unwrap_or(0);
     let n = chars.len();
     let mut s = h;
     loop {
@@ -268,7 +250,7 @@ fn heading_same_level(chars: &[char], pos: usize, forward: bool) -> usize {
             if s == 0 { return h; }
             s = line_start(chars, s - 1);
         }
-        match heading_level(chars, s) {
+        match headline_level(&chars[s..]) {
             Some(l) if l < level => return h,
             Some(l) if l == level => return s,
             _ => {}
@@ -284,11 +266,11 @@ pub fn forward_heading(chars: &[char], pos: usize) -> usize { heading_same_level
 /// the top level or before the first headline.
 pub fn up_heading(chars: &[char], pos: usize) -> usize {
     let Some(h) = enclosing_heading(chars, pos) else { return pos };
-    let level = heading_level(chars, h).unwrap_or(0);
+    let level = headline_level(&chars[h..]).unwrap_or(0);
     let mut s = h;
     while s > 0 {
         s = line_start(chars, s - 1);
-        if heading_level(chars, s).is_some_and(|l| l < level) { return s; }
+        if headline_level(&chars[s..]).is_some_and(|l| l < level) { return s; }
     }
     pos
 }
@@ -353,7 +335,7 @@ pub(crate) fn is_drawer_start(chars: &[char], ls: usize) -> bool {
 /// A line that starts an element of its own, ending the paragraph above.
 fn starts_element(chars: &[char], ls: usize) -> bool {
     let t = ls + indent_of(chars, ls);
-    heading_level(chars, ls).is_some() || item_contents(chars, ls).is_some()
+    headline_level(&chars[ls..]).is_some() || item_contents(chars, ls).is_some()
         || is_table_line(chars, ls) || starts_with_ci(chars, t, "#+") || is_drawer_start(chars, ls)
 }
 
@@ -381,7 +363,7 @@ impl Elements<'_> {
                 if let Some(i) = last { self.elems[i].end = ls; }
                 continue;
             }
-            if heading_level(self.chars, ls).is_some() { break; }
+            if headline_level(&self.chars[ls..]).is_some() { break; }
             if item.is_some_and(|k| indent_of(self.chars, ls) <= k) { break; }
             let i = self.element(ls, ls, limit, item, parent);
             ls = self.elems[i].end;
@@ -404,7 +386,7 @@ impl Elements<'_> {
         } else if starts_with_ci(chars, t, "#+begin_") || is_drawer_start(chars, ls) {
             let end = if is_drawer_start(chars, ls) { ":end:" } else { "#+end_" };
             let mut f = e;
-            while f < limit && heading_level(chars, f).is_none() {
+            while f < limit && headline_level(&chars[f..]).is_none() {
                 let g = self.next_line(f).min(limit);
                 if starts_with_ci(chars, f + indent_of(chars, f), end) { e = g; break; }
                 f = g;
@@ -433,7 +415,7 @@ impl Elements<'_> {
             // blank lines in a row end the list.
             let mut e = self.next_line(cur).min(limit);
             let mut blanks = 0;
-            while e < limit && heading_level(chars, e).is_none() {
+            while e < limit && headline_level(&chars[e..]).is_none() {
                 if is_blank(chars, e) {
                     blanks += 1;
                     if blanks == 2 { break; }
@@ -458,7 +440,7 @@ impl Elements<'_> {
             let last = self.section(rest, e, Some(k), Some(item), first);
             self.elems[item].contents_end = last.map_or(e, |p| self.elems[p].end);
             let next_item = !two_blanks && e < limit && indent_of(chars, e) == k
-                && item_contents(chars, e).is_some() && heading_level(chars, e).is_none();
+                && item_contents(chars, e).is_some() && headline_level(&chars[e..]).is_none();
             if !next_item {
                 self.elems[list].end = e;
                 self.elems[list].contents_end = e;
@@ -474,9 +456,9 @@ fn elements(chars: &[char]) -> Vec<Elem> {
     let n = chars.len();
     let mut ls = 0;
     while ls < n {
-        if heading_level(chars, ls).is_some() { ls = els.next_line(ls); continue; }
+        if headline_level(&chars[ls..]).is_some() { ls = els.next_line(ls); continue; }
         let mut limit = ls;
-        while limit < n && heading_level(chars, limit).is_none() { limit = els.next_line(limit); }
+        while limit < n && headline_level(&chars[limit..]).is_none() { limit = els.next_line(limit); }
         els.section(ls, limit, None, None, None);
         ls = limit;
     }
@@ -490,7 +472,7 @@ pub fn new_item_bullet(chars: &[char], pos: usize) -> Option<String> {
     let mut ls = line_start(chars, pos);
     let mut below = usize::MAX;
     loop {
-        if is_blank(chars, ls) || heading_level(chars, ls).is_some() { return None; }
+        if is_blank(chars, ls) || headline_level(&chars[ls..]).is_some() { return None; }
         let ind = indent_of(chars, ls);
         if ind < below {
             if let Some(text) = item_contents(chars, ls) {
@@ -529,11 +511,11 @@ pub fn forward_element(chars: &[char], pos: usize) -> usize {
     let n = chars.len();
     if pos >= n { return pos; }
     let ls = line_start(chars, pos);
-    if let Some(level) = heading_level(chars, ls) {
+    if let Some(level) = headline_level(&chars[ls..]) {
         let mut e = line_end(chars, ls);
         while e < n {
             let s = e + 1;
-            if heading_level(chars, s).is_some_and(|l| l <= level) { return s; }
+            if headline_level(&chars[s..]).is_some_and(|l| l <= level) { return s; }
             e = line_end(chars, s);
         }
         return pos;
@@ -560,7 +542,7 @@ pub fn backward_element(chars: &[char], pos: usize) -> usize {
     if pos == 0 { return 0; }
     let n = chars.len();
     let ls = line_start(chars, pos);
-    if heading_level(chars, ls).is_some() {
+    if headline_level(&chars[ls..]).is_some() {
         let b = heading_same_level(chars, pos, false);
         return if b != pos { b } else { up_heading(chars, pos) };
     }
@@ -573,7 +555,7 @@ pub fn backward_element(chars: &[char], pos: usize) -> usize {
     let mut j = beg;
     while j > 0 && chars[j - 1].is_whitespace() { j -= 1; }
     if j == 0 { return 0; }
-    if heading_level(chars, line_start(chars, j)).is_some() { return line_start(chars, j); }
+    if headline_level(&chars[line_start(chars, j)..]).is_some() { return line_start(chars, j); }
     let Some(mut cur) = element_at(&els, j, n) else { return line_start(chars, j) };
     let mut dest = els[cur].begin;
     while let Some(p) = els[cur].parent {
@@ -584,276 +566,11 @@ pub fn backward_element(chars: &[char], pos: usize) -> usize {
     dest
 }
 
-pub use orgamnesia_core::hashtags::{hashtag_at, Hashtags};
-
-/// The `#tag` being typed when the caret is at `caret`: returns the index of the
-/// `#` and the part of the tag already typed (possibly empty, right after `#`).
-pub fn hashtag_prefix(chars: &[char], caret: usize, tags: Hashtags) -> Option<(usize, String)> {
-    if tags == Hashtags::Off || chars.get(caret).is_some_and(|&c| tags.is_tag_char(c)) { return None; }
-    let mut start = caret;
-    while start > 0 && tags.is_tag_char(chars[start - 1]) { start -= 1; }
-    let hash = start.checked_sub(1)?;
-    if chars[hash] != '#' { return None; }
-    if hash > 0 && !(chars[hash - 1].is_whitespace() || "([{\"'".contains(chars[hash - 1])) { return None; }
-    if start < caret && !chars[start].is_alphanumeric() { return None; }
-    Some((hash, chars[start..caret].iter().collect()))
-}
-
-pub use orgamnesia_core::hashtags::{filetags_value_start, headline_tags_range, tag_ranges, OrgTags, TagSyntax};
-
-/// The org-mode tag under `pos`: in the `:a:b:` of a headline, a `#+FILETAGS:` line
-/// or the text (`voir :exemple:`).
-pub fn org_tag_at(chars: &[char], pos: usize, org: OrgTags) -> Option<String> {
-    tag_ranges(chars, org, true).into_iter()
-        .find(|&(a, b)| a <= pos && pos <= b)
-        .map(|(a, b)| chars[a..b].iter().collect())
-}
-
-/// The org-mode tag being typed when the caret is at `caret`: after `:` in the tags
-/// of a headline (`* Title :pro`), in a `#+FILETAGS:` line, or as `:pro` in the
-/// text (a character typed at least). Returns the index
-/// where the tag starts and the part already typed (possibly empty).
-pub fn org_tag_prefix(chars: &[char], caret: usize, org: OrgTags) -> Option<(usize, String)> {
-    let is_org_tag_char = |c: char| org.is_tag_char(c);
-    if chars.get(caret).is_some_and(|&c| is_org_tag_char(c)) { return None; }
-    let (ls, le) = (line_start(chars, caret), line_end(chars, caret));
-    let mut start = caret;
-    while start > ls && is_org_tag_char(chars[start - 1]) { start -= 1; }
-    let prefix: String = chars[start..caret].iter().collect();
-    let line = &chars[ls..le];
-    if let Some(v) = filetags_value_start(line) {
-        let ok = start - ls >= v && (start - ls == v || chars[start - 1] == ':' || chars[start - 1].is_whitespace());
-        return ok.then_some((start, prefix));
-    }
-    let stars = line.iter().take_while(|&&c| c == '*').count();
-    if stars == 0 || line.get(stars) != Some(&' ') {
-        // In the text: a word starting with `:`, at the start of the line or after a
-        // space, once a character of the tag is typed (`10:30`, `http://` are not tags)
-        let ok = !prefix.is_empty() && start > ls && chars[start - 1] == ':'
-            && (start - 1 == ls || chars[start - 2].is_whitespace());
-        return ok.then_some((start, prefix));
-    }
-    // Headline: the caret is in its last word, which starts with `:` after a space
-    let after: String = chars[caret..le].iter().collect();
-    if after.trim_end().chars().any(|c| c != ':' && !is_org_tag_char(c)) { return None; }
-    if start == 0 || chars[start - 1] != ':' { return None; }
-    let mut b = start - 1;
-    while b > ls + stars && (chars[b - 1] == ':' || is_org_tag_char(chars[b - 1])) { b -= 1; }
-    (chars[b] == ':' && chars[b - 1].is_whitespace()).then_some((start, prefix))
-}
-
-/// The `[[target` being typed when the caret is at `caret` (inside `[[…`, before
-/// any `]` or `[`, on the same line): returns the index where the target starts
-/// and the part already typed.
-pub fn link_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
-    let mut start = caret;
-    while start > 0 && !matches!(chars[start - 1], '[' | ']' | '\n') { start -= 1; }
-    if start < 2 || chars[start - 1] != '[' || chars[start - 2] != '[' { return None; }
-    Some((start, chars[start..caret].iter().collect()))
-}
-
-/// Page names completing `prefix` (ignoring case and accents): names starting with it first
-/// (shortest first), then names containing it; the exact name is left out. With
-/// `tag: Some(_)`, only names usable as such a `#tag` are kept.
-pub fn complete_page(names: &[String], prefix: &str, tag: Option<Hashtags>, limit: usize) -> Vec<String> {
-    let p = orgamnesia_core::names::fold(prefix.trim());
-    let mut starts = Vec::new();
-    let mut contains = Vec::new();
-    for name in names {
-        let valid = tag.is_none_or(|t| name.chars().next().is_some_and(char::is_alphanumeric)
-            && name.chars().all(|c| t.is_tag_char(c)));
-        let n = orgamnesia_core::names::fold(name);
-        if !valid || n == p { continue; }
-        if n.starts_with(&p) { starts.push(name.clone()); }
-        else if n.contains(&p) { contains.push(name.clone()); }
-    }
-    starts.sort_by_key(|n| (n.chars().count(), n.to_lowercase()));
-    contains.sort_by_key(|n| n.to_lowercase());
-    starts.into_iter().chain(contains).take(limit).collect()
-}
-
-/// Char range of the target text of the first `[[target]]` / `[[target][label]]`
-/// (or `[[target::place]]`) link naming `target`, else of the first `#tag` or `:tag:` naming it (per `tags`).
-pub fn find_link(chars: &[char], target: &str, ignore_case: bool, tags: TagSyntax) -> Option<(usize, usize)> {
-    let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
-    let wanted = norm(target);
-    let mut i = 0;
-    while i < chars.len() {
-        if let Some((tag, end)) = hashtag_at(chars, i, tags.hashtags) {
-            if norm(&tag) == wanted { return Some((i + 1, end)); }
-            i = end;
-        } else if i + 1 < chars.len() && chars[i] == '[' && chars[i + 1] == '[' {
-            let start = i + 2;
-            let mut end = start;
-            while end < chars.len() && chars[end] != ']' && chars[end] != '[' { end += 1; }
-            let raw: String = chars[start..end].iter().collect();
-            // `[[Page::*Titre]]` is a link to `Page`
-            if norm(&raw) == wanted || norm(orgamnesia_core::links::split(&raw).0) == wanted {
-                let lead = raw.chars().take_while(|c| c.is_whitespace()).count();
-                let trail = raw.chars().rev().take_while(|c| c.is_whitespace()).count();
-                return Some((start + lead, end - trail));
-            }
-            i = end;
-        } else {
-            i += 1;
-        }
-    }
-    // Then the org-mode tags (`#+FILETAGS:`, `* Title :tag:`, `:tag:` in the text)
-    if !tags.org.links { return None; }
-    tag_ranges(chars, tags.org, true).into_iter()
-        .find(|&(a, b)| norm(&chars[a..b].iter().collect::<String>()) == wanted)
-}
-
-/// `content` with the file tag `tag` added to its `#+FILETAGS:` line, which is
-/// created after the leading `#+` keywords (the top of the page) when missing.
-/// `None` when the page already has that file tag.
-pub fn add_filetag(content: &str, tag: &str) -> Option<String> {
-    let mut lines: Vec<String> = content.split('\n').map(String::from).collect();
-    let found = lines.iter().position(|l| filetags_value_start(&l.chars().collect::<Vec<_>>()).is_some());
-    match found {
-        Some(i) => {
-            let chars: Vec<char> = lines[i].chars().collect();
-            let v = filetags_value_start(&chars)?;
-            let head: String = chars[..v].iter().collect();
-            let value: String = chars[v..].iter().collect();
-            if value.split(':').any(|t| t.trim().eq_ignore_ascii_case(tag)) {
-                return None;
-            }
-            let value = value.trim_end();
-            lines[i] = if value.trim().is_empty() {
-                format!("{head} :{tag}:")
-            } else if value.ends_with(':') {
-                format!("{head}{value}{tag}:")
-            } else {
-                format!("{head}{value} :{tag}:")
-            };
-        }
-        None => {
-            let at = lines.iter().take_while(|l| l.trim_start().starts_with("#+")).count();
-            lines.insert(at, format!("#+FILETAGS: :{tag}:"));
-        }
-    }
-    Some(lines.join("\n"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn filetag_added() {
-        assert_eq!(add_filetag("* Page\n", "pro").as_deref(), Some("#+FILETAGS: :pro:\n* Page\n"));
-        assert_eq!(add_filetag("", "pro").as_deref(), Some("#+FILETAGS: :pro:\n"));
-        assert_eq!(add_filetag("#+title: P\n* P", "pro").as_deref(), Some("#+title: P\n#+FILETAGS: :pro:\n* P"));
-        assert_eq!(add_filetag("#+FILETAGS: :a:\nx", "b").as_deref(), Some("#+FILETAGS: :a:b:\nx"));
-        assert_eq!(add_filetag("#+filetags:\nx", "b").as_deref(), Some("#+filetags: :b:\nx"));
-        assert_eq!(add_filetag("#+filetags: :a:  \nx", "b").as_deref(), Some("#+filetags: :a:b:\nx"));
-        assert_eq!(add_filetag("x\n#+filetags: :A:\n", "a"), None);
-    }
-
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
-
-    #[test]
-    fn hashtag_prefix_while_typing() {
-        let d = Hashtags::Dashes;
-        assert_eq!(hashtag_prefix(&c("see #"), 5, d), Some((4, String::new())));
-        assert_eq!(hashtag_prefix(&c("see #ru"), 7, d), Some((4, "ru".into())));
-        assert_eq!(hashtag_prefix(&c("#ru"), 3, d), Some((0, "ru".into())));
-        assert_eq!(hashtag_prefix(&c("(#ru)"), 4, d), Some((1, "ru".into())));
-        // Caret in the middle of a tag, `#` glued to a word, heading-like `#_`
-        assert_eq!(hashtag_prefix(&c("#rust"), 3, d), None);
-        assert_eq!(hashtag_prefix(&c("a#ru"), 4, d), None);
-        assert_eq!(hashtag_prefix(&c("#_x"), 3, d), None);
-        assert_eq!(hashtag_prefix(&c("no tag"), 6, d), None);
-        // A dash ends an org-mode style tag
-        assert_eq!(hashtag_prefix(&c("#mon-ta"), 7, d), Some((0, "mon-ta".into())));
-        assert_eq!(hashtag_prefix(&c("#mon-ta"), 7, Hashtags::Org), None);
-        assert_eq!(hashtag_prefix(&c("#ru"), 3, Hashtags::Off), None);
-    }
-
-    #[test]
-    fn complete_page_ranks_prefix_matches_first() {
-        let names: Vec<String> = ["Rust", "rust-async", "Trust", "Notes", "my page", "Rustacean"]
-            .iter().map(|s| s.to_string()).collect();
-        let d = Some(Hashtags::Dashes);
-        assert_eq!(complete_page(&names, "ru", d, 10), vec!["Rust", "Rustacean", "rust-async", "Trust"]);
-        // The exact name is not proposed; names with spaces can't be tags
-        assert_eq!(complete_page(&names, "rust", d, 10), vec!["Rustacean", "rust-async", "Trust"]);
-        assert_eq!(complete_page(&names, "", d, 2), vec!["Rust", "Notes"]);
-        assert!(complete_page(&names, "page", d, 10).is_empty());
-        // Names with a dash can't be org-mode style tags
-        assert_eq!(complete_page(&names, "ru", Some(Hashtags::Org), 10), vec!["Rust", "Rustacean", "Trust"]);
-        // Links accept any page name
-        assert_eq!(complete_page(&names, "page", None, 10), vec!["my page"]);
-        // Accents ignored
-        let names: Vec<String> = ["Règles", "Élody"].iter().map(|s| s.to_string()).collect();
-        assert_eq!(complete_page(&names, "regle", None, 10), vec!["Règles"]);
-        assert_eq!(complete_page(&names, "elo", None, 10), vec!["Élody"]);
-    }
-
-    #[test]
-    fn link_prefix_while_typing() {
-        assert_eq!(link_prefix(&c("see [[my pa"), 11), Some((6, "my pa".into())));
-        assert_eq!(link_prefix(&c("[[]]"), 2), Some((2, String::new())));
-        assert_eq!(link_prefix(&c("[[a][lab"), 8), None);   // in the label
-        assert_eq!(link_prefix(&c("[[a]] b"), 7), None);    // after the link
-        assert_eq!(link_prefix(&c("[x"), 2), None);
-        assert_eq!(link_prefix(&c("[[a\nb"), 5), None);     // other line
-    }
-
-    #[test]
-    fn org_tags_under_the_caret() {
-        let t = c("* Titre :projet:urgent:\n#+FILETAGS: :a:b:\ntexte :x:");
-        assert_eq!(org_tag_at(&t, 10, ORG), Some("projet".into()));
-        assert_eq!(org_tag_at(&t, 20, ORG), Some("urgent".into()));
-        assert_eq!(org_tag_at(&t, 3, ORG), None);            // in the title
-        assert_eq!(org_tag_at(&t, 38, ORG), Some("a".into()));
-        assert_eq!(org_tag_at(&t, 49, ORG), Some("x".into())); // in the text
-        assert_eq!(org_tag_at(&t, 44, ORG), None);
-    }
-
-    const ORG: OrgTags = OrgTags { links: true, dashes: false };
-
-    #[test]
-    fn org_tag_prefix_while_typing() {
-        // In the text
-        assert_eq!(org_tag_prefix(&c("voir :pro"), 9, ORG), Some((6, "pro".into())));
-        assert_eq!(org_tag_prefix(&c(":pro"), 4, ORG), Some((1, "pro".into())));
-        assert_eq!(org_tag_prefix(&c("voir :"), 6, ORG), None);
-        assert_eq!(org_tag_prefix(&c("à 10:30"), 7, ORG), None);
-        assert_eq!(org_tag_prefix(&c("http://x"), 8, ORG), None);
-        assert_eq!(org_tag_prefix(&c("* T :pro"), 8, ORG), Some((5, "pro".into())));
-        assert_eq!(org_tag_prefix(&c("* T :"), 5, ORG), Some((5, String::new())));
-        assert_eq!(org_tag_prefix(&c("* T :a:b"), 8, ORG), Some((7, "b".into())));
-        assert_eq!(org_tag_prefix(&c("* T :pr:"), 7, ORG), Some((5, "pr".into())));
-        assert_eq!(org_tag_prefix(&c("#+FILETAGS: :a"), 14, ORG), Some((13, "a".into())));
-        assert_eq!(org_tag_prefix(&c("#+filetags: "), 12, ORG), Some((12, String::new())));
-        // `Note:` glued to a word, a caret before more words
-        assert_eq!(org_tag_prefix(&c("* Note:"), 7, ORG), None);
-        assert_eq!(org_tag_prefix(&c("texte :a"), 8, ORG), Some((7, "a".into())));
-        assert_eq!(org_tag_prefix(&c("* T :a suite"), 6, ORG), None);
-        assert_eq!(org_tag_prefix(&c("#+TITLE: x"), 10, ORG), None);
-        // A dash ends the tag, unless allowed
-        assert_eq!(org_tag_prefix(&c("voir :mon-t"), 11, ORG), None);
-        let dashes = OrgTags { dashes: true, ..ORG };
-        assert_eq!(org_tag_prefix(&c("voir :mon-t"), 11, dashes), Some((6, "mon-t".into())));
-    }
-
-    #[test]
-    fn org_tag_link_found() {
-        let t = c("texte :x:\n* T :a:Cible:\n");
-        assert_eq!(find_link(&t, "cible", true, Hashtags::Off.into()), Some((17, 22)));
-        assert_eq!(find_link(&t, "x", true, Hashtags::Off.into()), Some((7, 8)));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
-        assert_eq!(find_link(&t, "cible", true, off), None);
-    }
-
-    #[test]
-    fn hashtag_link_found() {
-        let t = c("Voir #Cible ici [[Autre]]");
-        assert_eq!(find_link(&t, "cible", true, Hashtags::Org.into()), Some((6, 11)));
-        assert_eq!(find_link(&t, "cible", true, Hashtags::Off.into()), None);
-    }
 
     #[test]
     fn sentences_forward_and_back() {
@@ -988,15 +705,6 @@ mod tests {
         assert_eq!(backward_paragraph(&t, 6), 5);
         let t = c("* Titre\ntexte\n\nsuite");
         assert_eq!(forward_paragraph(&t, 0), 14);
-    }
-
-    #[test]
-    fn finds_links() {
-        let t = c("voir [[Autre]] puis [[ Cible ][label]] fin");
-        assert_eq!(find_link(&t, "Cible", false, Hashtags::Off.into()), Some((23, 28)));
-        assert_eq!(find_link(&t, "cible", false, Hashtags::Off.into()), None);
-        assert_eq!(find_link(&t, "cible", true, Hashtags::Off.into()), Some((23, 28)));
-        assert_eq!(find_link(&t, "Absent", true, Hashtags::Off.into()), None);
     }
 
     #[test]

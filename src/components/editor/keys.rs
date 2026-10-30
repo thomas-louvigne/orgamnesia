@@ -5,6 +5,7 @@
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
+use orgamnesia_core::org::{line_bounds, line_start};
 
 use super::{
     completion::Completion,
@@ -212,7 +213,7 @@ fn table_cell(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: Edi
 fn cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) {
     let pos = pane.page_pos(el, caret(el));
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
-    let line = folding::line_start(&page, pos);
+    let line = line_start(&page, pos);
     let next = if folding::is_headline(&page, line) {
         // On a headline, Tab never leaves the editor: with nothing under it, say so (Emacs: EMPTY ENTRY)
         swallow(e);
@@ -255,7 +256,7 @@ fn todo_cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: Edi
     let Some(keywords) = pane.todo_keywords.get_untracked() else { return };
     let chars: Vec<char> = el.value().chars().collect();
     let (_, end) = get_pos(el);
-    let (ls, le) = edit::line_bounds(&chars, end);
+    let (ls, le) = line_bounds(&chars, end);
     // The view may indent the line, and ends a folded headline with its fold character
     let ls = ls + chars[ls..le].iter().take_while(|&&c| c == tables::INDENT).count();
     let le = if le > ls && tables::fold_index(chars[le - 1]).is_some() { le - 1 } else { le };
@@ -277,7 +278,7 @@ fn shift_subtree(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: 
     let pos = pane.page_pos(el, end);
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
     let demote = action == EditorAction::DemoteSubtree;
-    let lines = match folding::shift_subtree(&page, folding::line_start(&page, pos), demote) {
+    let lines = match folding::shift_subtree(&page, line_start(&page, pos), demote) {
         Ok(lines) => lines,
         Err(folding::ShiftError::NotHeadline) => return,
         Err(folding::ShiftError::TopLevel) => {
@@ -311,8 +312,8 @@ fn move_line(pane: Pane, el: &Textarea, up: bool) {
     let (start, end) = get_pos(el);
     let (start, end) = (pane.page_pos(el, start), pane.page_pos(el, end));
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
-    let line = folding::line_start(&page, start);
-    if folding::line_start(&page, end) == line && folding::is_headline(&page, line) {
+    let line = line_start(&page, start);
+    if line_start(&page, end) == line && folding::is_headline(&page, line) {
         let Some(s) = folding::move_subtree(&page, line, up) else { return };
         // The folds inside go with their text
         let folds = pane.folds.with_untracked(|f| {
@@ -425,7 +426,7 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
         EditorAction::InsertLink => insert.link(el),
         EditorAction::InsertDate | EditorAction::InsertInactiveDate => insert.date(el, action == EditorAction::InsertDate),
         EditorAction::OpenLink => {
-            if let Some(name) = edit::link_at(&chars, start, ctx.tags_untracked()) {
+            if let Some(name) = edit::linked_page_at(&chars, start, ctx.tags_untracked()) {
                 follow_link(ctx, name);
             }
         }
