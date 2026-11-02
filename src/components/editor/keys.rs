@@ -262,7 +262,11 @@ fn todo_cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: Edi
     let ls = ls + chars[ls..le].iter().take_while(|&&c| c == tables::INDENT).count();
     let le = if le > ls && tables::fold_index(chars[le - 1]).is_some() { le - 1 } else { le };
     let forward = action == EditorAction::TodoNext;
-    let Some((a, b, with)) = keywords.cycle(&chars[ls..le], forward) else { return };
+    // Markdown: a checkbox (`- [ ] tâche`) is ticked or unticked
+    let checkbox = (pane.fmt() == orgamnesia_core::Format::Markdown)
+        .then(|| orgamnesia_core::todo::checkbox(&chars[ls..le])).flatten()
+        .map(|(at, done)| (at, at + 1, if done { " " } else { "x" }.to_string()));
+    let Some((a, b, with)) = checkbox.or_else(|| keywords.cycle_in(&chars[ls..le], forward, pane.fmt())) else { return };
     swallow(e);
     let (a, b) = (ls + a, ls + b);
     let new_b = splice(el, a, b, &with);

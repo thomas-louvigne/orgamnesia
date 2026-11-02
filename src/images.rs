@@ -7,6 +7,7 @@
 //! Its size is read as Emacs and Logseq write it: `#+ATTR_ORG: :width 300` on
 //! the line above (org-mode), or `{:height 200, :width 300}` after the link
 //! (Logseq, which adds one at each resize: the last one counts). The first wins.
+//! In a Markdown page, an image is written `![texte](../assets/photo.png)`.
 
 use orgamnesia_core::assets::EXTENSIONS;
 
@@ -71,17 +72,23 @@ pub fn youtube_thumbnail(id: &str) -> String {
 /// followed by Logseq sizes.
 pub fn parse(line: &[char]) -> Option<ImageLine> {
     let mut i = 0;
-    let stars = line.iter().take_while(|&&c| c == '*').count();
+    let mark = crate::motion::heading_mark();
+    let stars = line.iter().take_while(|&&c| c == mark).count();
     if stars > 0 && line.get(stars) == Some(&' ') {
         i = stars + 1;
     } else {
         i += line.iter().take_while(|c| c.is_whitespace()).count();
-        if matches!(line.get(i), Some('-' | '+')) && line.get(i + 1) == Some(&' ') { i += 2; }
+        let bullet = matches!(line.get(i), Some('-' | '+')) || (mark == '#' && line.get(i) == Some(&'*'));
+        if bullet && line.get(i + 1) == Some(&' ') { i += 2; }
     }
     let prefix = i;
     let (target, link_end, logseq_macro) = if line.get(i..i + 2) == Some(&['{', '{'][..]) {
         let (target, end) = video_macro(&line[i..])?;
         (target, i + end, true)
+    } else if line.get(i..i + 2) == Some(&['!', '['][..]) {
+        // Markdown: `![texte](cible)`, `![texte](<cible>)`
+        let (target, end) = markdown_image(&line[i..])?;
+        (target, i + end, false)
     } else {
         if line.get(i..i + 2) != Some(&['[', '['][..]) { return None; }
         let close = (i + 2..line.len().saturating_sub(1)).find(|&j| line[j] == ']' && line[j + 1] == ']')?;
@@ -115,6 +122,21 @@ pub fn parse(line: &[char]) -> Option<ImageLine> {
         }
     }
     Some(ImageLine { prefix, link_end, target, width, height, logseq_macro })
+}
+
+/// The Markdown image `![texte](cible)` at the start of `chars`, of an image or
+/// a YouTube video: its target (`%20` decoded), and the chars it takes.
+fn markdown_image(chars: &[char]) -> Option<(String, usize)> {
+    let close = (2..chars.len()).find(|&j| chars[j] == ']')?;
+    if chars.get(close + 1) != Some(&'(') { return None; }
+    let paren = (close + 2..chars.len()).find(|&j| chars[j] == ')')?;
+    let dest: String = chars[close + 2..paren].iter().collect();
+    let dest = dest.trim();
+    // A title after the target: `![a](x.png "Titre")`
+    let dest = dest.split_once(" \"").map_or(dest, |(d, _)| d).trim();
+    let dest = dest.strip_prefix('<').and_then(|d| d.strip_suffix('>')).unwrap_or(dest);
+    let target = if dest.contains("://") { dest.to_string() } else { orgamnesia_core::links::percent_decode(dest) };
+    (!target.is_empty() && (is_image(&target) || youtube_id(&target).is_some())).then_some((target, paren + 1))
 }
 
 /// Logseq's `{{video url}}` (or `{{youtube url}}`) macro at the start of `chars`,
@@ -288,6 +310,15 @@ mod tests {
 
     fn line(s: &str) -> Option<ImageLine> {
         parse(&s.chars().collect::<Vec<_>>())
+    }
+
+    #[test]
+    fn markdown_images() {
+        let img = line("![Une photo](../assets/a%20b.png)").unwrap();
+        assert_eq!((img.prefix, img.link_end, img.target.as_str()), (0, 33, "../assets/a b.png"));
+        assert_eq!(line("- ![](<../assets/x.jpg> \"titre\")").unwrap().target, "../assets/x.jpg");
+        assert!(line("![lien](page.md)").is_none());
+        assert!(line("![a](x.png) et du texte").is_none());
     }
 
     #[test]

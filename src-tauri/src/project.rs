@@ -383,7 +383,8 @@ impl Project {
     pub fn todos(&self, keywords: &TodoKeywords) -> Vec<TodoHit> {
         self.files().into_iter().flat_map(|f| {
             let content = self.pages.get(&f.path).map(String::as_str).unwrap_or("");
-            orgamnesia_core::todo::headlines(content, keywords).into_iter().map(move |h| TodoHit {
+            let format = Format::of_path(&f.path).unwrap_or_default();
+            orgamnesia_core::todo::headlines_in(content, keywords, format).into_iter().map(move |h| TodoHit {
                 page: f.name.clone(),
                 path: f.path.clone(),
                 keyword: h.keyword,
@@ -539,9 +540,12 @@ mod tests {
     #[test]
     fn lists_the_todos_of_every_page() {
         let (dir, p) = project("todos", &[("a", "* TODO un\n** DONE deux\n"), ("b", "#+TODO: A | B\n* A trois\n* TODO pas ici\n")]);
+        std::fs::write(dir.join("pages/c.md"), "# TODO quatre\n- [x] cinq\n").unwrap();
+        let mut p = p;
+        p.refresh(Hashtags::Dashes.into()).unwrap();
         let todos = p.todos(&TodoKeywords::parse("TODO | DONE"));
         let seen: Vec<(&str, &str, bool, usize)> = todos.iter().map(|t| (t.page.as_str(), t.title.as_str(), t.done, t.line)).collect();
-        assert_eq!(seen, vec![("a", "un", false, 0), ("a", "deux", true, 1), ("b", "trois", false, 1)]);
+        assert_eq!(seen, vec![("a", "un", false, 0), ("a", "deux", true, 1), ("b", "trois", false, 1), ("c", "quatre", false, 0), ("c", "cinq", true, 1)]);
         std::fs::remove_dir_all(dir).unwrap();
     }
 

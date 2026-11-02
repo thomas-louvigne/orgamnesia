@@ -207,7 +207,7 @@ fn markdown_code_lines(lines: &[&str]) -> std::collections::HashMap<usize, &'sta
 /// (`|---+---|`), as org-mode draws them.
 fn header_lines(lines: &[&str]) -> std::collections::HashSet<usize> {
     let is_table = |l: &str| l.trim_start().starts_with('|');
-    let is_rule = |l: &str| l.trim_start().starts_with("|-");
+    let is_rule = |l: &str| crate::tables::is_rule(l);
     let mut heads = std::collections::HashSet::new();
     let mut n = 0;
     while n < lines.len() {
@@ -331,6 +331,13 @@ fn markdown_line(line: &str) -> String {
     }
     if line.trim_start().starts_with('|') {
         return format!("<span class='tbl'>{}</span>", escape(line));
+    }
+    // A checkbox, drawn as a TODO keyword: `[ ]` to do, `[x]` done
+    let chars: Vec<char> = line.chars().collect();
+    if let Some((at, done)) = orgamnesia_core::todo::checkbox(&chars) {
+        let part = |a: usize, b: usize| chars[a..b].iter().collect::<String>();
+        return format!("{}<span class='{}'>{}</span>{}", escape(&part(0, at - 1)), if done { "done" } else { "todo" },
+            escape(&part(at - 1, at + 2)), inline_html(&part(at + 2, chars.len())));
     }
     inline_html(line)
 }
@@ -626,6 +633,7 @@ mod tests {
         assert!(lines[2].starts_with("<span class='md-quote'>"));
         assert_eq!(lines[4], "<span class='md-code'># pas un titre</span>");
         assert_eq!(lines[6], "<span class='kw'>---</span>");
+        assert!(md("- [x] fait").contains("<span class='done'>[x]</span>"));
         // Org-mode markup is not Markdown's
         assert!(!md("/pas/ +pas+ snake_case_name").contains("em-"));
         // A front matter

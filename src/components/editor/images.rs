@@ -193,7 +193,10 @@ impl Images {
             let mut links = Vec::new();
             for path in paths {
                 match invoke::import_image(&page, &path).await {
-                    Ok(link) => links.push(format!("[[{link}]]")),
+                    Ok(link) => links.push(match self.pane.fmt() {
+                        orgamnesia_core::Format::Markdown => format!("![]({})", orgamnesia_core::links::percent_encode(&link)),
+                        orgamnesia_core::Format::Org => format!("[[{link}]]"),
+                    }),
                     Err(e) => ctx.error("image_error", &e),
                 }
             }
@@ -213,7 +216,10 @@ impl Images {
             for path in paths {
                 let name = path.rsplit(['/', '\\']).next().unwrap_or(&path).replace(['[', ']'], "");
                 match invoke::import_file(&page, &path).await {
-                    Ok(link) => links.push(format!("[[{link}][{name}]]")),
+                    Ok(link) => links.push(match self.pane.fmt() {
+                        orgamnesia_core::Format::Markdown => format!("[{name}]({})", orgamnesia_core::links::percent_encode(&link)),
+                        orgamnesia_core::Format::Org => format!("[[{link}][{name}]]"),
+                    }),
                     Err(e) => ctx.error("file_import_error", &e),
                 }
             }
@@ -291,7 +297,8 @@ impl Images {
     fn resize(self, at: usize, w: f64, h: f64) {
         let pane = self.pane;
         let Some(el) = pane.area.get_untracked() else { return };
-        let org = pane.ctx.pref_untracked(|p| p.image_size_format != "logseq");
+        // Markdown has no `#+ATTR_ORG:`: the size goes after the link
+        let org = pane.ctx.pref_untracked(|p| p.image_size_format != "logseq") && pane.fmt() == orgamnesia_core::Format::Org;
         let Some((from, to, text)) = pane.content.with_untracked(|c| images::resize(c, at, w, h, org)) else { return };
         let before = pane.focus_pos.get_untracked();
         let (a, b) = (pane.view_pos(from), pane.view_pos(to));

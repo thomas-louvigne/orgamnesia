@@ -118,8 +118,13 @@ impl TodoKeywords {
     /// the range of the line to replace and its new text. `None` when the line is
     /// not a headline, or there is no keyword at all.
     pub fn cycle(&self, line: &[char], forward: bool) -> Option<(usize, usize, String)> {
-        let start = title_start(line, '*')?;
-        let kw = self.keyword(line);
+        self.cycle_in(line, forward, crate::Format::Org)
+    }
+
+    /// `cycle` for a headline of a page of `format` (`## Titre` in Markdown).
+    pub fn cycle_in(&self, line: &[char], forward: bool, format: crate::Format) -> Option<(usize, usize, String)> {
+        let start = title_start(line, format.heading_mark())?;
+        let kw = self.keyword_in(line, format);
         let current: Option<String> = kw.map(|k| line[k.start..k.end].iter().collect());
         let next = self.step(current.as_deref(), forward);
         Some(match (kw, next) {
@@ -127,7 +132,7 @@ impl TodoKeywords {
             // The keyword goes, with the space after it
             (Some(k), None) => (k.start, (k.end + 1).min(line.len()), String::new()),
             (None, Some(n)) if start >= line.len() => {
-                // `*` alone gets its space; `* ` keeps it
+                // `*` alone gets its space; `* ` keeps it (`#` too)
                 let space = if line.get(start - 1) == Some(&' ') { "" } else { " " };
                 (start, start, format!("{space}{n}"))
             }
@@ -149,13 +154,49 @@ pub struct TodoHeadline {
     pub title: String,
 }
 
+/// The checkbox of the list item `line` (`- [ ] tâche`, `1. [x] fait`): the
+/// position of the char in its box, and whether it is ticked (`x`, `X`).
+pub fn checkbox(line: &[char]) -> Option<(usize, bool)> {
+    let mut i = line.iter().take_while(|c| c.is_whitespace()).count();
+    match line.get(i) {
+        Some('-' | '+' | '*') => i += 1,
+        Some(c) if c.is_ascii_digit() => {
+            i += line[i..].iter().take_while(|c| c.is_ascii_digit()).count();
+            if !matches!(line.get(i), Some('.' | ')')) { return None; }
+            i += 1;
+        }
+        _ => return None,
+    }
+    if line.get(i) != Some(&' ') { return None; }
+    i += line[i..].iter().take_while(|&&c| c == ' ').count();
+    match (line.get(i), line.get(i + 1), line.get(i + 2)) {
+        (Some('['), Some(c @ (' ' | 'x' | 'X')), Some(']')) if matches!(line.get(i + 3), Some(' ') | None) => Some((i + 1, *c != ' ')),
+        _ => None,
+    }
+}
+
 /// The headlines of the page `text` that carry one of its keywords (its `#+TODO:`
 /// lines, else `default`).
 pub fn headlines(text: &str, default: &TodoKeywords) -> Vec<TodoHeadline> {
+    headlines_in(text, default, crate::Format::Org)
+}
+
+/// `headlines` of a page of `format`; in Markdown, also its checkboxes
+/// (`- [ ] tâche`, keyword `[ ]`, and `- [x] fait`, keyword `[x]`), level 0.
+pub fn headlines_in(text: &str, default: &TodoKeywords, format: crate::Format) -> Vec<TodoHeadline> {
     let keywords = TodoKeywords::for_page(text, default);
     text.lines().enumerate().filter_map(|(line, l)| {
         let chars: Vec<char> = l.chars().collect();
-        let k = keywords.keyword(&chars)?;
+        if format == crate::Format::Markdown && let Some((at, done)) = checkbox(&chars) {
+            return Some(TodoHeadline {
+                line,
+                level: 0,
+                keyword: if done { "[x]" } else { "[ ]" }.to_string(),
+                done,
+                title: chars[(at + 2).min(chars.len())..].iter().collect::<String>().trim().to_string(),
+            });
+        }
+        let k = keywords.keyword_in(&chars, format)?;
         let mut title: String = chars[k.end..].iter().collect::<String>().trim().to_string();
         // `Titre :a:b:`: the tags go
         if let Some((before, last)) = title.rsplit_once(' ').or(Some(("", title.as_str())))
@@ -165,7 +206,7 @@ pub fn headlines(text: &str, default: &TodoKeywords) -> Vec<TodoHeadline> {
         }
         Some(TodoHeadline {
             line,
-            level: k.start.saturating_sub(1),
+            level: chars.iter().take_while(|&&c| c == format.heading_mark()).count(),
             keyword: chars[k.start..k.end].iter().collect(),
             done: k.done,
             title,
@@ -198,6 +239,22 @@ mod tests {
         let chars = c(line);
         let (a, b, with) = kw().cycle(&chars, forward)?;
         Some(chars[..a].iter().collect::<String>() + &with + &chars[b..].iter().collect::<String>())
+    }
+
+    #[test]
+    fn markdown_todos() {
+        let md = crate::Format::Markdown;
+        let text = "## TODO Écrire :x:\n- [ ] acheter du pain\n  2. [X] fini\n- [lien](a.md)\n* TODO pas un titre";
+        let found: Vec<(usize, usize, String, bool, String)> = headlines_in(text, &kw(), md).into_iter()
+            .map(|h| (h.line, h.level, h.keyword, h.done, h.title)).collect();
+        assert_eq!(found, vec![
+            (0, 2, "TODO".into(), false, "Écrire".into()),
+            (1, 0, "[ ]".into(), false, "acheter du pain".into()),
+            (2, 0, "[x]".into(), true, "fini".into()),
+        ]);
+        let line = c("# Titre");
+        assert_eq!(kw().cycle_in(&line, true, md), Some((2, 2, "TODO ".into())));
+        assert_eq!(checkbox(&c("-[ ] x")), None);
     }
 
     #[test]

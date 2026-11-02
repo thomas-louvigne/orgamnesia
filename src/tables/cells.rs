@@ -1,5 +1,6 @@
 //! Tab / Shift+Tab in a table: to the next / previous cell, aligning the table
-//! as org-mode does.
+//! as org-mode does. In a Markdown page, its rules are written as Markdown's
+//! (`|-----|:---:|`), keeping the colons that align the columns.
 
 use super::{is_number, is_table_line};
 
@@ -15,8 +16,10 @@ pub enum CellMove {
 
 /// A line of a table.
 struct Row {
-    /// A rule (`|---+---|`, or just `|-` being typed).
+    /// A rule (`|---+---|`, `|---|:--:|`, or just `|-` being typed).
     rule: bool,
+    /// For a Markdown rule, the colons of each cell (`:--`, `--:`).
+    colons: Vec<(bool, bool)>,
     /// Position of the `|` opening each cell.
     opens: Vec<usize>,
     /// Text of each cell, trimmed.
@@ -26,16 +29,23 @@ struct Row {
 impl Row {
     fn read(chars: &[char], start: usize, end: usize) -> Self {
         let line = &chars[start..end];
-        let rule = line.iter().skip_while(|c| c.is_whitespace()).take(2).eq(['|', '-'].iter());
+        let text: String = line.iter().collect();
+        let rule = super::is_rule(&text);
         let pipes: Vec<usize> = (start..end).filter(|&i| chars[i] == '|').collect();
         let closed = line.iter().rev().find(|c| !c.is_whitespace()) == Some(&'|');
         let opens = pipes[..if closed { pipes.len() - 1 } else { pipes.len() }].to_vec();
+        let colons = if rule {
+            opens.iter().enumerate().map(|(i, &p)| {
+                let c: String = chars[p + 1..pipes.get(i + 1).copied().unwrap_or(end)].iter().collect();
+                (c.trim().starts_with(':'), c.trim().ends_with(':'))
+            }).collect()
+        } else { vec![] };
         let cells = if rule { vec![] } else {
             opens.iter().enumerate()
                 .map(|(i, &p)| chars[p + 1..pipes.get(i + 1).copied().unwrap_or(end)].iter().collect::<String>().trim().to_string())
                 .collect()
         };
-        Row { rule, opens, cells }
+        Row { rule, colons, opens, cells }
     }
 }
 
@@ -52,14 +62,29 @@ fn align(rows: &[Row], indent: &str) -> (Vec<String>, Vec<Vec<usize>>) {
         .collect();
     let numeric: Vec<bool> = (0..columns).map(|c| {
         let filled: Vec<&str> = rows.iter().filter(|r| !r.rule).map(|r| cell(r, c)).filter(|t| !t.is_empty()).collect();
+        // Markdown: the colons of the rule say it (`--:` right, `:--` left)
+        match rows.iter().find(|r| r.rule).and_then(|r| r.colons.get(c)) {
+            Some((false, true)) => return true,
+            Some((true, _)) => return false,
+            _ => {}
+        }
         !filled.is_empty() && filled.iter().filter(|t| is_number(t)).count() * 2 > filled.len()
     }).collect();
     let mut lines = Vec::new();
     let mut starts = Vec::new();
     for r in rows {
         if r.rule {
-            let dashes: Vec<String> = widths.iter().map(|&w| "-".repeat(w + 2)).collect();
-            lines.push(format!("{indent}|{}|", dashes.join("+")));
+            if crate::motion::heading_mark() == '#' {
+                // Markdown: `|-----|:---:|`
+                let cells: Vec<String> = widths.iter().enumerate().map(|(c, &w)| {
+                    let (left, right) = r.colons.get(c).copied().unwrap_or_default();
+                    format!("{}{}{}", if left { ':' } else { '-' }, "-".repeat(w), if right { ':' } else { '-' })
+                }).collect();
+                lines.push(format!("{indent}|{}|", cells.join("|")));
+            } else {
+                let dashes: Vec<String> = widths.iter().map(|&w| "-".repeat(w + 2)).collect();
+                lines.push(format!("{indent}|{}|", dashes.join("+")));
+            }
             starts.push(vec![]);
             continue;
         }
@@ -137,7 +162,7 @@ pub fn move_cell(chars: &[char], pos: usize, forward: bool) -> Option<CellMove> 
     let target = match target.and_then(|t| cells.get(t).copied()) {
         Some(cell) => cell,
         None => {
-            rows.push(Row { rule: false, opens: vec![], cells: vec![] });
+            rows.push(Row { rule: false, colons: vec![], opens: vec![], cells: vec![] });
             (rows.len() - 1, 0)
         }
     };
@@ -190,6 +215,18 @@ mod tests {
         let t: Vec<char> = "| a | b |\n| c |".chars().collect();
         let Some(CellMove::Edit { text, caret, .. }) = move_cell(&t, 12, true) else { panic!() };
         assert_eq!((text.as_str(), caret), ("| a | b |\n| c |   |", 16));
+    }
+
+    #[test]
+    fn markdown_tables() {
+        let _md = crate::motion::FormatGuard::set(orgamnesia_core::Format::Markdown);
+        let t: Vec<char> = "| Nom | Âge |\n| :-- | --: |\n| Léa | 7 |".chars().collect();
+        let Some(CellMove::Edit { text, .. }) = move_cell(&t, 2, true) else { panic!() };
+        assert_eq!(text, "| Nom | Âge |\n|:----|----:|\n| Léa |   7 |");
+        // `|-` typed under the header becomes a Markdown rule
+        let t: Vec<char> = "| a | bb |\n|-".chars().collect();
+        let Some(CellMove::Edit { text, .. }) = move_cell(&t, 13, true) else { panic!() };
+        assert_eq!(text, "| a | bb |\n|---|----|\n|   |    |");
     }
 
     #[test]
