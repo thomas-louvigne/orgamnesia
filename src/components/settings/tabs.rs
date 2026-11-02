@@ -23,6 +23,7 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 />
             </div>
             <Check draft get=|p| p.restore_session set=|p, v| p.restore_session = v label="restore_session" />
+            <hr class="setting-separator" />
             <div class="setting-row">
                 <label>{move || t("default_format", lang())}</label>
                 <select
@@ -41,6 +42,7 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="single_format" hint="single_format_hint" sub=true />
             <Check draft get=|p| p.ask_format set=|p, v| p.ask_format = v
                 label="ask_format" sub=true disabled=|p| p.single_format />
+            <hr class="setting-separator" />
             <div class="setting-row"><label>{move || t("org_links", lang())}</label>
                 <span class="setting-hint">{move || t("org_links_hint", lang())}</span></div>
             <Check draft get=|p| p.org_link_pipe set=|p, v| p.org_link_pipe = v label="link_pipe" sub=true />
@@ -51,6 +53,8 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <Check draft get=|p| p.md_link_hash set=|p, v| p.md_link_hash = v label="link_hash" sub=true />
             <Check draft get=|p| p.md_link_markdown set=|p, v| p.md_link_markdown = v label="link_markdown" sub=true />
             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
+            <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />
+            <hr class="setting-separator" />
             <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />
             <Check draft get=|p| p.hashtag_dashes set=|p, v| p.hashtag_dashes = v
                 label="hashtag_dashes" hint="hashtag_dashes_hint" sub=true
@@ -68,7 +72,7 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     {move || t("org_tag_dashes_doc", lang())}
                 </button>
             </div>
-            <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />
+            <hr class="setting-separator" />
             <Check draft get=|p| p.check_updates set=|p, v| p.check_updates = v
                 label="check_updates" hint="check_updates_hint" />
             <div class="setting-row setting-sub">
@@ -76,7 +80,7 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     {move || t("update_check_now", lang())}
                 </button>
             </div>
-
+            <hr class="setting-separator" />
             <div class="setting-row">
                 <label>{move || t("language", lang())}</label>
                 <select
