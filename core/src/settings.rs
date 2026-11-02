@@ -462,6 +462,7 @@ impl Prefs {
             hashtags: Hashtags::new(self.hashtag_links, self.hashtag_dashes),
             org: OrgTags { links: self.org_tag_links, dashes: self.org_tag_dashes },
             extended_links: self.extended_links,
+            markdown: false,
         }
     }
 

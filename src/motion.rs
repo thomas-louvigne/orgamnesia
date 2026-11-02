@@ -735,6 +735,16 @@ pub fn find_link(chars: &[char], target: &str, ignore_case: bool, tags: TagSynta
 
 /// `content` with the file tag `tag` added to its `#+FILETAGS:` line, which is
 /// created after the leading `#+` keywords (the top of the page) when missing.
+/// `content` of the page `path` with the page tag `tag` added: in its
+/// `#+FILETAGS:` (org-mode) or the `tags:` of its front matter (Markdown).
+/// `None` when the page already has it.
+pub fn add_page_tag(content: &str, tag: &str, path: &str) -> Option<String> {
+    match orgamnesia_core::Format::of_path(path) {
+        Some(orgamnesia_core::Format::Markdown) => orgamnesia_core::frontmatter::add_tag(content, tag),
+        _ => add_filetag(content, tag),
+    }
+}
+
 /// `None` when the page already has that file tag.
 pub fn add_filetag(content: &str, tag: &str) -> Option<String> {
     let mut lines: Vec<String> = content.split('\n').map(String::from).collect();
@@ -873,7 +883,7 @@ mod tests {
         let t = c("texte :x:\n* T :a:Cible:\n");
         assert_eq!(find_link(&t, "cible", true, Hashtags::Off.into()), Some((17, 22)));
         assert_eq!(find_link(&t, "x", true, Hashtags::Off.into()), Some((7, 8)));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, extended_links: false };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, extended_links: false, markdown: false };
         assert_eq!(find_link(&t, "cible", true, off), None);
     }
 

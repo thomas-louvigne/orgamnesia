@@ -71,18 +71,21 @@ pub struct TagSyntax {
     pub hashtags: Hashtags,
     pub org: OrgTags,
     pub extended_links: bool,
+    /// The page is in Markdown: its front matter's `tags:` tag it.
+    pub markdown: bool,
 }
 
 impl From<Hashtags> for TagSyntax {
     fn from(hashtags: Hashtags) -> Self {
-        Self { hashtags, org: OrgTags::default(), extended_links: false }
+        Self { hashtags, org: OrgTags::default(), extended_links: false, markdown: false }
     }
 }
 
 impl TagSyntax {
     /// As read in a page of `format`: Markdown pages always have the extended links.
     pub fn for_format(self, format: Option<crate::Format>) -> Self {
-        Self { extended_links: self.extended_links || format == Some(crate::Format::Markdown), ..self }
+        let markdown = format == Some(crate::Format::Markdown);
+        Self { extended_links: self.extended_links || markdown, markdown, ..self }
     }
 
     /// As read in the page `path`.

@@ -8,6 +8,7 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 - [[*Projets et pages][Projets et pages]]
 - [[*Éditeur][Éditeur]]
 - [[*Liens et tags][Liens et tags]]
+- [[*Markdown][Markdown]]
 - [[*États TODO][États TODO]]
 - [[*Tableaux][Tableaux]]
 - [[*Images][Images]]
@@ -24,7 +25,7 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 * Projets et pages
 
 ** Projet
-Un projet est un dossier de pages =.org= liées entre elles.
+Un projet est un dossier de pages =.org= ou =.md= (voir [[*Markdown][Markdown]]) liées entre elles.
 
 - Si le dossier contient un sous-dossier =pages/=, les pages y sont ; sinon, si le
   dossier contient déjà des fichiers =.org=, il est utilisé tel quel. Un dossier
@@ -364,6 +365,37 @@ noms de tags.
 Le bouton =+= du cadre des tags, ou le raccourci « Ajouter un tag à la page »
 (Ctrl+Maj+T, =C-c C-q= en Emacs) qui ouvre le champ en haut du volet même sans le
 cadre : le tag est ajouté à =#+FILETAGS:=, avec la complétion des tags du projet.
+
+* Markdown
+
+Une page est en org-mode (=.org=) ou en Markdown (=.md=), selon son extension ; les
+deux formats se mélangent dans un même projet.
+
+- *Format des nouvelles pages* : choisi au premier lancement (avec les raccourcis
+  Classique ou Emacs), puis dans les préférences. Le réglage « Demander le format de
+  chaque nouvelle page » fait choisir =.org= ou =.md= à chaque création ; un nom qui
+  finit par =.md= ou =.org= (=[[Note.md]]= suivi) le dit déjà.
+- *Un seul format* : avec « Ne lire que les pages de ce format », les pages de
+  l'autre format sont laissées de côté, sans être touchées sur le disque.
+- *Liens* : =[[Page]]=, =[[Page][texte]]= et =[[Page::*Titre]]= marchent dans les
+  deux formats. Une page Markdown lit aussi =[[Page|texte]]=, =[[Page#Titre]]= et
+  =[texte](Page.md)= ; un réglage les fait lire dans les pages org-mode aussi
+  (coupé par défaut : Emacs ne les comprend pas). Tous comptent pour les liens
+  entrants, les liens cassés et le renommage.
+- *Deux pages du même nom* (=Note.org= et =Note.md=) : c'est possible mais
+  déconseillé, un message le rappelle. =[[Note]]= mène à celle du format par
+  défaut, =[[Note.md]]= ou =[[Note.org]]= à l'une ou l'autre ; dans la liste des
+  pages, celle que =[[Note]]= n'ouvre pas est barrée.
+- *Éditeur* : titres =#=, pliage, niveaux des titres, déplacement des sections,
+  coloration (=**gras**=, =*italique*=, =~~barré~~=, =`code`=, blocs de code,
+  citations), tableaux avec leur ligne =|---|:--:|=, images =![texte](../assets/a.png)=.
+- *À faire* : =## TODO Titre= comme en org-mode, et les cases =- [ ] tâche= /
+  =- [x] fait=, cochées avec Maj+flèches, listées dans le cadre « À faire ».
+- *En-tête* : le =title:= de l'en-tête YAML (entre deux lignes =---=) est le titre
+  de la page, ses =tags:= (=[a, b]= ou une liste =- a=) taguent toute la page.
+  Ajouter un tag à la page l'écrit là.
+- *Export* en PDF et en HTML comme une page org-mode. org-bloom ne publie que les
+  pages =.org=.
 
 * États TODO
 Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.

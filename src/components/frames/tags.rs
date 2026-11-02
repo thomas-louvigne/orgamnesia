@@ -17,7 +17,7 @@ fn tag_active_page(ctx: AppCtx, tag: &str) {
         ctx.ui.status.set(Some(t("tag_add_no_page", lang).to_string()));
         return;
     };
-    match crate::motion::add_filetag(&tab.content.get_untracked(), tag) {
+    match crate::motion::add_page_tag(&tab.content.get_untracked(), tag, &tab.path) {
         Some(content) => {
             // Like typing in the page: marked unsaved, then auto-saved if enabled
             tab.dirty.set(true);

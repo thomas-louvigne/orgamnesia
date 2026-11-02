@@ -16,8 +16,9 @@ other contribution.
 
 * Why Orgamnesia
 
-- *Your notes stay plain =.org= files* in a folder you choose: no database, no
-  proprietary format. Emacs, git or any sync tool can read them alongside.
+- *Your notes stay plain =.org= or =.md= files* in a folder you choose: no
+  database, no proprietary format. Emacs, Obsidian, git or any sync tool can read
+  them alongside.
 - *Linked pages*, as in a wiki: =[[Page]]= links, backlinks, tags.
 - *Light*: a native desktop app written in Rust, quick to start.
 
@@ -32,8 +33,9 @@ other contribution.
 - *Frames* around the editor: pages, backlinks, tags, to do, git…, placed as you
   like.
 - *Quick open* (Ctrl+K) and *project search and replace* (Ctrl+Shift+F).
-- *Org-mode editor*: highlighting, tables, TODO states, headline levels, split view,
-  Emacs or Classic keybindings.
+- *Org-mode and Markdown editor*: highlighting, tables, TODO states and checkboxes,
+  headline levels, split view, Emacs or Classic keybindings. Both formats mix in a
+  project, =[[Page]]= links work in both.
 - *Spell checker*: misspelled words underlined, suggestions on right click,
   your own dictionary (Hunspell dictionaries).
 - *Trash* with undo, *autosave*, pages changed by another program reloaded.
@@ -131,7 +133,6 @@ key: without it, the installed apps can't be updated any more.
 - [ ] Regular expressions in searches
 - [ ] Vi keybindings
 - [ ] Theme management
-- [ ] Markdown mode
 
 * License
 

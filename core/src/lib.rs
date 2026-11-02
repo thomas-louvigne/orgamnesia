@@ -5,6 +5,7 @@
 pub mod assets;
 pub mod config;
 pub mod format;
+pub mod frontmatter;
 pub mod hashtags;
 pub mod keybindings;
 pub mod layout;

@@ -13,6 +13,7 @@ keybindings.
 - [[*Projects and pages][Projects and pages]]
 - [[*Editor][Editor]]
 - [[*Links and tags][Links and tags]]
+- [[*Markdown][Markdown]]
 - [[*TODO states][TODO states]]
 - [[*Tables][Tables]]
 - [[*Images][Images]]
@@ -29,7 +30,7 @@ keybindings.
 * Projects and pages
 
 ** Project
-A project is a folder of =.org= pages linked to each other.
+A project is a folder of =.org= or =.md= pages (see [[*Markdown][Markdown]]) linked to each other.
 
 - If the folder has a =pages/= subfolder, the pages are there; otherwise, if the
   folder already holds =.org= files, it is used as is. An empty folder gets
@@ -365,6 +366,37 @@ The =+= button of the tags frame, or the "Add a tag to the page" shortcut
 (Ctrl+Shift+T, =C-c C-q= in Emacs), which opens the field at the top of the pane
 even without the frame: the tag goes in =#+FILETAGS:=, with the tags of the
 project completed.
+
+* Markdown
+
+A page is in org-mode (=.org=) or in Markdown (=.md=), by its extension; both
+formats mix in a project.
+
+- *Format of new pages*: chosen on the first run (with the Classic or Emacs
+  shortcuts), then in the settings. The setting "Ask the format of each new page"
+  offers =.org= or =.md= at each creation; a name ending in =.md= or =.org= (a
+  =[[Note.md]]= followed) already tells it.
+- *One format only*: with "Only read the pages of this format", the pages of the
+  other format are left aside, untouched on the disk.
+- *Links*: =[[Page]]=, =[[Page][text]]= and =[[Page::*Title]]= work in both formats.
+  A Markdown page also reads =[[Page|text]]=, =[[Page#Title]]= and
+  =[text](Page.md)=; a setting reads them in org-mode pages too (off by default:
+  Emacs doesn't understand them). All count for backlinks, broken links and
+  renaming.
+- *Two pages of the same name* (=Note.org= and =Note.md=): possible but best
+  avoided, a message says so. =[[Note]]= leads to the one of the default format,
+  =[[Note.md]]= or =[[Note.org]]= to either; in the pages list, the one =[[Note]]=
+  doesn't open is struck through.
+- *Editor*: =#= headlines, folding, headline levels, moving sections, highlighting
+  (=**bold**=, =*italic*=, =~~struck~~=, =`code`=, code blocks, quotes), tables with
+  their =|---|:--:|= line, images =![text](../assets/a.png)=.
+- *To do*: =## TODO Title= as in org-mode, and checkboxes =- [ ] task= /
+  =- [x] done=, ticked with Shift+arrows, listed in the "To do" frame.
+- *Front matter*: the =title:= of the YAML front matter (between two =---= lines) is
+  the page's title, its =tags:= (=[a, b]= or a =- a= list) tag the whole page.
+  Adding a tag to the page writes it there.
+- *Export* as PDF and HTML as an org-mode page. org-bloom only publishes the =.org=
+  pages.
 
 * TODO states
 As in org-mode, a keyword after the stars of a headline gives its state.

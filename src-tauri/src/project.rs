@@ -354,8 +354,9 @@ impl Project {
     /// Every `:tag:` and `#+FILETAGS:` tag, with the number of pages and headlines carrying it.
     pub fn tags(&self, org: OrgTags) -> Vec<TagCount> {
         let mut counts = HashMap::<String, usize>::new();
-        for content in self.pages.values() {
-            for t in tags::written_tags(content, org) { *counts.entry(t).or_default() += 1; }
+        for (path, content) in &self.pages {
+            let markdown = Format::of_path(path) == Some(Format::Markdown);
+            for t in tags::written_tags(content, org, markdown) { *counts.entry(t).or_default() += 1; }
         }
         let mut list: Vec<TagCount> = counts.into_iter().map(|(name, count)| TagCount { name, count }).collect();
         list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then_with(|| a.name.cmp(&b.name)));
@@ -367,7 +368,8 @@ impl Project {
         let Some(query) = tags::Query::parse(query, org) else { return vec![] };
         self.files().into_iter().flat_map(|f| {
             let content = self.pages.get(&f.path).map(String::as_str).unwrap_or("");
-            tags::search(content, &query, org).into_iter().map(move |h| TagHit {
+            let markdown = Format::of_path(&f.path) == Some(Format::Markdown);
+            tags::search(content, &query, org, markdown).into_iter().map(move |h| TagHit {
                 page: f.name.clone(),
                 path: f.path.clone(),
                 heading: h.heading,

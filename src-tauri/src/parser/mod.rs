@@ -35,7 +35,7 @@ pub fn extract_links(content: &str, tags: TagSyntax) -> Vec<String> {
         }
     }
     if tags.org.links {
-        out.extend(crate::tags::written_tags(content, tags.org));
+        out.extend(crate::tags::written_tags(content, tags.org, tags.markdown));
         out.extend(orgamnesia_core::hashtags::text_tag_ranges(&chars, tags.org).into_iter()
             .map(|(a, b)| chars[a..b].iter().collect::<String>()));
     }
@@ -240,9 +240,9 @@ mod tests {
         let t = "* T :a:\nvoir :ex: et :mon-tag:";
         // Dashes allowed by default
         assert_eq!(extract_links(t, Hashtags::Off.into()), vec!["a", "ex", "mon-tag"]);
-        let no_dashes = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: true, dashes: false }, extended_links: false };
+        let no_dashes = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: true, dashes: false }, extended_links: false, markdown: false };
         assert_eq!(extract_links(t, no_dashes), vec!["a", "ex"]);
-        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, extended_links: false };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, extended_links: false, markdown: false };
         assert!(extract_links(t, off).is_empty());
         let out = rw(t, "ex", "Exemple", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "* T :a:\nvoir :Exemple: et :mon-tag:");

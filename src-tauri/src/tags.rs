@@ -65,14 +65,15 @@ pub fn rename(content: &str, old: &str, new: &str, ignore_case: bool, org: OrgTa
     changed.then_some(out)
 }
 
-/// Every tag written in `content` (once per page or headline carrying it).
-pub fn written_tags(content: &str, org: OrgTags) -> Vec<String> {
-    let mut page: Vec<String> = Vec::new();
+/// Every tag written in `content` (once per page or headline carrying it); in a
+/// Markdown page, those of its front matter tag the page.
+pub fn written_tags(content: &str, org: OrgTags, markdown: bool) -> Vec<String> {
+    let mut page: Vec<String> = if markdown { orgamnesia_core::frontmatter::tags(content) } else { Vec::new() };
     let mut out = Vec::new();
     for line in content.lines() {
         if let Some(tags) = filetags(line, org) {
             for t in tags { if !page.contains(&t) { page.push(t); } }
-        } else if let Some((_, _, tags)) = headline(line, org) {
+        } else if let Some((_, _, tags)) = headline(line, org).filter(|_| !markdown) {
             let mut seen = HashSet::new();
             out.extend(tags.into_iter().filter(|t| seen.insert(t.clone())));
         }
@@ -151,9 +152,9 @@ fn as_set(v: &[String]) -> HashSet<&str> {
 
 /// What matches `query` in `content`, with tag inheritance. When the page matches,
 /// it stands for all its headlines; a matching headline stands for its sub-headlines.
-pub fn search(content: &str, query: &Query, org: OrgTags) -> Vec<Hit> {
+pub fn search(content: &str, query: &Query, org: OrgTags, markdown: bool) -> Vec<Hit> {
     let lines: Vec<&str> = content.lines().collect();
-    let mut file_tags: Vec<String> = Vec::new();
+    let mut file_tags: Vec<String> = if markdown { orgamnesia_core::frontmatter::tags(content) } else { Vec::new() };
     for t in lines.iter().filter_map(|l| filetags(l, org)).flatten() {
         if !file_tags.contains(&t) { file_tags.push(t); }
     }
@@ -167,7 +168,8 @@ pub fn search(content: &str, query: &Query, org: OrgTags) -> Vec<Hit> {
     // Level of the matching headline whose subtree we are in
     let mut matched: Option<usize> = None;
     for (n, line) in lines.iter().enumerate() {
-        let Some((level, title, own)) = headline(line, org) else { continue };
+        // Markdown headlines carry no `:tags:` (a `* item` is a bullet)
+        let Some((level, title, own)) = headline(line, org).filter(|_| !markdown) else { continue };
         if matched.is_some_and(|m| level > m) { continue; }
         matched = None;
         while parents.last().is_some_and(|(l, _)| *l >= level) { parents.pop(); }
@@ -187,10 +189,19 @@ pub fn search(content: &str, query: &Query, org: OrgTags) -> Vec<Hit> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn front_matter_tags_tag_a_markdown_page() {
+        let content = "---\ntags: [projet]\n---\n* item :x:\n";
+        assert_eq!(written_tags(content, O, true), vec!["projet"]);
+        assert_eq!(written_tags(content, O, false), vec!["x"]);
+        let q = Query::parse("projet", O).unwrap();
+        assert_eq!(search(content, &q, O, true).len(), 1);
+    }
+
+    #[test]
     fn search_ignores_accents_not_case() {
         let content = "* Note :idée:\n* Autre :Idee:\n";
         let q = Query::parse("idee", O).unwrap();
-        let hits: Vec<usize> = search(content, &q, O).iter().map(|h| h.line).collect();
+        let hits: Vec<usize> = search(content, &q, O, false).iter().map(|h| h.line).collect();
         assert_eq!(hits, vec![0]);
     }
 
@@ -234,14 +245,14 @@ mod tests {
     #[test]
     fn search_with_inheritance() {
         let page = "#+FILETAGS: :projet:\n* A :urgent:\n** A1\n* B\n** B1 :urgent:\n*** B11\n";
-        let hits = search(page, &q("projet+urgent"), O);
+        let hits = search(page, &q("projet+urgent"), O, false);
         let found: Vec<_> = hits.iter().map(|h| (h.heading.clone().unwrap(), h.line)).collect();
         assert_eq!(found, vec![("A".to_string(), 1), ("B1".to_string(), 4)]);
         assert_eq!(hits[0].tags, vec!["projet", "urgent"]);
         // The whole page matches: a single hit
-        assert_eq!(search(page, &q("projet"), O), vec![Hit { heading: None, level: 0, line: 0, tags: vec!["projet".into()] }]);
+        assert_eq!(search(page, &q("projet"), O, false), vec![Hit { heading: None, level: 0, line: 0, tags: vec!["projet".into()] }]);
         // Siblings don't inherit from each other
-        assert!(search("* A :x:\n* B\n", &q("x"), O).iter().all(|h| h.heading.as_deref() == Some("A")));
+        assert!(search("* A :x:\n* B\n", &q("x"), O, false).iter().all(|h| h.heading.as_deref() == Some("A")));
     }
 
     #[test]
@@ -277,6 +288,6 @@ mod tests {
 
     #[test]
     fn written_tags_once_per_carrier() {
-        assert_eq!(written_tags("#+FILETAGS: :a:\n* T :a:b:b:\n* U :b:\n", O), vec!["a", "a", "b", "b"]);
+        assert_eq!(written_tags("#+FILETAGS: :a:\n* T :a:b:b:\n* U :b:\n", O, false), vec!["a", "a", "b", "b"]);
     }
 }

@@ -589,7 +589,7 @@ mod tests {
         assert_eq!(link_at(&t, 1, Hashtags::Dashes.into()), None);
         assert_eq!(link_at(&c("* Titre :projet:"), 11, Hashtags::Off.into()).as_deref(), Some("projet"));
         assert_eq!(link_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into()).as_deref(), Some("exemple"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: motion::OrgTags { links: false, dashes: false }, extended_links: false };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: motion::OrgTags { links: false, dashes: false }, extended_links: false, markdown: false };
         assert_eq!(link_at(&c("voir :exemple: ici"), 7, off), None);
     }
 
