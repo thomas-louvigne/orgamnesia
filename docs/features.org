@@ -33,12 +33,12 @@ keybindings.
 A project is a folder of =.org= or =.md= pages (see [[*Markdown][Markdown]]) linked to each other.
 
 - If the folder has a =pages/= subfolder, the pages are there; otherwise, if the
-  folder already holds =.org= files, it is used as is. An empty folder gets
+  folder already holds =.org= or =.md= files, it is used as is. An empty folder gets
   =pages/= and =assets/=.
 - *Open or create a folder of notes*: the folder button next to the project name,
   the projects menu or the welcome screen open the system's folder picker, where a
   new folder can also be created; a new or empty folder gets =pages/= and
-  =assets/=, then opens. A folder already holding =.org= files is used as it is:
+  =assets/=, then opens. A folder already holding =.org= or =.md= files is used as it is:
   when it has no =assets/= folder (where the images added to the pages are
   copied), the app offers to make one; declined, it doesn't ask again there.
 - The project name, above the list of pages, opens the projects menu: open another
@@ -122,6 +122,7 @@ package manager. What is new in each version is also in
 - =#+TITLE:= and =#+FILETAGS:=: the keyword dimmed, the value highlighted.
 - Tables, their header rows in bold.
 - TODO keywords (see [[*TODO states][TODO states]]).
+- Markdown pages have their own highlighting (see [[*Markdown][Markdown]]).
 
 ** Page title
 Above the editor, in large type: the page's =#+TITLE:= if it has one, else its name.
@@ -848,8 +849,8 @@ file, goes back to the project left, its tabs and panes as they were.
   start for a file found invalid.
 
 * Files
-- Pages stay plain =.org= files, readable and editable with Emacs or any other
-  editor.
+- Pages stay plain =.org= or =.md= files, readable and editable with Emacs,
+  Obsidian or any other editor.
 - Settings: =~/.config/com.orgamnesia.app/=: =settings.json= (the settings),
   =keybindings/= (the custom shortcut profiles), =state.json= (what the app keeps
   for itself: the open project, the projects, the pages open on quit),

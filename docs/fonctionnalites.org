@@ -28,13 +28,13 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 Un projet est un dossier de pages =.org= ou =.md= (voir [[*Markdown][Markdown]]) liées entre elles.
 
 - Si le dossier contient un sous-dossier =pages/=, les pages y sont ; sinon, si le
-  dossier contient déjà des fichiers =.org=, il est utilisé tel quel. Un dossier
+  dossier contient déjà des fichiers =.org= ou =.md=, il est utilisé tel quel. Un dossier
   vide reçoit =pages/= et =assets/=.
 - *Ouvrir ou créer un dossier de notes* : le bouton dossier à côté du nom du projet,
   le menu des projets ou l'écran d'accueil ouvrent le sélecteur de dossier du
   système, où l'on peut aussi créer un nouveau dossier ; un dossier nouveau ou vide
   reçoit =pages/= et =assets/=, puis s'ouvre. Un dossier qui contient déjà des
-  fichiers =.org= est utilisé tel quel : s'il n'a pas de dossier =assets/= (où sont
+  fichiers =.org= ou =.md= est utilisé tel quel : s'il n'a pas de dossier =assets/= (où sont
   copiées les images ajoutées aux pages), l'application propose de le créer ; si
   on refuse, elle ne le redemande plus pour ce dossier.
 - Le nom du projet, en haut de la liste des pages, ouvre le menu des projets :
@@ -118,6 +118,7 @@ Au démarrage, les onglets et les volets ouverts à la fermeture sont rouverts
 - =#+TITLE:= et =#+FILETAGS:= : le mot-clé atténué, la valeur mise en valeur.
 - Tableaux, avec leurs lignes d'en-tête en gras.
 - Mots-clés TODO (voir [[*États TODO][États TODO]]).
+- Les pages Markdown ont leur propre coloration (voir [[*Markdown][Markdown]]).
 
 ** Titre de la page
 Au-dessus de l'éditeur, en grand : le =#+TITLE:= de la page s'il en a un, sinon son
@@ -867,8 +868,8 @@ volets tels qu'ils étaient.
   trouvé invalide.
 
 * Fichiers
-- Les pages restent de simples fichiers =.org=, lisibles et modifiables avec Emacs
-  ou tout autre éditeur.
+- Les pages restent de simples fichiers =.org= ou =.md=, lisibles et modifiables
+  avec Emacs, Obsidian ou tout autre éditeur.
 - Réglages : =~/.config/com.orgamnesia.app/= : =settings.json= (les réglages),
   =keybindings/= (les profils de raccourcis personnalisés), =state.json= (ce que
   l'application garde pour elle : le projet ouvert, les projets, les pages ouvertes

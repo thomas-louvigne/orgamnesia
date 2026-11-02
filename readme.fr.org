@@ -8,7 +8,7 @@
 
 #+BEGIN_QUOTE
 *Bêta, écrit avec une IA.* Des bugs et des changements sont à prévoir : gardez une
-copie de vos fichiers =.org=. Le code a été écrit avec l'aide de Claude (Anthropic) ;
+copie de vos fichiers =.org= et =.md=. Le code a été écrit avec l'aide de Claude (Anthropic) ;
 relisez-le comme n'importe quelle contribution.
 #+END_QUOTE
 
@@ -25,7 +25,7 @@ relisez-le comme n'importe quelle contribution.
 * Fonctionnalités
 
 - *Ouvrir ou créer un dossier de notes* dans la même fenêtre : un nouveau dossier
-  reçoit =pages/= et =assets/=, prêt à écrire ; un dossier de fichiers =.org= existant s'ouvre tel quel.
+  reçoit =pages/= et =assets/=, prêt à écrire ; un dossier de fichiers =.org= ou =.md= existant s'ouvre tel quel.
 - *Liens et tags* : =[[Page]]=, =#mots-clés= et =:tags:=, avec complétion ;
   renommer une page réécrit les liens qui y mènent. Liens vers un titre
   (=[[Page::*Titre]]=) ou une cible (=[[Page::cible]]=), aperçu de la page au survol.
@@ -55,7 +55,8 @@ Toutes les fonctionnalités en détail : [[file:docs/fonctionnalites.org][docs/f
 
 1. Lancez Orgamnesia et *ouvrez ou créez un dossier de notes* : un nouveau dossier
    est préparé avec =pages/= et =assets/=, un dossier qui contient déjà des
-   fichiers =.org= s'ouvre tel quel.
+   fichiers =.org= ou =.md= s'ouvre tel quel. Au premier lancement, choisissez le
+   format des nouvelles pages (org-mode ou Markdown) et les raccourcis.
 2. *Créez une page* avec le bouton =+= de la liste des pages.
 3. Tapez =[[Autre page]]= pour faire un lien vers une autre page ; Ctrl+clic
    l'ouvre, et la crée au besoin.
@@ -97,7 +98,7 @@ dépôts git) :
 
 * Vos données
 
-- Les pages : les fichiers =.org= du dossier du projet.
+- Les pages : les fichiers =.org= et =.md= du dossier du projet.
 - Les réglages : =~/.config/com.orgamnesia.app/= sous Linux,
   =~/Library/Application Support/com.orgamnesia.app/= sous macOS,
   =%APPDATA%\com.orgamnesia.app\= sous Windows. Ils se modifient
