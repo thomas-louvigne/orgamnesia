@@ -163,7 +163,7 @@ pub fn page_html(text: &str, name: &str, keywords: Option<&TodoKeywords>, image:
     // The title: the `#+TITLE:`, else the name, unless the page starts with a
     // headline holding it (as a new page does)
     let first_headline = lines.iter().find(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
-        .and_then(|l| place::headline_title(l, keywords));
+        .and_then(|l| place::headline_title(l, keywords, orgamnesia_core::Format::Org));
     let title = match page_title(text) {
         Some(t) => Some(t),
         None if first_headline.is_some_and(|h| fold(&h) == fold(name)) => None,

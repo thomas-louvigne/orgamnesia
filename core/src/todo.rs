@@ -84,7 +84,13 @@ impl TodoKeywords {
 
     /// The keyword of the headline `line` (`** TODO Titre`), if it has one.
     pub fn keyword(&self, line: &[char]) -> Option<Keyword> {
-        let start = title_start(line)?;
+        self.keyword_in(line, crate::Format::Org)
+    }
+
+    /// The keyword of the headline `line` of a page of `format` (`## TODO Titre`
+    /// in Markdown), if it has one.
+    pub fn keyword_in(&self, line: &[char], format: crate::Format) -> Option<Keyword> {
+        let start = title_start(line, format.heading_mark())?;
         let end = line[start..].iter().position(|&c| c == ' ').map_or(line.len(), |p| start + p);
         let word: String = line[start..end].iter().collect();
         self.kind(&word).map(|done| Keyword { start, end, done })
@@ -112,7 +118,7 @@ impl TodoKeywords {
     /// the range of the line to replace and its new text. `None` when the line is
     /// not a headline, or there is no keyword at all.
     pub fn cycle(&self, line: &[char], forward: bool) -> Option<(usize, usize, String)> {
-        let start = title_start(line)?;
+        let start = title_start(line, '*')?;
         let kw = self.keyword(line);
         let current: Option<String> = kw.map(|k| line[k.start..k.end].iter().collect());
         let next = self.step(current.as_deref(), forward);
@@ -169,8 +175,8 @@ pub fn headlines(text: &str, default: &TodoKeywords) -> Vec<TodoHeadline> {
 
 /// Where the title of the headline `line` starts (after its stars and the space),
 /// or the end of the line for a headline with no title.
-fn title_start(line: &[char]) -> Option<usize> {
-    let stars = line.iter().take_while(|&&c| c == '*').count();
+fn title_start(line: &[char], mark: char) -> Option<usize> {
+    let stars = line.iter().take_while(|&&c| c == mark).count();
     match line.get(stars) {
         _ if stars == 0 => None,
         Some(' ') => Some(stars + 1),

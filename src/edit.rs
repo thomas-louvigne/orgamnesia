@@ -84,7 +84,7 @@ pub fn word_start_backward(chars: &[char], pos: usize) -> usize {
 /// its level (number of leading `*`).
 fn heading_level(chars: &[char], start: usize, end: usize) -> Option<usize> {
     let mut i = start;
-    while i < end && chars[i] == '*' { i += 1; }
+    while i < end && chars[i] == motion::heading_mark() { i += 1; }
     let level = i - start;
     if level > 0 && (i >= end || chars[i] == ' ') { Some(level) } else { None }
 }
@@ -110,7 +110,7 @@ pub fn new_heading(chars: &[char], caret: usize) -> (usize, String) {
         return (line_end, format!("\n{bullet}"));
     }
     let level = nearest_heading_level(chars, caret);
-    (line_end, format!("\n{} ", "*".repeat(level)))
+    (line_end, format!("\n{} ", motion::heading_mark().to_string().repeat(level)))
 }
 
 /// What Emacs `C-k` removes at `pos`: up to the end of the line, or the line
@@ -530,6 +530,9 @@ mod tests {
         let t = c("* a\n** b\ntexte");
         assert_eq!(new_heading(&t, 11), (14, "\n** ".to_string()));
         assert_eq!(new_heading(&c("rien"), 2), (4, "\n* ".to_string()));
+        let _md = motion::FormatGuard::set(orgamnesia_core::Format::Markdown);
+        assert_eq!(new_heading(&c("# A\n## B\ntexte"), 12), (14, "\n## ".to_string()));
+        drop(_md);
         // On a list item: a new item
         assert_eq!(new_heading(&c("- a\n  suite"), 7), (11, "\n- ".to_string()));
         assert_eq!(new_heading(&c("  9) [X] a"), 4), (10, "\n  10) [ ] ".to_string()));

@@ -1688,3 +1688,7 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .welcome-choice input { margin-top: 3px; }
 .welcome-choice-text { display: flex; flex-direction: column; gap: 2px; }
 .new-page-format { display: flex; gap: 16px; margin-top: 10px; }
+
+/* Markdown: code (inline and fenced blocks), quotes */
+.md-code  { color: var(--green); }
+.md-quote { color: var(--fg-dim); font-style: italic; }

@@ -46,6 +46,30 @@ impl Format {
         Self::ALL.into_iter().find(|f| f.id() == id)
     }
 
+    /// The character a headline starts with, once per level: `*` (org-mode) or `#`.
+    pub fn heading_mark(self) -> char {
+        match self {
+            Format::Org => '*',
+            Format::Markdown => '#',
+        }
+    }
+
+    /// The level of the headline starting `line` (`** Titre`, `## Titre`), if it is
+    /// one: its marks followed by a space, the end of the line or of the text.
+    /// An org-mode line starting with `# ` is a comment, not a headline.
+    pub fn heading_level(self, line: &[char]) -> Option<usize> {
+        let mark = self.heading_mark();
+        let n = line.iter().take_while(|&&c| c == mark).count();
+        (n > 0 && matches!(line.get(n), Some(' ' | '\n') | None)).then_some(n)
+    }
+
+    /// `heading_level` of a line given as a string.
+    pub fn heading_level_of(self, line: &str) -> Option<usize> {
+        let mark = self.heading_mark();
+        let n = line.chars().take_while(|&c| c == mark).count();
+        (n > 0 && matches!(line.chars().nth(n), Some(' ' | '\n') | None)).then_some(n)
+    }
+
     /// The first line of a new page called `name`: its title as a headline.
     pub fn title_line(self, name: &str) -> String {
         match self {
@@ -96,6 +120,12 @@ mod tests {
         assert_eq!(split_ext("Note.md"), Some(("Note", Format::Markdown)));
         assert_eq!(split_ext("v1.2"), None);
         assert_eq!(split_ext(".md"), None);
+        let c = |s: &str| s.chars().collect::<Vec<char>>();
+        assert_eq!(Format::Markdown.heading_level(&c("## Titre")), Some(2));
+        assert_eq!(Format::Markdown.heading_level(&c("#tag")), None);
+        assert_eq!(Format::Org.heading_level(&c("# commentaire")), None);
+        assert_eq!(Format::Org.heading_level_of("*** x"), Some(3));
+        assert_eq!(Format::Org.heading_level_of("*gras*"), None);
     }
 
     #[test]

@@ -1,6 +1,33 @@
 //! Pure cursor-motion helpers (Emacs-style sentence, paragraph and heading moves).
 //! Positions are char indexes into `chars`.
 
+thread_local! {
+    /// The character headlines start with in the page being edited: `*` (org-mode)
+    /// or `#` (Markdown). Set by `FormatGuard` while the editor handles a page.
+    static MARK: std::cell::Cell<char> = const { std::cell::Cell::new('*') };
+}
+
+/// The character headlines start with in the page being edited (see `FormatGuard`).
+pub fn heading_mark() -> char {
+    MARK.with(|m| m.get())
+}
+
+/// While it lives, headlines are those of `format` (`# Titre` in Markdown); the
+/// mark before it comes back when it goes.
+pub struct FormatGuard(char);
+
+impl FormatGuard {
+    pub fn set(format: orgamnesia_core::Format) -> Self {
+        Self(MARK.with(|m| m.replace(format.heading_mark())))
+    }
+}
+
+impl Drop for FormatGuard {
+    fn drop(&mut self) {
+        MARK.with(|m| m.set(self.0));
+    }
+}
+
 fn line_start(chars: &[char], pos: usize) -> usize {
     chars[..pos].iter().rposition(|&c| c == '\n').map(|i| i + 1).unwrap_or(0)
 }
@@ -11,7 +38,7 @@ fn line_end(chars: &[char], pos: usize) -> usize {
 
 /// Line with no text: only whitespace, or a heading's bare `*`s. Separates paragraphs.
 fn is_empty_line(chars: &[char], start: usize, end: usize) -> bool {
-    chars[start..end].iter().all(|&c| c.is_whitespace() || c == '*')
+    chars[start..end].iter().all(|&c| c.is_whitespace() || c == heading_mark())
 }
 
 fn is_terminator(c: char) -> bool {
@@ -28,7 +55,8 @@ pub fn back_to_indentation(chars: &[char], pos: usize) -> usize {
 /// Where the text of the headline starting at `ls` begins (after its stars and
 /// spaces), if the line is one.
 fn heading_text(chars: &[char], ls: usize) -> Option<usize> {
-    let stars = chars[ls..].iter().take_while(|&&c| c == '*').count();
+    let mark = heading_mark();
+    let stars = chars[ls..].iter().take_while(|&&c| c == mark).count();
     if stars == 0 || !matches!(chars.get(ls + stars), Some(' ' | '\n') | None) { return None; }
     let mut i = ls + stars;
     while i < chars.len() && chars[i] == ' ' { i += 1; }
@@ -207,7 +235,8 @@ pub fn backward_paragraph(chars: &[char], pos: usize) -> usize {
 
 /// `*`… followed by a space (or alone on the line): an org heading line.
 fn is_heading(chars: &[char], start: usize, end: usize) -> bool {
-    let stars = chars[start..end].iter().take_while(|&&c| c == '*').count();
+    let mark = heading_mark();
+    let stars = chars[start..end].iter().take_while(|&&c| c == mark).count();
     stars > 0 && (start + stars == end || chars[start + stars] == ' ')
 }
 
@@ -235,7 +264,7 @@ pub fn previous_heading(chars: &[char], pos: usize) -> usize {
 }
 
 fn heading_level(chars: &[char], ls: usize) -> Option<usize> {
-    heading_text(chars, ls).map(|_| chars[ls..].iter().take_while(|&&c| c == '*').count())
+    heading_text(chars, ls).map(|_| chars[ls..].iter().take_while(|&&c| c == heading_mark()).count())
 }
 
 /// Start of the headline holding the caret (its line or the text under it).

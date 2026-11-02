@@ -45,12 +45,12 @@ pub struct Pane {
 }
 
 impl Pane {
-    /// The text of the page `name` (this pane's page when empty) and its TODO keywords:
-    /// from its tab when open, else read from the disk.
-    pub async fn named_page_text(self, name: &str) -> Option<(String, Option<TodoKeywords>)> {
+    /// The text of the page `name` (this pane's page when empty), its TODO keywords
+    /// and its format: from its tab when open, else read from the disk.
+    pub async fn named_page_text(self, name: &str) -> Option<(String, Option<TodoKeywords>, orgamnesia_core::Format)> {
         let ctx = self.ctx;
         if name.is_empty() {
-            return Some((self.content.get_untracked(), self.todo_keywords.get_untracked()));
+            return Some((self.content.get_untracked(), self.todo_keywords.get_untracked(), self.fmt()));
         }
         let file = ctx.find_page(name)?;
         let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| t.path == file.path).map(|t| t.content));
@@ -59,7 +59,7 @@ impl Pane {
             None => crate::actions::read_page(&file.path).await.ok()?,
         };
         let keywords = ctx.pref_untracked(|p| p.todo()).map(|d| TodoKeywords::for_page(&text, &d));
-        Some((text, keywords))
+        Some((text, keywords, orgamnesia_core::Format::of_path(&file.path).unwrap_or_default()))
     }
 
     pub fn new(ctx: AppCtx, tab: &Tab) -> Self {
@@ -84,6 +84,11 @@ impl Pane {
             config: crate::preferences::config_file(&tab.path).is_some(),
             format: orgamnesia_core::Format::of_path(&tab.path),
         }
+    }
+
+    /// The format of the page (org-mode for a file of neither).
+    pub fn fmt(self) -> orgamnesia_core::Format {
+        self.format.unwrap_or_default()
     }
 
     /// How the tags and links of this page are read (Markdown pages always have
@@ -274,6 +279,7 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
         let columns = text_columns(w.max(0), digits);
         let show_images = ctx.pref(|p| p.show_images);
         let show_videos = ctx.pref(|p| p.show_video_thumbnails);
+        let _format = crate::motion::FormatGuard::set(pane.fmt());
         tables::View::build(&content, pane.focus_pos.get(), columns, |raw| {
             let key = (raw.to_string(), w, digits);
             if let Some(n) = heights.with_value(|h| h.get(&key).copied()) { return n; }

@@ -3,7 +3,7 @@
 //! `Page`, `[[Page::cible]]` to its dedicated target `<<cible>>`. Without a page
 //! (`[[*Titre]]`), the place is in the page the link is in.
 
-use crate::{names::fold, TodoKeywords};
+use crate::{names::fold, Format, TodoKeywords};
 
 /// Between the page and the place in it.
 pub const SEPARATOR: &str = "::";
@@ -63,6 +63,13 @@ pub fn scan(chars: &[char], extended: bool) -> Vec<Found> {
         }
     }
     out
+}
+
+/// The link starting at `at`, if one does (see `scan`).
+pub fn link_starting(chars: &[char], at: usize, extended: bool) -> Option<Found> {
+    if chars.get(at) != Some(&'[') { return None; }
+    if chars.get(at + 1) == Some(&'[') { return org_link(chars, at, extended); }
+    (extended && (at == 0 || !matches!(chars[at - 1], '[' | '!' | '\\'))).then(|| markdown_link(chars, at)).flatten()
 }
 
 /// The link starting at `at` (`[[`), if it is closed.
@@ -171,14 +178,15 @@ pub fn percent_encode(name: &str) -> String {
 
 /// The title of the headline `line` as links name it, without its stars, TODO
 /// keyword, priority (`[#A]`), `COMMENT`, statistics cookies (`[1/3]`, `[50%]`)
-/// and tags; spaces collapsed. `None` when the line is not a headline.
-pub fn headline_title(line: &str, keywords: Option<&TodoKeywords>) -> Option<String> {
+/// and tags (in Markdown, the closing `#`s of `## Titre ##`); spaces collapsed.
+/// `None` when the line is not a headline of a page of `format`.
+pub fn headline_title(line: &str, keywords: Option<&TodoKeywords>, format: Format) -> Option<String> {
     let chars: Vec<char> = line.chars().collect();
-    let stars = chars.iter().take_while(|&&c| c == '*').count();
-    if stars == 0 || !matches!(chars.get(stars), Some(' ') | None) { return None; }
-    let start = keywords.and_then(|k| k.keyword(&chars)).map_or(stars, |k| k.end);
+    let stars = format.heading_level(&chars)?;
+    let start = keywords.and_then(|k| k.keyword_in(&chars, format)).map_or(stars, |k| k.end);
     let mut words: Vec<String> = chars[start..].iter().collect::<String>()
         .split_whitespace().map(String::from).collect();
+    if format == Format::Markdown && words.last().is_some_and(|w| w.chars().all(|c| c == '#')) { words.pop(); }
     if words.first().is_some_and(|w| is_priority(w)) { words.remove(0); }
     if words.first().is_some_and(|w| w == "COMMENT") { words.remove(0); }
     if words.last().is_some_and(|w| is_tags(w)) { words.pop(); }
@@ -207,9 +215,9 @@ fn is_cookie(w: &str) -> bool {
 }
 
 /// The titles of the headlines of the page `text`, in order, each once.
-pub fn headlines(text: &str, keywords: Option<&TodoKeywords>) -> Vec<String> {
+pub fn headlines(text: &str, keywords: Option<&TodoKeywords>, format: Format) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    for title in text.lines().filter_map(|l| headline_title(l, keywords)) {
+    for title in text.lines().filter_map(|l| headline_title(l, keywords, format)) {
         if !title.is_empty() && !out.contains(&title) { out.push(title); }
     }
     out
@@ -219,11 +227,11 @@ pub fn headlines(text: &str, keywords: Option<&TodoKeywords>) -> Vec<String> {
 /// line of the headline for `*Titre`; the `<<cible>>` for `cible`, failing that
 /// a headline titled `cible`, as org-mode does. Case and accents are ignored.
 /// `None` when it isn't there, and for a `#custom-id` (not supported).
-pub fn find(text: &str, place: &str, keywords: Option<&TodoKeywords>) -> Option<(usize, usize)> {
+pub fn find(text: &str, place: &str, keywords: Option<&TodoKeywords>, format: Format) -> Option<(usize, usize)> {
     if place.starts_with('#') { return None; }
     let headline = |title: &str| {
         let wanted = fold(&title.split_whitespace().collect::<Vec<_>>().join(" "));
-        lines(text).find(|(_, line)| headline_title(line, keywords).is_some_and(|t| fold(&t) == wanted))
+        lines(text).find(|(_, line)| headline_title(line, keywords, format).is_some_and(|t| fold(&t) == wanted))
             .map(|(at, line)| (at, at + line.chars().count()))
     };
     match place.strip_prefix('*') {
@@ -267,11 +275,8 @@ fn target(text: &str, name: &str) -> Option<(usize, usize)> {
 
 /// Char position where the part of `text` shown for the place at `at` ends: the
 /// end of the subtree when `at` is on a headline, else the next headline.
-pub fn section_end(text: &str, at: usize) -> usize {
-    let level = |line: &str| {
-        let stars = line.chars().take_while(|&c| c == '*').count();
-        (stars > 0 && matches!(line.chars().nth(stars), Some(' ') | None)).then_some(stars)
-    };
+pub fn section_end(text: &str, at: usize, format: Format) -> usize {
+    let level = |line: &str| format.heading_level_of(line);
     let mut lines = lines(text).skip_while(|(start, line)| start + line.chars().count() < at);
     let Some((_, first)) = lines.next() else { return text.chars().count() };
     let max = level(first).unwrap_or(usize::MAX);
@@ -330,39 +335,49 @@ mod tests {
     #[test]
     fn titles_as_links_name_them() {
         let k = kw();
-        assert_eq!(headline_title("** TODO [#A] Faire [1/3] le pain :cuisine:", Some(&k)).as_deref(), Some("Faire le pain"));
-        assert_eq!(headline_title("* COMMENT Brouillon  [50%]", None).as_deref(), Some("Brouillon"));
-        assert_eq!(headline_title("* TODO Titre", None).as_deref(), Some("TODO Titre"));
-        assert_eq!(headline_title("*gras*", None), None);
-        assert_eq!(headline_title("texte", None), None);
-        assert_eq!(headline_title("*", None).as_deref(), Some(""));
+        assert_eq!(headline_title("** TODO [#A] Faire [1/3] le pain :cuisine:", Some(&k), Format::Org).as_deref(), Some("Faire le pain"));
+        assert_eq!(headline_title("* COMMENT Brouillon  [50%]", None, Format::Org).as_deref(), Some("Brouillon"));
+        assert_eq!(headline_title("* TODO Titre", None, Format::Org).as_deref(), Some("TODO Titre"));
+        assert_eq!(headline_title("*gras*", None, Format::Org), None);
+        assert_eq!(headline_title("texte", None, Format::Org), None);
+        assert_eq!(headline_title("*", None, Format::Org).as_deref(), Some(""));
     }
 
     #[test]
     fn finds_headlines_and_targets() {
         let text = "#+TITLE: R\n* Entrées\n** DONE Desserts :sucre:\nla <<pâte>> ici\n";
         let k = kw();
-        assert_eq!(find(text, "*desserts", Some(&k)), Some((21, 45)));
-        assert_eq!(find(text, "*Entrees", Some(&k)), Some((11, 20)));
-        assert_eq!(find(text, "pate", Some(&k)), Some((49, 57)));
+        assert_eq!(find(text, "*desserts", Some(&k), Format::Org), Some((21, 45)));
+        assert_eq!(find(text, "*Entrees", Some(&k), Format::Org), Some((11, 20)));
+        assert_eq!(find(text, "pate", Some(&k), Format::Org), Some((49, 57)));
         // No target of that name: a headline
-        assert_eq!(find(text, "Desserts", Some(&k)), Some((21, 45)));
-        assert_eq!(find(text, "*Plats", Some(&k)), None);
-        assert_eq!(find(text, "#pate", Some(&k)), None);
-        assert_eq!(find("<<<radio>>> x", "radio", None), Some((0, 11)));
+        assert_eq!(find(text, "Desserts", Some(&k), Format::Org), Some((21, 45)));
+        assert_eq!(find(text, "*Plats", Some(&k), Format::Org), None);
+        assert_eq!(find(text, "#pate", Some(&k), Format::Org), None);
+        assert_eq!(find("<<<radio>>> x", "radio", None, Format::Org), Some((0, 11)));
     }
 
     #[test]
     fn lists_headlines_once() {
-        assert_eq!(headlines("* A\ntexte\n** TODO B :t:\n* A\n*\n", Some(&kw())), vec!["A", "B"]);
+        assert_eq!(headlines("* A\ntexte\n** TODO B :t:\n* A\n*\n", Some(&kw()), Format::Org), vec!["A", "B"]);
+    }
+
+    #[test]
+    fn markdown_headlines() {
+        let text = "# Recettes\ntexte\n## TODO Pâte à crêpes ##\nla pâte\n# Fin";
+        let k = kw();
+        assert_eq!(headlines(text, Some(&k), Format::Markdown), vec!["Recettes", "Pâte à crêpes", "Fin"]);
+        assert_eq!(find(text, "*pate a crepes", Some(&k), Format::Markdown), Some((17, 41)));
+        assert_eq!(section_end(text, 17, Format::Markdown), 49);
+        assert!(headlines("* pas un titre\n#tag", None, Format::Markdown).is_empty());
     }
 
     #[test]
     fn sections_end_at_the_next_headline() {
         let text = "* A\na\n** B\nb\n* C\nc";
-        assert_eq!(section_end(text, 0), 12);
-        assert_eq!(section_end(text, 6), 12);
-        assert_eq!(section_end(text, 4), 5);
-        assert_eq!(section_end(text, 13), text.chars().count());
+        assert_eq!(section_end(text, 0, Format::Org), 12);
+        assert_eq!(section_end(text, 6, Format::Org), 12);
+        assert_eq!(section_end(text, 4, Format::Org), 5);
+        assert_eq!(section_end(text, 13, Format::Org), text.chars().count());
     }
 }

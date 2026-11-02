@@ -40,6 +40,8 @@ fn swallow(e: &web_sys::KeyboardEvent) {
 
 pub fn on_keydown(pane: Pane, completion: Completion, find: Find, insert: Insert, e: web_sys::KeyboardEvent) {
     let ctx = pane.ctx;
+    // Headlines are those of the page's format while the key is handled
+    let _format = crate::motion::FormatGuard::set(pane.fmt());
     let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
     {
         let el = el.clone();
@@ -213,16 +215,16 @@ fn cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) {
     let pos = pane.page_pos(el, caret(el));
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
     let line = folding::line_start(&page, pos);
-    let next = if folding::is_headline(&page, line) {
+    let next = if folding::is_headline(&page, pane.fmt(), line) {
         // On a headline, Tab never leaves the editor: with nothing under it, say so (Emacs: EMPTY ENTRY)
         swallow(e);
-        let Some(next) = pane.folds.with_untracked(|f| folding::cycle(&page, line, f)) else {
+        let Some(next) = pane.folds.with_untracked(|f| folding::cycle(&page, pane.fmt(), line, f)) else {
             pane.ctx.notify_t("fold_empty", "");
             return;
         };
         next
     } else {
-        let Some(next) = pane.folds.with_untracked(|f| folding::cycle_element(&page, line, f)) else { return };
+        let Some(next) = pane.folds.with_untracked(|f| folding::cycle_element(&page, pane.fmt(), line, f)) else { return };
         swallow(e);
         next
     };
@@ -235,7 +237,7 @@ fn cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) {
 /// `org-global-cycle`). False when the page has no headline.
 fn global_cycle(pane: Pane, el: &Textarea) -> bool {
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
-    let Some((shown, folds)) = pane.folds.with_untracked(|f| folding::global_cycle(&page, f)) else { return false };
+    let Some((shown, folds)) = pane.folds.with_untracked(|f| folding::global_cycle(&page, pane.fmt(), f)) else { return false };
     // A caret now hidden goes to the end of its headline
     let pos = pane.page_pos(el, caret(el));
     let pos = folds.iter().find(|&&(a, b)| a < pos && pos <= b).map_or(pos, |&(a, _)| a);
@@ -277,7 +279,7 @@ fn shift_subtree(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: 
     let pos = pane.page_pos(el, end);
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
     let demote = action == EditorAction::DemoteSubtree;
-    let lines = match folding::shift_subtree(&page, folding::line_start(&page, pos), demote) {
+    let lines = match folding::shift_subtree(&page, pane.fmt(), folding::line_start(&page, pos), demote) {
         Ok(lines) => lines,
         Err(folding::ShiftError::NotHeadline) => return,
         Err(folding::ShiftError::TopLevel) => {
@@ -291,15 +293,16 @@ fn shift_subtree(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: 
     if !lines.iter().any(|&l| folded.iter().any(|&(a, b)| a < l && l <= b)) {
         // All the headlines are shown: edit the textarea, so the change can be undone
         let at: Vec<usize> = lines.iter().map(|&l| pane.view_pos(l)).collect();
+        let mark = pane.fmt().heading_mark().to_string();
         for &p in at.iter().rev() {
-            if demote { splice(el, p, p, "*"); } else { splice(el, p, p + 1, ""); }
+            if demote { splice(el, p, p, &mark); } else { splice(el, p, p + 1, ""); }
         }
         set_cursor(el, folding::caret_after_shift(end, &at, demote));
         pane.commit(el);
         pane.track_caret(el);
     } else {
         // Some are hidden in a fold: change the page, the folds keep their place
-        let (out, moved) = folding::shift_page(&page, &lines, demote, &folded);
+        let (out, moved) = folding::shift_page(&page, pane.fmt(), &lines, demote, &folded);
         pane.folds.set(moved);
         pane.set_page(out, folding::caret_after_shift(pos, &lines, demote));
     }
@@ -312,8 +315,8 @@ fn move_line(pane: Pane, el: &Textarea, up: bool) {
     let (start, end) = (pane.page_pos(el, start), pane.page_pos(el, end));
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
     let line = folding::line_start(&page, start);
-    if folding::line_start(&page, end) == line && folding::is_headline(&page, line) {
-        let Some(s) = folding::move_subtree(&page, line, up) else { return };
+    if folding::line_start(&page, end) == line && folding::is_headline(&page, pane.fmt(), line) {
+        let Some(s) = folding::move_subtree(&page, pane.fmt(), line, up) else { return };
         // The folds inside go with their text
         let folds = pane.folds.with_untracked(|f| {
             let mut f: Vec<_> = f.iter().map(|&(a, b)| if a >= s.a && b <= s.b { (s.pos(a), s.pos(b)) } else { (a, b) }).collect();

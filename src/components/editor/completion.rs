@@ -135,8 +135,8 @@ impl Completion {
     fn complete_place(self, el: &Textarea, start: usize, caret: usize, page: String, typed: String) {
         let el = el.clone();
         spawn_local(async move {
-            let Some((text, keywords)) = self.pane.named_page_text(&page).await else { self.close(); return };
-            let titles = links::headlines(&text, keywords.as_ref());
+            let Some((text, keywords, format)) = self.pane.named_page_text(&page).await else { self.close(); return };
+            let titles = links::headlines(&text, keywords.as_ref(), format);
             let typed = typed.strip_prefix('*').unwrap_or(&typed);
             let titles: Vec<String> = if typed.trim().is_empty() {
                 titles.into_iter().take(MAX_SUGGESTIONS).collect()

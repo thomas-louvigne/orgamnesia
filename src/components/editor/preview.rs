@@ -90,11 +90,11 @@ impl Preview {
     async fn contents(self, target: &str) -> (Option<String>, &'static str) {
         let ctx = self.pane.ctx;
         let (page, at) = place::split(target);
-        let Some((text, keywords)) = self.pane.named_page_text(page).await else { return (None, "link_preview_new") };
+        let Some((text, keywords, format)) = self.pane.named_page_text(page).await else { return (None, "link_preview_new") };
         let part = match at {
             None => text,
-            Some(at) => match place::find(&text, at, keywords.as_ref()) {
-                Some((a, _)) => text.chars().skip(a).take(place::section_end(&text, a) - a).collect(),
+            Some(at) => match place::find(&text, at, keywords.as_ref(), format) {
+                Some((a, _)) => text.chars().skip(a).take(place::section_end(&text, a, format) - a).collect(),
                 None => return (None, "link_place_missing"),
             },
         };
@@ -105,7 +105,7 @@ impl Preview {
         let mut text = lines.join("\n");
         if cut { text.push_str("\n…"); }
         let view = tables::View { text, ..Default::default() };
-        (Some(highlight::render_view(&view, ctx.tags_untracked(), keywords, false, None)), "")
+        (Some(highlight::render_view(&view, ctx.tags_untracked().for_format(Some(format)), keywords, false, None, format)), "")
     }
 
     /// The bubble, when shown.
@@ -155,7 +155,11 @@ fn link_at(wrap: &web_sys::Element, x: f64, y: f64) -> Option<(String, web_sys::
             let rects = link.get_client_rects();
             let rect = (0..rects.length()).filter_map(|i| rects.item(i))
                 .find(|r| r.left() <= x && x <= r.right() && r.top() <= y && y <= r.bottom())?;
-            let target = link.query_selector(".link-t").ok()??.text_content()?.trim().to_string();
+            // The target it leads to when not the one written (`[[Page|texte]]`, `[t](Page.md)`)
+            let target = match link.get_attribute("data-t") {
+                Some(t) => t,
+                None => link.query_selector(".link-t").ok()??.text_content()?.trim().to_string(),
+            };
             let (page, at) = place::split(&target);
             let previewed = if page.is_empty() { at.is_some_and(|a| !a.starts_with('#')) } else { links::is_page_target(&target) };
             previewed.then_some((target, rect))
