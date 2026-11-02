@@ -82,11 +82,9 @@ pub fn LinksTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <Check draft get=|p| p.md_link_pipe set=|p, v| p.md_link_pipe = v label="link_pipe" sub=true />
             <Check draft get=|p| p.md_link_hash set=|p, v| p.md_link_hash = v label="link_hash" sub=true />
             <Check draft get=|p| p.md_link_markdown set=|p, v| p.md_link_markdown = v label="link_markdown" sub=true />
-            <hr class="setting-separator" />
             <div class="setting-section-title">{move || t("links_pages", lang())}</div>
             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
             <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />
-            <hr class="setting-separator" />
             <div class="setting-section-title">{move || t("links_tags", lang())}</div>
             <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />
             <Check draft get=|p| p.hashtag_dashes set=|p, v| p.hashtag_dashes = v
@@ -105,7 +103,6 @@ pub fn LinksTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     {move || t("org_tag_dashes_doc", lang())}
                 </button>
             </div>
-            <hr class="setting-separator" />
             <div class="setting-section-title">{move || t("links_display", lang())}</div>
             <Check draft get=|p| p.mark_broken_links set=|p, v| p.mark_broken_links = v
                 label="mark_broken_links" hint="mark_broken_links_hint" />
