@@ -7,7 +7,7 @@ use super::{fields::{Check, NumberField, PathField}, layout::LayoutEditor};
 use crate::{i18n::t, invoke, state::{AppCtx, Prefs}};
 use orgamnesia_core::SiteConfig;
 
-/// Project, links and language.
+/// Project, format of the pages, updates and language.
 #[component]
 pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
@@ -43,6 +43,36 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <Check draft get=|p| p.ask_format set=|p, v| p.ask_format = v
                 label="ask_format" sub=true disabled=|p| p.single_format />
             <hr class="setting-separator" />
+            <Check draft get=|p| p.check_updates set=|p, v| p.check_updates = v
+                label="check_updates" hint="check_updates_hint" />
+            <div class="setting-row setting-sub">
+                <button class="btn-secondary update-check-now" on:click=move |_| crate::update::check_now(ctx)>
+                    {move || t("update_check_now", lang())}
+                </button>
+            </div>
+            <hr class="setting-separator" />
+            <div class="setting-row">
+                <label>{move || t("language", lang())}</label>
+                <select
+                    prop:value=move || draft.with(|p| p.lang.clone())
+                    on:change=move |e| draft.update(|p| p.lang = event_target_value(&e))
+                >
+                    <option value="fr">{move || t("lang_fr", lang())}</option>
+                    <option value="en">{move || t("lang_en", lang())}</option>
+                </select>
+            </div>
+        </div>
+    }
+}
+
+/// The links: their syntaxes in each format, page names, tags, how links are shown.
+#[component]
+pub fn LinksTab(draft: RwSignal<Prefs>) -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    view! {
+        <div class="tab-content">
+            <div class="setting-section-title">{move || t("links_syntaxes", lang())}</div>
             <div class="setting-row"><label>{move || t("org_links", lang())}</label>
                 <span class="setting-hint">{move || t("org_links_hint", lang())}</span></div>
             <Check draft get=|p| p.org_link_pipe set=|p, v| p.org_link_pipe = v label="link_pipe" sub=true />
@@ -52,9 +82,12 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <Check draft get=|p| p.md_link_pipe set=|p, v| p.md_link_pipe = v label="link_pipe" sub=true />
             <Check draft get=|p| p.md_link_hash set=|p, v| p.md_link_hash = v label="link_hash" sub=true />
             <Check draft get=|p| p.md_link_markdown set=|p, v| p.md_link_markdown = v label="link_markdown" sub=true />
+            <hr class="setting-separator" />
+            <div class="setting-section-title">{move || t("links_pages", lang())}</div>
             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
             <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />
             <hr class="setting-separator" />
+            <div class="setting-section-title">{move || t("links_tags", lang())}</div>
             <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />
             <Check draft get=|p| p.hashtag_dashes set=|p, v| p.hashtag_dashes = v
                 label="hashtag_dashes" hint="hashtag_dashes_hint" sub=true
@@ -73,22 +106,20 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 </button>
             </div>
             <hr class="setting-separator" />
-            <Check draft get=|p| p.check_updates set=|p, v| p.check_updates = v
-                label="check_updates" hint="check_updates_hint" />
+            <div class="setting-section-title">{move || t("links_display", lang())}</div>
+            <Check draft get=|p| p.mark_broken_links set=|p, v| p.mark_broken_links = v
+                label="mark_broken_links" hint="mark_broken_links_hint" />
+            <Check draft get=|p| p.link_preview set=|p, v| p.link_preview = v
+                label="link_preview" hint="link_preview_hint" />
             <div class="setting-row setting-sub">
-                <button class="btn-secondary update-check-now" on:click=move |_| crate::update::check_now(ctx)>
-                    {move || t("update_check_now", lang())}
-                </button>
-            </div>
-            <hr class="setting-separator" />
-            <div class="setting-row">
-                <label>{move || t("language", lang())}</label>
+                <label>{move || t("link_preview_trigger", lang())}</label>
                 <select
-                    prop:value=move || draft.with(|p| p.lang.clone())
-                    on:change=move |e| draft.update(|p| p.lang = event_target_value(&e))
+                    prop:disabled=move || !draft.with(|p| p.link_preview)
+                    prop:value=move || draft.with(|p| p.link_preview_trigger.clone())
+                    on:change=move |e| draft.update(|p| p.link_preview_trigger = event_target_value(&e))
                 >
-                    <option value="fr">{move || t("lang_fr", lang())}</option>
-                    <option value="en">{move || t("lang_en", lang())}</option>
+                    <option value="ctrl">{move || t("link_preview_ctrl", lang())}</option>
+                    <option value="hover">{move || t("link_preview_hover", lang())}</option>
                 </select>
             </div>
         </div>
@@ -145,21 +176,6 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="show_page_title" hint="show_page_title_hint" />
             <Check draft get=|p| p.show_line_numbers set=|p, v| p.show_line_numbers = v
                 label="show_line_numbers" />
-            <Check draft get=|p| p.mark_broken_links set=|p, v| p.mark_broken_links = v
-                label="mark_broken_links" hint="mark_broken_links_hint" />
-            <Check draft get=|p| p.link_preview set=|p, v| p.link_preview = v
-                label="link_preview" hint="link_preview_hint" />
-            <div class="setting-row setting-sub">
-                <label>{move || t("link_preview_trigger", lang())}</label>
-                <select
-                    prop:disabled=move || !draft.with(|p| p.link_preview)
-                    prop:value=move || draft.with(|p| p.link_preview_trigger.clone())
-                    on:change=move |e| draft.update(|p| p.link_preview_trigger = event_target_value(&e))
-                >
-                    <option value="ctrl">{move || t("link_preview_ctrl", lang())}</option>
-                    <option value="hover">{move || t("link_preview_hover", lang())}</option>
-                </select>
-            </div>
             <Check draft get=|p| p.show_images set=|p, v| p.show_images = v
                 label="show_images" hint="show_images_hint" />
             <div class="setting-row setting-sub">

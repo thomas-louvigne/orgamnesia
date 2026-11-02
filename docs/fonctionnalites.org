@@ -785,11 +785,19 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 ** Général
 - Dossier du projet par défaut.
 - Rouvrir les pages et les volets au démarrage.
-- Liens insensibles à la casse et aux accents.
-- =#mots-clés= comme liens, avec ou sans tirets.
-- =:tags:= comme liens, avec ou sans tirets.
-- Mettre à jour les liens quand on renomme une page.
+- Format des nouvelles pages (org-mode ou Markdown), ne lire que les pages de ce
+  format, demander le format de chaque nouvelle page.
+- Chercher les mises à jour au démarrage.
 - Langue : français ou anglais.
+
+** Liens
+- Syntaxes : =[[Page|texte]]=, =[[Page#Titre]]= et =[texte](Page.md)=, chacune lue
+  ou non, dans les pages org-mode et dans les pages Markdown.
+- Noms des pages : liens insensibles à la casse et aux accents, mettre à jour les
+  liens quand on renomme une page.
+- Tags : =#mots-clés= et =:tags:= comme liens, avec ou sans tirets.
+- Affichage : signaler les liens cassés, aperçu d'un lien (activé ou non, et quand
+  il s'affiche : Ctrl enfoncé ou souris posée).
 
 ** Édition
 - Sauvegarde automatique.
@@ -804,9 +812,6 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 ** Affichage
 - Apparence : titre de la page, numéros de ligne, étoiles des titres masquées sauf
   la dernière.
-- Signaler les liens cassés.
-- Aperçu d'un lien : activé ou non, et quand il s'affiche (Ctrl enfoncé ou souris
-  posée).
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
 - Vignettes des vidéos YouTube.
 - Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans

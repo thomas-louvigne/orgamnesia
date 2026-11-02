@@ -771,11 +771,19 @@ closes without saving. The explanations under a setting are in italics.
 ** General
 - Default project folder.
 - Reopen the pages and panes on start.
-- Links ignore case and accents.
-- =#keywords= as links, with or without dashes.
-- =:tags:= as links, with or without dashes.
-- Update links when a page is renamed.
+- Format of new pages (org-mode or Markdown), only read the pages of this format,
+  ask the format of each new page.
+- Look for updates on start.
 - Language: French or English.
+
+** Links
+- Syntaxes: =[[Page|text]]=, =[[Page#Title]]= and =[text](Page.md)=, each read or
+  not, in org-mode pages and in Markdown pages.
+- Page names: links ignore case and accents, update the links when a page is
+  renamed.
+- Tags: =#keywords= and =:tags:= as links, with or without dashes.
+- Display: mark the broken links, link preview (on or off, and when it shows: Ctrl
+  held or mouse resting).
 
 ** Editing
 - Auto-save.
@@ -789,8 +797,6 @@ closes without saving. The explanations under a setting are in italics.
 
 ** Display
 - Appearance: page title, line numbers, headline stars hidden but the last.
-- Mark the broken links.
-- Link preview: on or off, and when it shows (Ctrl held or mouse resting).
 - Images: show them, and the format of their size (org-mode or Logseq).
 - Thumbnails of the YouTube videos.
 - Frames around the editor: which are shown, in which column and in which order
