@@ -41,8 +41,15 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="single_format" hint="single_format_hint" sub=true />
             <Check draft get=|p| p.ask_format set=|p, v| p.ask_format = v
                 label="ask_format" sub=true disabled=|p| p.single_format />
-            <Check draft get=|p| p.extended_links set=|p, v| p.extended_links = v
-                label="extended_links" hint="extended_links_hint" />
+            <div class="setting-row"><label>{move || t("org_links", lang())}</label>
+                <span class="setting-hint">{move || t("org_links_hint", lang())}</span></div>
+            <Check draft get=|p| p.org_link_pipe set=|p, v| p.org_link_pipe = v label="link_pipe" sub=true />
+            <Check draft get=|p| p.org_link_hash set=|p, v| p.org_link_hash = v label="link_hash" sub=true />
+            <Check draft get=|p| p.org_link_markdown set=|p, v| p.org_link_markdown = v label="link_markdown" sub=true />
+            <div class="setting-row"><label>{move || t("md_links", lang())}</label></div>
+            <Check draft get=|p| p.md_link_pipe set=|p, v| p.md_link_pipe = v label="link_pipe" sub=true />
+            <Check draft get=|p| p.md_link_hash set=|p, v| p.md_link_hash = v label="link_hash" sub=true />
+            <Check draft get=|p| p.md_link_markdown set=|p, v| p.md_link_markdown = v label="link_markdown" sub=true />
             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
             <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />
             <Check draft get=|p| p.hashtag_dashes set=|p, v| p.hashtag_dashes = v

@@ -378,10 +378,11 @@ deux formats se mélangent dans un même projet.
 - *Un seul format* : avec « Ne lire que les pages de ce format », les pages de
   l'autre format sont laissées de côté, sans être touchées sur le disque.
 - *Liens* : =[[Page]]=, =[[Page][texte]]= et =[[Page::*Titre]]= marchent dans les
-  deux formats. Une page Markdown lit aussi =[[Page|texte]]=, =[[Page#Titre]]= et
-  =[texte](Page.md)= ; un réglage les fait lire dans les pages org-mode aussi
-  (coupé par défaut : Emacs ne les comprend pas). Tous comptent pour les liens
-  entrants, les liens cassés et le renommage.
+  deux formats. =[[Page|texte]]=, =[[Page#Titre]]= et =[texte](Page.md)= se
+  choisissent un par un dans les préférences, pour les pages Markdown (tous lus
+  par défaut) et pour les pages org-mode (aucun par défaut : Emacs ne les
+  comprend pas). Tous comptent pour les liens entrants, les liens cassés et le
+  renommage.
 - *Deux pages du même nom* (=Note.org= et =Note.md=) : c'est possible mais
   déconseillé, un message le rappelle. =[[Note]]= mène à celle du format par
   défaut, =[[Note.md]]= ou =[[Note.org]]= à l'une ou l'autre ; dans la liste des

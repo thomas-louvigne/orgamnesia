@@ -246,8 +246,9 @@ pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -
 /// `#tag` or an org-mode `:tag:` (per `tags`); with the extended links, also
 /// `[[target|text]]`, `[[Page#Titre]]` and `[text](Page.md)`.
 pub fn link_at(chars: &[char], pos: usize, tags: TagSyntax) -> Option<String> {
-    let extended = tags.extended_links.then(|| {
-        orgamnesia_core::links::scan(chars, true).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
+    let syntax = tags.links();
+    let extended = (syntax != orgamnesia_core::links::LinkSyntax::NONE).then(|| {
+        orgamnesia_core::links::scan(chars, syntax).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
     }).flatten();
     extended.or_else(|| wiki_link_at(chars, pos, tags.hashtags))
         .or_else(|| tags.org.links.then(|| motion::org_tag_at(chars, pos, tags.org)).flatten())
@@ -571,7 +572,7 @@ mod tests {
     #[test]
     fn extended_links_under_the_cursor() {
         let t = c("[[Page|texte]] [[P#Titre]] [lien](Ma%20page.md)");
-        let ext = TagSyntax { extended_links: true, ..Hashtags::Off.into() };
+        let ext = TagSyntax { org_links: orgamnesia_core::links::LinkSyntax::ALL, ..Hashtags::Off.into() };
         assert_eq!(link_at(&t, 9, ext).as_deref(), Some("Page"));
         assert_eq!(link_at(&t, 17, ext).as_deref(), Some("P::*Titre"));
         assert_eq!(link_at(&t, 30, ext).as_deref(), Some("Ma page.md"));
@@ -589,7 +590,7 @@ mod tests {
         assert_eq!(link_at(&t, 1, Hashtags::Dashes.into()), None);
         assert_eq!(link_at(&c("* Titre :projet:"), 11, Hashtags::Off.into()).as_deref(), Some("projet"));
         assert_eq!(link_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into()).as_deref(), Some("exemple"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: motion::OrgTags { links: false, dashes: false }, extended_links: false, markdown: false };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: motion::OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
         assert_eq!(link_at(&c("voir :exemple: ici"), 7, off), None);
     }
 

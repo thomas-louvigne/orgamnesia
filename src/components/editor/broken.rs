@@ -65,7 +65,7 @@ impl BrokenLinks {
         let ctx = self.ctx;
         if !ctx.pref(|p| p.mark_broken_links) { return None; }
         let page = self.page.get_value();
-        let extended = ctx.tags().for_page(&page).extended_links;
+        let syntax = ctx.tags().for_page(&page).links();
         Some(Box::new(move |target: &str| {
             if let Some(file) = links::file_target(target) {
                 let path = images::resolve(&page, file);
@@ -74,9 +74,9 @@ impl BrokenLinks {
                     || (images::is_image(file) && self.sizes.with(|s| s.get(&image_src(&page, file)) == Some(&None)))
             } else if links::is_page_target(target) {
                 // `Page|texte`, `Page#Titre` as the extended links read them
-                let read = extended.then(|| {
+                let read = (syntax.pipe || syntax.hash).then(|| {
                     let chars: Vec<char> = format!("[[{target}]]").chars().collect();
-                    orgamnesia_core::links::scan(&chars, true).into_iter().next().map(|f| f.target)
+                    orgamnesia_core::links::scan(&chars, syntax).into_iter().next().map(|f| f.target)
                 }).flatten();
                 let target = read.as_deref().unwrap_or(target);
                 let page = orgamnesia_core::links::split(target).0;

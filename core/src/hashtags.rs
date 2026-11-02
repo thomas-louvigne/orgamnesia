@@ -64,28 +64,34 @@ impl OrgTags {
 }
 
 /// How the tags in the text are read: `#tags` and org-mode `:tags:`; and the
-/// links: with `extended_links`, also `[[Page|texte]]`, `[[Page#Titre]]` and
-/// `[texte](Page.md)`.
+/// links not of org-mode read (`[[Page|texte]]`, `[[Page#Titre]]`,
+/// `[texte](Page.md)`), in org-mode pages and in Markdown pages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TagSyntax {
     pub hashtags: Hashtags,
     pub org: OrgTags,
-    pub extended_links: bool,
-    /// The page is in Markdown: its front matter's `tags:` tag it.
+    pub org_links: crate::links::LinkSyntax,
+    pub md_links: crate::links::LinkSyntax,
+    /// The page is in Markdown: its front matter's `tags:` tag it, `md_links` are read.
     pub markdown: bool,
 }
 
 impl From<Hashtags> for TagSyntax {
     fn from(hashtags: Hashtags) -> Self {
-        Self { hashtags, org: OrgTags::default(), extended_links: false, markdown: false }
+        use crate::links::LinkSyntax;
+        Self { hashtags, org: OrgTags::default(), org_links: LinkSyntax::NONE, md_links: LinkSyntax::ALL, markdown: false }
     }
 }
 
 impl TagSyntax {
-    /// As read in a page of `format`: Markdown pages always have the extended links.
+    /// As read in a page of `format`.
     pub fn for_format(self, format: Option<crate::Format>) -> Self {
-        let markdown = format == Some(crate::Format::Markdown);
-        Self { extended_links: self.extended_links || markdown, markdown, ..self }
+        Self { markdown: format == Some(crate::Format::Markdown), ..self }
+    }
+
+    /// The links not of org-mode read in the page.
+    pub fn links(self) -> crate::links::LinkSyntax {
+        if self.markdown { self.md_links } else { self.org_links }
     }
 
     /// As read in the page `path`.

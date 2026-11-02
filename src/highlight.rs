@@ -16,7 +16,8 @@ thread_local! {
     static TAGS: std::cell::Cell<TagSyntax> = const { std::cell::Cell::new(TagSyntax {
         hashtags: Hashtags::Off,
         org: OrgTags { links: true, dashes: true },
-        extended_links: false,
+        org_links: orgamnesia_core::links::LinkSyntax::NONE,
+        md_links: orgamnesia_core::links::LinkSyntax::ALL,
         markdown: false,
     }) };
 }
@@ -487,7 +488,7 @@ fn closing(chars: &[char], start: usize, delim: &str, verbatim: bool) -> Option<
 /// (`link-d`); the target it leads to in `data-t` when it is not the one written
 /// (`[[Page|texte]]`, `[texte](Ma%20page.md)`).
 fn try_link(chars: &[char], start: usize) -> Option<(String, usize)> {
-    let f = orgamnesia_core::links::link_starting(chars, start, tags().extended_links)?;
+    let f = orgamnesia_core::links::link_starting(chars, start, tags().links())?;
     Some((link_html(chars, &f), f.end - start))
 }
 
@@ -498,7 +499,7 @@ fn link_html(chars: &[char], f: &Found) -> String {
             let inner_end = f.end - 2;
             let split = (f.start + 2..inner_end).find(|&j| chars[j] == ']' && chars[j + 1] == '[')
                 .map(|j| (j, 2))
-                .or_else(|| tags().extended_links.then(|| (f.start + 2..inner_end).find(|&j| chars[j] == '|').map(|j| (j, 1))).flatten());
+                .or_else(|| tags().links().pipe.then(|| (f.start + 2..inner_end).find(|&j| chars[j] == '|').map(|j| (j, 1))).flatten());
             match split {
                 Some((j, n)) => (chars[f.start + 2..j].iter().collect::<String>(), format!(
                     "[[<span class='link-t'>{}</span>{}<span class='link-d'>{}</span>]]",
@@ -782,7 +783,7 @@ mod tests {
         let html = render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org);
         assert!(html.contains(":<span class='tag-t'>ex</span>:"));
         assert!(!html.contains("30</span>"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, extended_links: false, markdown: false };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
         assert!(!render_view(&v, off, None, false, None, Format::Org).contains("tag-t"));
     }
 

@@ -379,10 +379,10 @@ formats mix in a project.
 - *One format only*: with "Only read the pages of this format", the pages of the
   other format are left aside, untouched on the disk.
 - *Links*: =[[Page]]=, =[[Page][text]]= and =[[Page::*Title]]= work in both formats.
-  A Markdown page also reads =[[Page|text]]=, =[[Page#Title]]= and
-  =[text](Page.md)=; a setting reads them in org-mode pages too (off by default:
-  Emacs doesn't understand them). All count for backlinks, broken links and
-  renaming.
+  =[[Page|text]]=, =[[Page#Title]]= and =[text](Page.md)= are chosen one by one in
+  the settings, for Markdown pages (all read by default) and for org-mode pages
+  (none by default: Emacs doesn't understand them). All count for backlinks,
+  broken links and renaming.
 - *Two pages of the same name* (=Note.org= and =Note.md=): possible but best
   avoided, a message says so. =[[Note]]= leads to the one of the default format,
   =[[Note.md]]= or =[[Note.org]]= to either; in the pages list, the one =[[Note]]=

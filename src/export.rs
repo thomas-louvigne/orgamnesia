@@ -57,7 +57,7 @@ async fn tab_html(ctx: AppCtx, tab: &Tab, image: impl AsyncFn(&str) -> String) -
         urls.insert(target, url);
     }
     let keywords = ctx.pref_untracked(|p| p.todo()).map(|d| TodoKeywords::for_page(&text, &d));
-    let extended = ctx.pref_untracked(|p| p.extended_links) || format == Format::Markdown;
+    let extended = ctx.tags_untracked().for_format(Some(format)).links();
     let url = |t: &str| urls.get(t).cloned().unwrap_or_else(|| t.to_string());
     format!("<div class='org-page'>{}</div>", page_html(&text, &tab.name, keywords.as_ref(), &url, format, extended))
 }
@@ -181,7 +181,7 @@ fn page_title(text: &str) -> Option<String> {
 /// `format`: the page's; `extended`: the extended links are read (`[[Page|texte]]`,
 /// `[texte](Page.md)`; always in Markdown).
 pub fn page_html(
-    text: &str, name: &str, keywords: Option<&TodoKeywords>, image: &dyn Fn(&str) -> String, format: Format, extended: bool,
+    text: &str, name: &str, keywords: Option<&TodoKeywords>, image: &dyn Fn(&str) -> String, format: Format, extended: place::LinkSyntax,
 ) -> String {
     let md = format == Format::Markdown;
     let all: Vec<&str> = text.split('\n').collect();
@@ -213,8 +213,8 @@ struct Doc<'a> {
     shift: usize,
     /// A Markdown page.
     md: bool,
-    /// The extended links are read.
-    extended: bool,
+    /// The links not of org-mode read.
+    extended: place::LinkSyntax,
 }
 
 impl Doc<'_> {
@@ -526,7 +526,7 @@ impl Doc<'_> {
         let desc = match f.kind {
             place::Kind::Org => (f.start + 2..f.end - 2).find(|&j| chars[j] == ']' && chars[j + 1] == '[')
                 .map(|j| text(j + 2, f.end - 2))
-                .or_else(|| self.extended.then(|| (f.start + 2..f.end - 2).find(|&j| chars[j] == '|').map(|j| text(j + 1, f.end - 2))).flatten()),
+                .or_else(|| self.extended.pipe.then(|| (f.start + 2..f.end - 2).find(|&j| chars[j] == '|').map(|j| text(j + 1, f.end - 2))).flatten()),
             place::Kind::Markdown => (f.start + 1..f.end).find(|&j| chars[j] == ']').map(|j| text(f.start + 1, j)),
         };
         Some((f.target, desc, f.end))
@@ -714,12 +714,12 @@ mod tests {
 
     fn html(text: &str) -> String {
         let k = TodoKeywords::parse("TODO | DONE");
-        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"), Format::Org, false)
+        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"), Format::Org, place::LinkSyntax::NONE)
     }
 
     fn md(text: &str) -> String {
         let k = TodoKeywords::parse("TODO | DONE");
-        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"), Format::Markdown, true)
+        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"), Format::Markdown, place::LinkSyntax::ALL)
     }
 
     #[test]
@@ -782,7 +782,7 @@ mod tests {
 
     #[test]
     fn emphasis_as_org_reads_it() {
-        let d = Doc { keywords: None, image: &|t| t.to_string(), shift: 0, md: false, extended: false };
+        let d = Doc { keywords: None, image: &|t| t.to_string(), shift: 0, md: false, extended: place::LinkSyntax::NONE };
         assert_eq!(d.inline("a /b/ c_d_e 2*3*4 +x+"), "a <i>b</i> c_d_e 2*3*4 <s>x</s>");
         assert_eq!(d.inline("=a*b*= ~<t>~"), "<code>a*b*</code> <code>&lt;t&gt;</code>");
     }

@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Format, Formats, Frame, Hashtags, Layout, OrgTags, TagSyntax, TodoKeywords};
+use crate::{links::LinkSyntax, Format, Formats, Frame, Hashtags, Layout, OrgTags, TagSyntax, TodoKeywords};
 
 /// The TODO keywords when none are set (Emacs style: done states after the `|`).
 pub const DEFAULT_TODO_KEYWORDS: &str = "TODO DOING HANGUP | DONE";
@@ -49,9 +49,15 @@ pub struct Config {
     pub single_format: Option<bool>,
     /// Ask the format of each new page.
     pub ask_format: Option<bool>,
-    /// In org-mode pages, also read `[[Page|texte]]`, `[[Page#Titre]]` and
-    /// `[texte](Page.md)` as links (always so in Markdown pages).
-    pub extended_links: Option<bool>,
+    /// In org-mode pages, also read as links `[[Page|texte]]` (`pipe`),
+    /// `[[Page#Titre]]` (`hash`), `[texte](Page.md)` (`markdown`). Off by default.
+    pub org_link_pipe: Option<bool>,
+    pub org_link_hash: Option<bool>,
+    pub org_link_markdown: Option<bool>,
+    /// The same in Markdown pages. On by default.
+    pub md_link_pipe: Option<bool>,
+    pub md_link_hash: Option<bool>,
+    pub md_link_markdown: Option<bool>,
     /// Rewrite `[[links]]` in other pages when a page is renamed.
     pub update_links_on_rename: Option<bool>,
     /// Match `[[links]]` to pages ignoring case.
@@ -233,7 +239,12 @@ pub struct Prefs {
     pub default_format: Format,
     pub single_format: bool,
     pub ask_format: bool,
-    pub extended_links: bool,
+    pub org_link_pipe: bool,
+    pub org_link_hash: bool,
+    pub org_link_markdown: bool,
+    pub md_link_pipe: bool,
+    pub md_link_hash: bool,
+    pub md_link_markdown: bool,
     pub update_links: bool,
     pub autosave: bool,
     pub delete_empty: bool,
@@ -317,7 +328,12 @@ impl Prefs {
             default_format: s.default_format.as_deref().and_then(Format::from_id).unwrap_or_default(),
             single_format: s.single_format.unwrap_or(false),
             ask_format: s.ask_format.unwrap_or(false),
-            extended_links: s.extended_links.unwrap_or(false),
+            org_link_pipe: s.org_link_pipe.unwrap_or(false),
+            org_link_hash: s.org_link_hash.unwrap_or(false),
+            org_link_markdown: s.org_link_markdown.unwrap_or(false),
+            md_link_pipe: s.md_link_pipe.unwrap_or(true),
+            md_link_hash: s.md_link_hash.unwrap_or(true),
+            md_link_markdown: s.md_link_markdown.unwrap_or(true),
             update_links: s.update_links_on_rename.unwrap_or(true),
             autosave: s.autosave.unwrap_or(true),
             delete_empty: s.delete_empty_pages.unwrap_or(false),
@@ -390,7 +406,12 @@ impl Prefs {
             default_format: Some(self.default_format.id().to_string()),
             single_format: Some(self.single_format),
             ask_format: Some(self.ask_format),
-            extended_links: Some(self.extended_links),
+            org_link_pipe: Some(self.org_link_pipe),
+            org_link_hash: Some(self.org_link_hash),
+            org_link_markdown: Some(self.org_link_markdown),
+            md_link_pipe: Some(self.md_link_pipe),
+            md_link_hash: Some(self.md_link_hash),
+            md_link_markdown: Some(self.md_link_markdown),
             update_links_on_rename: Some(self.update_links),
             case_insensitive_links: Some(self.case_insensitive_links),
             hashtag_links: Some(self.hashtag_links),
@@ -461,7 +482,8 @@ impl Prefs {
         TagSyntax {
             hashtags: Hashtags::new(self.hashtag_links, self.hashtag_dashes),
             org: OrgTags { links: self.org_tag_links, dashes: self.org_tag_dashes },
-            extended_links: self.extended_links,
+            org_links: LinkSyntax { pipe: self.org_link_pipe, hash: self.org_link_hash, markdown: self.org_link_markdown },
+            md_links: LinkSyntax { pipe: self.md_link_pipe, hash: self.md_link_hash, markdown: self.md_link_markdown },
             markdown: false,
         }
     }
@@ -539,7 +561,8 @@ mod tests {
         assert!(p.link_preview);
         assert_eq!(p.link_preview_trigger, "ctrl");
         assert_eq!(p.formats(), Formats { default: Format::Org, single: false });
-        assert!(!p.ask_format && !p.extended_links);
+        assert!(!p.ask_format);
+        assert_eq!((p.tags().org_links, p.tags().md_links), (LinkSyntax::NONE, LinkSyntax::ALL));
         assert_eq!(p.todo(), Some(TodoKeywords::parse(DEFAULT_TODO_KEYWORDS)));
         let blank = Settings { config: Config { todo_keywords: Some(" ".into()), ..Config::default() }, ..Settings::default() };
         assert_eq!(blank.prefs().todo_keywords, DEFAULT_TODO_KEYWORDS);

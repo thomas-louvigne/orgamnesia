@@ -19,6 +19,20 @@ pub fn split(target: &str) -> (&str, Option<&str>) {
     if t.starts_with('*') || t.starts_with('#') { ("", Some(t)) } else { (t, None) }
 }
 
+/// Which of the links not of org-mode are read: `[[Page|texte]]` (`pipe`),
+/// `[[Page#Titre]]` (`hash`), `[texte](Page.md)` (`markdown`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LinkSyntax {
+    pub pipe: bool,
+    pub hash: bool,
+    pub markdown: bool,
+}
+
+impl LinkSyntax {
+    pub const NONE: Self = Self { pipe: false, hash: false, markdown: false };
+    pub const ALL: Self = Self { pipe: true, hash: true, markdown: true };
+}
+
 /// How a link is written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -44,15 +58,15 @@ pub struct Found {
     pub kind: Kind,
 }
 
-/// The links of `chars`. With `extended` (always for Markdown pages), also
-/// `[[Page|texte]]`, `[[Page#Titre]]` and `[texte](Page.md)`.
-pub fn scan(chars: &[char], extended: bool) -> Vec<Found> {
+/// The links of `chars`, and those of `syntax` among `[[Page|texte]]`,
+/// `[[Page#Titre]]` and `[texte](Page.md)`.
+pub fn scan(chars: &[char], syntax: LinkSyntax) -> Vec<Found> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < chars.len() {
         let found = if chars[i] == '[' && chars.get(i + 1) == Some(&'[') {
-            org_link(chars, i, extended)
-        } else if extended && chars[i] == '[' && (i == 0 || !matches!(chars[i - 1], '[' | '!' | '\\')) {
+            org_link(chars, i, syntax)
+        } else if syntax.markdown && chars[i] == '[' && (i == 0 || !matches!(chars[i - 1], '[' | '!' | '\\')) {
             markdown_link(chars, i)
         } else {
             None
@@ -66,14 +80,14 @@ pub fn scan(chars: &[char], extended: bool) -> Vec<Found> {
 }
 
 /// The link starting at `at`, if one does (see `scan`).
-pub fn link_starting(chars: &[char], at: usize, extended: bool) -> Option<Found> {
+pub fn link_starting(chars: &[char], at: usize, syntax: LinkSyntax) -> Option<Found> {
     if chars.get(at) != Some(&'[') { return None; }
-    if chars.get(at + 1) == Some(&'[') { return org_link(chars, at, extended); }
-    (extended && (at == 0 || !matches!(chars[at - 1], '[' | '!' | '\\'))).then(|| markdown_link(chars, at)).flatten()
+    if chars.get(at + 1) == Some(&'[') { return org_link(chars, at, syntax); }
+    (syntax.markdown && (at == 0 || !matches!(chars[at - 1], '[' | '!' | '\\'))).then(|| markdown_link(chars, at)).flatten()
 }
 
 /// The link starting at `at` (`[[`), if it is closed.
-fn org_link(chars: &[char], at: usize, extended: bool) -> Option<Found> {
+fn org_link(chars: &[char], at: usize, syntax: LinkSyntax) -> Option<Found> {
     let ts = at + 2;
     let te = ts + chars[ts..].iter().position(|&c| matches!(c, ']' | '['))?;
     let end = match (chars.get(te), chars.get(te + 1)) {
@@ -86,7 +100,7 @@ fn org_link(chars: &[char], at: usize, extended: bool) -> Option<Found> {
         _ => return None,
     };
     // `[[Page|texte]]`: the text after the bar
-    let te = if extended { (ts..te).find(|&j| chars[j] == '|').unwrap_or(te) } else { te };
+    let te = if syntax.pipe { (ts..te).find(|&j| chars[j] == '|').unwrap_or(te) } else { te };
     let raw: String = chars[ts..te].iter().collect();
     let trimmed = |a: usize, b: usize| {
         let a = a + chars[a..b].iter().take_while(|c| c.is_whitespace()).count();
@@ -94,7 +108,7 @@ fn org_link(chars: &[char], at: usize, extended: bool) -> Option<Found> {
         (a < b).then_some((a, b))
     };
     let sep = raw.find(SEPARATOR).map(|b| ts + raw[..b].chars().count());
-    let hash = (extended && sep.is_none() && !raw.contains("://"))
+    let hash = (syntax.hash && sep.is_none() && !raw.contains("://"))
         .then(|| (ts..te).find(|&j| chars[j] == '#'))
         .flatten()
         .filter(|&h| chars[ts..h].iter().any(|c| !c.is_whitespace()));
@@ -292,7 +306,7 @@ mod tests {
 
     fn scanned(text: &str, extended: bool) -> Vec<(String, Option<String>)> {
         let chars: Vec<char> = text.chars().collect();
-        scan(&chars, extended).into_iter()
+        scan(&chars, if extended { LinkSyntax::ALL } else { LinkSyntax::NONE }).into_iter()
             .map(|f| (f.target, f.page.map(|(a, b)| chars[a..b].iter().collect())))
             .collect()
     }
@@ -306,6 +320,16 @@ mod tests {
         ]);
         // Not a Markdown link without the extended syntax
         assert!(scanned("[t](Page.md)", false).is_empty());
+    }
+
+    #[test]
+    fn each_syntax_on_its_own() {
+        let text = "[[a|b]] [[c#d]] [e](f.md)";
+        let chars: Vec<char> = text.chars().collect();
+        let targets = |s| scan(&chars, s).into_iter().map(|f| f.target).collect::<Vec<_>>();
+        assert_eq!(targets(LinkSyntax { pipe: true, ..LinkSyntax::NONE }), vec!["a", "c#d"]);
+        assert_eq!(targets(LinkSyntax { hash: true, ..LinkSyntax::NONE }), vec!["a|b", "c::*d"]);
+        assert_eq!(targets(LinkSyntax { markdown: true, ..LinkSyntax::NONE }), vec!["a|b", "c#d", "f.md"]);
     }
 
     #[test]
