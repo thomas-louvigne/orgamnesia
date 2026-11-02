@@ -23,7 +23,7 @@ pub async fn open_vault(state: State<'_, AppState>, app: AppHandle, path: String
 
 /// Open the folder `path` as the project, remembered in `dir`; returns its pages.
 fn open(state: &AppState, dir: &Path, path: &str) -> Cmd<Vec<FileEntry>> {
-    let project = Project::open(path, state.prefs().tags())?;
+    let project = Project::open(path, state.prefs().tags(), state.prefs().formats())?;
     let files = project.files();
     let prefs = state.prefs();
     if prefs.trash_auto_empty {

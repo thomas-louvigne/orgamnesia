@@ -174,7 +174,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
         let pos = pane.page_pos(&el, el.selection_start().ok().flatten().unwrap_or(0) as usize);
         let chars: Vec<char> = content.get_untracked().chars().collect();
-        if let Some(name) = edit::link_at(&chars, pos, ctx.tags_untracked()) {
+        if let Some(name) = edit::link_at(&chars, pos, pane.tags_untracked()) {
             e.prevent_default();
             follow_link(ctx, name);
         }

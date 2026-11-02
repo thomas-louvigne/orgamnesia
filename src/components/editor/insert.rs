@@ -88,7 +88,7 @@ fn dialog(insert: Insert, a: usize, b: usize, kind: Kind) -> impl IntoView {
         Kind::Link { target, description } => {
             let target = RwSignal::new(target);
             let description = RwSignal::new(description);
-            let pages: Vec<String> = ctx.project.files.get_untracked().into_iter().map(|f| f.name).collect();
+            let pages: Vec<String> = ctx.link_names();
             let body = view! {
                 <div class="setting-row">
                     <label for="insert-link-target">{move || t("link_target", lang())}</label>

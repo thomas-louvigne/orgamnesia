@@ -18,8 +18,8 @@ fn pages_are_read_written_renamed_deleted_and_restored() {
     let path = open_project(&s(), "cmd-pages", &[("Une", "* Une\nvers [[Deux]]\n")]);
     let une = format!("{path}/pages/Une.org");
     assert_eq!(block_on(pages::read_file(s(), une.clone())).unwrap(), "* Une\nvers [[Deux]]\n");
-    let deux = block_on(pages::create_page(s(), "Deux".into())).unwrap();
-    assert!(block_on(pages::create_page(s(), "Deux".into())).is_err());
+    let deux = block_on(pages::create_page(s(), "Deux".into(), None)).unwrap();
+    assert!(block_on(pages::create_page(s(), "Deux".into(), None)).is_err());
     block_on(pages::write_file(s(), deux.path.clone(), "* Deux\n".into())).unwrap();
     // Renamed: the links to it follow
     let trois = block_on(pages::rename_page(s(), deux.path, "Trois".into())).unwrap();
@@ -37,11 +37,12 @@ fn pages_are_read_written_renamed_deleted_and_restored() {
 fn links_tags_and_todos() {
     let app = mock_app();
     let s = || app.state::<AppState>();
-    open_project(&s(), "cmd-links", &[
+    let path = open_project(&s(), "cmd-links", &[
         ("Une", "* TODO Écrire :projet:\nvers [[Deux]] et [[Nulle part]]\n"),
         ("Deux", "* Deux\n"),
     ]);
-    assert_eq!(block_on(links::get_backlinks(s(), "Deux".into())).unwrap(), vec!["Une".to_string()]);
+    let deux = format!("{path}/pages/Deux.org");
+    assert_eq!(block_on(links::get_backlinks(s(), deux)).unwrap(), vec!["Une".to_string()]);
     let broken = block_on(links::get_broken_links(s())).unwrap();
     // `:tags:` are links too, by default
     assert_eq!(broken.iter().map(|b| b.target.as_str()).collect::<Vec<_>>(), vec!["Nulle part", "projet"]);

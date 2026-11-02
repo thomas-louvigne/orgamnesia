@@ -41,6 +41,15 @@ pub fn PagesFrame() -> impl IntoView {
     };
 
     let active_path = Memo::new(move |_| ctx.work.active_tab_data().map(|t| t.path));
+    // Pages with a twin (a page of the same name in the other format), and among
+    // them those their name alone doesn't lead to: struck through
+    let twins = Memo::new(move |_| {
+        let (loose, default) = ctx.pref(|p| (p.case_insensitive_links, p.default_format));
+        ctx.project.files.with(|fs| {
+            let r = orgamnesia_core::pages::Resolver::new(fs, loose, default);
+            fs.iter().filter(|f| r.has_twin(f)).map(|f| (f.path.clone(), r.shadowed(f))).collect::<std::collections::HashMap<String, bool>>()
+        })
+    });
     // Pages differing from the remote (git extension): marked, to push
     let unpushed = Memo::new(move |_| {
         if !ctx.pref(|p| p.git_ext && p.git_unpushed_marker) || ctx.project.preference.get() { return std::collections::HashSet::new(); }
@@ -96,6 +105,9 @@ pub fn PagesFrame() -> impl IntoView {
                         let path_r = file.path.clone();
                         let path_c = file.path.clone();
                         let path_u = file.path.clone();
+                        let path_t = file.path.clone();
+                        let path_s = file.path.clone();
+                        let link = orgamnesia_core::pages::file_name(&file.path).to_string();
                         let name = file.name.clone();
                         let file_open = file.clone();
                         let file_menu = file.clone();
@@ -142,8 +154,21 @@ pub fn PagesFrame() -> impl IntoView {
                                         />
                                     }.into_any()
                                 } else {
-                                    name.clone().into_any()
+                                    let path_s = path_s.clone();
+                                    let shadowed = Signal::derive(move || twins.with(|t| t.get(&path_s) == Some(&true)));
+                                    let link = link.clone();
+                                    let name = name.clone();
+                                    view! {
+                                        <span
+                                            class=move || if shadowed.get() { "file-name file-shadowed" } else { "file-name" }
+                                            title=move || shadowed.get().then(|| format!("{} [[{}]]", t("twin_shadowed", ctx.lang.get()), link))
+                                        >{name}</span>
+                                    }.into_any()
                                 }}
+                                {move || twins.with(|t| t.contains_key(&path_t)).then(|| {
+                                    let ext = orgamnesia_core::Format::of_path(&path_t).map_or("", |f| f.ext());
+                                    view! { <span class="file-ext">{format!(".{ext}")}</span> }
+                                })}
                                 {move || unpushed.with(|u| u.contains(&path_u)).then(|| view! {
                                     <span class="file-unpushed"
                                         title=move || t("git_unpushed_file", ctx.lang.get())

@@ -63,16 +63,31 @@ impl OrgTags {
     }
 }
 
-/// How the tags in the text are read: `#tags` and org-mode `:tags:`.
+/// How the tags in the text are read: `#tags` and org-mode `:tags:`; and the
+/// links: with `extended_links`, also `[[Page|texte]]`, `[[Page#Titre]]` and
+/// `[texte](Page.md)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TagSyntax {
     pub hashtags: Hashtags,
     pub org: OrgTags,
+    pub extended_links: bool,
 }
 
 impl From<Hashtags> for TagSyntax {
     fn from(hashtags: Hashtags) -> Self {
-        Self { hashtags, org: OrgTags::default() }
+        Self { hashtags, org: OrgTags::default(), extended_links: false }
+    }
+}
+
+impl TagSyntax {
+    /// As read in a page of `format`: Markdown pages always have the extended links.
+    pub fn for_format(self, format: Option<crate::Format>) -> Self {
+        Self { extended_links: self.extended_links || format == Some(crate::Format::Markdown), ..self }
+    }
+
+    /// As read in the page `path`.
+    pub fn for_page(self, path: &str) -> Self {
+        self.for_format(crate::Format::of_path(path))
     }
 }
 

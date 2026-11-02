@@ -23,6 +23,24 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 />
             </div>
             <Check draft get=|p| p.restore_session set=|p, v| p.restore_session = v label="restore_session" />
+            <div class="setting-row">
+                <label>{move || t("default_format", lang())}</label>
+                <select
+                    prop:value=move || draft.with(|p| p.default_format.id())
+                    on:change=move |e| {
+                        let f = orgamnesia_core::Format::from_id(&event_target_value(&e)).unwrap_or_default();
+                        draft.update(|p| p.default_format = f);
+                    }
+                >
+                    <option value="org">{move || t("format_org", lang())}</option>
+                    <option value="markdown">{move || t("format_markdown", lang())}</option>
+                </select>
+                <span class="setting-hint">{move || t("default_format_hint", lang())}</span>
+            </div>
+            <Check draft get=|p| p.single_format set=|p, v| p.single_format = v
+                label="single_format" hint="single_format_hint" sub=true />
+            <Check draft get=|p| p.extended_links set=|p, v| p.extended_links = v
+                label="extended_links" hint="extended_links_hint" />
             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
             <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />
             <Check draft get=|p| p.hashtag_dashes set=|p, v| p.hashtag_dashes = v

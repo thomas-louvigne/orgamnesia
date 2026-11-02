@@ -7,6 +7,7 @@ thread_local! {
     static TAGS: std::cell::Cell<TagSyntax> = const { std::cell::Cell::new(TagSyntax {
         hashtags: Hashtags::Off,
         org: OrgTags { links: true, dashes: true },
+        extended_links: false,
     }) };
 }
 
@@ -623,7 +624,7 @@ mod tests {
         let html = render_view(&v, Hashtags::Off.into(), None, false, None);
         assert!(html.contains(":<span class='tag-t'>ex</span>:"));
         assert!(!html.contains("30</span>"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, extended_links: false };
         assert!(!render_view(&v, off, None, false, None).contains("tag-t"));
     }
 

@@ -8,7 +8,6 @@ use wasm_bindgen_futures::spawn_local;
 
 use super::images::{image_src, ImageSizes};
 use crate::{highlight, images, invoke, links, state::AppCtx};
-use orgamnesia_core::names::page_key;
 
 /// What the editor of a page knows of the targets of its links.
 #[derive(Clone, Copy)]
@@ -16,8 +15,8 @@ pub struct BrokenLinks {
     ctx: AppCtx,
     /// The page, whose folder file links start from.
     page: StoredValue<String>,
-    /// Keys of the pages of the project.
-    page_keys: Memo<HashSet<String>>,
+    /// The pages of the project, and the settings telling which a name leads to.
+    files: Memo<(Vec<orgamnesia_core::FileEntry>, bool, orgamnesia_core::Format)>,
     /// The files the page links to that are missing (asked to the backend).
     missing: RwSignal<HashSet<String>>,
     sizes: RwSignal<ImageSizes>,
@@ -26,9 +25,9 @@ pub struct BrokenLinks {
 impl BrokenLinks {
     pub fn new(ctx: AppCtx, page: String, content: RwSignal<String>, sizes: RwSignal<ImageSizes>) -> Self {
         let page = StoredValue::new(page);
-        let page_keys = Memo::new(move |_| {
-            let loose = ctx.pref(|p| p.case_insensitive_links);
-            ctx.project.files.with(|fs| fs.iter().map(|f| page_key(f.name.trim(), loose)).collect())
+        let files = Memo::new(move |_| {
+            let (loose, default) = ctx.pref(|p| (p.case_insensitive_links, p.default_format));
+            (ctx.project.files.get(), loose, default)
         });
         // The files the page links to
         let file_links = Memo::new(move |_| {
@@ -58,15 +57,15 @@ impl BrokenLinks {
                 }
             });
         });
-        Self { ctx, page, page_keys, missing, sizes }
+        Self { ctx, page, files, missing, sizes }
     }
 
     /// Whether a link target leads nowhere; `None` when broken links aren't marked.
     pub fn check(self) -> Option<highlight::Broken> {
         let ctx = self.ctx;
         if !ctx.pref(|p| p.mark_broken_links) { return None; }
-        let loose = ctx.pref(|p| p.case_insensitive_links);
         let page = self.page.get_value();
+        let extended = ctx.tags().for_page(&page).extended_links;
         Some(Box::new(move |target: &str| {
             if let Some(file) = links::file_target(target) {
                 let path = images::resolve(&page, file);
@@ -74,8 +73,14 @@ impl BrokenLinks {
                 self.missing.with(|m| m.contains(&path))
                     || (images::is_image(file) && self.sizes.with(|s| s.get(&image_src(&page, file)) == Some(&None)))
             } else if links::is_page_target(target) {
+                // `Page|texte`, `Page#Titre` as the extended links read them
+                let read = extended.then(|| {
+                    let chars: Vec<char> = format!("[[{target}]]").chars().collect();
+                    orgamnesia_core::links::scan(&chars, true).into_iter().next().map(|f| f.target)
+                }).flatten();
+                let target = read.as_deref().unwrap_or(target);
                 let page = orgamnesia_core::links::split(target).0;
-                !self.page_keys.with(|k| k.contains(&page_key(page, loose)))
+                self.files.with(|(fs, loose, default)| orgamnesia_core::pages::Resolver::new(fs, *loose, *default).resolve(page).is_none())
             } else {
                 false
             }

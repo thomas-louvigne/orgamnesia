@@ -4,6 +4,7 @@ use std::time::SystemTime;
 use crate::error::AppError;
 
 pub use orgamnesia_core::FileEntry;
+use orgamnesia_core::{Format, Formats};
 
 /// Directory holding the pages: `<vault>/pages/` when it exists, else the folder itself.
 pub fn pages_dir(vault_path: &str) -> PathBuf {
@@ -11,29 +12,34 @@ pub fn pages_dir(vault_path: &str) -> PathBuf {
     if pages.is_dir() { pages } else { PathBuf::from(vault_path) }
 }
 
+/// Whether the file `path` is a page of either format (`.org`, `.md`).
+fn is_page_file(path: &Path) -> bool {
+    path.extension().and_then(|s| s.to_str()).and_then(Format::from_ext).is_some()
+}
+
 fn has_org_files(dir: &Path) -> bool {
     std::fs::read_dir(dir)
-        .map(|rd| rd.filter_map(|e| e.ok())
-            .any(|e| e.path().extension().and_then(|s| s.to_str()) == Some("org")))
+        .map(|rd| rd.filter_map(|e| e.ok()).any(|e| is_page_file(&e.path())))
         .unwrap_or(false)
 }
 
-/// List all `.org` files of the vault (see `pages_dir`), sorted by name.
-pub fn list_org_files(vault_path: &str) -> Result<Vec<FileEntry>, AppError> {
+/// List the pages of the vault (see `pages_dir`): its `.org` and `.md` files,
+/// those `formats` accepts, sorted by name.
+pub fn list_pages(vault_path: &str, formats: Formats) -> Result<Vec<FileEntry>, AppError> {
     let pages = pages_dir(vault_path);
     if !pages.exists() {
         return Err(AppError::VaultNotFound(vault_path.to_string()));
     }
     let mut files: Vec<FileEntry> = std::fs::read_dir(&pages)?
         .filter_map(|entry| entry.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("org"))
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()).and_then(Format::from_ext).is_some_and(|f| formats.accepts(f)))
         .map(|e| {
             let path = e.path();
             let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
             FileEntry { name, path: crate::slash(&path) }
         })
         .collect();
-    files.sort_by(|a, b| a.name.cmp(&b.name));
+    files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
     Ok(files)
 }
 
@@ -97,7 +103,7 @@ pub fn parent_with_assets(vault_path: &str) -> Option<PathBuf> {
     (named_pages && lacks_assets(vault_path) && parent.join("assets").is_dir()).then(|| parent.to_path_buf())
 }
 
-/// File stem of a `.org` path (the page name).
+/// File stem of a page path (the page name).
 pub fn page_name(path: &str) -> String {
     Path::new(path)
         .file_stem()
@@ -106,22 +112,24 @@ pub fn page_name(path: &str) -> String {
         .to_string()
 }
 
-/// Full path for a new page in the vault.
-pub fn page_path(vault_path: &str, name: &str) -> PathBuf {
-    pages_dir(vault_path).join(format!("{name}.org"))
+/// Full path for a new page of `format` in the vault.
+pub fn page_path(vault_path: &str, name: &str, format: Format) -> PathBuf {
+    pages_dir(vault_path).join(format!("{name}.{}", format.ext()))
 }
 
-/// True when a page holds no text: only spaces, tabs, line breaks or `*`.
+/// True when a page holds no text: only spaces, tabs, line breaks, `*` or `#`.
 pub fn is_blank(content: &str) -> bool {
-    content.chars().all(|c| c.is_whitespace() || c == '*')
+    content.chars().all(|c| c.is_whitespace() || c == '*' || c == '#')
 }
 
-/// True when a page holds nothing but its title heading (`* Name`, as a new page starts).
+/// True when a page holds nothing but its title heading (`* Name` or `# Name`,
+/// as a new page starts).
 pub fn is_title_only(content: &str) -> bool {
     let mut lines = content.lines().filter(|l| !l.trim().is_empty());
     let Some(first) = lines.next() else { return false };
     let first = first.trim_start();
-    let stars = first.len() - first.trim_start_matches('*').len();
+    let mark = if first.starts_with('#') { '#' } else { '*' };
+    let stars = first.len() - first.trim_start_matches(mark).len();
     stars > 0
         && (first.len() == stars || first[stars..].starts_with([' ', '\t']))
         && lines.next().is_none()
@@ -129,11 +137,11 @@ pub fn is_title_only(content: &str) -> bool {
 
 /// Delete the pages of the vault that are blank (see `is_blank`) and/or hold only
 /// their title heading, depending on the flags. Returns the deleted paths.
-pub fn delete_blank_pages(vault_path: &str, empty: bool, title_only: bool) -> Vec<String> {
+pub fn delete_blank_pages(vault_path: &str, formats: Formats, empty: bool, title_only: bool) -> Vec<String> {
     if !empty && !title_only {
         return vec![];
     }
-    let Ok(files) = list_org_files(vault_path) else { return vec![] };
+    let Ok(files) = list_pages(vault_path, formats) else { return vec![] };
     files.into_iter()
         .filter(|f| {
             let Ok(content) = std::fs::read_to_string(&f.path) else { return false };
@@ -192,6 +200,9 @@ mod tests {
         assert!(!is_title_only("* Ma page\n** Sous-titre\n"));
         assert!(!is_title_only("du texte\n"));
         assert!(!is_title_only("*gras* du texte\n"));
+        assert!(is_title_only("# Ma page\n"));
+        assert!(!is_title_only("#tag du texte\n"));
+        assert!(!is_title_only("# Ma page\n## Sous-titre\n"));
     }
 
     #[test]
@@ -215,10 +226,10 @@ mod tests {
             std::fs::write(dir.join(format!("{name}.org")), content).unwrap();
         }
         let vp = dir.to_str().unwrap();
-        assert_eq!(delete_blank_pages(vp, false, false).len(), 0);
-        assert_eq!(delete_blank_pages(vp, true, false).len(), 2);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), false, false).len(), 0);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), true, false).len(), 2);
         assert!(!dir.join("vide.org").exists() && !dir.join("espaces.org").exists() && dir.join("titre.org").exists());
-        assert_eq!(delete_blank_pages(vp, false, true).len(), 1);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), false, true).len(), 1);
         assert!(!dir.join("titre.org").exists() && dir.join("texte.org").exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }

@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Frame, Hashtags, Layout, OrgTags, TagSyntax, TodoKeywords};
+use crate::{Format, Formats, Frame, Hashtags, Layout, OrgTags, TagSyntax, TodoKeywords};
 
 /// The TODO keywords when none are set (Emacs style: done states after the `|`).
 pub const DEFAULT_TODO_KEYWORDS: &str = "TODO DOING HANGUP | DONE";
@@ -38,6 +38,16 @@ pub struct Config {
     /// Command building the site (org-bloom extension); empty: `org-bloom`.
     pub org_bloom_path: Option<String>,
     pub language: Option<String>,
+    /// Format of the new pages: `org` (`.org`) or `markdown` (`.md`); between two
+    /// pages of the same name, the one `[[Name]]` leads to.
+    pub default_format: Option<String>,
+    /// Only the pages of the default format are read; the others are left aside.
+    pub single_format: Option<bool>,
+    /// Ask the format of each new page.
+    pub ask_format: Option<bool>,
+    /// In org-mode pages, also read `[[Page|texte]]`, `[[Page#Titre]]` and
+    /// `[texte](Page.md)` as links (always so in Markdown pages).
+    pub extended_links: Option<bool>,
     /// Rewrite `[[links]]` in other pages when a page is renamed.
     pub update_links_on_rename: Option<bool>,
     /// Match `[[links]]` to pages ignoring case.
@@ -215,6 +225,11 @@ pub struct Prefs {
     pub org_bloom_path: String,
     /// Interface language code (`fr`, `en`).
     pub lang: String,
+    /// See `Config::default_format`.
+    pub default_format: Format,
+    pub single_format: bool,
+    pub ask_format: bool,
+    pub extended_links: bool,
     pub update_links: bool,
     pub autosave: bool,
     pub delete_empty: bool,
@@ -295,6 +310,10 @@ impl Prefs {
             vault: settings.vault_path.clone().unwrap_or_default(),
             org_bloom_path: s.org_bloom_path.clone().unwrap_or_default(),
             lang: s.language.clone().unwrap_or_else(|| "fr".to_string()),
+            default_format: s.default_format.as_deref().and_then(Format::from_id).unwrap_or_default(),
+            single_format: s.single_format.unwrap_or(false),
+            ask_format: s.ask_format.unwrap_or(false),
+            extended_links: s.extended_links.unwrap_or(false),
             update_links: s.update_links_on_rename.unwrap_or(true),
             autosave: s.autosave.unwrap_or(true),
             delete_empty: s.delete_empty_pages.unwrap_or(false),
@@ -364,6 +383,10 @@ impl Prefs {
         let config = Config {
             org_bloom_path: some(&self.org_bloom_path),
             language: Some(self.lang.clone()),
+            default_format: Some(self.default_format.id().to_string()),
+            single_format: Some(self.single_format),
+            ask_format: Some(self.ask_format),
+            extended_links: Some(self.extended_links),
             update_links_on_rename: Some(self.update_links),
             case_insensitive_links: Some(self.case_insensitive_links),
             hashtag_links: Some(self.hashtag_links),
@@ -434,7 +457,13 @@ impl Prefs {
         TagSyntax {
             hashtags: Hashtags::new(self.hashtag_links, self.hashtag_dashes),
             org: OrgTags { links: self.org_tag_links, dashes: self.org_tag_dashes },
+            extended_links: self.extended_links,
         }
+    }
+
+    /// Which files are pages, and which one a name leads to.
+    pub fn formats(&self) -> Formats {
+        Formats { default: self.default_format, single: self.single_format }
     }
 
     /// Whether `frame` is shown: its own setting, and the feature it belongs to.
@@ -504,15 +533,17 @@ mod tests {
         assert_eq!(p.image_size_format, "org");
         assert!(p.link_preview);
         assert_eq!(p.link_preview_trigger, "ctrl");
+        assert_eq!(p.formats(), Formats { default: Format::Org, single: false });
+        assert!(!p.ask_format && !p.extended_links);
         assert_eq!(p.todo(), Some(TodoKeywords::parse(DEFAULT_TODO_KEYWORDS)));
         let blank = Settings { config: Config { todo_keywords: Some(" ".into()), ..Config::default() }, ..Settings::default() };
         assert_eq!(blank.prefs().todo_keywords, DEFAULT_TODO_KEYWORDS);
-        assert_eq!(p.tags(), TagSyntax { hashtags: Hashtags::Dashes, org: OrgTags::default() });
+        assert_eq!(p.tags(), TagSyntax::from(Hashtags::Dashes));
     }
 
     #[test]
     fn prefs_round_trip_through_settings() {
-        let mut p = Prefs { vault: "/x".into(), autosave: false, git_ext: false, ..Prefs::default() };
+        let mut p = Prefs { vault: "/x".into(), autosave: false, git_ext: false, default_format: Format::Markdown, single_format: true, ..Prefs::default() };
         p.layout.move_frame(Frame::Git, crate::Move::OtherColumn, |_| false);
         let s = p.to_settings(vec!["/x".into()]);
         assert_eq!(s.prefs(), p);

@@ -7,9 +7,10 @@ use super::Cmd;
 use crate::AppState;
 
 #[tauri::command]
-pub async fn get_backlinks(state: State<'_, AppState>, page_name: String) -> Cmd<Vec<String>> {
+/// Pages linking to the page `path`, by the names links give them.
+pub async fn get_backlinks(state: State<'_, AppState>, path: String) -> Cmd<Vec<String>> {
     let ignore_case = state.prefs().case_insensitive_links;
-    state.with_project(|p| Ok(p.backlinks(&page_name, ignore_case)))
+    state.with_project(|p| Ok(p.backlinks(&path, ignore_case)))
 }
 
 #[tauri::command]

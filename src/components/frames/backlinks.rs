@@ -23,7 +23,7 @@ pub fn BacklinksFrame() -> impl IntoView {
     Effect::new(move |_| {
         ctx.project.links_version.track();
         ctx.pref(|p| p.case_insensitive_links);
-        let page = ctx.work.active_tab_data().map(|t| t.name);
+        let page = ctx.work.active_tab_data().map(|t| t.path);
         let seq = backlinks_seq.get_value() + 1;
         backlinks_seq.set_value(seq);
         let Some(page) = page else { backlinks.set(vec![]); return };

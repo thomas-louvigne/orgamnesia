@@ -1,6 +1,6 @@
 //! Reading, writing, creating, renaming and deleting pages; the trash.
 
-use orgamnesia_core::FileEntry;
+use orgamnesia_core::{FileEntry, Format};
 use tauri::State;
 
 use super::Cmd;
@@ -18,9 +18,9 @@ pub async fn write_file(state: State<'_, AppState>, path: String, content: Strin
 }
 
 #[tauri::command]
-pub async fn create_page(state: State<'_, AppState>, page_name: String) -> Cmd<FileEntry> {
+pub async fn create_page(state: State<'_, AppState>, page_name: String, format: Option<Format>) -> Cmd<FileEntry> {
     let tags = state.prefs().tags();
-    state.with_project(|p| p.create(&page_name, tags))
+    state.with_project(|p| p.create(&page_name, format, tags))
 }
 
 /// Delete a page of the open project: it goes to the project's trash. Returns its path there.

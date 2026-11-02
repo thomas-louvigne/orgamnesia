@@ -19,6 +19,156 @@ pub fn split(target: &str) -> (&str, Option<&str>) {
     if t.starts_with('*') || t.starts_with('#') { ("", Some(t)) } else { (t, None) }
 }
 
+/// How a link is written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// `[[target]]`, `[[target][text]]`, and when the extended syntax is on
+    /// `[[target|text]]` and `[[Page#Titre]]`.
+    Org,
+    /// `[text](target)`, only with the extended syntax.
+    Markdown,
+}
+
+/// A link of a text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Found {
+    /// Char range of the whole link.
+    pub start: usize,
+    pub end: usize,
+    /// What it leads to, as org-mode writes it: `Page`, `Page::*Titre`, `*Titre`,
+    /// `Page.md`, `https://…`, `./assets/a.png`.
+    pub target: String,
+    /// Char range of the page name in the text, what renaming the page rewrites
+    /// (`None` for a link to a place of the same page).
+    pub page: Option<(usize, usize)>,
+    pub kind: Kind,
+}
+
+/// The links of `chars`. With `extended` (always for Markdown pages), also
+/// `[[Page|texte]]`, `[[Page#Titre]]` and `[texte](Page.md)`.
+pub fn scan(chars: &[char], extended: bool) -> Vec<Found> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let found = if chars[i] == '[' && chars.get(i + 1) == Some(&'[') {
+            org_link(chars, i, extended)
+        } else if extended && chars[i] == '[' && (i == 0 || !matches!(chars[i - 1], '[' | '!' | '\\')) {
+            markdown_link(chars, i)
+        } else {
+            None
+        };
+        match found {
+            Some(f) => { i = f.end; out.push(f); }
+            None => i += 1,
+        }
+    }
+    out
+}
+
+/// The link starting at `at` (`[[`), if it is closed.
+fn org_link(chars: &[char], at: usize, extended: bool) -> Option<Found> {
+    let ts = at + 2;
+    let te = ts + chars[ts..].iter().position(|&c| matches!(c, ']' | '['))?;
+    let end = match (chars.get(te), chars.get(te + 1)) {
+        (Some(']'), Some(']')) => te + 2,
+        (Some(']'), Some('[')) => {
+            let close = (te + 2..chars.len().saturating_sub(1)).find(|&j| chars[j] == ']' && chars[j + 1] == ']')?;
+            if chars[te + 2..close].contains(&'[') { return None; }
+            close + 2
+        }
+        _ => return None,
+    };
+    // `[[Page|texte]]`: the text after the bar
+    let te = if extended { (ts..te).find(|&j| chars[j] == '|').unwrap_or(te) } else { te };
+    let raw: String = chars[ts..te].iter().collect();
+    let trimmed = |a: usize, b: usize| {
+        let a = a + chars[a..b].iter().take_while(|c| c.is_whitespace()).count();
+        let b = b - chars[a..b].iter().rev().take_while(|c| c.is_whitespace()).count();
+        (a < b).then_some((a, b))
+    };
+    let sep = raw.find(SEPARATOR).map(|b| ts + raw[..b].chars().count());
+    let hash = (extended && sep.is_none() && !raw.contains("://"))
+        .then(|| (ts..te).find(|&j| chars[j] == '#'))
+        .flatten()
+        .filter(|&h| chars[ts..h].iter().any(|c| !c.is_whitespace()));
+    let (target, page) = if let Some(h) = hash {
+        // `[[Page#Titre]]`: org-mode's `Page::*Titre`
+        let page: String = chars[ts..h].iter().collect();
+        let place: String = chars[h + 1..te].iter().collect();
+        (format!("{}{SEPARATOR}*{}", page.trim(), place.trim()), trimmed(ts, h))
+    } else {
+        let page_end = sep.unwrap_or(te);
+        let address = raw.contains("://") || raw.trim_start().starts_with("file:") || raw.trim_start().starts_with("mailto:");
+        (raw.trim().to_string(), trimmed(ts, page_end).filter(|&(a, _)| !address && !matches!(chars[a], '*' | '#')))
+    };
+    Some(Found { start: at, end, target, page, kind: Kind::Org })
+}
+
+/// The Markdown link `[texte](cible)` starting at `at`.
+fn markdown_link(chars: &[char], at: usize) -> Option<Found> {
+    let close = at + 1 + chars[at + 1..].iter().position(|&c| matches!(c, ']' | '[' | '\n'))?;
+    if chars[close] != ']' || chars.get(close + 1) != Some(&'(') { return None; }
+    let ds = close + 2;
+    let (ps, pe, end) = if chars.get(ds) == Some(&'<') {
+        let gt = ds + 1 + chars[ds + 1..].iter().position(|&c| matches!(c, '>' | '\n'))?;
+        if chars[gt] != '>' || chars.get(gt + 1) != Some(&')') { return None; }
+        (ds + 1, gt, gt + 2)
+    } else {
+        let paren = ds + chars[ds..].iter().position(|&c| c == ')' || c.is_whitespace())?;
+        if chars[paren] != ')' { return None; }
+        (ds, paren, paren + 1)
+    };
+    let dest: String = chars[ps..pe].iter().collect();
+    let found = |target: String, page| Some(Found { start: at, end, target, page, kind: Kind::Markdown });
+    if dest.is_empty() { return None; }
+    if dest.contains("://") || dest.starts_with("mailto:") || dest.starts_with('#') || dest.starts_with('/')
+        || dest.starts_with("../") {
+        return found(dest, None);
+    }
+    // A page: `Page.md`, `./Page.md`, `Ma%20page.md#titre`
+    let skip = if dest.starts_with("./") { 2 } else { 0 };
+    let (file, place) = match dest[skip..].split_once('#') {
+        Some((f, p)) => (f, Some(p)),
+        None => (&dest[skip..], None),
+    };
+    let name = percent_decode(file);
+    if crate::format::split_ext(&name).is_none() || name.contains('/') {
+        let target = if skip == 2 { dest } else { format!("./{dest}") };
+        return found(target, None);
+    }
+    let target = match place.map(percent_decode).filter(|p| !p.is_empty()) {
+        Some(p) => format!("{name}{SEPARATOR}*{}", p.replace('-', " ")),
+        None => name,
+    };
+    let page_start = ps + skip;
+    found(target, Some((page_start, page_start + file.chars().count())))
+}
+
+/// `%20` and the like decoded.
+pub fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = |b: u8| (b as char).to_digit(16);
+        if bytes[i] == b'%' && i + 2 < bytes.len()
+            && let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2]))
+        {
+            out.push((h * 16 + l) as u8);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// `name` as a Markdown link writes it: spaces and parentheses encoded.
+pub fn percent_encode(name: &str) -> String {
+    name.replace('%', "%25").replace(' ', "%20").replace('(', "%28").replace(')', "%29")
+}
+
 /// The title of the headline `line` as links name it, without its stars, TODO
 /// keyword, priority (`[#A]`), `COMMENT`, statistics cookies (`[1/3]`, `[50%]`)
 /// and tags; spaces collapsed. `None` when the line is not a headline.
@@ -134,6 +284,38 @@ mod tests {
     use super::*;
 
     fn kw() -> TodoKeywords { TodoKeywords::parse("TODO | DONE") }
+
+    fn scanned(text: &str, extended: bool) -> Vec<(String, Option<String>)> {
+        let chars: Vec<char> = text.chars().collect();
+        scan(&chars, extended).into_iter()
+            .map(|f| (f.target, f.page.map(|(a, b)| chars[a..b].iter().collect())))
+            .collect()
+    }
+
+    fn pair(t: &str, p: Option<&str>) -> (String, Option<String>) { (t.to_string(), p.map(String::from)) }
+
+    #[test]
+    fn scans_org_links() {
+        assert_eq!(scanned("a [[ Page ][x]] [[P::*T]] [[*T]] [[b|c]] [[ouvert", false), vec![
+            pair("Page", Some("Page")), pair("P::*T", Some("P")), pair("*T", None), pair("b|c", Some("b|c")),
+        ]);
+        // Not a Markdown link without the extended syntax
+        assert!(scanned("[t](Page.md)", false).is_empty());
+    }
+
+    #[test]
+    fn scans_extended_links() {
+        assert_eq!(scanned("[[Page|texte]] [[Page#Mon titre]] [[#id]] [[https://a.b/#x]]", true), vec![
+            pair("Page", Some("Page")), pair("Page::*Mon titre", Some("Page")), pair("#id", None),
+            pair("https://a.b/#x", None),
+        ]);
+        assert_eq!(scanned("[t](Ma%20page.md) [u](./P.org#mon-titre) [v](<Deux mots.md>) ![i](a.png) [w](https://x.y) [z](assets/a.pdf)", true), vec![
+            pair("Ma page.md", Some("Ma%20page.md")), pair("P.org::*mon titre", Some("P.org")),
+            pair("Deux mots.md", Some("Deux mots.md")), pair("https://x.y", None), pair("./assets/a.pdf", None),
+        ]);
+        assert_eq!(percent_encode("a b(1)"), "a%20b%281%29");
+        assert_eq!(percent_decode("%C3%A9t%C3%A9%2"), "été%2");
+    }
 
     #[test]
     fn splits_page_and_place() {

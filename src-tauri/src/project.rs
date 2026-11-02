@@ -1,10 +1,13 @@
 //! The open project: its pages, kept in memory with the links between them,
 //! and the state of the files as last seen on disk (to notice outside changes).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use orgamnesia_core::{BrokenLink, FileEntry, OrgTags, Prefs, TagCount, TagHit, TagSyntax, TodoHit, TodoKeywords, VaultChanges};
+use orgamnesia_core::{
+    format::split_ext, pages::Resolver, BrokenLink, FileEntry, Format, Formats, OrgTags, Prefs, TagCount, TagHit,
+    TagSyntax, TodoHit, TodoKeywords, VaultChanges,
+};
 
 use crate::{error::AppError, index::backlinks::BacklinkIndex, parser, tags, vault};
 
@@ -17,7 +20,10 @@ pub struct Project {
     pages_dir: PathBuf,
     /// Content of every page, by path.
     pages: HashMap<String, String>,
+    /// The links of every page, by its path.
     links: BacklinkIndex,
+    /// Which files are pages, and which one a name leads to.
+    formats: Formats,
     snapshot: vault::Snapshot,
     /// The pages of the last project replacement, for its undo.
     last_replace: Vec<search::Replaced>,
@@ -25,7 +31,7 @@ pub struct Project {
 
 impl Project {
     /// Open the folder `path` (creating `pages/` and `assets/` if needed) and read its pages.
-    pub fn open(path: &str, tags: TagSyntax) -> Result<Self, AppError> {
+    pub fn open(path: &str, tags: TagSyntax, formats: Formats) -> Result<Self, AppError> {
         vault::ensure_structure(path)?;
         let path = &crate::slash(path);
         let mut project = Self {
@@ -33,10 +39,11 @@ impl Project {
             pages_dir: std::fs::canonicalize(vault::pages_dir(path))?,
             pages: HashMap::new(),
             links: BacklinkIndex::new(),
+            formats,
             snapshot: vault::Snapshot::new(),
             last_replace: Vec::new(),
         };
-        let files = vault::list_org_files(path)?;
+        let files = vault::list_pages(path, formats)?;
         for f in &files {
             let content = std::fs::read_to_string(&f.path).unwrap_or_default();
             project.store(&f.path, content, tags);
@@ -45,22 +52,27 @@ impl Project {
         Ok(project)
     }
 
+    /// The formats now in effect: the pages of a format no longer read go at the
+    /// next `refresh`, those of a format read again come back.
+    pub fn set_formats(&mut self, formats: Formats) {
+        self.formats = formats;
+    }
+
     /// The pages, sorted by name.
     pub fn files(&self) -> Vec<FileEntry> {
         let mut files: Vec<FileEntry> = self.pages.keys()
             .map(|p| FileEntry { name: vault::page_name(p), path: p.clone() })
             .collect();
-        files.sort_by(|a, b| a.name.cmp(&b.name));
+        files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
         files
     }
 
-    /// Ok when `path` is a page of the project: a `.org` file right in its pages folder.
-    /// Every path received from the interface goes through here.
+    /// Ok when `path` is a page of the project: a `.org` or `.md` file (of a format
+    /// read) right in its pages folder. Every path received from the interface goes through here.
     pub fn check_page(&self, path: &str) -> Result<(), AppError> {
         let p = Path::new(path);
-        let is_org = p.extension().and_then(|e| e.to_str()) == Some("org");
         let folder = p.parent().and_then(|d| std::fs::canonicalize(d).ok());
-        if is_org && folder.as_deref() == Some(self.pages_dir.as_path()) {
+        if self.formats.accepts_path(path) && folder.as_deref() == Some(self.pages_dir.as_path()) {
             Ok(())
         } else {
             Err(AppError::NotAPage(path.to_string()))
@@ -80,14 +92,19 @@ impl Project {
         Ok(())
     }
 
-    /// Create the page `name`, holding its title heading.
-    pub fn create(&mut self, name: &str, tags: TagSyntax) -> Result<FileEntry, AppError> {
+    /// Create the page `name`, holding its title heading, in `format` (else the
+    /// default one); `Note.md` is the page `Note` in Markdown.
+    pub fn create(&mut self, name: &str, format: Option<Format>, tags: TagSyntax) -> Result<FileEntry, AppError> {
         let name = valid_name(name)?;
-        let path = vault::page_path(&self.path, &name);
+        let (name, format) = match split_ext(&name) {
+            Some((stem, f)) if self.formats.accepts(f) => (valid_name(stem)?, f),
+            _ => (name, format.filter(|f| self.formats.accepts(*f)).unwrap_or(self.formats.default)),
+        };
+        let path = vault::page_path(&self.path, &name, format);
         if path.exists() {
             return Err(AppError::PageExists(name));
         }
-        let content = format!("* {name}\n");
+        let content = format.title_line(&name);
         std::fs::write(&path, &content)?;
         let path = crate::slash(&path);
         self.store(&path, content, tags);
@@ -125,11 +142,11 @@ impl Project {
     }
 
     /// Delete a page: it goes to the project's trash (`.trash/`, named
-    /// `<time>-<page>.org`), from where `restore` brings it back. Returns its path there.
+    /// `<time>-<page>.org` or `.md`), from where `restore` brings it back. Returns its path there.
     pub fn delete(&mut self, path: &str) -> Result<String, AppError> {
         self.check_page(path)?;
         let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
-        let to = self.trash_dir()?.join(format!("{stamp}-{}.org", vault::page_name(path)));
+        let to = self.trash_dir()?.join(format!("{stamp}-{}", orgamnesia_core::pages::file_name(path)));
         std::fs::rename(path, &to)?;
         self.forget(path);
         Ok(crate::slash(&to))
@@ -141,10 +158,11 @@ impl Project {
         let in_trash = p.parent().and_then(|d| std::fs::canonicalize(d).ok())
             == std::fs::canonicalize(self.trash_dir()?).ok();
         let name = p.file_stem().and_then(|s| s.to_str()).and_then(|s| s.split_once('-')).map(|(_, n)| n);
-        let (Some(name), true) = (name, in_trash && p.extension().and_then(|e| e.to_str()) == Some("org")) else {
+        let format = Format::of_path(trashed).filter(|f| self.formats.accepts(*f));
+        let (Some(name), true, Some(format)) = (name, in_trash, format) else {
             return Err(AppError::NotAPage(trashed.to_string()));
         };
-        let path = vault::page_path(&self.path, name);
+        let path = vault::page_path(&self.path, name, format);
         if path.exists() {
             return Err(AppError::PageExists(name.to_string()));
         }
@@ -191,7 +209,7 @@ impl Project {
     fn trashed(&self) -> Result<Vec<Trashed>, AppError> {
         Ok(std::fs::read_dir(self.trash_dir()?)?
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|e| e.to_str()) == Some("org"))
+            .filter(|e| Format::of_path(&e.path().to_string_lossy()).is_some())
             .map(|e| {
                 let path = e.path();
                 let deleted_at = path.file_stem().and_then(|s| s.to_str()).and_then(|s| s.split_once('-'))
@@ -217,13 +235,19 @@ impl Project {
     pub fn rename(&mut self, old_path: &str, new_name: &str, prefs: &Prefs) -> Result<FileEntry, AppError> {
         self.check_page(old_path)?;
         let new_name = valid_name(new_name)?;
-        let new_path = self.pages_dir.join(format!("{new_name}.org"));
+        let ext = Format::of_path(old_path).unwrap_or_default().ext();
+        let new_path = self.pages_dir.join(format!("{new_name}.{ext}"));
         let old_name = vault::page_name(old_path);
         if new_path.exists() && new_name != old_name {
             return Err(AppError::PageExists(new_name));
         }
+        // The links leading to the page, as they did before
+        let files = self.files();
+        let resolver = Resolver::new(&files, prefs.case_insensitive_links, self.formats.default);
+        let leads_here = |target: &str| resolver.resolve(target).is_some_and(|f| f.path == old_path);
+        let by_name = leads_here(&old_name);
         // Keep the folder as the interface knows it (not the canonical one)
-        let new_path = Path::new(old_path).with_file_name(format!("{new_name}.org"));
+        let new_path = Path::new(old_path).with_file_name(format!("{new_name}.{ext}"));
         std::fs::rename(old_path, &new_path)?;
         let new_path = crate::slash(&new_path);
         let tags = prefs.tags();
@@ -236,7 +260,8 @@ impl Project {
             let paths: Vec<String> = self.pages.keys().cloned().collect();
             for path in paths {
                 let Ok(text) = std::fs::read_to_string(&path) else { continue };
-                let updated = parser::rewrite_links(&text, &old_name, &new_name, prefs.case_insensitive_links, tags);
+                let rename = parser::Rename { leads_here: &leads_here, old: &old_name, by_name, new: &new_name };
+                let updated = parser::rewrite_links(&text, &rename, prefs.case_insensitive_links, tags.for_page(&path));
                 if let Some(updated) = updated {
                     std::fs::write(&path, &updated)?;
                     self.store(&path, updated, tags);
@@ -250,7 +275,7 @@ impl Project {
     /// Pick up the pages created, modified or deleted outside the app since the
     /// last look. `None` when nothing changed.
     pub fn refresh(&mut self, tags: TagSyntax) -> Result<Option<VaultChanges>, AppError> {
-        let files = vault::list_org_files(&self.path)?;
+        let files = vault::list_pages(&self.path, self.formats)?;
         let now = vault::snapshot(&files);
         let (changed, removed) = vault::diff(&self.snapshot, &now);
         if changed.is_empty() && removed.is_empty() {
@@ -271,31 +296,43 @@ impl Project {
     pub fn reindex(&mut self, tags: TagSyntax) {
         self.links = BacklinkIndex::new();
         for (path, content) in &self.pages {
-            self.links.index_file(&vault::page_name(path), &parser::extract_links(content, tags));
+            self.links.index_file(path, &parser::extract_links(content, tags.for_page(path)));
         }
     }
 
-    /// Pages linking to `page`.
-    pub fn backlinks(&self, page: &str, ignore_case: bool) -> Vec<String> {
-        if ignore_case {
-            self.links.get_backlinks_ignore_case(page)
-        } else {
-            self.links.get_backlinks(page)
-        }
+    /// The names links give the pages `paths` (see `Resolver::link_name`), sorted.
+    fn link_names(&self, resolver: &Resolver, paths: impl IntoIterator<Item = String>) -> Vec<String> {
+        let mut names: Vec<String> = paths.into_iter()
+            .map(|p| FileEntry { name: vault::page_name(&p), path: p })
+            .map(|f| resolver.link_name(&f))
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    /// Pages linking to the page `path`, by the names links give them.
+    pub fn backlinks(&self, path: &str, ignore_case: bool) -> Vec<String> {
+        let files = self.files();
+        let resolver = Resolver::new(&files, ignore_case, self.formats.default);
+        let sources = self.links.sources_where(|target| resolver.resolve(target).is_some_and(|f| f.path == path));
+        self.link_names(&resolver, sources)
     }
 
     /// Links to pages that don't exist, most used first.
     pub fn broken_links(&self, ignore_case: bool) -> Vec<BrokenLink> {
         let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
-        let pages: HashSet<String> = self.pages.keys().map(|p| norm(&vault::page_name(p))).collect();
+        let files = self.files();
+        let resolver = Resolver::new(&files, ignore_case, self.formats.default);
 
         // Group targets that only differ by case or accents when they are ignored
         let mut grouped: Vec<(String, BrokenLink)> = Vec::new();
         for (target, sources, count) in self.links.all_links() {
             let key = norm(&target);
-            if !parser::is_page_link(&target) || pages.contains(&key) {
+            if !parser::is_page_link(&target) || resolver.resolve(&target).is_some() {
                 continue;
             }
+            let sources = self.link_names(&resolver, sources);
             match grouped.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, b)) => {
                     b.count += count;
@@ -359,12 +396,12 @@ impl Project {
     }
 
     fn store(&mut self, path: &str, content: String, tags: TagSyntax) {
-        self.links.index_file(&vault::page_name(path), &parser::extract_links(&content, tags));
+        self.links.index_file(path, &parser::extract_links(&content, tags.for_page(path)));
         self.pages.insert(path.to_string(), content);
     }
 
     fn forget(&mut self, path: &str) {
-        self.links.remove_source(&vault::page_name(path));
+        self.links.remove_source(path);
         self.pages.remove(path);
         self.snapshot.remove(path);
     }
@@ -408,7 +445,7 @@ mod tests {
         for (name, content) in pages {
             std::fs::write(dir.join("pages").join(format!("{name}.org")), content).unwrap();
         }
-        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into()).unwrap();
+        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), Formats::default()).unwrap();
         (dir, p)
     }
 
@@ -446,15 +483,15 @@ mod tests {
     #[test]
     fn links_follow_writes_creations_and_deletions() {
         let (dir, mut p) = project("links", &[("a", "voir [[b]] et [[c]]\n")]);
-        assert_eq!(p.backlinks("b", false), vec!["a"]);
         assert_eq!(p.broken_links(false).len(), 2);
 
-        p.create("b", Hashtags::Dashes.into()).unwrap();
+        p.create("b", None, Hashtags::Dashes.into()).unwrap();
+        assert_eq!(p.backlinks(&path_of(&p, "b"), false), vec!["a"]);
         assert_eq!(p.broken_links(false).iter().map(|b| b.target.as_str()).collect::<Vec<_>>(), vec!["c"]);
-        assert!(matches!(p.create("b", Hashtags::Dashes.into()), Err(AppError::PageExists(_))));
+        assert!(matches!(p.create("b", None, Hashtags::Dashes.into()), Err(AppError::PageExists(_))));
 
         p.write(&path_of(&p, "a"), "plus rien\n".into(), Hashtags::Dashes.into()).unwrap();
-        assert!(p.backlinks("b", false).is_empty());
+        assert!(p.backlinks(&path_of(&p, "b"), false).is_empty());
 
         p.delete(&path_of(&p, "b")).unwrap();
         assert_eq!(p.files().len(), 1);
@@ -477,7 +514,7 @@ mod tests {
         // Only from the trash, and not over a page of the same name
         assert!(matches!(p.restore(&back.path, Hashtags::Dashes.into()), Err(AppError::NotAPage(_))));
         let again = p.delete(&back.path).unwrap();
-        p.create("a", Hashtags::Dashes.into()).unwrap();
+        p.create("a", None, Hashtags::Dashes.into()).unwrap();
         assert!(matches!(p.restore(&again, Hashtags::Dashes.into()), Err(AppError::PageExists(_))));
 
         // Emptying: the old ones, then the oldest beyond the size, then all
@@ -514,7 +551,72 @@ mod tests {
         let nf = p.rename(&path_of(&p, "old"), "new", &Prefs::default()).unwrap();
         assert_eq!(nf.name, "new");
         assert_eq!(p.read(&path_of(&p, "other")).unwrap(), "lien [[new]] #new\n");
-        assert_eq!(p.backlinks("new", false), vec!["other"]);
+        assert_eq!(p.backlinks(&path_of(&p, "new"), false), vec!["other"]);
+        assert!(p.broken_links(false).is_empty());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// A project holding the given files (`Note.md`, `Note.org`…).
+    fn mixed(test: &str, files: &[(&str, &str)], formats: Formats) -> (PathBuf, Project) {
+        let (dir, _) = project(test, &[]);
+        for (file, content) in files {
+            std::fs::write(dir.join("pages").join(file), content).unwrap();
+        }
+        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), formats).unwrap();
+        (dir, p)
+    }
+
+    fn file(p: &Project, file: &str) -> String {
+        p.files().into_iter().find(|f| f.path.ends_with(&format!("/{file}"))).unwrap().path
+    }
+
+    #[test]
+    fn markdown_pages_and_twins() {
+        let (dir, mut p) = mixed("markdown", &[
+            ("Note.org", "* Note\n"),
+            ("Note.md", "# Note\n[lien](Solo.md) [[Absente|x]]\n"),
+            ("Solo.md", "# Solo\n[[Note]] [[Note.md#Titre]]\n"),
+            ("Org.org", "[[Solo|pas un lien étendu]] [[Note.md]]\n"),
+        ], Formats::default());
+        assert_eq!(p.files().len(), 4);
+        // `[[Note]]` leads to the org one (the default format)
+        assert_eq!(p.backlinks(&file(&p, "Note.org"), false), vec!["Solo"]);
+        assert_eq!(p.backlinks(&file(&p, "Note.md"), false), vec!["Org", "Solo"]);
+        // The Markdown twin is named with its extension
+        assert_eq!(p.backlinks(&file(&p, "Solo.md"), false), vec!["Note.md"]);
+        let broken: Vec<String> = p.broken_links(false).into_iter().map(|b| b.target).collect();
+        assert_eq!(broken, vec!["Absente", "Solo|pas un lien étendu"]);
+
+        // Renaming the Markdown twin: only the links leading to it follow
+        let moved = p.rename(&file(&p, "Note.md"), "Carnet", &Prefs::default()).unwrap();
+        assert!(moved.path.ends_with("/Carnet.md"));
+        assert_eq!(p.read(&file(&p, "Solo.md")).unwrap(), "# Solo\n[[Note]] [[Carnet.md#Titre]]\n");
+        assert_eq!(p.read(&file(&p, "Org.org")).unwrap(), "[[Solo|pas un lien étendu]] [[Carnet.md]]\n");
+
+        // Created in the format asked, its name telling it, or the default one
+        let md = p.create("Neuve.md", None, Hashtags::Dashes.into()).unwrap();
+        assert_eq!((md.name.as_str(), p.read(&md.path).unwrap().as_str()), ("Neuve", "# Neuve\n"));
+        assert!(p.create("Neuve", Some(Format::Markdown), Hashtags::Dashes.into()).is_err());
+        assert!(p.create("Neuve", None, Hashtags::Dashes.into()).unwrap().path.ends_with("/Neuve.org"));
+
+        // The trash keeps the format
+        let trashed = p.delete(&md.path).unwrap();
+        assert!(trashed.ends_with("-Neuve.md"));
+        assert!(p.restore(&trashed, Hashtags::Dashes.into()).unwrap().path.ends_with("/Neuve.md"));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn one_format_only_leaves_the_others_aside() {
+        let md = Formats { default: Format::Markdown, single: true };
+        let (dir, mut p) = mixed("single", &[("A.org", "* A\n"), ("B.md", "[[A]]\n")], md);
+        assert_eq!(p.files().iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), vec!["B"]);
+        assert!(p.read(&format!("{}/pages/A.org", dir.display())).is_err());
+        assert_eq!(p.broken_links(false).len(), 1);
+        // Both read again: A comes back at the next look
+        p.set_formats(Formats::default());
+        let changes = p.refresh(Hashtags::Dashes.into()).unwrap().unwrap();
+        assert_eq!(changes.files.len(), 2);
         assert!(p.broken_links(false).is_empty());
         std::fs::remove_dir_all(dir).unwrap();
     }

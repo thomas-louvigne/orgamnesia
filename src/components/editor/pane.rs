@@ -40,6 +40,8 @@ pub struct Pane {
     pub misspelled: RwSignal<Vec<(usize, usize)>>,
     /// The page is a configuration file of the "preference" project (JSON).
     pub config: bool,
+    /// Its format (org-mode, Markdown), from its extension.
+    pub format: Option<orgamnesia_core::Format>,
 }
 
 impl Pane {
@@ -50,10 +52,11 @@ impl Pane {
         if name.is_empty() {
             return Some((self.content.get_untracked(), self.todo_keywords.get_untracked()));
         }
-        let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| ctx.same_page(&t.name, name)).map(|t| t.content));
+        let file = ctx.find_page(name)?;
+        let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| t.path == file.path).map(|t| t.content));
         let text = match open {
             Some(content) => content.get_untracked(),
-            None => crate::actions::read_page(&ctx.find_page(name)?.path).await.ok()?,
+            None => crate::actions::read_page(&file.path).await.ok()?,
         };
         let keywords = ctx.pref_untracked(|p| p.todo()).map(|d| TodoKeywords::for_page(&text, &d));
         Some((text, keywords))
@@ -79,7 +82,14 @@ impl Pane {
             }),
             misspelled: RwSignal::new(Vec::new()),
             config: crate::preferences::config_file(&tab.path).is_some(),
+            format: orgamnesia_core::Format::of_path(&tab.path),
         }
+    }
+
+    /// How the tags and links of this page are read (Markdown pages always have
+    /// the extended links).
+    pub fn tags_untracked(self) -> orgamnesia_core::TagSyntax {
+        self.ctx.tags_untracked().for_format(self.format)
     }
 
     /// Region to act on: mark..point when a mark is set (and enabled), else the native selection.

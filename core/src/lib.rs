@@ -4,17 +4,20 @@
 
 pub mod assets;
 pub mod config;
+pub mod format;
 pub mod hashtags;
 pub mod keybindings;
 pub mod layout;
 pub mod links;
 pub mod model;
 pub mod names;
+pub mod pages;
 pub mod search;
 pub mod settings;
 pub mod spell;
 pub mod todo;
 
+pub use format::{Format, Formats};
 pub use hashtags::{Hashtags, OrgTags, TagSyntax};
 pub use layout::{Frame, Layout, Move};
 pub use model::*;

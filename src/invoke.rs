@@ -208,8 +208,9 @@ pub async fn write_file(path: &str, content: &str) -> Result<(), String> {
     call("write_file", serde_json::json!({ "path": path, "content": content })).await
 }
 
-pub async fn create_page(name: &str) -> Result<FileEntry, String> {
-    call("create_page", serde_json::json!({ "pageName": name })).await
+/// Create the page `name` in `format` (`None`: the default one; `Note.md` is in Markdown).
+pub async fn create_page(name: &str, format: Option<orgamnesia_core::Format>) -> Result<FileEntry, String> {
+    call("create_page", serde_json::json!({ "pageName": name, "format": format })).await
 }
 
 pub async fn rename_page(old_path: &str, new_name: &str) -> Result<FileEntry, String> {
@@ -238,8 +239,9 @@ pub async fn list_todos() -> Result<Vec<TodoHit>, String> {
     call("list_todos", serde_json::json!({})).await
 }
 
-pub async fn get_backlinks(page: &str) -> Result<Vec<String>, String> {
-    call("get_backlinks", serde_json::json!({ "pageName": page })).await
+/// Pages linking to the page `path`, by the names links give them.
+pub async fn get_backlinks(path: &str) -> Result<Vec<String>, String> {
+    call("get_backlinks", serde_json::json!({ "path": path })).await
 }
 
 pub async fn get_broken_links() -> Result<Vec<BrokenLink>, String> {

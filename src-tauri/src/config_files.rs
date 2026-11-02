@@ -238,15 +238,17 @@ pub fn keybindings(state: &AppState) -> Keybindings {
 /// read from `ConfigState` when asked for).
 pub fn put_in_effect(state: &AppState, content: &Content) {
     let Content::Settings(config) = content else { return };
-    let tags_changed = {
+    let (tags_changed, formats) = {
         let mut settings = crate::lock(&state.settings);
         let before = settings.prefs().tags();
         settings.config = config.clone();
-        settings.prefs().tags() != before
+        (settings.prefs().tags() != before, settings.prefs().formats())
     };
-    // `#tags` or `:tags:` are read differently: read the links again
-    if tags_changed && let Some(p) = crate::lock(&state.project).as_mut() {
-        p.reindex(state.prefs().tags());
+    if let Some(p) = crate::lock(&state.project).as_mut() {
+        // The pages of a format no longer read go at the next look at the disk
+        p.set_formats(formats);
+        // `#tags`, `:tags:` or links are read differently: read the links again
+        if tags_changed { p.reindex(state.prefs().tags()); }
     }
 }
 

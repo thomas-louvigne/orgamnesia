@@ -32,7 +32,7 @@ pub fn start(path: &Path, mut on_change: impl FnMut(Vec<DebouncedEvent>) + Send 
 pub fn watch(app: AppHandle, path: &str) -> Result<Watcher, AppError> {
     let project_path = path.to_string();
     start(Path::new(path), move |events| {
-        let is_page = |p: &Path| p.extension().and_then(|e| e.to_str()) == Some("org");
+        let is_page = |p: &Path| p.extension().and_then(|e| e.to_str()).and_then(orgamnesia_core::Format::from_ext).is_some();
         let in_git = |p: &Path| p.components().any(|c| c.as_os_str() == ".git");
         let pages = events.iter().any(|e| is_page(&e.path) && !in_git(&e.path));
         let git = events.iter().any(|e| in_git(&e.path));

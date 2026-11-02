@@ -288,6 +288,9 @@ html, body { height: 100%; overflow: hidden; }
     position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
     color: var(--accent2); font-size: var(--fs-meta); font-weight: 600;
 }
+/* A page whose name alone leads to its twin of the other format */
+.file-shadowed { text-decoration: line-through; color: var(--fg-dim); }
+.file-ext { margin-left: 4px; color: var(--fg-dim); font-size: var(--fs-meta); }
 .file-item.active {
     background: var(--bg3);
     color: var(--accent2);

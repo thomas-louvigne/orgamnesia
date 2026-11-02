@@ -425,7 +425,7 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
         EditorAction::InsertLink => insert.link(el),
         EditorAction::InsertDate | EditorAction::InsertInactiveDate => insert.date(el, action == EditorAction::InsertDate),
         EditorAction::OpenLink => {
-            if let Some(name) = edit::link_at(&chars, start, ctx.tags_untracked()) {
+            if let Some(name) = edit::link_at(&chars, start, pane.tags_untracked()) {
                 follow_link(ctx, name);
             }
         }

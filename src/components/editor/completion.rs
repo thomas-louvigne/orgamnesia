@@ -122,7 +122,7 @@ impl Completion {
                 motion::complete_page(&names, &prefix, None, MAX_SUGGESTIONS)
             }
             _ => {
-                let names: Vec<String> = ctx.project.files.get_untracked().into_iter().map(|f| f.name).collect();
+                let names: Vec<String> = ctx.link_names();
                 let tag = (kind == Kind::Hashtag).then(|| ctx.tags_untracked().hashtags);
                 motion::complete_page(&names, &prefix, tag, MAX_SUGGESTIONS)
             }

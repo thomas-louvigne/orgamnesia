@@ -243,9 +243,13 @@ pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -
 }
 
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
-/// `#tag` or an org-mode `:tag:` (per `tags`).
+/// `#tag` or an org-mode `:tag:` (per `tags`); with the extended links, also
+/// `[[target|text]]`, `[[Page#Titre]]` and `[text](Page.md)`.
 pub fn link_at(chars: &[char], pos: usize, tags: TagSyntax) -> Option<String> {
-    wiki_link_at(chars, pos, tags.hashtags)
+    let extended = tags.extended_links.then(|| {
+        orgamnesia_core::links::scan(chars, true).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
+    }).flatten();
+    extended.or_else(|| wiki_link_at(chars, pos, tags.hashtags))
         .or_else(|| tags.org.links.then(|| motion::org_tag_at(chars, pos, tags.org)).flatten())
 }
 
@@ -562,6 +566,17 @@ mod tests {
     }
 
     #[test]
+    fn extended_links_under_the_cursor() {
+        let t = c("[[Page|texte]] [[P#Titre]] [lien](Ma%20page.md)");
+        let ext = TagSyntax { extended_links: true, ..Hashtags::Off.into() };
+        assert_eq!(link_at(&t, 9, ext).as_deref(), Some("Page"));
+        assert_eq!(link_at(&t, 17, ext).as_deref(), Some("P::*Titre"));
+        assert_eq!(link_at(&t, 30, ext).as_deref(), Some("Ma page.md"));
+        assert_eq!(link_at(&t, 9, Hashtags::Off.into()).as_deref(), Some("Page|texte"));
+        assert_eq!(link_at(&t, 30, Hashtags::Off.into()), None);
+    }
+
+    #[test]
     fn links_under_the_cursor() {
         let t = c("voir [[Ma page]] et [[cible][texte]] #tag fin");
         assert_eq!(link_at(&t, 8, Hashtags::Dashes.into()).as_deref(), Some("Ma page"));
@@ -571,7 +586,7 @@ mod tests {
         assert_eq!(link_at(&t, 1, Hashtags::Dashes.into()), None);
         assert_eq!(link_at(&c("* Titre :projet:"), 11, Hashtags::Off.into()).as_deref(), Some("projet"));
         assert_eq!(link_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into()).as_deref(), Some("exemple"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: motion::OrgTags { links: false, dashes: false } };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: motion::OrgTags { links: false, dashes: false }, extended_links: false };
         assert_eq!(link_at(&c("voir :exemple: ici"), 7, off), None);
     }
 

@@ -208,14 +208,15 @@ pub fn follow_link(ctx: AppCtx, name: String) {
         }
         return;
     }
-    let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().position(|t| ctx.same_page(&t.name, page)));
+    let file = ctx.find_page(page);
+    let open = file.as_ref().and_then(|f| ctx.work.tabs.with_untracked(|tabs| tabs.iter().position(|t| t.path == f.path)));
     if let Some(idx) = open {
         ctx.work.active_tab.set(Some(idx));
         if let Some(goto) = goto {
             let path = ctx.work.tabs.with_untracked(|tabs| tabs[idx].path.clone());
             ctx.work.goto.set(Some((path, goto)));
         }
-    } else if let Some(file) = ctx.find_page(page) {
+    } else if let Some(file) = file {
         open_file(ctx, file, goto);
     } else {
         create_and_open_page(ctx, page.to_string());
@@ -228,13 +229,15 @@ pub fn create_and_open_page(ctx: AppCtx, name: String) {
     let content = RwSignal::new(String::new());
     let dirty = RwSignal::new(true);
     spawn_local(async move {
-        match invoke::create_page(&name).await {
+        match invoke::create_page(&name, None).await {
             Ok(file) => {
-                content.set(format!("* {}\n", file.name));
+                let format = orgamnesia_core::Format::of_path(&file.path).unwrap_or_default();
+                content.set(format.title_line(&file.name));
                 ctx.project.files.update(|files| {
                     files.push(file.clone());
-                    files.sort_by(|a, b| a.name.cmp(&b.name));
+                    files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
                 });
+                ctx.warn_twin(&file);
                 push_tab(ctx, Tab { path: file.path, name: file.name, content, dirty, history: StoredValue::new(Default::default()) });
             }
             Err(e) => ctx.error("error", &e),
@@ -396,11 +399,12 @@ pub fn rename_page(ctx: AppCtx, old_path: String, new_name: String) {
                         f.name = nf.name.clone();
                         f.path = nf.path.clone();
                     }
-                    files.sort_by(|a, b| a.name.cmp(&b.name));
+                    files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
                 });
                 reload_clean_tabs(ctx).await;
                 ctx.bump_links();
                 ctx.notify_t("renamed", &nf.name);
+                ctx.warn_twin(&nf);
             }
             Err(e) => ctx.error("rename_error", &e),
         }
