@@ -3,6 +3,7 @@
 
 use super::{find_tables, fold_index, fold_tag, tag, tag_index, FILL, INDENT, MAX_FOLDS, MAX_TABLES};
 use crate::images;
+use orgamnesia_core::org::line_start;
 
 /// A table of the page drawn in place of its text.
 #[derive(Debug, Clone, PartialEq)]
@@ -208,7 +209,7 @@ impl View {
         if self.indents.is_empty() { return None; }
         let chars: Vec<char> = text.chars().collect();
         let pos = pos.min(chars.len());
-        let ls = chars[..pos].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
+        let ls = line_start(&chars, pos);
         let n = chars[ls..].iter().take_while(|&&c| c == INDENT).count();
         (n > 0 && pos <= ls + n).then_some((ls, ls + n))
     }

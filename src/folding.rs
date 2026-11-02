@@ -7,7 +7,7 @@
 //! hidden line (see `tables::View`, which hides them). Headlines are those of the
 //! page's format: `* Titre` in org-mode, `# Titre` in Markdown.
 
-use orgamnesia_core::Format;
+use orgamnesia_core::{org::{line_end, line_start}, Format};
 
 /// Level of the headline starting at `ls` (its stars, or `#` in Markdown), if the line is one.
 fn level(chars: &[char], f: Format, ls: usize) -> Option<usize> {
@@ -17,15 +17,6 @@ fn level(chars: &[char], f: Format, ls: usize) -> Option<usize> {
 /// Whether the line starting at `ls` is a headline (`* Title`).
 pub fn is_headline(chars: &[char], f: Format, ls: usize) -> bool {
     level(chars, f, ls).is_some()
-}
-
-fn line_end(chars: &[char], ls: usize) -> usize {
-    chars[ls..].iter().position(|&c| c == '\n').map_or(chars.len(), |p| ls + p)
-}
-
-/// Start of the line holding `pos`.
-pub fn line_start(chars: &[char], pos: usize) -> usize {
-    chars[..pos.min(chars.len())].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1)
 }
 
 /// The headline at `ls` (level `level`): the end of its line, the end of its subtree

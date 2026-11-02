@@ -65,7 +65,7 @@ fn forget(state: &AppState, dir: &Path, path: &str) -> Cmd<Vec<String>> {
 }
 
 /// An `assets/` folder to offer the project: made in it, or that of the folder
-/// around it (see `vault::parent_with_assets`), opened as the project instead.
+/// around it (see `project::files::parent_with_assets`), opened as the project instead.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct AssetsOffer {
     /// The folder around the project, whose `assets/` may be used.
@@ -76,10 +76,10 @@ pub struct AssetsOffer {
 /// when it is not a plain folder of `.org` files, or when the user didn't want one there.
 #[tauri::command]
 pub async fn assets_offer(state: State<'_, AppState>, path: String) -> Cmd<Option<AssetsOffer>> {
-    if !crate::vault::lacks_assets(&path) || state.settings().assets_declined.contains(&path) {
+    if !crate::project::files::lacks_assets(&path) || state.settings().assets_declined.contains(&path) {
         return Ok(None);
     }
-    let parent = crate::vault::parent_with_assets(&path).map(crate::slash);
+    let parent = crate::project::files::parent_with_assets(&path).map(crate::slash);
     Ok(Some(AssetsOffer { parent }))
 }
 

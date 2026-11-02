@@ -464,10 +464,7 @@ mod tests {
     }
 
     fn temp(test: &str) -> std::path::PathBuf {
-        let base = std::env::temp_dir().join(format!("orgamnesia-git-{test}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
-        std::fs::create_dir_all(&base).unwrap();
-        base
+        crate::commands::testing::folder(&format!("git-{test}"))
     }
 
     #[test]

@@ -86,19 +86,10 @@ pub fn link_starting(chars: &[char], at: usize, syntax: LinkSyntax) -> Option<Fo
     (syntax.markdown && (at == 0 || !matches!(chars[at - 1], '[' | '!' | '\\'))).then(|| markdown_link(chars, at)).flatten()
 }
 
-/// The link starting at `at` (`[[`), if it is closed.
+/// The link starting at `at` (`[[`), if it is closed (read by `link_at`).
 fn org_link(chars: &[char], at: usize, syntax: LinkSyntax) -> Option<Found> {
-    let ts = at + 2;
-    let te = ts + chars[ts..].iter().position(|&c| matches!(c, ']' | '['))?;
-    let end = match (chars.get(te), chars.get(te + 1)) {
-        (Some(']'), Some(']')) => te + 2,
-        (Some(']'), Some('[')) => {
-            let close = (te + 2..chars.len().saturating_sub(1)).find(|&j| chars[j] == ']' && chars[j + 1] == ']')?;
-            if chars[te + 2..close].contains(&'[') { return None; }
-            close + 2
-        }
-        _ => return None,
-    };
+    let link = link_at(chars, at)?;
+    let ((ts, te), end) = (link.target, link.end);
     // `[[Page|texte]]`: the text after the bar
     let te = if syntax.pipe { (ts..te).find(|&j| chars[j] == '|').unwrap_or(te) } else { te };
     let raw: String = chars[ts..te].iter().collect();
@@ -188,6 +179,84 @@ pub fn percent_decode(s: &str) -> String {
 /// `name` as a Markdown link writes it: spaces and parentheses encoded.
 pub fn percent_encode(name: &str) -> String {
     name.replace('%', "%25").replace(' ', "%20").replace('(', "%28").replace(')', "%29")
+}
+
+/// A link `[[target]]` or `[[target][description]]` of a text, by char
+/// positions: `start..end` is the whole link, `target` and `description` the
+/// ranges of their text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Link {
+    pub start: usize,
+    pub end: usize,
+    pub target: (usize, usize),
+    pub description: Option<(usize, usize)>,
+}
+
+impl Link {
+    /// The target as written (not trimmed).
+    pub fn target(&self, chars: &[char]) -> String {
+        chars[self.target.0..self.target.1].iter().collect()
+    }
+
+    pub fn description(&self, chars: &[char]) -> Option<String> {
+        self.description.map(|(a, b)| chars[a..b].iter().collect())
+    }
+}
+
+/// The link whose `[[` is at `start`, if a whole one is written there: a target
+/// holding no bracket nor line break, then `]]`, or `][`, a description and `]]`.
+/// This is how every part of the app reads links.
+pub fn link_at(chars: &[char], start: usize) -> Option<Link> {
+    if chars.get(start) != Some(&'[') || chars.get(start + 1) != Some(&'[') { return None; }
+    let t0 = start + 2;
+    let t1 = (t0..chars.len()).find(|&i| matches!(chars[i], '[' | ']' | '\n'))?;
+    match (chars[t1], chars.get(t1 + 1)) {
+        (']', Some(']')) => Some(Link { start, end: t1 + 2, target: (t0, t1), description: None }),
+        (']', Some('[')) => {
+            let d0 = t1 + 2;
+            let d1 = (d0..chars.len().saturating_sub(1)).find(|&j| chars[j] == ']' && chars[j + 1] == ']')?;
+            Some(Link { start, end: d1 + 2, target: (t0, t1), description: Some((d0, d1)) })
+        }
+        _ => None,
+    }
+}
+
+/// The links of `chars`, in order.
+pub fn links(chars: &[char]) -> impl Iterator<Item = Link> + '_ {
+    let mut i = 0;
+    std::iter::from_fn(move || {
+        while i + 1 < chars.len() {
+            if let Some(link) = link_at(chars, i) {
+                i = link.end;
+                return Some(link);
+            }
+            i += 1;
+        }
+        None
+    })
+}
+
+/// The targets of the links of `text`, as written.
+pub fn targets(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    links(&chars).map(|l| l.target(&chars)).collect()
+}
+
+/// The path a link target points to when it names a file: `file:x`, `./x`, `../x`,
+/// `/x` or `~/x`.
+pub fn file_target(target: &str) -> Option<&str> {
+    let t = target.trim();
+    let t = t.strip_prefix("file:").unwrap_or(t);
+    let file = t.starts_with("./") || t.starts_with("../") || t.starts_with('/') || t.starts_with("~/");
+    (file || target.trim().starts_with("file:")).then_some(t).filter(|t| !t.is_empty())
+}
+
+/// Whether a link target names a page: not a file, an address (`https://`,
+/// `mailto:`) nor a place in the page (`#id`, `*Titre`). `Page::*Titre` names `Page`.
+pub fn is_page_target(target: &str) -> bool {
+    let t = split(target).0;
+    !(t.is_empty() || t.contains("://") || t.starts_with("mailto:") || t.starts_with("file:")
+        || t.starts_with('#') || t.starts_with('*') || file_target(t).is_some())
 }
 
 /// The title of the headline `line` as links name it, without its stars, TODO
@@ -344,6 +413,32 @@ mod tests {
         ]);
         assert_eq!(percent_encode("a b(1)"), "a%20b%281%29");
         assert_eq!(percent_decode("%C3%A9t%C3%A9%2"), "été%2");
+    }
+
+    #[test]
+    fn links_as_written() {
+        let c: Vec<char> = "[[a]] [[b][c d]]".chars().collect();
+        assert_eq!(link_at(&c, 0), Some(Link { start: 0, end: 5, target: (2, 3), description: None }));
+        assert_eq!(link_at(&c, 6), Some(Link { start: 6, end: 16, target: (8, 9), description: Some((11, 14)) }));
+        assert_eq!(link_at(&c, 1), None);
+        let text = "voir [[A]] et [[../b.png][image]], pas [[c\nd]] ni [[e] ni [[f ni [[g[h]]";
+        assert_eq!(targets(text), vec!["A", "../b.png"]);
+        assert_eq!(targets("[[x]]{:width 3} [[[y]]] [[z][a [b] c]]"), vec!["x", "y", "z"]);
+        assert_eq!(targets("[[ Page ::*Titre]]"), vec![" Page ::*Titre"]);
+    }
+
+    #[test]
+    fn targets_are_pages_or_files() {
+        assert_eq!(file_target("../assets/a.png"), Some("../assets/a.png"));
+        assert_eq!(file_target("file:notes.pdf"), Some("notes.pdf"));
+        assert_eq!(file_target("~/doc.pdf"), Some("~/doc.pdf"));
+        assert_eq!(file_target("Page"), None);
+        assert!(is_page_target("Ma page"));
+        assert!(is_page_target("Recettes::*Desserts"));
+        for other in ["../assets/a.png", "file:../assets/a.svg", "file:a.org::*Titre", "/home/a.pdf",
+            "https://orgmode.org", "mailto:a@b.c", "*Titre", "#id", "::cible"] {
+            assert!(!is_page_target(other), "{other}");
+        }
     }
 
     #[test]

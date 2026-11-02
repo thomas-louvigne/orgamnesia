@@ -1,5 +1,6 @@
 pub mod commit_modal;
 pub mod config_bar;
+pub mod dialogs;
 pub mod editor;
 pub mod empty_state;
 pub mod frames;

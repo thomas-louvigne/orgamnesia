@@ -1,7 +1,7 @@
 //! The commands that only take the state, run on Tauri's mock runtime over
 //! projects made for the test.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use orgamnesia_core::{ReplaceSkip, SearchOptions};
@@ -10,6 +10,29 @@ use tauri::Manager;
 use super::testing::{block_on, folder, mock_app, open_project};
 use super::{app, git, links, org_bloom, pages, search};
 use crate::AppState;
+
+/// The interface calls the commands by their name (`call("name", …)` in
+/// `src/invoke.rs`), which nothing checks before the call fails in the app: each
+/// one must be registered (`generate_handler!` in `main.rs`), and each command
+/// registered be called.
+#[test]
+fn the_interface_calls_the_registered_commands() {
+    let main = include_str!("../main.rs");
+    let list = main.split("generate_handler![").nth(1).and_then(|r| r.split(']').next()).unwrap();
+    let registered: HashSet<&str> = list.split(',')
+        .filter_map(|c| c.trim().rsplit("::").next()).filter(|c| !c.is_empty()).collect();
+    let invoke = include_str!("../../../src/invoke.rs");
+    let called: HashSet<&str> = ["call(\"", "tauri_invoke_raw(\""].iter()
+        .flat_map(|call| invoke.split(call).skip(1))
+        .filter_map(|rest| rest.split('"').next()).collect();
+    assert!(registered.len() > 50, "{registered:?}");
+    let mut unknown: Vec<_> = called.difference(&registered).collect();
+    let mut unused: Vec<_> = registered.difference(&called).collect();
+    unknown.sort();
+    unused.sort();
+    assert!(unknown.is_empty(), "called but not registered: {unknown:?}");
+    assert!(unused.is_empty(), "registered but never called: {unused:?}");
+}
 
 #[test]
 fn pages_are_read_written_renamed_deleted_and_restored() {

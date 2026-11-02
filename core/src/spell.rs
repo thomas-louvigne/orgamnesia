@@ -19,7 +19,7 @@ pub fn words(content: &str) -> Vec<(usize, usize)> {
     let mut drawer = false;
     let mut start = 0;
     while start <= chars.len() {
-        let end = chars[start..].iter().position(|&c| c == '\n').map_or(chars.len(), |i| start + i);
+        let end = crate::org::line_end(&chars, start);
         let line = &chars[start..end];
         let text: String = line.iter().collect::<String>();
         let trimmed = text.trim();
@@ -95,15 +95,12 @@ fn masked(line: &[char]) -> Vec<bool> {
     let at = |i: usize, s: &str| s.chars().enumerate().all(|(k, c)| line.get(i + k) == Some(&c));
     let mut i = 0;
     while i < line.len() {
-        if at(i, "[[") {
-            let close = (i + 2..line.len()).find(|&k| at(k, "]]"));
-            let Some(close) = close else { break };
+        if let Some(link) = crate::links::link_at(line, i) {
             // `[[target][description]]`: only the description is prose
-            let desc = (i + 2..close).find(|&k| at(k, "]["));
-            let to = desc.map_or(close + 2, |d| d + 2);
+            let to = link.description.map_or(link.end, |(d, _)| d);
             skip[i..to].fill(true);
-            skip[close..close + 2].fill(true);
-            i = close + 2;
+            skip[link.end - 2..link.end].fill(true);
+            i = link.end;
         } else if ["http://", "https://", "file:", "mailto:", "ftp://"].iter().any(|p| at(i, p))
             && (i == 0 || !line[i - 1].is_alphanumeric())
         {

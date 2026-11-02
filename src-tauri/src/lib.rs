@@ -2,16 +2,13 @@ pub mod commands;
 pub mod config_files;
 pub mod error;
 pub mod git;
-pub mod index;
 pub mod keybindings;
 pub mod org_bloom;
-pub mod parser;
 pub mod project;
 pub mod settings;
 pub mod spell;
 pub mod tags;
 pub mod update;
-pub mod vault;
 pub mod watch;
 
 use std::path::{Path, PathBuf};

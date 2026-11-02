@@ -42,19 +42,6 @@ pub fn extract_links(content: &str, tags: TagSyntax) -> Vec<String> {
     out
 }
 
-/// True for `[[targets]]` that name a wiki page (not a URL, a file or an internal anchor).
-pub fn is_page_link(target: &str) -> bool {
-    let t = links::split(target).0;
-    !(t.is_empty()
-        || t.contains("://")
-        || t.starts_with("file:")
-        || t.starts_with("mailto:")
-        || t.starts_with('#')
-        || t.starts_with('*')
-        || t.starts_with("./")
-        || t.starts_with("../"))
-}
-
 /// A page renamed, as `rewrite_links` follows it.
 pub struct Rename<'a> {
     /// Whether a link naming this page (`Old`, `Old.md`…) leads to it.
@@ -171,13 +158,6 @@ mod tests {
         assert_eq!(links, vec!["A", "B", "C"]);
     }
     #[test]
-    fn page_links_vs_others() {
-        assert!(is_page_link("My Page"));
-        assert!(!is_page_link("https://orgmode.org"));
-        assert!(!is_page_link("file:../assets/a.svg"));
-        assert!(!is_page_link("../assets/a.svg"));
-    }
-    #[test]
     fn rewrite_links_simple_and_labeled() {
         let out = rw("a [[Old]] b [[Old][lbl]] c [[Other]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "a [[New]] b [[New][lbl]] c [[Other]]");
@@ -186,11 +166,15 @@ mod tests {
     fn links_to_a_place_in_a_page() {
         let links = extract_links("[[Recettes::*Desserts]] [[ A :: cible ][x]] [[*Titre]]", Hashtags::Off.into());
         assert_eq!(links, vec!["Recettes", "A", "*Titre"]);
-        assert!(is_page_link("Recettes::*Desserts"));
-        assert!(!is_page_link("*Titre"));
-        assert!(!is_page_link("::cible"));
         let out = rw("[[Old::*Titre]] [[Old ::cible][l]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "[[New::*Titre]] [[New ::cible][l]]");
+    }
+    #[test]
+    fn only_whole_links_count() {
+        let links = extract_links("[[A]] [[B sans fin [[C][voir #x]] [[D]", Hashtags::Dashes.into());
+        assert_eq!(links, vec!["A", "C"]);
+        let out = rw("[[Old][voir #Old]] [[Old", "Old", "New", false, Hashtags::Dashes.into()).unwrap();
+        assert_eq!(out, "[[New][voir #Old]] [[Old");
     }
     #[test]
     fn rewrite_links_ignores_case() {
