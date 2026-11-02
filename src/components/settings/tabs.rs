@@ -39,6 +39,8 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
             </div>
             <Check draft get=|p| p.single_format set=|p, v| p.single_format = v
                 label="single_format" hint="single_format_hint" sub=true />
+            <Check draft get=|p| p.ask_format set=|p, v| p.ask_format = v
+                label="ask_format" sub=true disabled=|p| p.single_format />
             <Check draft get=|p| p.extended_links set=|p, v| p.extended_links = v
                 label="extended_links" hint="extended_links_hint" />
             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />

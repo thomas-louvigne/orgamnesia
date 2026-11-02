@@ -49,6 +49,8 @@ struct State {
 pub fn load(config_dir: &Path, config: &mut ConfigState) -> Settings {
     let text = std::fs::read_to_string(config_files::path(config_dir, &File::Settings)).ok();
     let mut settings: Settings = text.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default();
+    // Nothing set yet: the interface asks what matters first
+    settings.first_run = text.is_none();
     // The text read as the one in effect, and whether to write it again up to date
     let (mut in_effect, mut rewrite) = (text.clone(), false);
     match std::fs::read_to_string(config_dir.join(STATE_FILE)).ok().and_then(|s| serde_json::from_str::<State>(&s).ok()) {
@@ -139,6 +141,15 @@ mod tests {
     }
 
     #[test]
+    fn nothing_saved_is_the_first_run() {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-settings-first-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(load(&dir, &mut ConfigState::default()).first_run);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn old_settings_are_split_in_two() {
         let dir = std::env::temp_dir().join(format!("orgamnesia-settings-split-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -146,6 +157,7 @@ mod tests {
         std::fs::write(dir.join("settings.json"), r#"{"vault_path":"/x","autosave":false,"projects":["/x"]}"#).unwrap();
         let mut config = ConfigState::default();
         let s = load(&dir, &mut config);
+        assert!(!s.first_run);
         assert_eq!((s.vault_path.as_deref(), s.config.autosave), (Some("/x"), Some(false)));
         assert!(config.problems().is_empty());
         let text = std::fs::read_to_string(dir.join("settings.json")).unwrap();

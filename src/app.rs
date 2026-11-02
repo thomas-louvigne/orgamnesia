@@ -139,6 +139,7 @@ async fn load_startup(ctx: AppCtx, owner: Owner) {
     if let Ok(settings) = invoke::get_settings().await {
         let prefs = crate::preferences::prefs_of(&settings);
         ctx.prefs.set(prefs.clone());
+        if settings.first_run { ctx.ui.show_welcome.set(true); }
         ctx.project.projects.set(settings.projects);
         if let Some(path) = settings.vault_path {
             match invoke::open_vault(&path).await {
@@ -571,6 +572,7 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <ConfirmDialog /> })}
             {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <DiskConflictDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
+            {move || ctx.ui.show_welcome.get().then(|| view! { <crate::components::welcome::WelcomeModal /> })}
             {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_modal::CommitModal /> })}
             {move || ctx.ui.git_history.get().map(|file| view! { <crate::components::git_history::GitHistoryModal file /> })}
             {move || ctx.ui.show_git_remote.get().then(|| view! { <crate::components::git_setup::RemoteModal /> })}

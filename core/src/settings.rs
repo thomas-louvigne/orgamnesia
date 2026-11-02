@@ -26,6 +26,10 @@ pub struct Settings {
     /// Folders of `.org` files whose user didn't want an `assets/` folder made.
     #[serde(default)]
     pub assets_declined: Vec<String>,
+    /// The app runs for the first time (no `settings.json` yet): the interface
+    /// asks the format of the pages and the shortcuts. Not saved.
+    #[serde(default)]
+    pub first_run: bool,
 }
 
 /// The keys of `Settings` kept in `state.json`, not in `settings.json`.
@@ -449,7 +453,7 @@ impl Prefs {
             // Saved with the keybindings
             keybinding_profile: None,
         };
-        Settings { config, vault_path: some(&self.vault), projects, session: None, assets_declined: vec![] }
+        Settings { config, vault_path: some(&self.vault), projects, session: None, assets_declined: vec![], first_run: false }
     }
 
     /// How `#tags` and `:tags:` are read.

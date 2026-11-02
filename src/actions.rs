@@ -223,13 +223,31 @@ pub fn follow_link(ctx: AppCtx, name: String) {
     }
 }
 
-/// Create the page `name`, add it to the list and open it in a new tab.
+/// Create the page `name`, add it to the list and open it in a new tab. When
+/// the format of new pages is asked (and `name` doesn't tell it, as `Note.md`
+/// does), the new page window opens with the name instead.
 pub fn create_and_open_page(ctx: AppCtx, name: String) {
+    if asks_format(ctx) && orgamnesia_core::format::split_ext(name.trim()).is_none() {
+        ctx.ui.new_page_name.set(name);
+        ctx.ui.show_new_page.set(true);
+        return;
+    }
+    create_page_as(ctx, name, None);
+}
+
+/// Whether the format of each new page is asked (both formats being read).
+pub fn asks_format(ctx: AppCtx) -> bool {
+    ctx.pref_untracked(|p| p.ask_format && !p.single_format)
+}
+
+/// Create the page `name` in `format` (`None`: the default one), add it to the
+/// list and open it in a new tab.
+pub fn create_page_as(ctx: AppCtx, name: String, format: Option<orgamnesia_core::Format>) {
     // Signals are created here, in the reactive owner, not after the await
     let content = RwSignal::new(String::new());
     let dirty = RwSignal::new(true);
     spawn_local(async move {
-        match invoke::create_page(&name, None).await {
+        match invoke::create_page(&name, format).await {
             Ok(file) => {
                 let format = orgamnesia_core::Format::of_path(&file.path).unwrap_or_default();
                 content.set(format.title_line(&file.name));

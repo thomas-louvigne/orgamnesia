@@ -148,6 +148,11 @@ pub struct Ui {
     pub show_projects: RwSignal<bool>,
     pub show_settings: RwSignal<bool>,
     pub show_new_page: RwSignal<bool>,
+    /// The name the new page window opens with (a link followed to a page not
+    /// created yet, when the format of new pages is asked).
+    pub new_page_name: RwSignal<String>,
+    /// The window of the first run (format of the pages, shortcuts).
+    pub show_welcome: RwSignal<bool>,
     pub show_quick_open: RwSignal<bool>,
     pub show_commit: RwSignal<bool>,
     /// The history window of this page (git extension).
@@ -236,6 +241,8 @@ impl AppCtx {
                 show_projects: RwSignal::new(false),
                 show_settings: RwSignal::new(false),
                 show_new_page: RwSignal::new(false),
+                new_page_name: RwSignal::new(String::new()),
+                show_welcome: RwSignal::new(false),
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
                 git_history: RwSignal::new(None),

@@ -1675,3 +1675,16 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 }
 .btn-link:hover { color: var(--fg); }
 .modal-footer-start { margin-right: auto; }
+
+/* First run: the format of the pages and the shortcuts */
+.modal.welcome { max-width: 34rem; }
+.welcome-group { border: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.welcome-group legend { font-weight: 600; margin-bottom: 6px; }
+.welcome-choice {
+    display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 6px;
+}
+.welcome-choice.selected { border-color: var(--accent); background: var(--bg3); }
+.welcome-choice input { margin-top: 3px; }
+.welcome-choice-text { display: flex; flex-direction: column; gap: 2px; }
+.new-page-format { display: flex; gap: 16px; margin-top: 10px; }
