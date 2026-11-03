@@ -339,9 +339,7 @@ fn heading_indents(chars: &[char]) -> Vec<(usize, usize)> {
     loop {
         let end = chars[start..].iter().position(|&c| c == '\n').map_or(chars.len(), |p| start + p);
         let line = &chars[start..end];
-        let mark = crate::motion::heading_mark();
-        let stars = line.iter().take_while(|&&c| c == mark).count();
-        if stars > 0 && matches!(line.get(stars), Some(' ') | None) {
+        if let Some(stars) = crate::motion::headline_level(line) {
             level = stars;
         } else if level > 0 {
             out.push((start, level + 1));

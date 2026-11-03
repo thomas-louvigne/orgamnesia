@@ -3,7 +3,7 @@
 //! leads to the one of the default format, `[[Note.md]]` / `[[Note.org]]` to
 //! each of them.
 
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use crate::{format::split_ext, names::page_key, FileEntry, Format};
 
@@ -12,36 +12,43 @@ pub fn file_name(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path)
 }
 
-/// Finds the page a link names, among the pages of the project.
+/// Finds the page a link names, among the pages of the project (borrowed, or
+/// owned to be kept: `Resolver<'static>`).
+#[derive(Clone, PartialEq)]
 pub struct Resolver<'a> {
     loose: bool,
     default: Format,
-    /// Pages by the key of their name (without extension).
-    by_name: HashMap<String, Vec<&'a FileEntry>>,
+    files: Cow<'a, [FileEntry]>,
+    /// Indexes in `files` of the pages, by the key of their name (without extension).
+    by_name: HashMap<String, Vec<usize>>,
 }
 
 impl<'a> Resolver<'a> {
     /// `loose`: names compare ignoring case and accents.
-    pub fn new(files: &'a [FileEntry], loose: bool, default: Format) -> Self {
-        let mut by_name: HashMap<String, Vec<&FileEntry>> = HashMap::new();
-        for f in files {
-            by_name.entry(page_key(f.name.trim(), loose)).or_default().push(f);
+    pub fn new(files: impl Into<Cow<'a, [FileEntry]>>, loose: bool, default: Format) -> Self {
+        let files = files.into();
+        let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
+        for (i, f) in files.iter().enumerate() {
+            by_name.entry(page_key(f.name.trim(), loose)).or_default().push(i);
         }
-        Self { loose, default, by_name }
+        Self { loose, default, files, by_name }
+    }
+
+    fn pages(&self, key: &str) -> impl Iterator<Item = &FileEntry> {
+        self.by_name.get(key).into_iter().flatten().map(|&i| &self.files[i])
     }
 
     /// The page `name` leads to: `Note.md` to that file when it exists; `Note` to
     /// the page of that name, the one of the default format when there are two.
-    pub fn resolve(&self, name: &str) -> Option<&'a FileEntry> {
+    pub fn resolve(&self, name: &str) -> Option<&FileEntry> {
         let name = name.trim();
         if let Some((stem, format)) = split_ext(name)
-            && let Some(f) = self.by_name.get(&page_key(stem.trim(), self.loose))
-                .and_then(|fs| fs.iter().find(|f| Format::of_path(&f.path) == Some(format)))
+            && let Some(f) = self.pages(&page_key(stem.trim(), self.loose)).find(|f| Format::of_path(&f.path) == Some(format))
         {
             return Some(f);
         }
-        let pages = self.by_name.get(&page_key(name, self.loose))?;
-        pages.iter().find(|f| Format::of_path(&f.path) == Some(self.default)).or(pages.first()).copied()
+        let key = page_key(name, self.loose);
+        self.pages(&key).find(|f| Format::of_path(&f.path) == Some(self.default)).or_else(|| self.pages(&key).next())
     }
 
     /// Whether `[[name]]` (its name alone) leads to another page than `file`,

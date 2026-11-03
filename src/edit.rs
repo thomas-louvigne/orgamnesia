@@ -76,22 +76,13 @@ pub fn word_start_backward(chars: &[char], pos: usize) -> usize {
     i
 }
 
-/// If the line `[start..end)` is an org heading (`*`… followed by a space or EOL),
-/// its level (number of leading `*`).
-fn heading_level(chars: &[char], start: usize, end: usize) -> Option<usize> {
-    let mut i = start;
-    while i < end && chars[i] == motion::heading_mark() { i += 1; }
-    let level = i - start;
-    if level > 0 && (i >= end || chars[i] == ' ') { Some(level) } else { None }
-}
-
 /// Heading level in effect at `caret`: the current line if it is a heading,
 /// otherwise the nearest heading above it. Defaults to 1 when none is found.
 pub fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
     let (mut line_start, _) = line_bounds(chars, caret);
     loop {
         let (_, line_end) = line_bounds(chars, line_start);
-        if let Some(l) = heading_level(chars, line_start, line_end) { return l; }
+        if let Some(l) = motion::headline_level(&chars[line_start..line_end]) { return l; }
         if line_start == 0 { return 1; }
         line_start = line_bounds(chars, line_start - 1).0;
     }

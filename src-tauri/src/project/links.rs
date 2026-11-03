@@ -83,9 +83,8 @@ pub fn rewrite_links(content: &str, rename: &Rename, ignore_case: bool, tags: Ta
             match (written, name) {
                 (Some((a, b, _)), Some(name)) if (rename.leads_here)(&name) => {
                     // `Old.md` stays `New.md`
-                    let ext = split_ext(&name).filter(|(stem, _)| norm(stem.trim()) == old).map(|(_, f)| f);
-                    let mut to = match ext {
-                        Some(_) => format!("{new}.{}", name.rsplit_once('.').map_or("", |(_, e)| e)),
+                    let mut to = match split_ext(&name).filter(|(stem, _)| norm(stem.trim()) == old) {
+                        Some((stem, _)) => format!("{new}{}", &name[stem.len()..]),
                         None => new.to_string(),
                     };
                     let angle = a > 0 && chars[a - 1] == '<';

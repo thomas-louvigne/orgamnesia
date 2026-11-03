@@ -75,7 +75,7 @@ fn align(rows: &[Row], indent: &str) -> (Vec<String>, Vec<Vec<usize>>) {
     let mut starts = Vec::new();
     for r in rows {
         if r.rule {
-            if crate::motion::heading_mark() == '#' {
+            if crate::motion::format() == orgamnesia_core::Format::Markdown {
                 // Markdown: `|-----|:---:|`
                 let cells: Vec<String> = widths.iter().enumerate().map(|(c, &w)| {
                     let (left, right) = r.colons.get(c).copied().unwrap_or_default();

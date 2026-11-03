@@ -29,7 +29,7 @@ impl Format {
 
     /// The format of the file `path`, from its extension.
     pub fn of_path(path: &str) -> Option<Self> {
-        let file = path.rsplit(['/', '\\']).next().unwrap_or(path);
+        let file = crate::pages::file_name(path);
         let (_, ext) = file.rsplit_once('.')?;
         Self::from_ext(ext)
     }
@@ -72,10 +72,7 @@ impl Format {
 
     /// The first line of a new page called `name`: its title as a headline.
     pub fn title_line(self, name: &str) -> String {
-        match self {
-            Format::Org => format!("* {name}\n"),
-            Format::Markdown => format!("# {name}\n"),
-        }
+        format!("{} {name}\n", self.heading_mark())
     }
 }
 

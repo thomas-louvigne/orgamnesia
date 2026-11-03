@@ -64,7 +64,7 @@ pub fn NewPageModal() -> impl IntoView {
                     />
                     {ask.then(|| view! {
                         <div class="new-page-format" role="radiogroup" aria-label=move || t("default_format", lang())>
-                            {[Format::Org, Format::Markdown].into_iter().map(|f| view! {
+                            {Format::ALL.into_iter().map(|f| view! {
                                 <label class="setting-check">
                                     <input type="radio" name="new-page-format"
                                         prop:checked=move || format.get() == f

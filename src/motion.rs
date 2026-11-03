@@ -1,41 +1,41 @@
-//! Pure cursor-motion helpers (Emacs-style sentence, paragraph and heading moves).
-//! Positions are char indexes into `chars`.
+use orgamnesia_core::Format;
 
 thread_local! {
-    /// The character headlines start with in the page being edited: `*` (org-mode)
-    /// or `#` (Markdown). Set by `FormatGuard` while the editor handles a page.
-    static MARK: std::cell::Cell<char> = const { std::cell::Cell::new('*') };
+    /// The format of the page being edited or drawn. Set by `FormatGuard`.
+    static FORMAT: std::cell::Cell<Format> = const { std::cell::Cell::new(Format::Org) };
 }
 
-/// The character headlines start with in the page being edited (see `FormatGuard`).
+/// The format of the page being edited or drawn (see `FormatGuard`).
+pub fn format() -> Format {
+    FORMAT.with(|f| f.get())
+}
+
+/// The character headlines start with in that page: `*` (org-mode) or `#` (Markdown).
 pub fn heading_mark() -> char {
-    MARK.with(|m| m.get())
+    format().heading_mark()
 }
 
-/// While it lives, headlines are those of `format` (`# Titre` in Markdown); the
-/// mark before it comes back when it goes.
-pub struct FormatGuard(char);
+/// While it lives, the page is in `format` (`# Titre` in Markdown); the format
+/// before it comes back when it goes.
+pub struct FormatGuard(Format);
 
 impl FormatGuard {
-    pub fn set(format: orgamnesia_core::Format) -> Self {
-        Self(MARK.with(|m| m.replace(format.heading_mark())))
+    pub fn set(format: Format) -> Self {
+        Self(FORMAT.with(|f| f.replace(format)))
     }
 }
 
 impl Drop for FormatGuard {
     fn drop(&mut self) {
-        MARK.with(|m| m.set(self.0));
+        FORMAT.with(|f| f.set(self.0));
     }
 }
 
 use orgamnesia_core::org::{line_end, line_start};
 
-/// Level of the headline `line` (its marks: `** Titre`, `## Titre` in Markdown),
-/// if it is one; `line` may go on past its `\n`.
-fn headline_level(line: &[char]) -> Option<usize> {
-    let mark = heading_mark();
-    let n = line.iter().take_while(|&&c| c == mark).count();
-    (n > 0 && matches!(line.get(n), Some(' ' | '\n') | None)).then_some(n)
+/// Level of the headline `line` in the page's format; `line` may go on past its `\n`.
+pub fn headline_level(line: &[char]) -> Option<usize> {
+    format().heading_level(line)
 }
 
 /// Line with no text: only whitespace, or a heading's bare `*`s. Separates paragraphs.

@@ -16,7 +16,7 @@ pub struct BrokenLinks {
     /// The page, whose folder file links start from.
     page: StoredValue<String>,
     /// The pages of the project, and the settings telling which a name leads to.
-    files: Memo<(Vec<orgamnesia_core::FileEntry>, bool, orgamnesia_core::Format)>,
+    files: Memo<orgamnesia_core::pages::Resolver<'static>>,
     /// The files the page links to that are missing (asked to the backend).
     missing: RwSignal<HashSet<String>>,
     sizes: RwSignal<ImageSizes>,
@@ -27,7 +27,7 @@ impl BrokenLinks {
         let page = StoredValue::new(page);
         let files = Memo::new(move |_| {
             let (loose, default) = ctx.pref(|p| (p.case_insensitive_links, p.default_format));
-            (ctx.project.files.get(), loose, default)
+            orgamnesia_core::pages::Resolver::new(ctx.project.files.get(), loose, default)
         });
         // The files the page links to
         let file_links = Memo::new(move |_| {
@@ -80,7 +80,7 @@ impl BrokenLinks {
                 }).flatten();
                 let target = read.as_deref().unwrap_or(target);
                 let page = orgamnesia_core::links::split(target).0;
-                self.files.with(|(fs, loose, default)| orgamnesia_core::pages::Resolver::new(fs, *loose, *default).resolve(page).is_none())
+                self.files.with(|r| r.resolve(page).is_none())
             } else {
                 false
             }

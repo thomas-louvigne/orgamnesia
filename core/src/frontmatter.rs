@@ -14,9 +14,12 @@
 pub fn lines(text: &str) -> Option<(Vec<&str>, usize)> {
     let mut all = text.split('\n');
     if all.next()?.trim_end() != "---" { return None; }
-    let rest: Vec<&str> = all.collect();
-    let end = rest.iter().position(|l| matches!(l.trim_end(), "---" | "..."))?;
-    Some((rest[..end].to_vec(), end + 2))
+    let mut inside = Vec::new();
+    for l in all {
+        if matches!(l.trim_end(), "---" | "...") { let n = inside.len() + 2; return Some((inside, n)); }
+        inside.push(l);
+    }
+    None
 }
 
 /// `"x"`, `'x'` → `x`.

@@ -34,7 +34,7 @@ pub fn page_html(
         None if first_headline.is_some_and(|h| fold(&h) == fold(name)) => None,
         None => Some(name.to_string()),
     };
-    let doc = Doc { keywords, image, shift: usize::from(title.is_some()), md, extended };
+    let doc = Doc { keywords, image, shift: usize::from(title.is_some()), format, extended };
     let mut out = String::new();
     if let Some(t) = title { out.push_str(&format!("<h1 class='title'>{}</h1>", escape(&t))); }
     out.push_str(&doc.body(lines));
@@ -47,13 +47,18 @@ struct Doc<'a> {
     image: &'a dyn Fn(&str) -> String,
     /// Levels the headlines go down by (one below the title, when there is one).
     shift: usize,
-    /// A Markdown page.
-    md: bool,
+    /// The page's format.
+    format: Format,
     /// The links not of org-mode read.
     extended: place::LinkSyntax,
 }
 
 impl Doc<'_> {
+    /// A Markdown page.
+    fn md(&self) -> bool {
+        self.format == Format::Markdown
+    }
+
     /// The HTML of `lines`: a page, or the inside of a block.
     fn body(&self, lines: &[&str]) -> String {
         let mut out = String::new();
@@ -64,9 +69,9 @@ impl Doc<'_> {
         while i < lines.len() {
             let line = lines[i];
             let t = line.trim();
-            if t.is_empty() || is_structure(line, self.md) { self.paragraph(&mut out, &mut para); }
+            if t.is_empty() || is_structure(line, self.md()) { self.paragraph(&mut out, &mut para); }
             if t.is_empty() { i += 1; continue; }
-            if self.md {
+            if self.md() {
                 // A fenced code block
                 if t.starts_with("```") || t.starts_with("~~~") {
                     let fence = &t[..3];
@@ -116,13 +121,13 @@ impl Doc<'_> {
                 continue;
             }
             // Keywords and comments are not shown
-            if !self.md && (t.starts_with("#+") || t == "#" || t.starts_with("# ")) { i += 1; continue; }
+            if !self.md() && (t.starts_with("#+") || t == "#" || t.starts_with("# ")) { i += 1; continue; }
             // A drawer (`:PROPERTIES:` … `:END:`)
             if is_drawer(t) && let Some(end) = lines[i + 1..].iter().position(|l| l.trim().eq_ignore_ascii_case(":end:")) {
                 i += end + 2;
                 continue;
             }
-            if let Some(level) = headline_level(line, self.md) {
+            if let Some(level) = self.format.heading_level_of(line) {
                 out.push_str(&self.headline(line, level));
                 i += 1;
                 continue;
@@ -145,8 +150,8 @@ impl Doc<'_> {
                 i += 1;
                 continue;
             }
-            if list_item(line, self.md).is_some() {
-                let n = list_lines(&lines[i..], self.md);
+            if list_item(line, self.md()).is_some() {
+                let n = list_lines(&lines[i..], self.md());
                 out.push_str(&self.list(&lines[i..i + n]));
                 i += n;
                 continue;
@@ -178,16 +183,16 @@ impl Doc<'_> {
         let chars: Vec<char> = line.chars().collect();
         let mut rest = chars[level..].iter().collect::<String>().trim().to_string();
         let mut html = String::new();
-        let format = if self.md { Format::Markdown } else { Format::Org };
+        let format = self.format;
         if let Some(k) = self.keywords.and_then(|k| k.keyword_in(&chars, format)) {
             let word: String = chars[k.start..k.end].iter().collect();
             html.push_str(&format!("<span class='{}'>{}</span> ", if k.done { "done" } else { "todo" }, escape(&word)));
             rest = chars[k.end..].iter().collect::<String>().trim().to_string();
         }
         // `## Titre ##`: the closing marks go
-        if self.md { rest = rest.trim_end_matches('#').trim_end().to_string(); }
+        if self.md() { rest = rest.trim_end_matches('#').trim_end().to_string(); }
         let mut tags = String::new();
-        if let Some((before, last)) = rest.rsplit_once(' ').filter(|_| !self.md)
+        if let Some((before, last)) = rest.rsplit_once(' ').filter(|_| !self.md())
             && last.len() > 2 && last.starts_with(':') && last.ends_with(':') && !last.contains("::")
         {
             tags = last.trim_matches(':').split(':').map(|t| format!("<span class='tag'>{}</span>", escape(t))).collect();
@@ -232,7 +237,7 @@ impl Doc<'_> {
         // The items, with the lines continuing them
         let mut items: Vec<(usize, bool, String)> = Vec::new();
         for line in lines {
-            match list_item(line, self.md) {
+            match list_item(line, self.md()) {
                 Some((indent, ordered, text)) => items.push((indent, ordered, text.to_string())),
                 None => if let Some(last) = items.last_mut() {
                     last.2.push(' ');
@@ -297,7 +302,7 @@ impl Doc<'_> {
         while i < chars.len() {
             let c = chars[i];
             // Markdown: an image in the text, `![texte](cible)`
-            if self.md && c == '!' && chars.get(i + 1) == Some(&'[') && let Some(f) = md_link_any(&chars, i + 1) {
+            if self.md() && c == '!' && chars.get(i + 1) == Some(&'[') && let Some(f) = md_link_any(&chars, i + 1) {
                 out.push_str(&self.img(&f.0, None));
                 i = f.1;
                 continue;
@@ -307,7 +312,7 @@ impl Doc<'_> {
                 i = end;
                 continue;
             }
-            if self.md {
+            if self.md() {
                 if c == '`' && let Some(end) = (i + 1..chars.len()).find(|&j| chars[j] == '`') {
                     out.push_str(&format!("<code>{}</code>", escape(&chars[i + 1..end].iter().collect::<String>())));
                     i = end + 1;
@@ -328,7 +333,7 @@ impl Doc<'_> {
                 while chars.get(i) == Some(&'>') { i += 1; }
                 continue;
             }
-            if !self.md && "*/_+=~".contains(c) && let Some(end) = emphasis_end(&chars, i) {
+            if !self.md() && "*/_+=~".contains(c) && let Some(end) = emphasis_end(&chars, i) {
                 let inner: String = chars[i + 1..end].iter().collect();
                 out.push_str(&match c {
                     '*' => format!("<b>{}</b>", self.inline(&inner)),
@@ -606,7 +611,7 @@ mod tests {
 
     #[test]
     fn emphasis_as_org_reads_it() {
-        let d = Doc { keywords: None, image: &|t| t.to_string(), shift: 0, md: false, extended: place::LinkSyntax::NONE };
+        let d = Doc { keywords: None, image: &|t| t.to_string(), shift: 0, format: Format::Org, extended: place::LinkSyntax::NONE };
         assert_eq!(d.inline("a /b/ c_d_e 2*3*4 +x+"), "a <i>b</i> c_d_e 2*3*4 <s>x</s>");
         assert_eq!(d.inline("=a*b*= ~<t>~"), "<code>a*b*</code> <code>&lt;t&gt;</code>");
     }
