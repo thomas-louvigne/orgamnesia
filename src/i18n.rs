@@ -326,6 +326,12 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("tab_spelling",   Lang::Fr) => "Orthographe",
         ("tab_extensions", Lang::En) => "Extensions",
         ("tab_extensions", Lang::Fr) => "Extensions",
+        ("tab_about",      Lang::En) => "About",
+        ("tab_about",      Lang::Fr) => "À propos",
+        ("about_version",  Lang::En) => "Version",
+        ("about_version",  Lang::Fr) => "Version",
+        ("about_commit",   Lang::En) => "Commit",
+        ("about_commit",   Lang::Fr) => "Commit",
         // Keyboard shortcuts section
         ("shortcut_new_page", Lang::En) => "New page",
         ("shortcut_new_page", Lang::Fr) => "Nouvelle page",

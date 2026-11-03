@@ -18,7 +18,7 @@ use crate::{
     storage,
 };
 use shortcuts::{KbDraft, KbSnapshot, ShortcutsTab};
-use tabs::{DisplayTab, EditingTab, ExtensionsTab, GeneralTab, SpellingTab};
+use tabs::{AboutTab, DisplayTab, EditingTab, ExtensionsTab, GeneralTab, SpellingTab};
 
 /// Everything the settings window edits, to tell whether there is anything to apply.
 #[derive(Clone, PartialEq)]
@@ -36,10 +36,11 @@ enum Tab {
     Shortcuts,
     Spelling,
     Extensions,
+    About,
 }
 
 impl Tab {
-    const ALL: [Tab; 6] = [Tab::General, Tab::Editing, Tab::Display, Tab::Shortcuts, Tab::Spelling, Tab::Extensions];
+    const ALL: [Tab; 7] = [Tab::General, Tab::Editing, Tab::Display, Tab::Shortcuts, Tab::Spelling, Tab::Extensions, Tab::About];
 
     fn label(self) -> &'static str {
         match self {
@@ -49,6 +50,7 @@ impl Tab {
             Tab::Shortcuts => "tab_shortcuts",
             Tab::Spelling => "tab_spelling",
             Tab::Extensions => "tab_extensions",
+            Tab::About => "tab_about",
         }
     }
 }
@@ -271,6 +273,7 @@ pub fn SettingsModal() -> impl IntoView {
                         Tab::Shortcuts => view! { <ShortcutsTab draft kb /> }.into_any(),
                         Tab::Spelling => view! { <SpellingTab draft /> }.into_any(),
                         Tab::Extensions => view! { <ExtensionsTab draft /> }.into_any(),
+                        Tab::About => view! { <AboutTab /> }.into_any(),
                     }}
                 </div>
                 </div>

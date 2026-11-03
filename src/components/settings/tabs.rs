@@ -431,3 +431,33 @@ fn SiteFolder(draft: RwSignal<Prefs>) -> impl IntoView {
         </div>
     }
 }
+
+const PROJECT_URL: &str = "https://github.com/thomas-louvigne/orgamnesia";
+
+/// Link to the project, version and commit the app was built from.
+#[component]
+pub fn AboutTab() -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    view! {
+        <div class="tab-content">
+            <div class="setting-row">
+                <label>"Orgamnesia"</label>
+                <button class="setting-doc-link"
+                    on:click=move |_| spawn_local(async move {
+                        if let Err(e) = invoke::open_url(PROJECT_URL).await { ctx.error("open_url_failed", &e); }
+                    })>
+                    {PROJECT_URL}
+                </button>
+            </div>
+            <div class="setting-row">
+                <label>{move || t("about_version", lang())}</label>
+                <code>{env!("CARGO_PKG_VERSION")}</code>
+            </div>
+            <div class="setting-row">
+                <label>{move || t("about_commit", lang())}</label>
+                <code>{env!("GIT_COMMIT")}</code>
+            </div>
+        </div>
+    }
+}
