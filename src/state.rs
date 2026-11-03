@@ -172,6 +172,9 @@ pub struct Ui {
     pub update: RwSignal<Option<UpdateInfo>>,
     /// The cheat sheet of the shortcuts (F1).
     pub show_shortcuts: RwSignal<bool>,
+    /// The video played in the app: the address of the site's player, and the
+    /// link to it (to open it in the browser).
+    pub video: RwSignal<Option<(String, String)>>,
     pub search: ProjectSearch,
     /// Open pages changed on disk while they have unsaved changes: which version
     /// to keep is asked for each, one after the other.
@@ -262,6 +265,7 @@ impl AppCtx {
                 show_git_identity: RwSignal::new(false),
                 update: RwSignal::new(None),
                 show_shortcuts: RwSignal::new(false),
+                video: RwSignal::new(None),
                 tag_add: RwSignal::new(false),
                 disk_conflicts: RwSignal::new(vec![]),
                 search: ProjectSearch {

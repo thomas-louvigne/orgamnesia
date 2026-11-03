@@ -284,6 +284,7 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.show_git_identity.get().then(|| view! { <crate::components::git_setup::IdentityModal /> })}
             {move || ctx.ui.update.get().map(|info| view! { <crate::components::update_modal::UpdateModal info /> })}
             {move || ctx.ui.show_shortcuts.get().then(|| view! { <crate::components::shortcuts_help::ShortcutsHelp /> })}
+            {move || ctx.ui.video.get().map(|(embed, url)| view! { <crate::components::video_player::VideoPlayer embed url /> })}
             {move || ctx.ui.status.get().map(|msg| {
                 // The "Undo" button of this message, if it has one
                 let undo = ctx.ui.status_undo.get().filter(|(m, _)| *m == msg).map(|(_, f)| f);

@@ -119,6 +119,12 @@ pub fn LinksTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     <option value="hover">{move || t("link_preview_hover", lang())}</option>
                 </select>
             </div>
+            <div class="setting-section-title">{move || t("links_videos", lang())}</div>
+            <Check draft get=|p| p.show_video_thumbnails set=|p, v| p.show_video_thumbnails = v
+                label="show_video_thumbnails" hint="show_video_thumbnails_hint" />
+            <Check draft get=|p| p.embed_videos set=|p, v| p.embed_videos = v
+                label="embed_videos" hint="embed_videos_hint" sub=true
+                disabled=|p| !p.show_video_thumbnails />
         </div>
     }
 }
@@ -186,8 +192,6 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     <option value="logseq">{move || t("image_size_logseq", lang())}</option>
                 </select>
             </div>
-            <Check draft get=|p| p.show_video_thumbnails set=|p, v| p.show_video_thumbnails = v
-                label="show_video_thumbnails" hint="show_video_thumbnails_hint" />
             <Check draft get=|p| p.hide_leading_stars set=|p, v| p.hide_leading_stars = v
                 label="hide_leading_stars" hint="hide_leading_stars_hint" />
             <div class="setting-section-title">

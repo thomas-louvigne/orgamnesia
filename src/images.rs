@@ -1,8 +1,8 @@
 //! Images in the page: a line holding only a link to an image file
 //! (`[[../assets/photo.png]]`, maybe after headline stars or a list bullet) is
 //! drawn as the image while the caret is elsewhere (see `tables::View`). A link
-//! to a YouTube video (`[[https://www.youtube.com/watch?v=…]]`) is drawn the same
-//! way, as its thumbnail.
+//! to a video (`[[https://www.youtube.com/watch?v=…]]`, Vimeo, Dailymotion, Twitch,
+//! PeerTube) is drawn the same way, as its thumbnail.
 //!
 //! Its size is read as Emacs and Logseq write it: `#+ATTR_ORG: :width 300` on
 //! the line above (org-mode), or `{:height 200, :width 300}` after the link
@@ -69,6 +69,152 @@ pub fn youtube_thumbnail(id: &str) -> String {
     format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg")
 }
 
+/// A video site whose links are drawn as a thumbnail, and played in the app when
+/// the settings allow it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Platform {
+    YouTube,
+    Vimeo,
+    Dailymotion,
+    Twitch,
+    PeerTube,
+}
+
+impl Platform {
+    pub fn name(self) -> &'static str {
+        match self {
+            Platform::YouTube => "YouTube",
+            Platform::Vimeo => "Vimeo",
+            Platform::Dailymotion => "Dailymotion",
+            Platform::Twitch => "Twitch",
+            Platform::PeerTube => "PeerTube",
+        }
+    }
+}
+
+/// A video a link points to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Video {
+    pub platform: Platform,
+    /// The video on its site: YouTube's 11 chars, Vimeo's number, Twitch's
+    /// `v123` (a past broadcast) or `clip:Slug`.
+    pub id: String,
+    /// Vimeo: the hash of an unlisted video. PeerTube: the instance.
+    extra: Option<String>,
+}
+
+impl Video {
+    /// The image drawn for the video: its thumbnail, or a card with the site's name
+    /// for the sites that don't give one by its address.
+    pub fn thumbnail(&self) -> String {
+        match self.platform {
+            Platform::YouTube => youtube_thumbnail(&self.id),
+            Platform::Dailymotion => format!("https://www.dailymotion.com/thumbnail/video/{}", self.id),
+            p => card(p.name()),
+        }
+    }
+
+    /// The address of the site's player for the video, to show in a frame; `parent`
+    /// is the host of the app's page (Twitch asks it).
+    pub fn embed_url(&self, parent: &str) -> String {
+        let id = &self.id;
+        match self.platform {
+            Platform::YouTube => format!("https://www.youtube-nocookie.com/embed/{id}?autoplay=1&rel=0"),
+            Platform::Vimeo => match &self.extra {
+                Some(h) => format!("https://player.vimeo.com/video/{id}?h={h}&autoplay=1"),
+                None => format!("https://player.vimeo.com/video/{id}?autoplay=1"),
+            },
+            Platform::Dailymotion => format!("https://www.dailymotion.com/embed/video/{id}?autoplay=1"),
+            Platform::Twitch => match id.strip_prefix("clip:") {
+                Some(clip) => format!("https://clips.twitch.tv/embed?clip={clip}&parent={parent}&autoplay=true"),
+                None => format!("https://player.twitch.tv/?video={id}&parent={parent}&autoplay=true"),
+            },
+            Platform::PeerTube => format!("https://{}/videos/embed/{id}?autoplay=1", self.extra.as_deref().unwrap_or_default()),
+        }
+    }
+}
+
+/// A 320 x 180 card with `name` at the bottom, as an image (`data:` URL).
+fn card(name: &str) -> String {
+    let svg = format!(
+        "<svg xmlns='http://www.w3.org/2000/svg' width='320' height='180'>\
+         <rect width='320' height='180' fill='#24242b'/>\
+         <text x='160' y='156' fill='#d8d8de' font-family='sans-serif' font-size='17' text-anchor='middle'>{name}</text></svg>"
+    );
+    // Encoded: the URL goes in an attribute written with `'`
+    let mut url = String::from("data:image/svg+xml,");
+    for c in svg.chars() {
+        match c {
+            '#' => url.push_str("%23"),
+            '<' => url.push_str("%3C"),
+            '>' => url.push_str("%3E"),
+            '\'' => url.push_str("%27"),
+            '"' => url.push_str("%22"),
+            ' ' => url.push_str("%20"),
+            c => url.push(c),
+        }
+    }
+    url
+}
+
+/// The video a link points to, on YouTube, Vimeo, Dailymotion, Twitch (a past
+/// broadcast or a clip) or a PeerTube instance.
+pub fn video(target: &str) -> Option<Video> {
+    if let Some(id) = youtube_id(target) {
+        return Some(Video { platform: Platform::YouTube, id, extra: None });
+    }
+    let rest = target.split_once("://").map_or(target, |(_, r)| r);
+    let rest = rest.split('#').next().unwrap_or(rest);
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    let host = host.to_ascii_lowercase();
+    let short = host.strip_prefix("www.").unwrap_or(&host);
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    let word = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    let digits = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit());
+    let make = |platform, id: &str, extra: Option<String>| Some(Video { platform, id: id.to_string(), extra });
+    match short {
+        // vimeo.com/123, vimeo.com/123/hash, vimeo.com/channels/x/123, player.vimeo.com/video/123?h=hash
+        "vimeo.com" | "player.vimeo.com" => {
+            let i = segments.iter().position(|s| digits(s))?;
+            let hash = segments.get(i + 1).filter(|h| h.chars().all(|c| c.is_ascii_hexdigit()) && !h.is_empty()).map(|h| h.to_string())
+                .or_else(|| query.split('&').find_map(|kv| kv.strip_prefix("h=")).filter(|h| word(h)).map(String::from));
+            make(Platform::Vimeo, segments[i], hash)
+        }
+        // dailymotion.com/video/x8abc, dailymotion.com/embed/video/x8abc, dai.ly/x8abc
+        "dailymotion.com" | "dai.ly" => {
+            let id = match segments.as_slice() {
+                [id] if short == "dai.ly" => *id,
+                ["video", id, ..] | ["embed", "video", id, ..] => *id,
+                _ => return None,
+            };
+            // Old addresses: `x8abc_the-title`
+            let id = id.split('_').next().unwrap_or(id);
+            word(id).then_some(())?;
+            make(Platform::Dailymotion, id, None)
+        }
+        // twitch.tv/videos/123, twitch.tv/channel/clip/Slug, clips.twitch.tv/Slug
+        "twitch.tv" | "m.twitch.tv" => match segments.as_slice() {
+            ["videos", id] if digits(id) => make(Platform::Twitch, &format!("v{id}"), None),
+            [_, "clip", slug] if word(slug) => make(Platform::Twitch, &format!("clip:{slug}"), None),
+            _ => None,
+        },
+        "clips.twitch.tv" => match segments.as_slice() {
+            [slug] if word(slug) && *slug != "embed" => make(Platform::Twitch, &format!("clip:{slug}"), None),
+            _ => None,
+        },
+        // PeerTube, any instance: /w/<short uuid>, /videos/watch/<uuid>, /videos/embed/<id>
+        _ => {
+            let id = match segments.as_slice() {
+                ["w", id] if id.len() == 22 || id.len() == 36 => *id,
+                ["videos", "watch" | "embed", id] if id.len() == 22 || id.len() == 36 => *id,
+                _ => return None,
+            };
+            (word(id) && host.contains('.')).then(|| Video { platform: Platform::PeerTube, id: id.to_string(), extra: Some(host.clone()) })
+        }
+    }
+}
+
 /// The image of a line, when the line holds only that: a link with no description to an
 /// image or a YouTube video, maybe after headline stars or a list bullet, maybe
 /// followed by Logseq sizes.
@@ -95,7 +241,7 @@ pub fn parse(line: &[char]) -> Option<ImageLine> {
         let link = link_at(line, i).filter(|l| l.description.is_none())?;
         let inner = link.target(line);
         let target = inner.strip_prefix("file:").unwrap_or(&inner).to_string();
-        if target.is_empty() || !(is_image(&target) || youtube_id(&target).is_some()) { return None; }
+        if target.is_empty() || !(is_image(&target) || video(&target).is_some()) { return None; }
         (target, link.end, false)
     };
     let (mut width, mut height) = (None, None);
@@ -128,7 +274,7 @@ pub fn parse(line: &[char]) -> Option<ImageLine> {
 /// a YouTube video: its target (`%20` decoded), and the chars it takes.
 fn markdown_image(chars: &[char]) -> Option<(String, usize)> {
     orgamnesia_core::links::markdown_target(chars, 1)
-        .filter(|(t, _)| !t.is_empty() && (is_image(t) || youtube_id(t).is_some()))
+        .filter(|(t, _)| !t.is_empty() && (is_image(t) || video(t).is_some()))
 }
 
 /// Logseq's `{{video url}}` (or `{{youtube url}}`) macro at the start of `chars`,
@@ -138,7 +284,7 @@ fn video_macro(chars: &[char]) -> Option<(String, usize)> {
     let inner: String = chars[2..close].iter().collect();
     let (name, url) = inner.trim().split_once(char::is_whitespace)?;
     let url = url.trim();
-    (matches!(name, "video" | "youtube") && youtube_id(url).is_some()).then(|| (url.to_string(), close + 2))
+    (matches!(name, "video" | "youtube") && video(url).is_some()).then(|| (url.to_string(), close + 2))
 }
 
 /// The edit turning Logseq's `{{video url}}` macro of the line at page position
@@ -281,14 +427,55 @@ mod tests {
     }
 
     #[test]
+    fn video_sites() {
+        let v = |url: &str| video(url).map(|v| (v.platform, v.id, v.extra));
+        let some = |p, id: &str, extra: Option<&str>| Some((p, id.to_string(), extra.map(String::from)));
+        assert_eq!(v("https://youtu.be/dQw4w9WgXcQ"), some(Platform::YouTube, "dQw4w9WgXcQ", None));
+        assert_eq!(v("https://vimeo.com/76979871"), some(Platform::Vimeo, "76979871", None));
+        assert_eq!(v("https://vimeo.com/channels/staffpicks/76979871"), some(Platform::Vimeo, "76979871", None));
+        assert_eq!(v("https://vimeo.com/76979871/8272103f6e"), some(Platform::Vimeo, "76979871", Some("8272103f6e")));
+        assert_eq!(v("https://player.vimeo.com/video/76979871?h=8272103f6e"), some(Platform::Vimeo, "76979871", Some("8272103f6e")));
+        assert_eq!(v("https://www.dailymotion.com/video/x8j2abc"), some(Platform::Dailymotion, "x8j2abc", None));
+        assert_eq!(v("https://www.dailymotion.com/video/x8j2abc_un-titre"), some(Platform::Dailymotion, "x8j2abc", None));
+        assert_eq!(v("https://dai.ly/x8j2abc"), some(Platform::Dailymotion, "x8j2abc", None));
+        assert_eq!(v("https://www.twitch.tv/videos/1234567"), some(Platform::Twitch, "v1234567", None));
+        assert_eq!(v("https://www.twitch.tv/chaine/clip/DrolePetitClip-abc_1"), some(Platform::Twitch, "clip:DrolePetitClip-abc_1", None));
+        assert_eq!(v("https://clips.twitch.tv/DrolePetitClip"), some(Platform::Twitch, "clip:DrolePetitClip", None));
+        assert_eq!(v("https://framatube.org/w/9c9de5e8-0a1e-484a-b099-e80766180a6d"),
+            some(Platform::PeerTube, "9c9de5e8-0a1e-484a-b099-e80766180a6d", Some("framatube.org")));
+        assert_eq!(v("https://framatube.org/w/kkGMgK9ZtnKfYAgnEtQxbv"), some(Platform::PeerTube, "kkGMgK9ZtnKfYAgnEtQxbv", Some("framatube.org")));
+        assert_eq!(v("https://tube.example.org/videos/watch/9c9de5e8-0a1e-484a-b099-e80766180a6d"),
+            some(Platform::PeerTube, "9c9de5e8-0a1e-484a-b099-e80766180a6d", Some("tube.example.org")));
+        for url in ["https://vimeo.com/", "https://vimeo.com/channels/staffpicks", "https://www.dailymotion.com/fr",
+            "https://www.twitch.tv/chaine", "https://example.com/w/abc", "https://example.com/videos/watch/abc", "../assets/photo.png"] {
+            assert_eq!(v(url), None, "{url}");
+        }
+    }
+
+    #[test]
+    fn video_players() {
+        let embed = |url: &str| video(url).unwrap().embed_url("tauri.localhost");
+        assert_eq!(embed("https://youtu.be/dQw4w9WgXcQ"), "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0");
+        assert_eq!(embed("https://vimeo.com/76979871/8272103f6e"), "https://player.vimeo.com/video/76979871?h=8272103f6e&autoplay=1");
+        assert_eq!(embed("https://dai.ly/x8j2abc"), "https://www.dailymotion.com/embed/video/x8j2abc?autoplay=1");
+        assert_eq!(embed("https://www.twitch.tv/videos/1234567"), "https://player.twitch.tv/?video=v1234567&parent=tauri.localhost&autoplay=true");
+        assert_eq!(embed("https://clips.twitch.tv/DrolePetitClip"), "https://clips.twitch.tv/embed?clip=DrolePetitClip&parent=tauri.localhost&autoplay=true");
+        assert_eq!(embed("https://framatube.org/w/kkGMgK9ZtnKfYAgnEtQxbv"), "https://framatube.org/videos/embed/kkGMgK9ZtnKfYAgnEtQxbv?autoplay=1");
+        // A card for the sites without a thumbnail by address, written to go between `'`
+        let card = video("https://vimeo.com/76979871").unwrap().thumbnail();
+        assert!(card.starts_with("data:image/svg+xml,") && card.contains("Vimeo") && !card.contains(['\'', '"', '#', ' ']));
+    }
+
+    #[test]
     fn logseq_video_macro() {
         let line: Vec<char> = "- {{video https://www.youtube.com/watch?v=dQw4w9WgXcQ}}".chars().collect();
         let image = parse(&line).unwrap();
         assert!(image.logseq_macro);
         assert_eq!((image.prefix, image.link_end, image.target.as_str()), (2, line.len(), "https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
         assert!(parse(&"{{youtube https://youtu.be/dQw4w9WgXcQ}}".chars().collect::<Vec<_>>()).is_some());
-        // Another video site, another macro: text
-        assert!(parse(&"{{video https://vimeo.com/123}}".chars().collect::<Vec<_>>()).is_none());
+        // Another video site
+        assert!(parse(&"{{video https://vimeo.com/123}}".chars().collect::<Vec<_>>()).is_some());
+        assert!(parse(&"{{video https://example.com/clip}}".chars().collect::<Vec<_>>()).is_none());
         assert!(parse(&"{{embed [[Page]]}}".chars().collect::<Vec<_>>()).is_none());
         let page = "* Vidéos\n- {{video https://youtu.be/dQw4w9WgXcQ}}\nfin\n";
         let (a, b, text) = macro_to_link(page, 12).unwrap();

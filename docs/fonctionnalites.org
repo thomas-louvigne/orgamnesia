@@ -455,7 +455,7 @@ Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
   le dernier compte.
 - Désactivable : les liens restent alors du texte.
 
-** Vidéos YouTube
+** Vidéos
 Une vidéo se lie comme n'importe quelle page web, avec un lien org-mode classique,
 que tous les outils lisent (Emacs, Logseq, GitHub…) :
 
@@ -465,11 +465,25 @@ que tous les outils lisent (Emacs, Logseq, GitHub…) :
 
 Seul sur sa ligne (éventuellement après les étoiles d'un titre ou un tiret de liste),
 le lien est dessiné comme la vignette de la vidéo, avec un bouton lecture, tant que
-le curseur n'est pas dessus ; un clic ouvre la vidéo dans le navigateur. La vignette
-est téléchargée depuis YouTube (affichée comme du texte hors connexion) et se
-redimensionne comme une image. Les adresses =youtube.com/watch?v==, =youtu.be/=,
-=/shorts/= et =/embed/= sont reconnues ; un lien avec une description
-(=[[url][titre]]=) reste un lien. Désactivable dans Préférences > Affichage.
+le curseur n'est pas dessus. La vignette est téléchargée depuis le site (affichée
+comme du texte hors connexion) et se redimensionne comme une image ; un lien avec une
+description (=[[url][titre]]=) reste un lien. Désactivable dans Préférences > Liens.
+
+Les sites reconnus :
+- YouTube : =youtube.com/watch?v==, =youtu.be/=, =/shorts/=, =/embed/=, =/live/= ;
+- Vimeo : =vimeo.com/123456= (et le hash d'une vidéo non répertoriée), =player.vimeo.com/video/= ;
+- Dailymotion : =dailymotion.com/video/=, =dai.ly/= ;
+- Twitch : rediffusions (=twitch.tv/videos/=) et clips (=clips.twitch.tv/=,
+  =twitch.tv/chaine/clip/=) ;
+- PeerTube, toute instance : =/w/= et =/videos/watch/=.
+Vimeo, Twitch et PeerTube ne donnent pas de vignette par leur adresse : une carte au
+nom du site est dessinée à la place.
+
+Un clic sur la vignette lit la vidéo dans une fenêtre de l'application, avec le
+lecteur du site (intégré), et un bouton pour l'ouvrir plutôt dans le navigateur.
+Désactivé dans Préférences > Liens (« Lire les vidéos dans l'application »), le clic
+ouvre la vidéo dans le navigateur, et rien n'est chargé depuis le site hormis la
+vignette.
 
 La macro ={{video url}}= de Logseq (ou ={{youtube url}}=) est lue aussi, mais
 signalée : une croix rouge en bas à gauche de sa vignette, et un message invitant à
@@ -807,6 +821,8 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 - Tags : =#mots-clés= et =:tags:= comme liens, avec ou sans tirets.
 - Affichage : signaler les liens cassés, aperçu d'un lien (activé ou non, et quand
   il s'affiche : Ctrl enfoncé ou souris posée).
+- Vidéos : leurs vignettes, et les lire dans l'application (lecteur intégré) ou dans
+  le navigateur.
 
 ** Édition
 - Sauvegarde automatique.
@@ -822,7 +838,6 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 - Apparence : titre de la page, numéros de ligne, étoiles des titres masquées sauf
   la dernière.
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
-- Vignettes des vidéos YouTube.
 - Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans
   quel ordre (voir [[#colonnes-de-gauche-et-de-droite][Colonnes de gauche et de droite]]).
 

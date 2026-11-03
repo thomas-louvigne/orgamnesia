@@ -48,7 +48,7 @@ pub async fn loaded_image_url(src: &str) -> String {
 pub fn load_size(src: &str, sizes: RwSignal<ImageSizes>) {
     let src = src.to_string();
     spawn_local(async move {
-        if !src.contains("://") && BLOBS.with(|b| !b.borrow().contains_key(&src)) {
+        if !src.contains("://") && !src.starts_with("data:") && BLOBS.with(|b| !b.borrow().contains_key(&src)) {
             match invoke::read_image(&src).await.ok().and_then(|bytes| blob_url(&src, &bytes)) {
                 Some(url) => BLOBS.with(|b| { b.borrow_mut().insert(src.clone(), url); }),
                 None => {
@@ -331,8 +331,8 @@ impl Images {
         }
     }
 
-    /// A press on a video's thumbnail, off its corner, opens the video in the
-    /// browser; on the red cross of Logseq's `{{video url}}`, the macro becomes the
+    /// A press on a video's thumbnail, off its corner, plays the video in the app
+    /// (when the settings allow it) or opens it in the browser; on the red cross of Logseq's `{{video url}}`, the macro becomes the
     /// link `[[url]]`. True when it did.
     pub fn open_video(self, e: &web_sys::MouseEvent) -> bool {
         let Some(wrap) = self.wrap.get_untracked() else { return false };
@@ -345,6 +345,11 @@ impl Images {
             return true;
         }
         let ctx = self.pane.ctx;
+        if ctx.pref_untracked(|p| p.embed_videos) && let Some(video) = images::video(&url) {
+            let parent = web_sys::window().and_then(|w| w.location().hostname().ok()).unwrap_or_else(|| "localhost".into());
+            ctx.ui.video.set(Some((video.embed_url(&parent), url)));
+            return true;
+        }
         spawn_local(async move {
             if let Err(err) = invoke::open_url(&url).await { ctx.error("error", &err); }
         });
