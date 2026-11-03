@@ -13,6 +13,7 @@ keybindings.
 - [[*Projects and pages][Projects and pages]]
 - [[*Editor][Editor]]
 - [[*Links and tags][Links and tags]]
+- [[*Markdown][Markdown]]
 - [[*TODO states][TODO states]]
 - [[*Tables][Tables]]
 - [[*Images][Images]]
@@ -29,15 +30,15 @@ keybindings.
 * Projects and pages
 
 ** Project
-A project is a folder of =.org= pages linked to each other.
+A project is a folder of =.org= or =.md= pages (see [[*Markdown][Markdown]]) linked to each other.
 
 - If the folder has a =pages/= subfolder, the pages are there; otherwise, if the
-  folder already holds =.org= files, it is used as is. An empty folder gets
+  folder already holds =.org= or =.md= files, it is used as is. An empty folder gets
   =pages/= and =assets/=.
 - *Open or create a folder of notes*: the folder button next to the project name,
   the projects menu or the welcome screen open the system's folder picker, where a
   new folder can also be created; a new or empty folder gets =pages/= and
-  =assets/=, then opens. A folder already holding =.org= files is used as it is:
+  =assets/=, then opens. A folder already holding =.org= or =.md= files is used as it is:
   when it has no =assets/= folder (where the images added to the pages are
   copied), the app offers to make one; declined, it doesn't ask again there.
 - The project name, above the list of pages, opens the projects menu: open another
@@ -123,6 +124,7 @@ package manager. What is new in each version is also in
 - =#+TITLE:= and =#+FILETAGS:=: the keyword dimmed, the value highlighted.
 - Tables, their header rows in bold.
 - TODO keywords (see [[*TODO states][TODO states]]).
+- Markdown pages have their own highlighting (see [[*Markdown][Markdown]]).
 
 ** Page title
 Above the editor, in large type: the page's =#+TITLE:= if it has one, else its name.
@@ -367,6 +369,37 @@ The =+= button of the tags frame, or the "Add a tag to the page" shortcut
 (Ctrl+Shift+T, =C-c C-q= in Emacs), which opens the field at the top of the pane
 even without the frame: the tag goes in =#+FILETAGS:=, with the tags of the
 project completed.
+
+* Markdown
+
+A page is in org-mode (=.org=) or in Markdown (=.md=), by its extension; both
+formats mix in a project.
+
+- *Format of new pages*: chosen on the first run (with the Classic or Emacs
+  shortcuts), then in the settings. The setting "Ask the format of each new page"
+  offers =.org= or =.md= at each creation; a name ending in =.md= or =.org= (a
+  =[[Note.md]]= followed) already tells it.
+- *One format only*: with "Only read the pages of this format", the pages of the
+  other format are left aside, untouched on the disk.
+- *Links*: =[[Page]]=, =[[Page][text]]= and =[[Page::*Title]]= work in both formats.
+  =[[Page|text]]=, =[[Page#Title]]= and =[text](Page.md)= are chosen one by one in
+  the settings, for Markdown pages (all read by default) and for org-mode pages
+  (none by default: Emacs doesn't understand them). All count for backlinks,
+  broken links and renaming.
+- *Two pages of the same name* (=Note.org= and =Note.md=): possible but best
+  avoided, a message says so. =[[Note]]= leads to the one of the default format,
+  =[[Note.md]]= or =[[Note.org]]= to either; in the pages list, the one =[[Note]]=
+  doesn't open is struck through.
+- *Editor*: =#= headlines, folding, headline levels, moving sections, highlighting
+  (=**bold**=, =*italic*=, =~~struck~~=, =`code`=, code blocks, quotes), tables with
+  their =|---|:--:|= line, images =![text](../assets/a.png)=.
+- *To do*: =## TODO Title= as in org-mode, and checkboxes =- [ ] task= /
+  =- [x] done=, ticked with Shift+arrows, listed in the "To do" frame.
+- *Front matter*: the =title:= of the YAML front matter (between two =---= lines) is
+  the page's title, its =tags:= (=[a, b]= or a =- a= list) tag the whole page.
+  Adding a tag to the page writes it there.
+- *Export* as PDF and HTML as an org-mode page. org-bloom only publishes the =.org=
+  pages.
 
 * TODO states
 As in org-mode, a keyword after the stars of a headline gives its state.
@@ -747,11 +780,19 @@ closes without saving. The explanations under a setting are in italics.
 ** General
 - Default project folder.
 - Reopen the pages and panes on start.
-- Links ignore case and accents.
-- =#keywords= as links, with or without dashes.
-- =:tags:= as links, with or without dashes.
-- Update links when a page is renamed.
+- Format of new pages (org-mode or Markdown), only read the pages of this format,
+  ask the format of each new page.
+- Look for updates on start.
 - Language: French or English.
+
+** Links
+- Syntaxes: =[[Page|text]]=, =[[Page#Title]]= and =[text](Page.md)=, each read or
+  not, in org-mode pages and in Markdown pages.
+- Page names: links ignore case and accents, update the links when a page is
+  renamed.
+- Tags: =#keywords= and =:tags:= as links, with or without dashes.
+- Display: mark the broken links, link preview (on or off, and when it shows: Ctrl
+  held or mouse resting).
 
 ** Editing
 - Auto-save.
@@ -765,8 +806,6 @@ closes without saving. The explanations under a setting are in italics.
 
 ** Display
 - Appearance: page title, line numbers, headline stars hidden but the last.
-- Mark the broken links.
-- Link preview: on or off, and when it shows (Ctrl held or mouse resting).
 - Images: show them, and the format of their size (org-mode or Logseq).
 - Thumbnails of the YouTube videos.
 - Frames around the editor: which are shown, in which column and in which order
@@ -818,8 +857,8 @@ file, goes back to the project left, its tabs and panes as they were.
   start for a file found invalid.
 
 * Files
-- Pages stay plain =.org= files, readable and editable with Emacs or any other
-  editor.
+- Pages stay plain =.org= or =.md= files, readable and editable with Emacs,
+  Obsidian or any other editor.
 - Settings: =~/.config/com.orgamnesia.app/=: =settings.json= (the settings),
   =keybindings/= (the custom shortcut profiles), =state.json= (what the app keeps
   for itself: the open project, the projects, the pages open on quit),

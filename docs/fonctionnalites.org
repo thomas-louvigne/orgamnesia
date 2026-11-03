@@ -8,6 +8,7 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 - [[*Projets et pages][Projets et pages]]
 - [[*Éditeur][Éditeur]]
 - [[*Liens et tags][Liens et tags]]
+- [[*Markdown][Markdown]]
 - [[*États TODO][États TODO]]
 - [[*Tableaux][Tableaux]]
 - [[*Images][Images]]
@@ -24,16 +25,16 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 * Projets et pages
 
 ** Projet
-Un projet est un dossier de pages =.org= liées entre elles.
+Un projet est un dossier de pages =.org= ou =.md= (voir [[*Markdown][Markdown]]) liées entre elles.
 
 - Si le dossier contient un sous-dossier =pages/=, les pages y sont ; sinon, si le
-  dossier contient déjà des fichiers =.org=, il est utilisé tel quel. Un dossier
+  dossier contient déjà des fichiers =.org= ou =.md=, il est utilisé tel quel. Un dossier
   vide reçoit =pages/= et =assets/=.
 - *Ouvrir ou créer un dossier de notes* : le bouton dossier à côté du nom du projet,
   le menu des projets ou l'écran d'accueil ouvrent le sélecteur de dossier du
   système, où l'on peut aussi créer un nouveau dossier ; un dossier nouveau ou vide
   reçoit =pages/= et =assets/=, puis s'ouvre. Un dossier qui contient déjà des
-  fichiers =.org= est utilisé tel quel : s'il n'a pas de dossier =assets/= (où sont
+  fichiers =.org= ou =.md= est utilisé tel quel : s'il n'a pas de dossier =assets/= (où sont
   copiées les images ajoutées aux pages), l'application propose de le créer ; si
   on refuse, elle ne le redemande plus pour ce dossier.
 - Le nom du projet, en haut de la liste des pages, ouvre le menu des projets :
@@ -119,6 +120,7 @@ Au démarrage, les onglets et les volets ouverts à la fermeture sont rouverts
 - =#+TITLE:= et =#+FILETAGS:= : le mot-clé atténué, la valeur mise en valeur.
 - Tableaux, avec leurs lignes d'en-tête en gras.
 - Mots-clés TODO (voir [[*États TODO][États TODO]]).
+- Les pages Markdown ont leur propre coloration (voir [[*Markdown][Markdown]]).
 
 ** Titre de la page
 Au-dessus de l'éditeur, en grand : le =#+TITLE:= de la page s'il en a un, sinon son
@@ -366,6 +368,38 @@ noms de tags.
 Le bouton =+= du cadre des tags, ou le raccourci « Ajouter un tag à la page »
 (Ctrl+Maj+T, =C-c C-q= en Emacs) qui ouvre le champ en haut du volet même sans le
 cadre : le tag est ajouté à =#+FILETAGS:=, avec la complétion des tags du projet.
+
+* Markdown
+
+Une page est en org-mode (=.org=) ou en Markdown (=.md=), selon son extension ; les
+deux formats se mélangent dans un même projet.
+
+- *Format des nouvelles pages* : choisi au premier lancement (avec les raccourcis
+  Classique ou Emacs), puis dans les préférences. Le réglage « Demander le format de
+  chaque nouvelle page » fait choisir =.org= ou =.md= à chaque création ; un nom qui
+  finit par =.md= ou =.org= (=[[Note.md]]= suivi) le dit déjà.
+- *Un seul format* : avec « Ne lire que les pages de ce format », les pages de
+  l'autre format sont laissées de côté, sans être touchées sur le disque.
+- *Liens* : =[[Page]]=, =[[Page][texte]]= et =[[Page::*Titre]]= marchent dans les
+  deux formats. =[[Page|texte]]=, =[[Page#Titre]]= et =[texte](Page.md)= se
+  choisissent un par un dans les préférences, pour les pages Markdown (tous lus
+  par défaut) et pour les pages org-mode (aucun par défaut : Emacs ne les
+  comprend pas). Tous comptent pour les liens entrants, les liens cassés et le
+  renommage.
+- *Deux pages du même nom* (=Note.org= et =Note.md=) : c'est possible mais
+  déconseillé, un message le rappelle. =[[Note]]= mène à celle du format par
+  défaut, =[[Note.md]]= ou =[[Note.org]]= à l'une ou l'autre ; dans la liste des
+  pages, celle que =[[Note]]= n'ouvre pas est barrée.
+- *Éditeur* : titres =#=, pliage, niveaux des titres, déplacement des sections,
+  coloration (=**gras**=, =*italique*=, =~~barré~~=, =`code`=, blocs de code,
+  citations), tableaux avec leur ligne =|---|:--:|=, images =![texte](../assets/a.png)=.
+- *À faire* : =## TODO Titre= comme en org-mode, et les cases =- [ ] tâche= /
+  =- [x] fait=, cochées avec Maj+flèches, listées dans le cadre « À faire ».
+- *En-tête* : le =title:= de l'en-tête YAML (entre deux lignes =---=) est le titre
+  de la page, ses =tags:= (=[a, b]= ou une liste =- a=) taguent toute la page.
+  Ajouter un tag à la page l'écrit là.
+- *Export* en PDF et en HTML comme une page org-mode. org-bloom ne publie que les
+  pages =.org=.
 
 * États TODO
 Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
@@ -760,11 +794,19 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 ** Général
 - Dossier du projet par défaut.
 - Rouvrir les pages et les volets au démarrage.
-- Liens insensibles à la casse et aux accents.
-- =#mots-clés= comme liens, avec ou sans tirets.
-- =:tags:= comme liens, avec ou sans tirets.
-- Mettre à jour les liens quand on renomme une page.
+- Format des nouvelles pages (org-mode ou Markdown), ne lire que les pages de ce
+  format, demander le format de chaque nouvelle page.
+- Chercher les mises à jour au démarrage.
 - Langue : français ou anglais.
+
+** Liens
+- Syntaxes : =[[Page|texte]]=, =[[Page#Titre]]= et =[texte](Page.md)=, chacune lue
+  ou non, dans les pages org-mode et dans les pages Markdown.
+- Noms des pages : liens insensibles à la casse et aux accents, mettre à jour les
+  liens quand on renomme une page.
+- Tags : =#mots-clés= et =:tags:= comme liens, avec ou sans tirets.
+- Affichage : signaler les liens cassés, aperçu d'un lien (activé ou non, et quand
+  il s'affiche : Ctrl enfoncé ou souris posée).
 
 ** Édition
 - Sauvegarde automatique.
@@ -779,9 +821,6 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 ** Affichage
 - Apparence : titre de la page, numéros de ligne, étoiles des titres masquées sauf
   la dernière.
-- Signaler les liens cassés.
-- Aperçu d'un lien : activé ou non, et quand il s'affiche (Ctrl enfoncé ou souris
-  posée).
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
 - Vignettes des vidéos YouTube.
 - Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans
@@ -837,8 +876,8 @@ volets tels qu'ils étaient.
   trouvé invalide.
 
 * Fichiers
-- Les pages restent de simples fichiers =.org=, lisibles et modifiables avec Emacs
-  ou tout autre éditeur.
+- Les pages restent de simples fichiers =.org= ou =.md=, lisibles et modifiables
+  avec Emacs, Obsidian ou tout autre éditeur.
 - Réglages : =~/.config/com.orgamnesia.app/= : =settings.json= (les réglages),
   =keybindings/= (les profils de raccourcis personnalisés), =state.json= (ce que
   l'application garde pour elle : le projet ouvert, les projets, les pages ouvertes

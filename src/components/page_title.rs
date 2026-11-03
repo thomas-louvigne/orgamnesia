@@ -34,6 +34,23 @@ pub fn set_org_title(content: &str, title: &str) -> String {
     out.join("\n")
 }
 
+/// The title of the page `path` of `content`: its `#+TITLE:` (org-mode), or the
+/// `title:` of its front matter (Markdown).
+pub fn page_title(content: &str, path: &str) -> Option<String> {
+    match orgamnesia_core::Format::of_path(path) {
+        Some(orgamnesia_core::Format::Markdown) => orgamnesia_core::frontmatter::title(content),
+        _ => org_title(content),
+    }
+}
+
+/// `content` of the page `path` with its title set to `title` (see `page_title`).
+pub fn set_page_title(content: &str, path: &str, title: &str) -> String {
+    match orgamnesia_core::Format::of_path(path) {
+        Some(orgamnesia_core::Format::Markdown) => orgamnesia_core::frontmatter::set_title(content, title),
+        _ => set_org_title(content, title),
+    }
+}
+
 /// What the title's inline field is editing.
 #[derive(Clone, Copy, PartialEq)]
 enum EditMode {
@@ -51,7 +68,8 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let content = tab.content;
-    let title = Memo::new(move |_| content.with(|c| org_title(c)));
+    let title_path = tab.path.clone();
+    let title = Memo::new(move |_| content.with(|c| page_title(c, &title_path)));
     let fixed = crate::preferences::config_file(&tab.path).is_some();
 
     let menu = RwSignal::new(None::<(i32, i32)>);
@@ -77,7 +95,7 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
             EditMode::Title => {
                 if v.is_empty() || title.get_untracked().as_deref() == Some(v.as_str()) { return; }
                 tab.dirty.set(true);
-                content.update(|c| *c = set_org_title(c, &v));
+                content.update(|c| *c = set_page_title(c, &path, &v));
             }
         }
     };

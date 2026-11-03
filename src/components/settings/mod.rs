@@ -18,7 +18,7 @@ use crate::{
     storage,
 };
 use shortcuts::{KbDraft, KbSnapshot, ShortcutsTab};
-use tabs::{AboutTab, DisplayTab, EditingTab, ExtensionsTab, GeneralTab, SpellingTab};
+use tabs::{AboutTab, DisplayTab, EditingTab, ExtensionsTab, GeneralTab, LinksTab, SpellingTab};
 
 /// Everything the settings window edits, to tell whether there is anything to apply.
 #[derive(Clone, PartialEq)]
@@ -31,6 +31,7 @@ struct Snapshot {
 #[derive(Clone, Copy, PartialEq)]
 enum Tab {
     General,
+    Links,
     Editing,
     Display,
     Shortcuts,
@@ -40,11 +41,12 @@ enum Tab {
 }
 
 impl Tab {
-    const ALL: [Tab; 7] = [Tab::General, Tab::Editing, Tab::Display, Tab::Shortcuts, Tab::Spelling, Tab::Extensions, Tab::About];
+    const ALL: [Tab; 8] = [Tab::General, Tab::Links, Tab::Editing, Tab::Display, Tab::Shortcuts, Tab::Spelling, Tab::Extensions, Tab::About];
 
     fn label(self) -> &'static str {
         match self {
             Tab::General => "tab_general",
+            Tab::Links => "tab_links",
             Tab::Editing => "tab_editing",
             Tab::Display => "tab_display",
             Tab::Shortcuts => "tab_shortcuts",
@@ -268,6 +270,7 @@ pub fn SettingsModal() -> impl IntoView {
                 <div class="modal-body">
                     {move || match panel.get() {
                         Tab::General => view! { <GeneralTab draft /> }.into_any(),
+                        Tab::Links => view! { <LinksTab draft /> }.into_any(),
                         Tab::Editing => view! { <EditingTab draft /> }.into_any(),
                         Tab::Display => view! { <DisplayTab draft /> }.into_any(),
                         Tab::Shortcuts => view! { <ShortcutsTab draft kb /> }.into_any(),

@@ -41,6 +41,8 @@ fn swallow(e: &web_sys::KeyboardEvent) {
 
 pub fn on_keydown(pane: Pane, completion: Completion, find: Find, insert: Insert, e: web_sys::KeyboardEvent) {
     let ctx = pane.ctx;
+    // Headlines are those of the page's format while the key is handled
+    let _format = crate::motion::FormatGuard::set(pane.fmt());
     let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
     {
         let el = el.clone();
@@ -214,16 +216,16 @@ fn cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) {
     let pos = pane.page_pos(el, caret(el));
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
     let line = line_start(&page, pos);
-    let next = if folding::is_headline(&page, line) {
+    let next = if folding::is_headline(&page, pane.fmt(), line) {
         // On a headline, Tab never leaves the editor: with nothing under it, say so (Emacs: EMPTY ENTRY)
         swallow(e);
-        let Some(next) = pane.folds.with_untracked(|f| folding::cycle(&page, line, f)) else {
+        let Some(next) = pane.folds.with_untracked(|f| folding::cycle(&page, pane.fmt(), line, f)) else {
             pane.ctx.notify_t("fold_empty", "");
             return;
         };
         next
     } else {
-        let Some(next) = pane.folds.with_untracked(|f| folding::cycle_element(&page, line, f)) else { return };
+        let Some(next) = pane.folds.with_untracked(|f| folding::cycle_element(&page, pane.fmt(), line, f)) else { return };
         swallow(e);
         next
     };
@@ -236,7 +238,7 @@ fn cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) {
 /// `org-global-cycle`). False when the page has no headline.
 fn global_cycle(pane: Pane, el: &Textarea) -> bool {
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
-    let Some((shown, folds)) = pane.folds.with_untracked(|f| folding::global_cycle(&page, f)) else { return false };
+    let Some((shown, folds)) = pane.folds.with_untracked(|f| folding::global_cycle(&page, pane.fmt(), f)) else { return false };
     // A caret now hidden goes to the end of its headline
     let pos = pane.page_pos(el, caret(el));
     let pos = folds.iter().find(|&&(a, b)| a < pos && pos <= b).map_or(pos, |&(a, _)| a);
@@ -261,7 +263,11 @@ fn todo_cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: Edi
     let ls = ls + chars[ls..le].iter().take_while(|&&c| c == tables::INDENT).count();
     let le = if le > ls && tables::fold_index(chars[le - 1]).is_some() { le - 1 } else { le };
     let forward = action == EditorAction::TodoNext;
-    let Some((a, b, with)) = keywords.cycle(&chars[ls..le], forward) else { return };
+    // Markdown: a checkbox (`- [ ] tâche`) is ticked or unticked
+    let checkbox = (pane.fmt() == orgamnesia_core::Format::Markdown)
+        .then(|| orgamnesia_core::todo::checkbox(&chars[ls..le])).flatten()
+        .map(|(at, done)| (at, at + 1, if done { " " } else { "x" }.to_string()));
+    let Some((a, b, with)) = checkbox.or_else(|| keywords.cycle_in(&chars[ls..le], forward, pane.fmt())) else { return };
     swallow(e);
     let (a, b) = (ls + a, ls + b);
     let new_b = splice(el, a, b, &with);
@@ -278,7 +284,7 @@ fn shift_subtree(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: 
     let pos = pane.page_pos(el, end);
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
     let demote = action == EditorAction::DemoteSubtree;
-    let lines = match folding::shift_subtree(&page, line_start(&page, pos), demote) {
+    let lines = match folding::shift_subtree(&page, pane.fmt(), line_start(&page, pos), demote) {
         Ok(lines) => lines,
         Err(folding::ShiftError::NotHeadline) => return,
         Err(folding::ShiftError::TopLevel) => {
@@ -292,15 +298,16 @@ fn shift_subtree(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: 
     if !lines.iter().any(|&l| folded.iter().any(|&(a, b)| a < l && l <= b)) {
         // All the headlines are shown: edit the textarea, so the change can be undone
         let at: Vec<usize> = lines.iter().map(|&l| pane.view_pos(l)).collect();
+        let mark = pane.fmt().heading_mark().to_string();
         for &p in at.iter().rev() {
-            if demote { splice(el, p, p, "*"); } else { splice(el, p, p + 1, ""); }
+            if demote { splice(el, p, p, &mark); } else { splice(el, p, p + 1, ""); }
         }
         set_cursor(el, folding::caret_after_shift(end, &at, demote));
         pane.commit(el);
         pane.track_caret(el);
     } else {
         // Some are hidden in a fold: change the page, the folds keep their place
-        let (out, moved) = folding::shift_page(&page, &lines, demote, &folded);
+        let (out, moved) = folding::shift_page(&page, pane.fmt(), &lines, demote, &folded);
         pane.folds.set(moved);
         pane.set_page(out, folding::caret_after_shift(pos, &lines, demote));
     }
@@ -313,8 +320,8 @@ fn move_line(pane: Pane, el: &Textarea, up: bool) {
     let (start, end) = (pane.page_pos(el, start), pane.page_pos(el, end));
     let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
     let line = line_start(&page, start);
-    if line_start(&page, end) == line && folding::is_headline(&page, line) {
-        let Some(s) = folding::move_subtree(&page, line, up) else { return };
+    if line_start(&page, end) == line && folding::is_headline(&page, pane.fmt(), line) {
+        let Some(s) = folding::move_subtree(&page, pane.fmt(), line, up) else { return };
         // The folds inside go with their text
         let folds = pane.folds.with_untracked(|f| {
             let mut f: Vec<_> = f.iter().map(|&(a, b)| if a >= s.a && b <= s.b { (s.pos(a), s.pos(b)) } else { (a, b) }).collect();
@@ -426,7 +433,7 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
         EditorAction::InsertLink => insert.link(el),
         EditorAction::InsertDate | EditorAction::InsertInactiveDate => insert.date(el, action == EditorAction::InsertDate),
         EditorAction::OpenLink => {
-            if let Some(name) = edit::linked_page_at(&chars, start, ctx.tags_untracked()) {
+            if let Some(name) = edit::linked_page_at(&chars, start, pane.tags_untracked()) {
                 follow_link(ctx, name);
             }
         }

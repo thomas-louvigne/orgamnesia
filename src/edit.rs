@@ -9,7 +9,7 @@ use orgamnesia_core::{hashtags::hashtag_at, links::link_at, Hashtags, TagSyntax}
 /// Lines moved by the page-up / page-down actions.
 pub const PAGE_LINES: i32 = 20;
 
-use orgamnesia_core::org::{headline_level, line_bounds};
+use orgamnesia_core::org::line_bounds;
 
 /// A move of lines one line up or down: the char range `a..b` becomes `text`,
 /// and the selection is now `sel`.
@@ -76,13 +76,22 @@ pub fn word_start_backward(chars: &[char], pos: usize) -> usize {
     i
 }
 
+/// If the line `[start..end)` is an org heading (`*`… followed by a space or EOL),
+/// its level (number of leading `*`).
+fn heading_level(chars: &[char], start: usize, end: usize) -> Option<usize> {
+    let mut i = start;
+    while i < end && chars[i] == motion::heading_mark() { i += 1; }
+    let level = i - start;
+    if level > 0 && (i >= end || chars[i] == ' ') { Some(level) } else { None }
+}
+
 /// Heading level in effect at `caret`: the current line if it is a heading,
 /// otherwise the nearest heading above it. Defaults to 1 when none is found.
 pub fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
     let (mut line_start, _) = line_bounds(chars, caret);
     loop {
         let (_, line_end) = line_bounds(chars, line_start);
-        if let Some(l) = headline_level(&chars[line_start..line_end]) { return l; }
+        if let Some(l) = heading_level(chars, line_start, line_end) { return l; }
         if line_start == 0 { return 1; }
         line_start = line_bounds(chars, line_start - 1).0;
     }
@@ -97,7 +106,7 @@ pub fn new_heading(chars: &[char], caret: usize) -> (usize, String) {
         return (line_end, format!("\n{bullet}"));
     }
     let level = nearest_heading_level(chars, caret);
-    (line_end, format!("\n{} ", "*".repeat(level)))
+    (line_end, format!("\n{} ", motion::heading_mark().to_string().repeat(level)))
 }
 
 /// What Emacs `C-k` removes at `pos`: up to the end of the line, or the line
@@ -230,9 +239,14 @@ pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -
 }
 
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
-/// `#tag` or an org-mode `:tag:` (per `tags`).
+/// `#tag` or an org-mode `:tag:` (per `tags`); with the extended links, also
+/// `[[target|text]]`, `[[Page#Titre]]` and `[text](Page.md)`.
 pub fn linked_page_at(chars: &[char], pos: usize, tags: TagSyntax) -> Option<String> {
-    wiki_link_at(chars, pos, tags.hashtags)
+    let syntax = tags.links();
+    let extended = (syntax != orgamnesia_core::links::LinkSyntax::NONE).then(|| {
+        orgamnesia_core::links::scan(chars, syntax).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
+    }).flatten();
+    extended.or_else(|| wiki_link_at(chars, pos, tags.hashtags))
         .or_else(|| tags.org.links.then(|| tags::org_tag_at(chars, pos, tags.org)).flatten())
 }
 
@@ -487,6 +501,9 @@ mod tests {
         let t = c("* a\n** b\ntexte");
         assert_eq!(new_heading(&t, 11), (14, "\n** ".to_string()));
         assert_eq!(new_heading(&c("rien"), 2), (4, "\n* ".to_string()));
+        let _md = motion::FormatGuard::set(orgamnesia_core::Format::Markdown);
+        assert_eq!(new_heading(&c("# A\n## B\ntexte"), 12), (14, "\n## ".to_string()));
+        drop(_md);
         // On a list item: a new item
         assert_eq!(new_heading(&c("- a\n  suite"), 7), (11, "\n- ".to_string()));
         assert_eq!(new_heading(&c("  9) [X] a"), 4), (10, "\n  10) [ ] ".to_string()));
@@ -523,6 +540,17 @@ mod tests {
     }
 
     #[test]
+    fn extended_links_under_the_cursor() {
+        let t = c("[[Page|texte]] [[P#Titre]] [lien](Ma%20page.md)");
+        let ext = TagSyntax { org_links: orgamnesia_core::links::LinkSyntax::ALL, ..Hashtags::Off.into() };
+        assert_eq!(linked_page_at(&t, 9, ext).as_deref(), Some("Page"));
+        assert_eq!(linked_page_at(&t, 17, ext).as_deref(), Some("P::*Titre"));
+        assert_eq!(linked_page_at(&t, 30, ext).as_deref(), Some("Ma page.md"));
+        assert_eq!(linked_page_at(&t, 9, Hashtags::Off.into()).as_deref(), Some("Page|texte"));
+        assert_eq!(linked_page_at(&t, 30, Hashtags::Off.into()), None);
+    }
+
+    #[test]
     fn links_under_the_cursor() {
         let t = c("voir [[Ma page]] et [[cible][texte]] #tag fin");
         assert_eq!(linked_page_at(&t, 8, Hashtags::Dashes.into()).as_deref(), Some("Ma page"));
@@ -532,7 +560,7 @@ mod tests {
         assert_eq!(linked_page_at(&t, 1, Hashtags::Dashes.into()), None);
         assert_eq!(linked_page_at(&c("* Titre :projet:"), 11, Hashtags::Off.into()).as_deref(), Some("projet"));
         assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into()).as_deref(), Some("exemple"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: orgamnesia_core::OrgTags { links: false, dashes: false } };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: orgamnesia_core::OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
         assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off), None);
     }
 

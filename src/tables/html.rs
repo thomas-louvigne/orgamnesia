@@ -30,7 +30,7 @@ fn column_shares(lengths: &[usize], width: usize) -> Option<Vec<f64>> {
 /// Rows above the first `|---|` line are headers.
 pub fn to_html(raw: &str, width: usize) -> String {
     let lines: Vec<&str> = raw.split('\n').collect();
-    let is_rule = |l: &str| l.trim_start().starts_with("|-");
+    let is_rule = |l: &str| super::is_rule(l);
     let header_rows = lines.iter().position(|l| is_rule(l)).unwrap_or(0);
     let cells_of = |l: &str| -> Vec<String> {
         let t = l.trim();

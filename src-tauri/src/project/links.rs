@@ -2,82 +2,104 @@
 //! page in the links to it.
 
 pub use orgamnesia_core::hashtags::{hashtag_at, Hashtags, OrgTags, TagSyntax};
-use orgamnesia_core::links::{link_at, split, SEPARATOR};
+use orgamnesia_core::{format::split_ext, links};
 
-/// Extract all `[[target]]` link targets — used for backlink indexing.
+/// Extract all `[[target]]` link targets — used for backlink indexing: the page
+/// they name (`Page` for `[[Page::*Titre]]`), else the target as it is.
+/// Also those of `tags.links()` among `[[Page|texte]]`, `[[Page#Titre]]` and
+/// `[texte](Page.md)` (Markdown links to other things than pages are left out).
 /// Unless `tags.hashtags` is `Off`, every `#tag` counts as a link to the page `tag`.
 /// With `tags.org.links`, org-mode tags (`#+FILETAGS:`, `* Title :tag:`, `:tag:` in
 /// the text) are links to their page too.
 pub fn extract_links(content: &str, tags: TagSyntax) -> Vec<String> {
     let chars: Vec<char> = content.chars().collect();
-    let mut links = Vec::new();
+    let found = links::scan(&chars, tags.links());
+    let mut out = Vec::new();
+    let mut next = found.iter().peekable();
     let mut i = 0;
-    while i + 1 < chars.len() {
-        if let Some(link) = link_at(&chars, i) {
-            let target = link.target(&chars);
-            // `[[Page::*Titre]]` links to `Page`
-            let t = match split(&target) {
-                ("", _) => target.trim(),
-                (page, _) => page,
-            };
-            if !t.is_empty() { links.push(t.to_string()); }
-            i = link.end;
+    while i < chars.len() {
+        if let Some(f) = next.next_if(|f| f.start == i) {
+            if f.kind == links::Kind::Org || f.page.is_some() {
+                let t = match links::split(&f.target) {
+                    ("", _) => f.target.trim(),
+                    (page, _) => page,
+                };
+                if !t.is_empty() { out.push(t.to_string()); }
+            }
+            i = f.end;
         } else if let Some((tag, end)) = hashtag_at(&chars, i, tags.hashtags) {
-            links.push(tag);
+            out.push(tag);
             i = end;
         } else {
             i += 1;
         }
     }
     if tags.org.links {
-        links.extend(crate::tags::written_tags(content, tags.org));
-        links.extend(orgamnesia_core::hashtags::text_tag_ranges(&chars, tags.org).into_iter()
+        out.extend(crate::tags::written_tags(content, tags.org, tags.markdown));
+        out.extend(orgamnesia_core::hashtags::text_tag_ranges(&chars, tags.org).into_iter()
             .map(|(a, b)| chars[a..b].iter().collect::<String>()));
     }
-    links
+    out
 }
 
-/// Rewrite every `[[old]]` / `[[old][label]]` link so it targets `new`.
-/// With `ignore_case`, `[[pageMagique]]` also matches `PageMagique`, and `[[elody]]` `Élody`.
-/// Org-mode tags naming `old` are renamed too (in the text only when they are links),
-/// when `new` can be a tag.
+/// A page renamed, as `rewrite_links` follows it.
+pub struct Rename<'a> {
+    /// Whether a link naming this page (`Old`, `Old.md`…) leads to it.
+    pub leads_here: &'a dyn Fn(&str) -> bool,
+    /// Its name before.
+    pub old: &'a str,
+    /// Its name alone leads to it (not to a page of the same name in the other
+    /// format): the tags naming it are renamed too.
+    pub by_name: bool,
+    pub new: &'a str,
+}
+
+/// Rewrite every link leading to the renamed page so it targets its new name:
+/// `[[old]]`, `[[old][label]]`, `[[old::*Titre]]`, and with the extended syntax
+/// `[[old|label]]`, `[[old#Titre]]`, `[label](old.md)`. A name written with its
+/// extension keeps it. With `ignore_case`, `[[pageMagique]]` also matches
+/// `PageMagique`, and `[[elody]]` `Élody` (as `leads_here` says).
+/// Hashtags and org-mode tags naming `old` are renamed too (in the text only when
+/// they are links), when `new` can be a tag.
 /// Returns `None` when nothing changed. The display label is left untouched.
-pub fn rewrite_links(content: &str, old_name: &str, new: &str, ignore_case: bool, tags: TagSyntax) -> Option<String> {
+pub fn rewrite_links(content: &str, rename: &Rename, ignore_case: bool, tags: TagSyntax) -> Option<String> {
     let hashtags = tags.hashtags;
     let chars: Vec<char> = content.chars().collect();
     let norm = |s: &str| orgamnesia_core::names::page_key(s, ignore_case);
-    let old = norm(old_name);
+    let old = norm(rename.old);
+    let new = rename.new;
+    let found = links::scan(&chars, tags.links());
+    let mut next = found.iter().peekable();
     let mut out = String::with_capacity(content.len());
     let mut changed = false;
     let mut i = 0;
     while i < chars.len() {
-        if let Some(link) = link_at(&chars, i) {
-            out.push_str("[[");
-            let target = link.target(&chars);
-            // `[[old::*Titre]]` keeps its place in the page
-            let (page, place) = match target.split_once(SEPARATOR) {
-                Some((page, place)) => (page, Some(place)),
-                None => (target.as_str(), None),
-            };
-            if norm(page.trim()) == old {
-                let lead: String = page.chars().take_while(|c| c.is_whitespace()).collect();
-                let trail: String = page.chars().rev().take_while(|c| c.is_whitespace()).collect();
-                out.push_str(&lead);
-                out.push_str(new);
-                out.push_str(&trail);
-                if let Some(place) = place {
-                    out.push_str(SEPARATOR);
-                    out.push_str(place);
+        if let Some(f) = next.next_if(|f| f.start == i) {
+            let written = f.page.map(|(a, b)| (a, b, chars[a..b].iter().collect::<String>()));
+            let name = written.as_ref().map(|(_, _, w)| match f.kind {
+                links::Kind::Markdown => links::percent_decode(w),
+                links::Kind::Org => w.clone(),
+            });
+            match (written, name) {
+                (Some((a, b, _)), Some(name)) if (rename.leads_here)(&name) => {
+                    // `Old.md` stays `New.md`
+                    let ext = split_ext(&name).filter(|(stem, _)| norm(stem.trim()) == old).map(|(_, f)| f);
+                    let mut to = match ext {
+                        Some(_) => format!("{new}.{}", name.rsplit_once('.').map_or("", |(_, e)| e)),
+                        None => new.to_string(),
+                    };
+                    let angle = a > 0 && chars[a - 1] == '<';
+                    if f.kind == links::Kind::Markdown && !angle { to = links::percent_encode(&to); }
+                    out.extend(&chars[i..a]);
+                    out.push_str(&to);
+                    out.extend(&chars[b..f.end]);
+                    changed = true;
                 }
-                changed = true;
-            } else {
-                out.push_str(&target);
+                _ => out.extend(&chars[i..f.end]),
             }
-            // The rest of the link, its description too, as it is
-            out.extend(&chars[link.target.1..link.end]);
-            i = link.end;
+            i = f.end;
         } else if let Some((tag, end)) = hashtag_at(&chars, i, hashtags) {
-            if norm(&tag) == old {
+            if rename.by_name && norm(&tag) == old {
                 // A name that is not a valid tag (spaces…) becomes a regular link
                 if new.chars().all(|c| hashtags.is_tag_char(c)) { out.push('#'); out.push_str(new); }
                 else { out.push_str(&format!("[[{new}]]")); }
@@ -92,12 +114,32 @@ pub fn rewrite_links(content: &str, old_name: &str, new: &str, ignore_case: bool
         }
     }
     let text = if changed { out } else { content.to_string() };
-    crate::tags::rename(&text, old_name, new, ignore_case, tags.org, tags.org.links).or(changed.then_some(text))
+    let tags_renamed = rename.by_name.then(|| crate::tags::rename(&text, rename.old, new, ignore_case, tags.org, tags.org.links)).flatten();
+    tags_renamed.or(changed.then_some(text))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `rewrite_links` for a page `old` alone of its name.
+    fn rw(content: &str, old: &str, new: &str, ignore_case: bool, tags: TagSyntax) -> Option<String> {
+        let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
+        let leads_here = |t: &str| norm(split_ext(t).map_or(t, |(s, _)| s)) == norm(old);
+        rewrite_links(content, &Rename { leads_here: &leads_here, old, by_name: true, new }, ignore_case, tags)
+    }
+
+    fn extended() -> TagSyntax { TagSyntax { org_links: links::LinkSyntax::ALL, ..Hashtags::Off.into() } }
+
+    #[test]
+    fn extended_links_are_read_and_renamed() {
+        let t = "[[Old|x]] [[Old#Titre]] [y](Old.md) [z](https://a.b) [w](./assets/a.png) [[Old.md]]";
+        assert_eq!(extract_links(t, extended()), vec!["Old", "Old", "Old.md", "Old.md"]);
+        assert_eq!(extract_links("[[Old|x]] [y](Old.md)", Hashtags::Off.into()), vec!["Old|x"]);
+        let out = rw(t, "Old", "Deux mots", false, extended()).unwrap();
+        assert_eq!(out, "[[Deux mots|x]] [[Deux mots#Titre]] [y](Deux%20mots.md) [z](https://a.b) [w](./assets/a.png) [[Deux mots.md]]");
+        assert_eq!(rw("[y](<Old.md>)", "Old", "A b", false, extended()).unwrap(), "[y](<A b.md>)");
+    }
 
     // ── extract_links ──
     #[test]
@@ -117,35 +159,35 @@ mod tests {
     }
     #[test]
     fn rewrite_links_simple_and_labeled() {
-        let out = rewrite_links("a [[Old]] b [[Old][lbl]] c [[Other]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
+        let out = rw("a [[Old]] b [[Old][lbl]] c [[Other]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "a [[New]] b [[New][lbl]] c [[Other]]");
     }
     #[test]
     fn links_to_a_place_in_a_page() {
         let links = extract_links("[[Recettes::*Desserts]] [[ A :: cible ][x]] [[*Titre]]", Hashtags::Off.into());
         assert_eq!(links, vec!["Recettes", "A", "*Titre"]);
-        let out = rewrite_links("[[Old::*Titre]] [[Old ::cible][l]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
+        let out = rw("[[Old::*Titre]] [[Old ::cible][l]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "[[New::*Titre]] [[New ::cible][l]]");
     }
     #[test]
     fn only_whole_links_count() {
         let links = extract_links("[[A]] [[B sans fin [[C][voir #x]] [[D]", Hashtags::Dashes.into());
         assert_eq!(links, vec!["A", "C"]);
-        let out = rewrite_links("[[Old][voir #Old]] [[Old", "Old", "New", false, Hashtags::Dashes.into()).unwrap();
+        let out = rw("[[Old][voir #Old]] [[Old", "Old", "New", false, Hashtags::Dashes.into()).unwrap();
         assert_eq!(out, "[[New][voir #Old]] [[Old");
     }
     #[test]
     fn rewrite_links_ignores_case() {
-        let out = rewrite_links("[[pageMagique]] [[PAGEMAGIQUE][x]]", "PageMagique", "PageMagique3", true, Hashtags::Off.into()).unwrap();
+        let out = rw("[[pageMagique]] [[PAGEMAGIQUE][x]]", "PageMagique", "PageMagique3", true, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "[[PageMagique3]] [[PageMagique3][x]]");
     }
     #[test]
     fn rewrite_links_case_sensitive_when_asked() {
-        assert!(rewrite_links("[[pageMagique]]", "PageMagique", "X", false, Hashtags::Off.into()).is_none());
+        assert!(rw("[[pageMagique]]", "PageMagique", "X", false, Hashtags::Off.into()).is_none());
     }
     #[test]
     fn rewrite_links_no_match() {
-        assert!(rewrite_links("[[Other]] and Old", "Old", "New", false, Hashtags::Off.into()).is_none());
+        assert!(rw("[[Other]] and Old", "Old", "New", false, Hashtags::Off.into()).is_none());
     }
     #[test]
     fn hashtags_are_links_only_when_enabled() {
@@ -161,20 +203,20 @@ mod tests {
     }
     #[test]
     fn rewrite_hashtags() {
-        let out = rewrite_links("a #Old b #Older", "old", "New", true, Hashtags::Dashes.into()).unwrap();
+        let out = rw("a #Old b #Older", "old", "New", true, Hashtags::Dashes.into()).unwrap();
         assert_eq!(out, "a #New b #Older");
-        let out = rewrite_links("a #Old", "Old", "Deux mots", false, Hashtags::Dashes.into()).unwrap();
+        let out = rw("a #Old", "Old", "Deux mots", false, Hashtags::Dashes.into()).unwrap();
         assert_eq!(out, "a [[Deux mots]]");
         // A dash is not allowed in an org-mode style tag
-        let out = rewrite_links("a #Old", "Old", "New-name", false, Hashtags::Org.into()).unwrap();
+        let out = rw("a #Old", "Old", "New-name", false, Hashtags::Org.into()).unwrap();
         assert_eq!(out, "a [[New-name]]");
-        assert!(rewrite_links("a #Old", "Old", "New", false, Hashtags::Off.into()).is_none());
+        assert!(rw("a #Old", "Old", "New", false, Hashtags::Off.into()).is_none());
     }
     #[test]
     fn org_tags_are_links() {
         let t = "#+FILETAGS: :projet:\n* T :urgent:projet:\n[[P]]";
         assert_eq!(extract_links(t, Hashtags::Off.into()), vec!["P", "projet", "urgent", "projet"]);
-        let out = rewrite_links(t, "projet", "Projet2", false, Hashtags::Off.into()).unwrap();
+        let out = rw(t, "projet", "Projet2", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "#+FILETAGS: :Projet2:\n* T :urgent:Projet2:\n[[P]]");
     }
     #[test]
@@ -182,11 +224,11 @@ mod tests {
         let t = "* T :a:\nvoir :ex: et :mon-tag:";
         // Dashes allowed by default
         assert_eq!(extract_links(t, Hashtags::Off.into()), vec!["a", "ex", "mon-tag"]);
-        let no_dashes = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: true, dashes: false } };
+        let no_dashes = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: true, dashes: false }, ..Hashtags::Off.into() };
         assert_eq!(extract_links(t, no_dashes), vec!["a", "ex"]);
-        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
         assert!(extract_links(t, off).is_empty());
-        let out = rewrite_links(t, "ex", "Exemple", false, Hashtags::Off.into()).unwrap();
+        let out = rw(t, "ex", "Exemple", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "* T :a:\nvoir :Exemple: et :mon-tag:");
     }
     #[test]

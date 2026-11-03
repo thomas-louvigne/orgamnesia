@@ -1,11 +1,46 @@
 //! Pure cursor-motion helpers (Emacs-style sentence, paragraph and heading moves).
 //! Positions are char indexes into `chars`.
 
-use orgamnesia_core::org::{headline_level, line_end, line_start};
+thread_local! {
+    /// The character headlines start with in the page being edited: `*` (org-mode)
+    /// or `#` (Markdown). Set by `FormatGuard` while the editor handles a page.
+    static MARK: std::cell::Cell<char> = const { std::cell::Cell::new('*') };
+}
+
+/// The character headlines start with in the page being edited (see `FormatGuard`).
+pub fn heading_mark() -> char {
+    MARK.with(|m| m.get())
+}
+
+/// While it lives, headlines are those of `format` (`# Titre` in Markdown); the
+/// mark before it comes back when it goes.
+pub struct FormatGuard(char);
+
+impl FormatGuard {
+    pub fn set(format: orgamnesia_core::Format) -> Self {
+        Self(MARK.with(|m| m.replace(format.heading_mark())))
+    }
+}
+
+impl Drop for FormatGuard {
+    fn drop(&mut self) {
+        MARK.with(|m| m.set(self.0));
+    }
+}
+
+use orgamnesia_core::org::{line_end, line_start};
+
+/// Level of the headline `line` (its marks: `** Titre`, `## Titre` in Markdown),
+/// if it is one; `line` may go on past its `\n`.
+fn headline_level(line: &[char]) -> Option<usize> {
+    let mark = heading_mark();
+    let n = line.iter().take_while(|&&c| c == mark).count();
+    (n > 0 && matches!(line.get(n), Some(' ' | '\n') | None)).then_some(n)
+}
 
 /// Line with no text: only whitespace, or a heading's bare `*`s. Separates paragraphs.
 fn is_empty_line(chars: &[char], start: usize, end: usize) -> bool {
-    chars[start..end].iter().all(|&c| c.is_whitespace() || c == '*')
+    chars[start..end].iter().all(|&c| c.is_whitespace() || c == heading_mark())
 }
 
 fn is_terminator(c: char) -> bool {

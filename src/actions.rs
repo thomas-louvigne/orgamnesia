@@ -208,33 +208,54 @@ pub fn follow_link(ctx: AppCtx, name: String) {
         }
         return;
     }
-    let open = ctx.work.tabs.with_untracked(|tabs| tabs.iter().position(|t| ctx.same_page(&t.name, page)));
+    let file = ctx.find_page(page);
+    let open = file.as_ref().and_then(|f| ctx.work.tabs.with_untracked(|tabs| tabs.iter().position(|t| t.path == f.path)));
     if let Some(idx) = open {
         ctx.work.active_tab.set(Some(idx));
         if let Some(goto) = goto {
             let path = ctx.work.tabs.with_untracked(|tabs| tabs[idx].path.clone());
             ctx.work.goto.set(Some((path, goto)));
         }
-    } else if let Some(file) = ctx.find_page(page) {
+    } else if let Some(file) = file {
         open_file(ctx, file, goto);
     } else {
         create_and_open_page(ctx, page.to_string());
     }
 }
 
-/// Create the page `name`, add it to the list and open it in a new tab.
+/// Create the page `name`, add it to the list and open it in a new tab. When
+/// the format of new pages is asked (and `name` doesn't tell it, as `Note.md`
+/// does), the new page window opens with the name instead.
 pub fn create_and_open_page(ctx: AppCtx, name: String) {
+    if asks_format(ctx) && orgamnesia_core::format::split_ext(name.trim()).is_none() {
+        ctx.ui.new_page_name.set(name);
+        ctx.ui.show_new_page.set(true);
+        return;
+    }
+    create_page_as(ctx, name, None);
+}
+
+/// Whether the format of each new page is asked (both formats being read).
+pub fn asks_format(ctx: AppCtx) -> bool {
+    ctx.pref_untracked(|p| p.ask_format && !p.single_format)
+}
+
+/// Create the page `name` in `format` (`None`: the default one), add it to the
+/// list and open it in a new tab.
+pub fn create_page_as(ctx: AppCtx, name: String, format: Option<orgamnesia_core::Format>) {
     // Signals are created here, in the reactive owner, not after the await
     let content = RwSignal::new(String::new());
     let dirty = RwSignal::new(true);
     spawn_local(async move {
-        match invoke::create_page(&name).await {
+        match invoke::create_page(&name, format).await {
             Ok(file) => {
-                content.set(format!("* {}\n", file.name));
+                let format = orgamnesia_core::Format::of_path(&file.path).unwrap_or_default();
+                content.set(format.title_line(&file.name));
                 ctx.project.files.update(|files| {
                     files.push(file.clone());
-                    files.sort_by(|a, b| a.name.cmp(&b.name));
+                    files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
                 });
+                ctx.warn_twin(&file);
                 push_tab(ctx, Tab { path: file.path, name: file.name, content, dirty, history: StoredValue::new(Default::default()) });
             }
             Err(e) => ctx.error("error", &e),
@@ -396,11 +417,12 @@ pub fn rename_page(ctx: AppCtx, old_path: String, new_name: String) {
                         f.name = nf.name.clone();
                         f.path = nf.path.clone();
                     }
-                    files.sort_by(|a, b| a.name.cmp(&b.name));
+                    files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
                 });
                 reload_clean_tabs(ctx).await;
                 ctx.bump_links();
                 ctx.notify_t("renamed", &nf.name);
+                ctx.warn_twin(&nf);
             }
             Err(e) => ctx.error("rename_error", &e),
         }
@@ -442,7 +464,7 @@ pub fn tag_page(ctx: AppCtx, file: FileEntry, tag: &'static str) {
         ctx.ui.status.set(Some(format!("{} :{tag}:", t("tag_exists", lang))));
     };
     if let Some(tab) = ctx.work.tabs.with_untracked(|tabs| tabs.iter().find(|t| t.path == path).cloned()) {
-        match crate::tags::add_filetag(&tab.content.get_untracked(), tag) {
+        match crate::tags::add_page_tag(&tab.content.get_untracked(), tag, &path) {
             Some(content) => {
                 // Marked unsaved, then auto-saved if enabled
                 tab.dirty.set(true);
@@ -458,7 +480,7 @@ pub fn tag_page(ctx: AppCtx, file: FileEntry, tag: &'static str) {
             Ok(c) => c,
             Err(e) => return ctx.error("error", &e),
         };
-        let Some(content) = crate::tags::add_filetag(&content, tag) else { return done(false) };
+        let Some(content) = crate::tags::add_page_tag(&content, tag, &path) else { return done(false) };
         match invoke::write_file(&path, &content).await {
             Ok(_) => {
                 ctx.bump_links();

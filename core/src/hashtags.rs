@@ -63,16 +63,40 @@ impl OrgTags {
     }
 }
 
-/// How the tags in the text are read: `#tags` and org-mode `:tags:`.
+/// How the tags in the text are read: `#tags` and org-mode `:tags:`; and the
+/// links not of org-mode read (`[[Page|texte]]`, `[[Page#Titre]]`,
+/// `[texte](Page.md)`), in org-mode pages and in Markdown pages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TagSyntax {
     pub hashtags: Hashtags,
     pub org: OrgTags,
+    pub org_links: crate::links::LinkSyntax,
+    pub md_links: crate::links::LinkSyntax,
+    /// The page is in Markdown: its front matter's `tags:` tag it, `md_links` are read.
+    pub markdown: bool,
 }
 
 impl From<Hashtags> for TagSyntax {
     fn from(hashtags: Hashtags) -> Self {
-        Self { hashtags, org: OrgTags::default() }
+        use crate::links::LinkSyntax;
+        Self { hashtags, org: OrgTags::default(), org_links: LinkSyntax::NONE, md_links: LinkSyntax::ALL, markdown: false }
+    }
+}
+
+impl TagSyntax {
+    /// As read in a page of `format`.
+    pub fn for_format(self, format: Option<crate::Format>) -> Self {
+        Self { markdown: format == Some(crate::Format::Markdown), ..self }
+    }
+
+    /// The links not of org-mode read in the page.
+    pub fn links(self) -> crate::links::LinkSyntax {
+        if self.markdown { self.md_links } else { self.org_links }
+    }
+
+    /// As read in the page `path`.
+    pub fn for_page(self, path: &str) -> Self {
+        self.for_format(crate::Format::of_path(path))
     }
 }
 

@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-/// In-memory reverse index: page → set of pages that link TO it.
+/// In-memory reverse index: link target → set of pages (their paths) that link TO it.
 #[derive(Debug, Default)]
 pub struct BacklinkIndex {
     /// reverse_map[target] = {source, ...}
@@ -81,18 +81,13 @@ impl BacklinkIndex {
         v
     }
 
-    /// Like `get_backlinks`, but link targets match `page` ignoring case and accents.
-    pub fn get_backlinks_ignore_case(&self, page: &str) -> Vec<String> {
-        let page = orgamnesia_core::names::fold(page);
-        let mut v: Vec<String> = self
-            .reverse_map
+    /// The sources of the links whose target `leads_here` says yes to.
+    pub fn sources_where(&self, leads_here: impl Fn(&str) -> bool) -> HashSet<String> {
+        self.reverse_map
             .iter()
-            .filter(|(target, _)| orgamnesia_core::names::fold(target) == page)
+            .filter(|(target, _)| leads_here(target))
             .flat_map(|(_, sources)| sources.iter().cloned())
-            .collect();
-        v.sort();
-        v.dedup();
-        v
+            .collect()
     }
 }
 
@@ -124,14 +119,9 @@ mod tests {
     fn backlinks_ignore_case() {
         let b = idx(&[("a", &["Page"]), ("b", &["page"]), ("c", &["other"])]);
         assert_eq!(b.get_backlinks("Page"), vec!["a"]);
-        assert_eq!(b.get_backlinks_ignore_case("PAGE"), vec!["a", "b"]);
-    }
-
-    #[test]
-    fn backlinks_ignore_accents() {
-        let b = idx(&[("a", &["élody"]), ("b", &["Elody"]), ("c", &["elodie"])]);
-        assert_eq!(b.get_backlinks("élody"), vec!["a"]);
-        assert_eq!(b.get_backlinks_ignore_case("Élody"), vec!["a", "b"]);
+        let mut s: Vec<String> = b.sources_where(|t| t.eq_ignore_ascii_case("PAGE")).into_iter().collect();
+        s.sort();
+        assert_eq!(s, vec!["a", "b"]);
     }
 
     #[test]

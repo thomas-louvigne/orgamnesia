@@ -1,11 +1,11 @@
-//! A page's org text made into HTML: title, headlines, lists, tables, blocks,
-//! images, links.
+//! A page's org-mode or Markdown text made into HTML: title, headlines, lists,
+//! tables, blocks, images, links.
 
 use crate::{html::escape, images, links};
-use orgamnesia_core::{links as place, names::fold, org::headline_level_str as headline_level, TodoKeywords};
+use orgamnesia_core::{links as place, names::fold, Format, TodoKeywords};
 
 /// The `#+TITLE:` of the page.
-pub fn page_title(text: &str) -> Option<String> {
+fn page_title(text: &str) -> Option<String> {
     text.lines().find_map(|l| {
         let l = l.trim();
         l.get(..8).filter(|k| k.eq_ignore_ascii_case("#+title:")).map(|_| l[8..].trim().to_string())
@@ -14,21 +14,30 @@ pub fn page_title(text: &str) -> Option<String> {
 
 /// The HTML of the page `text` called `name`. `image` gives the URL an image
 /// link target is shown from.
-pub fn page_html(text: &str, name: &str, keywords: Option<&TodoKeywords>, image: &dyn Fn(&str) -> String) -> String {
-    let lines: Vec<&str> = text.split('\n').collect();
-    // The title: the `#+TITLE:`, else the name, unless the page starts with a
-    // headline holding it (as a new page does)
-    let first_headline = lines.iter().find(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
-        .and_then(|l| place::headline_title(l, keywords));
-    let title = match page_title(text) {
+/// `format`: the page's; `extended`: the extended links are read (`[[Page|texte]]`,
+/// `[texte](Page.md)`; always in Markdown).
+pub fn page_html(
+    text: &str, name: &str, keywords: Option<&TodoKeywords>, image: &dyn Fn(&str) -> String, format: Format, extended: place::LinkSyntax,
+) -> String {
+    let md = format == Format::Markdown;
+    let all: Vec<&str> = text.split('\n').collect();
+    // A Markdown page's front matter is not shown
+    let skip = if md { orgamnesia_core::frontmatter::lines(text).map_or(0, |(_, n)| n) } else { 0 };
+    let lines = &all[skip.min(all.len())..];
+    // The title: the `#+TITLE:` (`title:`), else the name, unless the page starts
+    // with a headline holding it (as a new page does)
+    let first_headline = lines.iter().find(|l| !l.trim().is_empty() && (md || !l.trim_start().starts_with('#')))
+        .and_then(|l| place::headline_title(l, keywords, format));
+    let written = if md { orgamnesia_core::frontmatter::title(text) } else { page_title(text) };
+    let title = match written {
         Some(t) => Some(t),
         None if first_headline.is_some_and(|h| fold(&h) == fold(name)) => None,
         None => Some(name.to_string()),
     };
-    let doc = Doc { keywords, image, shift: usize::from(title.is_some()) };
+    let doc = Doc { keywords, image, shift: usize::from(title.is_some()), md, extended };
     let mut out = String::new();
     if let Some(t) = title { out.push_str(&format!("<h1 class='title'>{}</h1>", escape(&t))); }
-    out.push_str(&doc.body(&lines));
+    out.push_str(&doc.body(lines));
     out
 }
 
@@ -38,6 +47,10 @@ struct Doc<'a> {
     image: &'a dyn Fn(&str) -> String,
     /// Levels the headlines go down by (one below the title, when there is one).
     shift: usize,
+    /// A Markdown page.
+    md: bool,
+    /// The links not of org-mode read.
+    extended: place::LinkSyntax,
 }
 
 impl Doc<'_> {
@@ -51,8 +64,43 @@ impl Doc<'_> {
         while i < lines.len() {
             let line = lines[i];
             let t = line.trim();
-            if t.is_empty() || is_structure(line) { self.paragraph(&mut out, &mut para); }
+            if t.is_empty() || is_structure(line, self.md) { self.paragraph(&mut out, &mut para); }
             if t.is_empty() { i += 1; continue; }
+            if self.md {
+                // A fenced code block
+                if t.starts_with("```") || t.starts_with("~~~") {
+                    let fence = &t[..3];
+                    let end = lines[i + 1..].iter().position(|l| l.trim().starts_with(fence)).unwrap_or(lines.len() - i - 1);
+                    out.push_str(&format!("<pre>{}</pre>", escape(&lines[i + 1..i + 1 + end].join("\n"))));
+                    i += end + 2;
+                    continue;
+                }
+                // A quote: its lines without their `>`
+                if t.starts_with('>') {
+                    let n = lines[i..].iter().take_while(|l| l.trim_start().starts_with('>')).count();
+                    let inner: Vec<&str> = lines[i..i + n].iter()
+                        .map(|l| { let l = l.trim_start().trim_start_matches('>'); l.strip_prefix(' ').unwrap_or(l) })
+                        .collect();
+                    out.push_str(&format!("<blockquote>{}</blockquote>", self.body(&inner)));
+                    i += n;
+                    continue;
+                }
+                if let Some(level) = headline_level(line, true) {
+                    out.push_str(&self.headline(line, level));
+                    i += 1;
+                    continue;
+                }
+                if is_rule_line(t) {
+                    out.push_str("<hr>");
+                    i += 1;
+                    continue;
+                }
+                if let Some(target) = markdown_image_line(t) {
+                    out.push_str(&self.image(&target, None));
+                    i += 1;
+                    continue;
+                }
+            }
             // A block: `#+BEGIN_SRC` … `#+END_SRC`
             if let Some(kind) = block_kind(t)
                 && let Some(end) = lines[i + 1..].iter().position(|l| l.trim().eq_ignore_ascii_case(&format!("#+end_{kind}")))
@@ -68,13 +116,13 @@ impl Doc<'_> {
                 continue;
             }
             // Keywords and comments are not shown
-            if t.starts_with("#+") || t == "#" || t.starts_with("# ") { i += 1; continue; }
+            if !self.md && (t.starts_with("#+") || t == "#" || t.starts_with("# ")) { i += 1; continue; }
             // A drawer (`:PROPERTIES:` … `:END:`)
             if is_drawer(t) && let Some(end) = lines[i + 1..].iter().position(|l| l.trim().eq_ignore_ascii_case(":end:")) {
                 i += end + 2;
                 continue;
             }
-            if let Some(level) = headline_level(line) {
+            if let Some(level) = headline_level(line, self.md) {
                 out.push_str(&self.headline(line, level));
                 i += 1;
                 continue;
@@ -97,8 +145,8 @@ impl Doc<'_> {
                 i += 1;
                 continue;
             }
-            if list_item(line).is_some() {
-                let n = list_lines(&lines[i..]);
+            if list_item(line, self.md).is_some() {
+                let n = list_lines(&lines[i..], self.md);
                 out.push_str(&self.list(&lines[i..i + n]));
                 i += n;
                 continue;
@@ -130,13 +178,16 @@ impl Doc<'_> {
         let chars: Vec<char> = line.chars().collect();
         let mut rest = chars[level..].iter().collect::<String>().trim().to_string();
         let mut html = String::new();
-        if let Some(k) = self.keywords.and_then(|k| k.keyword(&chars)) {
+        let format = if self.md { Format::Markdown } else { Format::Org };
+        if let Some(k) = self.keywords.and_then(|k| k.keyword_in(&chars, format)) {
             let word: String = chars[k.start..k.end].iter().collect();
             html.push_str(&format!("<span class='{}'>{}</span> ", if k.done { "done" } else { "todo" }, escape(&word)));
             rest = chars[k.end..].iter().collect::<String>().trim().to_string();
         }
+        // `## Titre ##`: the closing marks go
+        if self.md { rest = rest.trim_end_matches('#').trim_end().to_string(); }
         let mut tags = String::new();
-        if let Some((before, last)) = rest.rsplit_once(' ')
+        if let Some((before, last)) = rest.rsplit_once(' ').filter(|_| !self.md)
             && last.len() > 2 && last.starts_with(':') && last.ends_with(':') && !last.contains("::")
         {
             tags = last.trim_matches(':').split(':').map(|t| format!("<span class='tag'>{}</span>", escape(t))).collect();
@@ -160,7 +211,7 @@ impl Doc<'_> {
 
     /// Rows above the first `|---|` line are headers.
     fn table(&self, lines: &[&str]) -> String {
-        let is_rule = |l: &str| l.trim().starts_with("|-");
+        let is_rule = |l: &str| crate::tables::is_rule(l);
         let head = lines.iter().position(|l| is_rule(l)).filter(|&n| n > 0 && n < lines.len() - 1).unwrap_or(0);
         let mut out = String::from("<table>");
         for (n, line) in lines.iter().enumerate().filter(|(_, l)| !is_rule(l)) {
@@ -181,7 +232,7 @@ impl Doc<'_> {
         // The items, with the lines continuing them
         let mut items: Vec<(usize, bool, String)> = Vec::new();
         for line in lines {
-            match list_item(line) {
+            match list_item(line, self.md) {
                 Some((indent, ordered, text)) => items.push((indent, ordered, text.to_string())),
                 None => if let Some(last) = items.last_mut() {
                     last.2.push(' ');
@@ -245,10 +296,29 @@ impl Doc<'_> {
         let mut i = 0;
         while i < chars.len() {
             let c = chars[i];
-            if let Some(link) = place::link_at(&chars, i) {
-                out.push_str(&self.link(&link.target(&chars), link.description(&chars).as_deref()));
-                i = link.end;
+            // Markdown: an image in the text, `![texte](cible)`
+            if self.md && c == '!' && chars.get(i + 1) == Some(&'[') && let Some(f) = md_link_any(&chars, i + 1) {
+                out.push_str(&self.img(&f.0, None));
+                i = f.1;
                 continue;
+            }
+            if c == '[' && let Some((target, desc, end)) = self.link_at(&chars, i) {
+                out.push_str(&self.link(&target, desc.as_deref()));
+                i = end;
+                continue;
+            }
+            if self.md {
+                if c == '`' && let Some(end) = (i + 1..chars.len()).find(|&j| chars[j] == '`') {
+                    out.push_str(&format!("<code>{}</code>", escape(&chars[i + 1..end].iter().collect::<String>())));
+                    i = end + 1;
+                    continue;
+                }
+                if let Some((tag, n, end)) = markdown_emphasis(&chars, i) {
+                    let inner: String = chars[i + n..end].iter().collect();
+                    out.push_str(&format!("<{tag}>{}</{tag}>", self.inline(&inner)));
+                    i = end + n;
+                    continue;
+                }
             }
             // `<<cible>>` is not shown, `<<<radio>>>` shows its text
             if c == '<' && chars.get(i + 1) == Some(&'<') && let Some(end) = (i + 2..chars.len()).find(|&j| chars[j] == '>' && chars.get(j + 1) == Some(&'>')) {
@@ -258,7 +328,7 @@ impl Doc<'_> {
                 while chars.get(i) == Some(&'>') { i += 1; }
                 continue;
             }
-            if "*/_+=~".contains(c) && let Some(end) = emphasis_end(&chars, i) {
+            if !self.md && "*/_+=~".contains(c) && let Some(end) = emphasis_end(&chars, i) {
                 let inner: String = chars[i + 1..end].iter().collect();
                 out.push_str(&match c {
                     '*' => format!("<b>{}</b>", self.inline(&inner)),
@@ -284,6 +354,20 @@ impl Doc<'_> {
         out
     }
 
+    /// The link at `start`: its target as org-mode writes it (`Page::*Titre`), its
+    /// description, and where it ends; the extended ones too when they are read.
+    fn link_at(&self, chars: &[char], start: usize) -> Option<(String, Option<String>, usize)> {
+        let f = place::link_starting(chars, start, self.extended)?;
+        let text = |a: usize, b: usize| chars[a..b].iter().collect::<String>();
+        let desc = match f.kind {
+            place::Kind::Org => (f.start + 2..f.end - 2).find(|&j| chars[j] == ']' && chars[j + 1] == '[')
+                .map(|j| text(j + 2, f.end - 2))
+                .or_else(|| self.extended.pipe.then(|| (f.start + 2..f.end - 2).find(|&j| chars[j] == '|').map(|j| text(j + 1, f.end - 2))).flatten()),
+            place::Kind::Markdown => (f.start + 1..f.end).find(|&j| chars[j] == ']').map(|j| text(f.start + 1, j)),
+        };
+        Some((f.target, desc, f.end))
+    }
+
     fn link(&self, target: &str, desc: Option<&str>) -> String {
         let target = target.trim();
         if desc.is_none() && images::is_image(target) { return self.img(target, None); }
@@ -305,11 +389,68 @@ impl Doc<'_> {
 }
 
 /// A line that ends a paragraph: a headline, block, keyword, table, list item, rule…
-fn is_structure(line: &str) -> bool {
+/// (`md`: of a Markdown page).
+fn is_structure(line: &str, md: bool) -> bool {
     let t = line.trim();
-    headline_level(line).is_some() || t.starts_with("#+") || t.starts_with('|') || t.starts_with(": ")
-        || t == ":" || list_item(line).is_some() || image_line(t).is_some() || is_drawer(t)
+    if md {
+        return headline_level(line, true).is_some() || t.starts_with('|') || t.starts_with('>') || t.starts_with("```")
+            || t.starts_with("~~~") || list_item(line, true).is_some() || markdown_image_line(t).is_some() || is_rule_line(t);
+    }
+    headline_level(line, false).is_some() || t.starts_with("#+") || t.starts_with('|') || t.starts_with(": ")
+        || t == ":" || list_item(line, false).is_some() || image_line(t).is_some() || is_drawer(t)
         || (t.len() >= 5 && t.chars().all(|c| c == '-'))
+}
+
+/// Marks of a headline (`** Titre`, `## Titre` in Markdown).
+fn headline_level(line: &str, md: bool) -> Option<usize> {
+    if md { Format::Markdown.heading_level_of(line) } else { Format::Org.heading_level_of(line) }
+}
+
+/// A Markdown rule: `---`, `***`, `___` (spaces between allowed).
+fn is_rule_line(t: &str) -> bool {
+    let marks: String = t.chars().filter(|c| !c.is_whitespace()).collect();
+    marks.len() >= 3 && ["-", "*", "_"].iter().any(|m| marks.chars().all(|c| c.to_string() == *m))
+}
+
+/// A line holding only a Markdown image: its target.
+fn markdown_image_line(t: &str) -> Option<String> {
+    let chars: Vec<char> = t.chars().collect();
+    if !t.starts_with("![") { return None; }
+    let (target, end) = md_link_any(&chars, 1)?;
+    (end == chars.len() && (images::is_image(&target) || target.contains("://"))).then_some(target)
+}
+
+/// The Markdown link `[texte](cible)` at `start`, whatever it leads to: its
+/// target (`%20` decoded, without a title) and where it ends.
+fn md_link_any(chars: &[char], start: usize) -> Option<(String, usize)> {
+    if chars.get(start) != Some(&'[') { return None; }
+    let close = (start + 1..chars.len()).find(|&j| chars[j] == ']')?;
+    if chars.get(close + 1) != Some(&'(') { return None; }
+    let paren = (close + 2..chars.len()).find(|&j| chars[j] == ')')?;
+    let dest: String = chars[close + 2..paren].iter().collect();
+    let dest = dest.trim();
+    let dest = dest.split_once(" \"").map_or(dest, |(d, _)| d).trim();
+    let dest = dest.strip_prefix('<').and_then(|d| d.strip_suffix('>')).unwrap_or(dest);
+    let target = if dest.contains("://") { dest.to_string() } else { place::percent_decode(dest) };
+    Some((target, paren + 1))
+}
+
+/// Markdown emphasis opening at `start`: the HTML tag, the length of its marks
+/// and where its text ends (`**gras**`, `__gras__`, `*it*`, `_it_`, `~~barré~~`).
+fn markdown_emphasis(chars: &[char], start: usize) -> Option<(&'static str, usize, usize)> {
+    for (marks, tag) in [("**", "b"), ("__", "b"), ("~~", "s"), ("*", "i"), ("_", "i")] {
+        let m: Vec<char> = marks.chars().collect();
+        let n = m.len();
+        if chars.get(start..start + n) != Some(&m[..]) { continue; }
+        if chars.get(start + n).is_none_or(|c| c.is_whitespace()) { continue; }
+        if m[0] == '_' && start > 0 && chars[start - 1].is_alphanumeric() { continue; }
+        let end = (start + n + 1..=chars.len().saturating_sub(n)).find(|&j| {
+            chars[j..j + n] == m[..] && !chars[j - 1].is_whitespace() && chars.get(j + n) != Some(&m[0])
+                && !(m[0] == '_' && chars.get(j + n).is_some_and(|c| c.is_alphanumeric()))
+        });
+        if let Some(end) = end { return Some((tag, n, end)); }
+    }
+    None
 }
 
 /// `#+BEGIN_SRC python` → `src`.
@@ -336,11 +477,12 @@ fn attr_width(t: &str) -> Option<String> {
 
 /// A list item (`- a`, `+ a`, ` * a`, `1. a`, `1) a`): its indent, whether it is
 /// numbered, and its text.
-fn list_item(line: &str) -> Option<(usize, bool, &str)> {
+fn list_item(line: &str, md: bool) -> Option<(usize, bool, &str)> {
     let indent = line.len() - line.trim_start().len();
     let t = line.trim_start();
     for bullet in ["- ", "+ ", "* "] {
-        if (t.starts_with(bullet) || t == bullet.trim()) && (bullet != "* " || indent > 0) {
+        // `* ` at the start of a line is an org-mode headline, a bullet in Markdown
+        if (t.starts_with(bullet) || t == bullet.trim()) && (bullet != "* " || indent > 0 || md) {
             return Some((indent, false, t.get(2..).unwrap_or("")));
         }
     }
@@ -351,16 +493,16 @@ fn list_item(line: &str) -> Option<(usize, bool, &str)> {
 
 /// How many of `lines` the list starting at the first takes: its items, the
 /// lines indented under them, and the blank lines between.
-fn list_lines(lines: &[&str]) -> usize {
+fn list_lines(lines: &[&str], md: bool) -> usize {
     let mut n = 0;
     for (i, line) in lines.iter().enumerate() {
         if line.trim().is_empty() {
             let next = lines[i + 1..].iter().find(|l| !l.trim().is_empty());
-            if !next.is_some_and(|l| list_item(l).is_some() || l.starts_with([' ', '\t'])) { break; }
+            if !next.is_some_and(|l| list_item(l, md).is_some() || l.starts_with([' ', '\t'])) { break; }
             continue;
         }
-        let indented = line.starts_with([' ', '\t']) && headline_level(line).is_none();
-        if list_item(line).is_none() && !indented { break; }
+        let indented = line.starts_with([' ', '\t']) && headline_level(line, md).is_none();
+        if list_item(line, md).is_none() && !indented { break; }
         n = i + 1;
     }
     n
@@ -405,7 +547,25 @@ mod tests {
 
     fn html(text: &str) -> String {
         let k = TodoKeywords::parse("TODO | DONE");
-        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"))
+        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"), Format::Org, place::LinkSyntax::NONE)
+    }
+
+    fn md(text: &str) -> String {
+        let k = TodoKeywords::parse("TODO | DONE");
+        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"), Format::Markdown, place::LinkSyntax::ALL)
+    }
+
+    #[test]
+    fn markdown_pages() {
+        assert_eq!(md("---\ntitle: Mon titre\ntags: [a]\n---\n## TODO Faire **vite** ##\ntexte *it* `co*de*`"),
+            "<h1 class='title'>Mon titre</h1><h3><span class='todo'>TODO</span> Faire <b>vite</b></h3><p>texte <i>it</i> <code>co*de*</code></p>");
+        assert_eq!(md("# Page\n* un\n* [x] deux\n\n> cité\n\n```\n# pas un titre\n```\n---"),
+            "<h1>Page</h1><ul><li>un</li><li>☑ deux</li></ul><blockquote><p>cité</p></blockquote><pre># pas un titre</pre><hr>");
+        assert_eq!(md("# Page\n| a | b |\n|---|:-:|\n| 1 | 2 |"),
+            "<h1>Page</h1><table><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>");
+        assert_eq!(md("# Page\n[[B|bé]] [lien](Ma%20page.md) [site](https://a.org) snake_case\n![](../assets/a%20b.png)"),
+            "<h1>Page</h1><p><span class='link'>bé</span> <span class='link'>lien</span> <a href='https://a.org'>site</a> snake_case</p>\
+            <p class='image'><img src='url:../assets/a b.png' alt=''></p>");
     }
 
     #[test]
@@ -446,7 +606,7 @@ mod tests {
 
     #[test]
     fn emphasis_as_org_reads_it() {
-        let d = Doc { keywords: None, image: &|t| t.to_string(), shift: 0 };
+        let d = Doc { keywords: None, image: &|t| t.to_string(), shift: 0, md: false, extended: place::LinkSyntax::NONE };
         assert_eq!(d.inline("a /b/ c_d_e 2*3*4 +x+"), "a <i>b</i> c_d_e 2*3*4 <s>x</s>");
         assert_eq!(d.inline("=a*b*= ~<t>~"), "<code>a*b*</code> <code>&lt;t&gt;</code>");
     }

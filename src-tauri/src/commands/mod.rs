@@ -73,7 +73,7 @@ pub(crate) mod testing {
             std::fs::write(dir.join("pages").join(format!("{name}.org")), text).unwrap();
         }
         let path = dir.to_string_lossy().to_string();
-        let project = crate::project::Project::open(&path, state.prefs().tags()).unwrap();
+        let project = crate::project::Project::open(&path, state.prefs().tags(), state.prefs().formats()).unwrap();
         *crate::lock(&state.project) = Some(project);
         path
     }

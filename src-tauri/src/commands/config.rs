@@ -33,6 +33,8 @@ fn save_settings(state: &AppState, dir: &Path, mut settings: Settings) -> Cmd<()
     let current = state.settings();
     settings.session = current.session;
     settings.config.keybinding_profile = current.config.keybinding_profile;
+    // Once something is saved, it is no longer the first run
+    settings.first_run = false;
     crate::lock(&state.config).write(dir, &File::Settings, &settings::config_text(&settings))?;
     config_files::put_in_effect(state, &Content::Settings(settings.config.clone()));
     store_state(state, dir, settings)

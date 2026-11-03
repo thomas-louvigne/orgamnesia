@@ -68,6 +68,22 @@ pub fn is_table_line(line: &[char]) -> bool {
     line.iter().find(|c| !c.is_whitespace()) == Some(&'|')
 }
 
+/// Whether a table line is a rule: `|---+---|` (or `|-` being typed), or
+/// Markdown's `|---|:---:|` / `| --- | --- |`, its cells only dashes with maybe a
+/// colon at either end.
+pub fn is_rule(line: &str) -> bool {
+    let t = line.trim();
+    if t.starts_with("|-") { return true; }
+    let Some(inner) = t.strip_prefix('|') else { return false };
+    let inner = inner.strip_suffix('|').unwrap_or(inner);
+    !inner.trim().is_empty() && inner.split('|').all(|c| {
+        let c = c.trim();
+        let c = c.strip_prefix(':').unwrap_or(c);
+        let c = c.strip_suffix(':').unwrap_or(c);
+        !c.is_empty() && c.chars().all(|x| x == '-')
+    })
+}
+
 /// Char ranges of the tables of the page: from the start of their first line
 /// to the end of their last one (newline excluded).
 pub fn find_tables(chars: &[char]) -> Vec<(usize, usize)> {
@@ -101,6 +117,12 @@ mod tests {
     use super::*;
 
     const PAGE: &str = "* Titre\n| a | b |\n|---+---|\n| c | d |\nfin\n| x |";
+
+    #[test]
+    fn rules_of_both_formats() {
+        for rule in ["|---+---|", "|-", "  |---|:--:|", "| --- | :--- |", "|:-:|"] { assert!(is_rule(rule), "{rule}"); }
+        for row in ["| a | b |", "| - |x|", "|", "| |"] { assert!(!is_rule(row), "{row}"); }
+    }
 
     #[test]
     fn finds_tables() {

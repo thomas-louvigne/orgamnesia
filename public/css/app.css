@@ -288,6 +288,9 @@ html, body { height: 100%; overflow: hidden; }
     position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
     color: var(--accent2); font-size: var(--fs-meta); font-weight: 600;
 }
+/* A page whose name alone leads to its twin of the other format */
+.file-shadowed { text-decoration: line-through; color: var(--fg-dim); }
+.file-ext { margin-left: 4px; color: var(--fg-dim); font-size: var(--fs-meta); }
 .file-item.active {
     background: var(--bg3);
     color: var(--accent2);
@@ -1672,3 +1675,20 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 }
 .btn-link:hover { color: var(--fg); }
 .modal-footer-start { margin-right: auto; }
+
+/* First run: the format of the pages and the shortcuts */
+.modal.welcome { max-width: 34rem; }
+.welcome-group { border: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.welcome-group legend { font-weight: 600; margin-bottom: 6px; }
+.welcome-choice {
+    display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 6px;
+}
+.welcome-choice.selected { border-color: var(--accent); background: var(--bg3); }
+.welcome-choice input { margin-top: 3px; }
+.welcome-choice-text { display: flex; flex-direction: column; gap: 2px; }
+.new-page-format { display: flex; gap: 16px; margin-top: 10px; }
+
+/* Markdown: code (inline and fenced blocks), quotes */
+.md-code  { color: var(--green); }
+.md-quote { color: var(--fg-dim); font-style: italic; }

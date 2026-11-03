@@ -12,6 +12,7 @@ pub async fn load_startup(ctx: AppCtx, owner: Owner) {
     if let Ok(settings) = invoke::get_settings().await {
         let prefs = crate::preferences::prefs_of(&settings);
         ctx.prefs.set(prefs.clone());
+        if settings.first_run { ctx.ui.show_welcome.set(true); }
         ctx.project.projects.set(settings.projects);
         if let Some(path) = settings.vault_path {
             match invoke::open_vault(&path).await {

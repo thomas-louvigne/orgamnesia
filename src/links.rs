@@ -109,7 +109,7 @@ mod tests {
         let t = c("texte :x:\n* T :a:Cible:\n");
         assert_eq!(find_link(&t, "cible", true, Hashtags::Off.into()), Some((17, 22)));
         assert_eq!(find_link(&t, "x", true, Hashtags::Off.into()), Some((7, 8)));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false } };
+        let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
         assert_eq!(find_link(&t, "cible", true, off), None);
     }
 

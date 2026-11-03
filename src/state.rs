@@ -148,6 +148,11 @@ pub struct Ui {
     pub show_projects: RwSignal<bool>,
     pub show_settings: RwSignal<bool>,
     pub show_new_page: RwSignal<bool>,
+    /// The name the new page window opens with (a link followed to a page not
+    /// created yet, when the format of new pages is asked).
+    pub new_page_name: RwSignal<String>,
+    /// The window of the first run (format of the pages, shortcuts).
+    pub show_welcome: RwSignal<bool>,
     pub show_quick_open: RwSignal<bool>,
     pub show_commit: RwSignal<bool>,
     /// The history window of this page (git extension).
@@ -236,6 +241,8 @@ impl AppCtx {
                 show_projects: RwSignal::new(false),
                 show_settings: RwSignal::new(false),
                 show_new_page: RwSignal::new(false),
+                new_page_name: RwSignal::new(String::new()),
+                show_welcome: RwSignal::new(false),
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
                 git_history: RwSignal::new(None),
@@ -286,19 +293,30 @@ impl AppCtx {
         self.project.links_version.update(|v| *v += 1);
     }
 
-    /// The page called `name`, per the setting ignoring case and accents.
+    /// The page called `name`, per the setting ignoring case and accents: `Note.md`
+    /// that file, `Note` the page of that name (of the default format when there
+    /// are two, see `orgamnesia_core::pages`).
     pub fn find_page(&self, name: &str) -> Option<FileEntry> {
-        self.project.files.with_untracked(|fs| fs.iter().find(|f| self.same_page(&f.name, name)).cloned())
+        let (loose, default) = self.pref_untracked(|p| (p.case_insensitive_links, p.default_format));
+        self.project.files.with_untracked(|fs| orgamnesia_core::pages::Resolver::new(fs, loose, default).resolve(name).cloned())
     }
 
-    /// Whether two page names designate the same page, per the setting ignoring
-    /// case and accents (`[[élody]]` = `[[Elody]]`).
-    pub fn same_page(&self, a: &str, b: &str) -> bool {
-        if self.pref_untracked(|p| p.case_insensitive_links) {
-            orgamnesia_core::names::fold(a) == orgamnesia_core::names::fold(b)
-        } else {
-            a == b
-        }
+    /// The names links give the pages, to complete them: their name, with its
+    /// extension for the one its name alone doesn't lead to (`Note.md` next to `Note.org`).
+    pub fn link_names(&self) -> Vec<String> {
+        let (loose, default) = self.pref_untracked(|p| (p.case_insensitive_links, p.default_format));
+        self.project.files.with_untracked(|fs| {
+            let r = orgamnesia_core::pages::Resolver::new(fs, loose, default);
+            fs.iter().map(|f| r.link_name(f)).collect()
+        })
+    }
+
+    /// Warn when the page `file` has a twin, a page of the same name in the other
+    /// format: `[[Name]]` leads to only one of them.
+    pub fn warn_twin(&self, file: &FileEntry) {
+        let (loose, default) = self.pref_untracked(|p| (p.case_insensitive_links, p.default_format));
+        let twin = self.project.files.with_untracked(|fs| orgamnesia_core::pages::Resolver::new(fs, loose, default).has_twin(file));
+        if twin { self.notify_t("twin_warning", &file.name); }
     }
 
     /// Show the pages and headlines tagged `tag` in the tags frame.

@@ -59,6 +59,16 @@ pub fn org_tag_prefix(chars: &[char], caret: usize, org: OrgTags) -> Option<(usi
     (chars[b] == ':' && chars[b - 1].is_whitespace()).then_some((start, prefix))
 }
 
+/// `content` of the page `path` with the page tag `tag` added: in its
+/// `#+FILETAGS:` (org-mode) or the `tags:` of its front matter (Markdown).
+/// `None` when the page already has it.
+pub fn add_page_tag(content: &str, tag: &str, path: &str) -> Option<String> {
+    match orgamnesia_core::Format::of_path(path) {
+        Some(orgamnesia_core::Format::Markdown) => orgamnesia_core::frontmatter::add_tag(content, tag),
+        _ => add_filetag(content, tag),
+    }
+}
+
 /// `content` with the file tag `tag` added to its `#+FILETAGS:` line, which is
 /// created after the leading `#+` keywords (the top of the page) when missing.
 /// `None` when the page already has that file tag.

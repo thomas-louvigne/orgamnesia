@@ -22,9 +22,9 @@ use crate::{
 /// ```
 pub fn default_message(changes: &[GitChange], lang: Lang) -> String {
     let name = |path: &str| path.strip_prefix("pages/").unwrap_or(path).to_string();
-    let pages = changes.iter().filter(|c| c.path.ends_with(".org")).count();
+    let pages = changes.iter().filter(|c| orgamnesia_core::Format::of_path(&c.path).is_some()).count();
     let summary = match (changes, pages == changes.len()) {
-        ([one], true) => format!("{} {}", t("git_msg_page", lang), name(&one.path).trim_end_matches(".org")),
+        ([one], true) => format!("{} {}", t("git_msg_page", lang), without_ext(&name(&one.path))),
         ([one], false) => format!("{} {}", t("git_msg_file", lang), name(&one.path)),
         (_, true) => format!("{} {} {}", t("git_msg_pages", lang), changes.len(), t("git_msg_pages_end", lang)),
         _ => format!("{} {} {}", t("git_msg_pages", lang), changes.len(), t("git_msg_files_end", lang)),
@@ -35,12 +35,16 @@ pub fn default_message(changes: &[GitChange], lang: Lang) -> String {
     format!("{summary}\n\n{}\n", lines.join("\n"))
 }
 
+/// A page's file name without its `.org` or `.md`.
+fn without_ext(file: &str) -> &str {
+    orgamnesia_core::format::split_ext(file).map_or(file, |(stem, _)| stem)
+}
+
 /// The message `template` with its fields filled: `{date}` (2025-10-29),
 /// `{time}` (14:05), `{count}` (number of files) and `{files}` (their names).
 pub fn fill_template(template: &str, changes: &[GitChange], date: &str, time: &str) -> String {
     let files: Vec<&str> = changes.iter().map(|c| {
-        let p = c.path.strip_prefix("pages/").unwrap_or(&c.path);
-        p.strip_suffix(".org").unwrap_or(p)
+        without_ext(c.path.strip_prefix("pages/").unwrap_or(&c.path))
     }).collect();
     template.replace("{date}", date).replace("{time}", time)
         .replace("{count}", &changes.len().to_string()).replace("{files}", &files.join(", "))
