@@ -162,6 +162,8 @@ pub struct Ui {
     pub git_history: RwSignal<Option<FileEntry>>,
     /// The window adding a remote to the project's repository.
     pub show_git_remote: RwSignal<bool>,
+    /// The window naming a new branch.
+    pub show_git_branch: RwSignal<bool>,
     /// The window cloning a repository as a new project.
     pub show_clone: RwSignal<bool>,
     /// The window asking the name and email git signs the commits with.
@@ -255,6 +257,7 @@ impl AppCtx {
                 show_commit: RwSignal::new(false),
                 git_history: RwSignal::new(None),
                 show_git_remote: RwSignal::new(false),
+                show_git_branch: RwSignal::new(false),
                 show_clone: RwSignal::new(false),
                 show_git_identity: RwSignal::new(false),
                 update: RwSignal::new(None),

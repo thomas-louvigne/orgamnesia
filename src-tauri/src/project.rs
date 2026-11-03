@@ -164,9 +164,7 @@ impl Project {
     /// `<time>-<page>.org` or `.md`), from where `restore` brings it back. Returns its path there.
     pub fn delete(&mut self, path: &str) -> Result<String, AppError> {
         self.check_page(path)?;
-        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
-        let to = self.trash_dir()?.join(format!("{stamp}-{}", orgamnesia_core::pages::file_name(path)));
-        std::fs::rename(path, &to)?;
+        let to = files::to_trash(&self.path, path)?;
         self.forget(path);
         Ok(crate::slash(&to))
     }
@@ -238,16 +236,9 @@ impl Project {
             .collect())
     }
 
-    /// The trash folder of the project, created if needed, with a `.gitignore`
-    /// keeping it out of git.
+    /// The trash folder of the project (see `files::trash_dir`).
     fn trash_dir(&self) -> Result<PathBuf, AppError> {
-        let dir = Path::new(&self.path).join(".trash");
-        std::fs::create_dir_all(&dir)?;
-        let ignore = dir.join(".gitignore");
-        if !ignore.exists() {
-            std::fs::write(ignore, "*\n")?;
-        }
-        Ok(dir)
+        Ok(files::trash_dir(&self.path)?)
     }
 
     /// Rename a page; when the settings say so, the links to it in every page follow.
@@ -257,7 +248,7 @@ impl Project {
         let ext = Format::of_page(old_path).ext();
         let new_path = self.pages_dir.join(format!("{new_name}.{ext}"));
         let old_name = files::page_name(old_path);
-        if new_path.exists() && new_name != old_name {
+        if new_name != old_name && taken(&new_path, &old_name, &new_name) {
             return Err(AppError::PageExists(new_name));
         }
         // The links leading to the page, as they did before
@@ -441,10 +432,23 @@ struct Trashed {
     size: u64,
 }
 
-/// `name` trimmed, if it can be a page name (and so a file name).
+/// Whether renaming the page `old` to `new` would land on another page at
+/// `new_path`. Only the case changing (`note` → `Note`), the page itself is found
+/// there on a disk ignoring case (macOS, Windows): not another one, unless a
+/// file of exactly that name is there too (a disk minding case).
+fn taken(new_path: &Path, old: &str, new: &str) -> bool {
+    if !new_path.exists() { return false; }
+    if old.to_lowercase() != new.to_lowercase() { return true; }
+    let exact = new_path.file_name();
+    new_path.parent().and_then(|d| std::fs::read_dir(d).ok())
+        .is_some_and(|mut entries| entries.any(|e| e.is_ok_and(|e| Some(e.file_name().as_os_str()) == exact)))
+}
+
+/// `name` trimmed, if it can be a page name (and so a file name, on every system:
+/// Windows takes none of `: * ? " < > |`, and reads `a:b` as a hidden stream of `a`).
 fn valid_name(name: &str) -> Result<String, AppError> {
     let name = name.trim();
-    if name.is_empty() || name.contains(['/', '\\']) || name.starts_with('.') {
+    if name.is_empty() || name.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) || name.starts_with('.') {
         return Err(AppError::InvalidName(name.to_string()));
     }
     Ok(name.to_string())
@@ -494,6 +498,10 @@ mod tests {
         }
         assert!(matches!(valid_name("../x"), Err(AppError::InvalidName(_))));
         assert!(matches!(valid_name("  "), Err(AppError::InvalidName(_))));
+        for bad in ["Réunion: 12h", "a?", "a*b", "a|b", "\"a\"", "<a>"] {
+            assert!(matches!(valid_name(bad), Err(AppError::InvalidName(_))), "{bad}");
+        }
+        assert_eq!(valid_name(" Réunion de 12h ").unwrap(), "Réunion de 12h");
         std::fs::remove_dir_all(dir).unwrap();
     }
 
@@ -574,6 +582,26 @@ mod tests {
         assert_eq!(p.backlinks(&path_of(&p, "new"), false), vec!["other"]);
         assert!(p.broken_links(false).is_empty());
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn rename_changing_only_the_case() {
+        let (dir, mut p) = project("rename-case", &[("note", "* note\n")]);
+        let nf = p.rename(&path_of(&p, "note"), "Note", &Prefs::default()).unwrap();
+        assert!(nf.path.ends_with("/Note.org") && Path::new(&nf.path).exists());
+        // A disk minding case (Linux): another page of that very name is left alone
+        if cfg!(target_os = "linux") {
+            std::fs::write(dir.join("pages/a.org"), "* a\n").unwrap();
+            std::fs::write(dir.join("pages/A.org"), "* A\n").unwrap();
+            p.refresh(Hashtags::Dashes.into()).unwrap();
+            assert!(matches!(p.rename(&file_named(&p, "a"), "A", &Prefs::default()), Err(AppError::PageExists(_))));
+            assert_eq!(std::fs::read_to_string(dir.join("pages/A.org")).unwrap(), "* A\n");
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    fn file_named(p: &Project, name: &str) -> String {
+        p.files().into_iter().find(|f| f.path.ends_with(&format!("/{name}.org"))).unwrap().path
     }
 
     /// A project holding the given files (`Note.md`, `Note.org`…).

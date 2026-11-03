@@ -206,6 +206,17 @@ html, body { height: 100%; overflow: hidden; }
     color: var(--fg); font-size: var(--fs-meta); font-weight: 600;
 }
 .git-off .git-branch { color: var(--fg-dim); font-weight: 400; }
+/* The branch list reads as the branch name, a small caret beside it */
+.git-branch-pick { position: relative; display: inline-flex; align-items: center; min-width: 0; max-width: 100%; }
+select.git-branch {
+    -webkit-appearance: none; appearance: none;
+    max-width: 100%; height: auto; margin: 0; padding: 0 14px 0 3px; line-height: inherit;
+    background: transparent; border: 1px solid transparent; border-radius: 3px;
+    font-family: inherit; cursor: pointer;
+}
+select.git-branch:hover, select.git-branch:focus-visible { border-color: var(--border); background: var(--bg3); outline: none; }
+select.git-branch option { background: var(--bg2); color: var(--fg); font-weight: 400; }
+.git-caret { position: absolute; right: 3px; pointer-events: none; color: var(--fg-dim); font-size: .85em; }
 .git-items { display: flex; flex-wrap: wrap; gap: 4px; }
 .git-item {
     background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;

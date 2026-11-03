@@ -19,7 +19,8 @@ const GITIGNORE: &str = "# Editor backups\n*~\n\\#*\\#\n.#*\n.DS_Store\n";
 
 /// Git state of `path`; `None` when git itself can't be run.
 pub fn status(path: &str) -> Option<GitStatus> {
-    let out = git(path).args(["status", "--porcelain=v2", "--branch"])
+    // `.`: the project's folder, also when it is only part of the repository
+    let out = git(path).args(["status", "--porcelain=v2", "--branch", "--", "."])
         .env("GIT_OPTIONAL_LOCKS", "0").stdin(Stdio::null())
         .output().ok()?;
     if !out.status.success() {
@@ -113,9 +114,10 @@ fn split_z(out: &str) -> Vec<String> {
     out.split('\0').map(str::trim).filter(|p| !p.is_empty()).map(String::from).collect()
 }
 
-/// Files changed since the last commit (untracked ones included).
+/// Files of the project's folder changed since the last commit (untracked ones
+/// included), relative to the root of the repository.
 pub fn changes(path: &str) -> Result<Vec<GitChange>, AppError> {
-    let out = run(git(path).args(["status", "--porcelain=v1", "-z", "--untracked-files=all"]).env("GIT_OPTIONAL_LOCKS", "0"))?;
+    let out = run(git(path).args(["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."]).env("GIT_OPTIONAL_LOCKS", "0"))?;
     Ok(parse_changes(&out))
 }
 
@@ -140,12 +142,13 @@ fn toplevel(path: &str) -> Result<String, AppError> {
     run(git(path).args(["rev-parse", "--show-toplevel"]))
 }
 
-/// Commit the changes of the project with `message`; with `files` (relative to
-/// the root of the repository), only those. Returns what git says.
+/// Commit the changes of the project's folder with `message` (never the rest of
+/// a repository it is only part of); with `files` (relative to the root of the
+/// repository), only those. Returns what git says.
 pub fn commit(path: &str, message: &str, files: Option<&[String]>) -> Result<String, AppError> {
     let mut c = git(path);
     match files {
-        None => { run(git(path).args(["add", "-A"]))?; c.args(["commit", "--file", "-"]); }
+        None => { run(git(path).args(["add", "-A", "--", "."]))?; c.args(["commit", "--file", "-"]); }
         Some(files) => {
             // Paths from the root, wherever the project is in the repository
             let root = toplevel(path)?;
@@ -205,6 +208,39 @@ pub fn push(path: &str, ssh_key: &str) -> Result<String, AppError> {
         return Err(AppError::NoRemote);
     };
     run(remote(git(path), path, ssh_key).args(["push", "--set-upstream", name, "HEAD"]))
+}
+
+/// The branches to switch to, sorted: the local ones, and the remote ones not
+/// here yet under their local name (`git switch` then makes it, tracking).
+pub fn branches(path: &str) -> Result<Vec<String>, AppError> {
+    let out = run(git(path).args(["for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"]))?;
+    Ok(parse_branches(&out))
+}
+
+fn parse_branches(out: &str) -> Vec<String> {
+    let mut names: Vec<String> = out.lines().filter_map(|r| {
+        if let Some(local) = r.strip_prefix("refs/heads/") { return Some(local.to_string()); }
+        // refs/remotes/<remote>/<branch>; `<remote>/HEAD` is no branch
+        let (_, branch) = r.strip_prefix("refs/remotes/")?.split_once('/')?;
+        (branch != "HEAD").then(|| branch.to_string())
+    }).collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// Switch to the branch `name`; with `create`, a new one from here. The
+/// uncommitted changes come along; git refuses when they would be overwritten.
+pub fn switch(path: &str, name: &str, create: bool) -> Result<String, AppError> {
+    let name = name.trim();
+    // Never read as an option
+    if name.is_empty() || name.starts_with('-') {
+        return Err(AppError::Git(format!("not a valid branch name: '{name}'")));
+    }
+    let mut c = git(path);
+    c.arg("switch");
+    if create { c.arg("-c"); }
+    run(c.arg(name))
 }
 
 /// The commits that changed `file` (a full path), newest first, following its renames.
@@ -403,6 +439,12 @@ mod tests {
     }
 
     #[test]
+    fn branch_names() {
+        let out = "refs/heads/main\nrefs/heads/notes\nrefs/remotes/origin/HEAD\nrefs/remotes/origin/main\nrefs/remotes/origin/feat/x\n";
+        assert_eq!(parse_branches(out), vec!["feat/x", "main", "notes"]);
+    }
+
+    #[test]
     fn changes_from_porcelain() {
         let out = " M pages/a.org\0?? pages/b c.org\0D  pages/d.org\0R  pages/new.org\0pages/old.org\0A  assets/x.png\0";
         let got = parse_changes(out);
@@ -503,6 +545,12 @@ mod tests {
         push(w, "").unwrap();
         assert!(pull(w, "", true).is_ok());
         assert!(fetch(w, "").is_ok());
+        // A new branch, back to main, and a name git can't take
+        switch(w, "brouillon", true).unwrap();
+        assert_eq!(status(w).unwrap().branch.as_deref(), Some("brouillon"));
+        switch(w, "main", false).unwrap();
+        assert_eq!(branches(w).unwrap(), vec!["brouillon", "main"]);
+        assert!(switch(w, "-f", false).is_err() && switch(w, "a b", true).is_err());
         // Nothing to commit: git says so
         assert!(matches!(commit(w, "vide", None), Err(AppError::Git(_))));
 
@@ -528,6 +576,27 @@ mod tests {
         let cloned = clone(base.to_str().unwrap(), base.join("server.git").to_str().unwrap(), "").unwrap();
         assert!(cloned.ends_with("/server") && Path::new(&cloned).join("a.org").exists());
         assert!(clone(base.to_str().unwrap(), base.join("server.git").to_str().unwrap(), "").is_err());
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn a_project_inside_a_repository_commits_only_its_folder() {
+        let base = temp("sub");
+        sh(&base, &["init", "-q", "-b", "main"]);
+        sh(&base, &["config", "user.name", "t"]);
+        sh(&base, &["config", "user.email", "t@example.com"]);
+        let notes = base.join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        std::fs::write(notes.join("a.org"), "* a\n").unwrap();
+        std::fs::write(base.join(".env"), "SECRET=1\n").unwrap();
+        let n = notes.to_str().unwrap();
+        assert_eq!(changes(n).unwrap().iter().map(|c| c.path.as_str()).collect::<Vec<_>>(), ["notes/a.org"]);
+        assert_eq!(status(n).unwrap().changes, 1);
+        commit(n, "notes", None).unwrap();
+        assert!(changes(n).unwrap().is_empty());
+        // The file outside the project is neither committed nor staged
+        let out = Command::new("git").arg("-C").arg(&base).args(["status", "--porcelain"]).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout), "?? .env\n");
         std::fs::remove_dir_all(base).unwrap();
     }
 

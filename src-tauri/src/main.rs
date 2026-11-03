@@ -62,6 +62,8 @@ fn main() {
             commands::git::git_pull,
             commands::git::git_push,
             commands::git::git_fetch,
+            commands::git::git_branches,
+            commands::git::git_switch,
             commands::git::git_diff,
             commands::git::git_log,
             commands::git::git_commit_diff,

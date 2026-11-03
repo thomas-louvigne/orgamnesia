@@ -63,6 +63,55 @@ pub fn RemoteModal() -> impl IntoView {
     }
 }
 
+/// The name of a new branch, made from here and switched to.
+#[component]
+pub fn BranchModal() -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let close = move || ctx.ui.show_git_branch.set(false);
+    let name = RwSignal::new(String::new());
+    let input_ref = NodeRef::<leptos::html::Input>::new();
+    Effect::new(move |_| if let Some(el) = input_ref.get() { let _ = el.focus(); });
+    let esc = window_event_listener(ev::keydown, move |e| if e.key() == "Escape" { close(); });
+    on_cleanup(move || esc.remove());
+
+    let create = move || {
+        let n = name.get_untracked().trim().to_string();
+        if n.is_empty() { return; }
+        close();
+        git::switch_branch(ctx, n, true);
+    };
+
+    view! {
+        <div class="modal-overlay" on:click=move |_| close()>
+            <div class="modal" role="dialog" aria-label=move || t("git_new_branch", lang()) on:click=|e| e.stop_propagation()>
+                <div class="modal-header">
+                    <h2>{move || t("git_new_branch", lang())}</h2>
+                    <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
+                </div>
+                <div class="modal-body">
+                    <input
+                        node_ref=input_ref
+                        type="text"
+                        class="setting-input"
+                        aria-label=move || t("git_new_branch", lang())
+                        prop:value=move || name.get()
+                        on:input=move |e| name.set(event_target_value(&e))
+                        on:keydown=move |e| { e.stop_propagation(); if e.key() == "Enter" { create(); } else if e.key() == "Escape" { close(); } }
+                    />
+                    <span class="setting-hint">{move || t("git_new_branch_hint", lang())}</span>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                    <button class="btn-primary" prop:disabled=move || name.with(|n| n.trim().is_empty()) on:click=move |_| create()>
+                        {move || t("git_branch_create", lang())}
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
 /// The name and email git signs the commits with, asked before the first
 /// commit; saved for all the user's repositories, then the commit window opens.
 #[component]

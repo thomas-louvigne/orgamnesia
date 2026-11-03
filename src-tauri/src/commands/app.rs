@@ -93,6 +93,10 @@ fn runnable(p: &std::path::Path) -> bool {
         // Windows: programs, scripts, shortcuts, installers, settings
         "exe", "bat", "cmd", "com", "msi", "msp", "scr", "pif", "cpl", "msc", "hta", "lnk", "url", "reg", "inf",
         "ps1", "psm1", "psd1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "appref-ms", "application", "gadget", "diagcab",
+        // Windows: help and add-ins that run code, disk images that mount, special folders
+        "chm", "xll", "jnlp", "ws", "wsc", "iso", "img", "vhd", "vhdx", "settingcontent-ms", "library-ms", "search-ms",
+        // macOS: terminal settings and services that run commands, links to programs, installers
+        "terminal", "tool", "workflow", "scpt", "fileloc", "inetloc", "pkg", "mpkg", "dmg",
     ];
     let ext = p.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
     if ext.is_some_and(|e| LAUNCHERS.contains(&e.as_str())) { return true; }
@@ -183,6 +187,14 @@ fn save_on_exit(state: &AppState, dir: &std::path::Path) {
 mod tests {
     use super::*;
     use crate::commands::testing::{folder, open_project};
+
+    #[test]
+    fn programs_are_never_opened() {
+        for f in ["aide.chm", "x.TERMINAL", "y.iso", "z.exe", "lanceur.desktop"] {
+            assert!(runnable(std::path::Path::new(f)), "{f}");
+        }
+        assert!(!runnable(std::path::Path::new("doc.pdf")));
+    }
 
     #[test]
     fn a_folder_picked_is_one() {

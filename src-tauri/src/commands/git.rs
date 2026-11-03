@@ -65,6 +65,18 @@ pub async fn git_push(state: State<'_, AppState>) -> Cmd<String> {
     with_git(&state, true, crate::git::push).await
 }
 
+/// The branches of the open project's repository, local and remote.
+#[tauri::command]
+pub async fn git_branches(state: State<'_, AppState>) -> Cmd<Vec<String>> {
+    with_git(&state, false, |path, _| crate::git::branches(path)).await
+}
+
+/// Switch to the branch `name`; with `create`, a new one.
+#[tauri::command]
+pub async fn git_switch(state: State<'_, AppState>, name: String, create: bool) -> Cmd<String> {
+    with_git(&state, true, move |path, _| crate::git::switch(path, &name, create)).await
+}
+
 /// The commits that changed the page `file` (full path), newest first.
 #[tauri::command]
 pub async fn git_log(state: State<'_, AppState>, file: String) -> Cmd<Vec<GitCommit>> {

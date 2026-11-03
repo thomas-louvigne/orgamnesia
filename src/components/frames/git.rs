@@ -1,6 +1,7 @@
 //! Git extension: the state of the project and the commit, pull and push buttons.
 
 use leptos::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 
 use crate::{
     i18n::t,
@@ -77,6 +78,54 @@ fn GitButtons() -> impl IntoView {
     }
 }
 
+/// The value of the "New branch…" entry: no branch name can start with '-'.
+const NEW_BRANCH: &str = "-new";
+
+/// The branch, as a list to switch to another one, or to make a new one.
+#[component]
+fn BranchSelect() -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let current = move || ctx.project.git.with(|g| g.as_ref().and_then(|g| g.branch.clone()));
+    let branches = RwSignal::new(Vec::<String>::new());
+    let load = move || spawn_local(async move {
+        if let Ok(b) = crate::invoke::git_branches().await { branches.set(b); }
+    });
+    // Again when the branch changes, and on focus (a fetch may have brought some)
+    Effect::new(move |_| { current(); load(); });
+    let select_ref = NodeRef::<leptos::html::Select>::new();
+    let names = move || {
+        let mut names = branches.get();
+        // A branch with no commit yet has no ref
+        if let Some(c) = current() && !names.contains(&c) { names.push(c); names.sort(); }
+        names
+    };
+    let label = move || current().unwrap_or_else(|| t("git_detached", lang()).to_string());
+    view! {
+        <span class="git-branch-pick">
+        <select class="git-branch" node_ref=select_ref title=label aria-label=move || t("git_branch", lang())
+            prop:disabled=move || ctx.project.git_busy.get().is_some()
+            on:focus=move |_| load()
+            on:change=move |e| {
+                let picked = event_target_value(&e);
+                let here = current().unwrap_or_default();
+                // Shown on the current branch until git has switched
+                if let Some(s) = select_ref.get_untracked() { s.set_value(&here); }
+                if picked == NEW_BRANCH { ctx.ui.show_git_branch.set(true); }
+                else if picked != here { crate::git::switch_branch(ctx, picked, false); }
+            }>
+            {move || current().is_none().then(|| view! { <option value="" selected>{label()}</option> })}
+            {move || names().into_iter().map(|n| {
+                let selected = current().as_deref() == Some(n.as_str());
+                view! { <option value=n.clone() selected=selected>{n.clone()}</option> }
+            }).collect_view()}
+            <option value=NEW_BRANCH>{move || t("git_new_branch", lang())}</option>
+        </select>
+        <span class="git-caret" aria-hidden="true">"▾"</span>
+        </span>
+    }
+}
+
 /// What the project folder is to git.
 #[derive(Clone, Copy, PartialEq)]
 enum Repo { Yes, No, Unreadable }
@@ -97,7 +146,6 @@ pub fn GitLine() -> impl IntoView {
     });
     let busy = move || ctx.project.git_busy.get();
     let git = move || ctx.project.git.get().unwrap_or_default();
-    let branch = move || git().branch.unwrap_or_else(|| t("git_detached", lang()).to_string());
     let items = move || {
         let st = git();
         let mut items: Vec<(&'static str, String)> = vec![];
@@ -152,7 +200,7 @@ pub fn GitLine() -> impl IntoView {
             <div class="frame git-status">
                 <div class="git-head">
                     <GitIcon />
-                    <span class="git-branch" title=branch>{branch}</span>
+                    <BranchSelect />
                 </div>
                 <div class="git-items">
                     // A click opens a file in conflict, the next one at each click

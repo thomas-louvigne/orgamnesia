@@ -1,5 +1,5 @@
-//! The window of the first run: the format of the pages and the shortcuts,
-//! both changed later in the settings.
+//! The window of the first run: the format of the pages, the shortcuts and
+//! the modules (git, the to-do list), all changed later in the settings.
 
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -13,6 +13,8 @@ pub fn WelcomeModal() -> impl IntoView {
     let lang = move || ctx.lang.get();
     let format = RwSignal::new(ctx.pref_untracked(|p| p.default_format));
     let profile = RwSignal::new(ctx.keybindings.with_untracked(|kb| kb.editor_preset.clone()));
+    let git = RwSignal::new(ctx.pref_untracked(|p| p.git_ext));
+    let todos = RwSignal::new(ctx.pref_untracked(|p| p.show_todos));
     let busy = RwSignal::new(false);
 
     let start = move |_| {
@@ -20,6 +22,8 @@ pub fn WelcomeModal() -> impl IntoView {
         busy.set(true);
         let mut prefs = ctx.prefs.get_untracked();
         prefs.default_format = format.get_untracked();
+        prefs.git_ext = git.get_untracked();
+        prefs.show_todos = todos.get_untracked();
         let kb = Keybindings::with_profiles(Some(&profile.get_untracked()), ctx.keybindings.with_untracked(|k| k.profiles.clone()));
         spawn_local(async move {
             let settings = prefs.to_settings(ctx.project.projects.get_untracked());
@@ -38,10 +42,10 @@ pub fn WelcomeModal() -> impl IntoView {
         });
     };
 
-    // One choice among two, each with what it means
-    let choice = move |name: &'static str, value: &'static str, label: &'static str, hint: &'static str, checked: Signal<bool>, pick: Callback<()>| view! {
+    // One choice among two (a radio), or a module to take or not (a checkbox), each with what it means
+    let choice = move |kind: &'static str, name: &'static str, value: &'static str, label: &'static str, hint: &'static str, checked: Signal<bool>, pick: Callback<()>| view! {
         <label class=move || if checked.get() { "welcome-choice selected" } else { "welcome-choice" }>
-            <input type="radio" name=name value=value prop:checked=move || checked.get() on:change=move |_| pick.run(()) />
+            <input type=kind name=name value=value prop:checked=move || checked.get() on:change=move |_| pick.run(()) />
             <span class="welcome-choice-text">
                 <strong>{move || t(label, lang())}</strong>
                 <span class="setting-hint">{move || t(hint, lang())}</span>
@@ -59,17 +63,24 @@ pub fn WelcomeModal() -> impl IntoView {
                     <p>{move || t("welcome_intro", lang())}</p>
                     <fieldset class="welcome-group">
                         <legend>{move || t("default_format", lang())}</legend>
-                        {choice("welcome-format", "org", "format_org", "welcome_org_hint",
+                        {choice("radio", "welcome-format", "org", "format_org", "welcome_org_hint",
                             Signal::derive(move || format.get() == Format::Org), Callback::new(move |_| format.set(Format::Org)))}
-                        {choice("welcome-format", "markdown", "format_markdown", "welcome_markdown_hint",
+                        {choice("radio", "welcome-format", "markdown", "format_markdown", "welcome_markdown_hint",
                             Signal::derive(move || format.get() == Format::Markdown), Callback::new(move |_| format.set(Format::Markdown)))}
                     </fieldset>
                     <fieldset class="welcome-group">
                         <legend>{move || t("welcome_shortcuts", lang())}</legend>
-                        {choice("welcome-keys", "classic", "preset_classic", "welcome_classic_hint",
+                        {choice("radio", "welcome-keys", "classic", "preset_classic", "welcome_classic_hint",
                             Signal::derive(move || profile.get() == "classic"), Callback::new(move |_| profile.set("classic".into())))}
-                        {choice("welcome-keys", "emacs", "preset_emacs", "welcome_emacs_hint",
+                        {choice("radio", "welcome-keys", "emacs", "preset_emacs", "welcome_emacs_hint",
                             Signal::derive(move || profile.get() == "emacs"), Callback::new(move |_| profile.set("emacs".into())))}
+                    </fieldset>
+                    <fieldset class="welcome-group">
+                        <legend>{move || t("welcome_modules", lang())}</legend>
+                        {choice("checkbox", "welcome-git", "git", "welcome_git", "welcome_git_hint",
+                            Signal::derive(move || git.get()), Callback::new(move |_| git.update(|v| *v = !*v)))}
+                        {choice("checkbox", "welcome-todos", "todos", "welcome_todos", "welcome_todos_hint",
+                            Signal::derive(move || todos.get()), Callback::new(move |_| todos.update(|v| *v = !*v)))}
                     </fieldset>
                     <p class="setting-hint">{move || t("welcome_later", lang())}</p>
                 </div>

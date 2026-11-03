@@ -335,6 +335,18 @@ pub fn add_remote(ctx: AppCtx, url: String) {
     });
 }
 
+/// Switch to the branch `name` (with `create`, a new one), the pages saved
+/// first; the pages that change on disk are read again by the watcher.
+pub fn switch_branch(ctx: AppCtx, name: String, create: bool) {
+    run(ctx, GitOp::Setup, move || async move {
+        match invoke::git_switch(&name, create).await {
+            Ok(_) => ctx.notify_t("git_switched", &name),
+            Err(e) => report(ctx, "git_switch_error", &e),
+        }
+        refresh(ctx).await;
+    });
+}
+
 // ─── Conflicts ───────────────────────────────────────────────────────────────
 
 /// Open the `n`-th file in conflict (cycling through them), the cursor on its

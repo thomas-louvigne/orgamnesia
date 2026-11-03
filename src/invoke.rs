@@ -417,6 +417,15 @@ pub async fn git_push() -> Result<String, String> {
     call("git_push", serde_json::json!({})).await
 }
 
+pub async fn git_branches() -> Result<Vec<String>, String> {
+    call("git_branches", serde_json::json!({})).await
+}
+
+/// Switch to the branch `name`; with `create`, a new one.
+pub async fn git_switch(name: &str, create: bool) -> Result<String, String> {
+    call("git_switch", serde_json::json!({ "name": name, "create": create })).await
+}
+
 /// A newer version of the app, with what changed since this one; `None` when
 /// this one is the latest.
 pub async fn check_update() -> Result<Option<UpdateInfo>, String> {

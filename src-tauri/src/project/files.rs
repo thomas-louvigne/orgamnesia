@@ -17,7 +17,15 @@ pub fn pages_dir(vault_path: &str) -> PathBuf {
 
 /// Whether the file `path` is a page of either format (`.org`, `.md`).
 fn is_page_file(path: &Path) -> bool {
-    path.extension().and_then(|s| s.to_str()).and_then(Format::from_ext).is_some()
+    page_format(path).is_some()
+}
+
+/// The format of the page `path`; `None` for any other file, and for hidden
+/// ones (Emacs' locks `.#Note.org`, macOS' `._Note.md`, the app's temporary files).
+fn page_format(path: &Path) -> Option<Format> {
+    let hidden = path.file_name().is_none_or(|n| n.to_string_lossy().starts_with('.'));
+    if hidden { return None; }
+    path.extension().and_then(|s| s.to_str()).and_then(Format::from_ext)
 }
 
 fn has_org_files(dir: &Path) -> bool {
@@ -35,7 +43,7 @@ pub fn list_pages(vault_path: &str, formats: Formats) -> Result<Vec<FileEntry>, 
     }
     let mut files: Vec<FileEntry> = std::fs::read_dir(&pages)?
         .filter_map(|entry| entry.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()).and_then(Format::from_ext).is_some_and(|f| formats.accepts(f)))
+        .filter(|e| page_format(&e.path()).is_some_and(|f| formats.accepts(f)))
         .map(|e| {
             let path = e.path();
             let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
@@ -138,8 +146,30 @@ pub fn is_title_only(content: &str) -> bool {
         && lines.next().is_none()
 }
 
-/// Delete the pages of the vault that are blank (see `is_blank`) and/or hold only
-/// their title heading, depending on the flags. Returns the deleted paths.
+/// The trash folder of the project `vault_path`, created if needed, with a
+/// `.gitignore` keeping it out of git.
+pub fn trash_dir(vault_path: &str) -> std::io::Result<PathBuf> {
+    let dir = Path::new(vault_path).join(".trash");
+    std::fs::create_dir_all(&dir)?;
+    let ignore = dir.join(".gitignore");
+    if !ignore.exists() {
+        std::fs::write(ignore, "*\n")?;
+    }
+    Ok(dir)
+}
+
+/// Move the page `path` to the trash of `vault_path`, named `<time>-<page>.org`
+/// (or `.md`); its path there.
+pub fn to_trash(vault_path: &str, path: &str) -> std::io::Result<PathBuf> {
+    let stamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+    let to = trash_dir(vault_path)?.join(format!("{stamp}-{}", orgamnesia_core::pages::file_name(path)));
+    std::fs::rename(path, &to)?;
+    Ok(to)
+}
+
+/// Move to the trash the pages of the vault that are blank (see `is_blank`)
+/// and/or hold only their title heading, depending on the flags. Returns their
+/// paths before.
 pub fn delete_blank_pages(vault_path: &str, formats: Formats, empty: bool, title_only: bool) -> Vec<String> {
     if !empty && !title_only {
         return vec![];
@@ -150,7 +180,7 @@ pub fn delete_blank_pages(vault_path: &str, formats: Formats, empty: bool, title
             let Ok(content) = std::fs::read_to_string(&f.path) else { return false };
             (empty && is_blank(&content)) || (title_only && is_title_only(&content))
         })
-        .filter(|f| std::fs::remove_file(&f.path).is_ok())
+        .filter(|f| to_trash(vault_path, &f.path).is_ok())
         .map(|f| f.path)
         .collect()
 }
@@ -181,6 +211,19 @@ mod tests {
         std::fs::create_dir_all(dir.join("projet/assets")).unwrap();
         assert_eq!(parent_with_assets(&pages), Some(dir.join("projet")));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn hidden_files_are_no_pages() {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-hidden-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in ["Note.org", ".#Note.org", "._Note.md", ".Note.org.123.tmp"] {
+            std::fs::write(dir.join(name), "").unwrap();
+        }
+        let names: Vec<String> = list_pages(dir.to_str().unwrap(), Formats::default()).unwrap().into_iter().map(|f| f.name).collect();
+        assert_eq!(names, ["Note"]);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
@@ -234,6 +277,8 @@ mod tests {
         assert!(!dir.join("vide.org").exists() && !dir.join("espaces.org").exists() && dir.join("titre.org").exists());
         assert_eq!(delete_blank_pages(vp, Formats::default(), false, true).len(), 1);
         assert!(!dir.join("titre.org").exists() && dir.join("texte.org").exists());
+        // In the trash, not gone for good
+        assert_eq!(std::fs::read_dir(dir.join(".trash")).unwrap().flatten().filter(|e| e.file_name() != ".gitignore").count(), 3);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -4,6 +4,9 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.2.0
+- Git: the branch is a list to switch to another branch, local or remote, or to create a new one.
+
 * 1.1.0
 - Fix: the build's tests pass on Windows.
 

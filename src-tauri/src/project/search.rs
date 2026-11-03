@@ -90,12 +90,17 @@ impl Project {
     /// since (counted as skipped: undoing would lose those changes).
     pub fn undo_replace(&mut self, tags: TagSyntax) -> Result<ReplaceOutcome, AppError> {
         let mut outcome = ReplaceOutcome::default();
-        for page in std::mem::take(&mut self.last_replace) {
+        let mut pages = std::mem::take(&mut self.last_replace).into_iter();
+        while let Some(page) = pages.next() {
             if std::fs::read_to_string(&page.path).ok().as_deref() != Some(page.after.as_str()) {
                 outcome.skipped += 1;
                 continue;
             }
-            crate::write_atomic(&page.path, &page.before)?;
+            if let Err(e) = crate::write_atomic(&page.path, &page.before) {
+                // The pages not put back yet can still be, at the next try
+                self.last_replace = std::iter::once(page).chain(pages).collect();
+                return Err(e.into());
+            }
             self.store(&page.path, page.before, tags);
             self.remember(&page.path);
             outcome.pages += 1;
