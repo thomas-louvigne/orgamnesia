@@ -5,27 +5,27 @@ vue d'ensemble, voir le [[file:../readme.fr.org][readme]]. Une version anglaise,
 des captures d'écran, est dans [[file:features.org][features.org]].
 
 * Sommaire                                                         :noexport:
-- [[*Projets et pages][Projets et pages]]
-- [[*Éditeur][Éditeur]]
-- [[*Liens et tags][Liens et tags]]
-- [[*Markdown][Markdown]]
-- [[*États TODO][États TODO]]
-- [[*Tableaux][Tableaux]]
-- [[*Images][Images]]
-- [[*Fenêtre][Fenêtre]]
-- [[*Export en PDF et en HTML][Export en PDF et en HTML]]
-- [[*Colonnes de gauche et de droite][Colonnes de gauche et de droite]]
-- [[*Corbeille][Corbeille]]
-- [[*Raccourcis clavier][Raccourcis clavier]]
-- [[*Extensions][Extensions]]
-- [[*Préférences][Préférences]]
-- [[*Préférences en texte][Préférences en texte]]
-- [[*Fichiers][Fichiers]]
+- [[#projets-et-pages][Projets et pages]]
+- [[#éditeur][Éditeur]]
+- [[#liens-et-tags][Liens et tags]]
+- [[#markdown][Markdown]]
+- [[#états-todo][États TODO]]
+- [[#tableaux][Tableaux]]
+- [[#images][Images]]
+- [[#fenêtre][Fenêtre]]
+- [[#export-en-pdf-et-en-html][Export en PDF et en HTML]]
+- [[#colonnes-de-gauche-et-de-droite][Colonnes de gauche et de droite]]
+- [[#corbeille][Corbeille]]
+- [[#raccourcis-clavier][Raccourcis clavier]]
+- [[#extensions][Extensions]]
+- [[#préférences][Préférences]]
+- [[#préférences-en-texte][Préférences en texte]]
+- [[#fichiers][Fichiers]]
 
 * Projets et pages
 
 ** Projet
-Un projet est un dossier de pages =.org= ou =.md= (voir [[*Markdown][Markdown]]) liées entre elles.
+Un projet est un dossier de pages =.org= ou =.md= (voir [[#markdown][Markdown]]) liées entre elles.
 
 - Si le dossier contient un sous-dossier =pages/=, les pages y sont ; sinon, si le
   dossier contient déjà des fichiers =.org= ou =.md=, il est utilisé tel quel. Un dossier
@@ -55,11 +55,11 @@ Un projet est un dossier de pages =.org= ou =.md= (voir [[*Markdown][Markdown]])
   double-clic ou clic droit sur le titre de la page. Les liens vers la page dans
   les autres pages sont réécrits (réglable).
 - *Exporter en PDF ou en HTML* : clic droit sur la page (liste ou onglet). Voir
-  [[*Export en PDF et en HTML][Export en PDF et en HTML]].
+  [[#export-en-pdf-et-en-html][Export en PDF et en HTML]].
 - *Ne pas exporter* : clic droit sur la page dans la liste ajoute le tag
   =:noexport:= à son =#+FILETAGS:= (la ligne est créée si besoin).
 - *Supprimer* : clic droit sur la page (liste ou onglet), en dernier dans le menu.
-  La page va dans la [[*Corbeille][corbeille]] du projet.
+  La page va dans la [[#corbeille][corbeille]] du projet.
 
 ** Ouverture rapide
 Le raccourci « Ouverture rapide » (Ctrl+K en Classique, Ctrl+X B ou Alt+X en Emacs)
@@ -119,8 +119,8 @@ Au démarrage, les onglets et les volets ouverts à la fermeture sont rouverts
 - Liens =[[page]]= et =[[page][texte]]=, =#mots-clés=, =:tags:=.
 - =#+TITLE:= et =#+FILETAGS:= : le mot-clé atténué, la valeur mise en valeur.
 - Tableaux, avec leurs lignes d'en-tête en gras.
-- Mots-clés TODO (voir [[*États TODO][États TODO]]).
-- Les pages Markdown ont leur propre coloration (voir [[*Markdown][Markdown]]).
+- Mots-clés TODO (voir [[#états-todo][États TODO]]).
+- Les pages Markdown ont leur propre coloration (voir [[#markdown][Markdown]]).
 
 ** Titre de la page
 Au-dessus de l'éditeur, en grand : le =#+TITLE:= de la page s'il en a un, sinon son
@@ -168,7 +168,7 @@ est dessiné ou un titre plié.
 Pendant la frappe, une liste propose :
 - les noms de pages après =[[= (accepter ferme le lien avec =]]=) ;
 - les titres d'une page après =[[Page::= ou =[[Page::*=, et ceux de la page
-  ouverte après =[[*= (voir [[*Liens vers un titre ou une cible]]) ;
+  ouverte après =[[*= (voir [[#liens-vers-un-titre-ou-une-cible][Liens vers un titre ou une cible]]) ;
 - les noms de pages après =#= ;
 - les tags existants dans les tags d'un titre (=* Titre :pro=), dans =#+FILETAGS:= ou
   après =:= dans le texte (accepter ajoute le =:= final).
@@ -512,7 +512,7 @@ l'onglet quand la page est ouverte, même pas encore sauvegardé, sinon celui du
 fichier.
 
 Pour exporter tout le projet d'un coup, en un site web dont les pages sont reliées
-entre elles, voir [[*org-bloom : le site du projet][org-bloom]].
+entre elles, voir [[#org-bloom--le-site-du-projet][org-bloom]].
 
 La page est mise en forme : son =#+TITLE:= (ou son nom) en titre, les titres avec
 leur mot-clé TODO et leurs tags, paragraphes, listes (numérotées, cases à cocher,
@@ -581,7 +581,7 @@ pour deux actions) est signalé et empêche d'enregistrer.
 Les profils intégrés sont dans l'application et ne se modifient pas : modifier un
 de leurs raccourcis les copie dans un profil personnalisé, qui prend effet. Chaque
 profil personnalisé est un fichier à lui, à son nom (=keybindings/Personnalisé.json=
-par défaut), modifiable en texte (voir [[*Préférences en texte]]).
+par défaut), modifiable en texte (voir [[#préférences-en-texte][Préférences en texte]]).
 
 Les profils intégrés reçoivent automatiquement les nouveaux raccourcis des
 versions suivantes ; un profil personnalisé reçoit ceux des actions qu'il ne
@@ -824,11 +824,11 @@ enregistre les changements sans fermer (un point signale qu'il y en a),
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
 - Vignettes des vidéos YouTube.
 - Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans
-  quel ordre (voir [[*Colonnes de gauche et de droite]]).
+  quel ordre (voir [[#colonnes-de-gauche-et-de-droite][Colonnes de gauche et de droite]]).
 
 ** Extensions
 - org-bloom et sa commande.
-- Git (voir [[*Git]]) : activé ou non, la clé SSH pour pull / push, la fréquence de
+- Git (voir [[#git][Git]]) : activé ou non, la clé SSH pour pull / push, la fréquence de
   consultation du dépôt distant, le rebase d'un historique divergent au pull, le
   marqueur des pages non poussées, commit et push par défaut, le message de commit
   proposé, la synchronisation automatique et celle en quittant.

@@ -10,27 +10,27 @@ keybindings.
 [[file:images/overview.png]]
 
 * Contents                                                         :noexport:
-- [[*Projects and pages][Projects and pages]]
-- [[*Editor][Editor]]
-- [[*Links and tags][Links and tags]]
-- [[*Markdown][Markdown]]
-- [[*TODO states][TODO states]]
-- [[*Tables][Tables]]
-- [[*Images][Images]]
-- [[*Window][Window]]
-- [[*Export as PDF and HTML][Export as PDF and HTML]]
-- [[*Left and right columns][Left and right columns]]
-- [[*Trash][Trash]]
-- [[*Keyboard shortcuts][Keyboard shortcuts]]
-- [[*Extensions][Extensions]]
-- [[*Settings][Settings]]
-- [[*Settings as text][Settings as text]]
-- [[*Files][Files]]
+- [[#projects-and-pages][Projects and pages]]
+- [[#editor][Editor]]
+- [[#links-and-tags][Links and tags]]
+- [[#markdown][Markdown]]
+- [[#states][TODO states]]
+- [[#tables][Tables]]
+- [[#images][Images]]
+- [[#window][Window]]
+- [[#export-as-pdf-and-html][Export as PDF and HTML]]
+- [[#left-and-right-columns][Left and right columns]]
+- [[#trash][Trash]]
+- [[#keyboard-shortcuts][Keyboard shortcuts]]
+- [[#extensions][Extensions]]
+- [[#settings][Settings]]
+- [[#settings-as-text][Settings as text]]
+- [[#files][Files]]
 
 * Projects and pages
 
 ** Project
-A project is a folder of =.org= or =.md= pages (see [[*Markdown][Markdown]]) linked to each other.
+A project is a folder of =.org= or =.md= pages (see [[#markdown][Markdown]]) linked to each other.
 
 - If the folder has a =pages/= subfolder, the pages are there; otherwise, if the
   folder already holds =.org= or =.md= files, it is used as is. An empty folder gets
@@ -60,11 +60,11 @@ A project is a folder of =.org= or =.md= pages (see [[*Markdown][Markdown]]) lin
   click or right click on the page title. Links to the page in the other pages are
   rewritten (can be turned off).
 - *Export as PDF or HTML*: right click on the page (list or tab). See
-  [[*Export as PDF and HTML][Export as PDF and HTML]].
+  [[#export-as-pdf-and-html][Export as PDF and HTML]].
 - *No export*: right click on the page in the list adds the =:noexport:= tag to
   its =#+FILETAGS:= (the line is created when missing).
 - *Delete*: right click on the page (list or tab), last in the menu. The page goes
-  to the project's [[*Trash][trash]].
+  to the project's [[#trash][trash]].
 
 ** Quick open
 The "Quick open" shortcut (Ctrl+K in Classic, Ctrl+X B or Alt+X in Emacs) opens a
@@ -123,8 +123,8 @@ package manager. What is new in each version is also in
 - Links =[[page]]= and =[[page][text]]=, =#keywords=, =:tags:=.
 - =#+TITLE:= and =#+FILETAGS:=: the keyword dimmed, the value highlighted.
 - Tables, their header rows in bold.
-- TODO keywords (see [[*TODO states][TODO states]]).
-- Markdown pages have their own highlighting (see [[*Markdown][Markdown]]).
+- TODO keywords (see [[#states][TODO states]]).
+- Markdown pages have their own highlighting (see [[#markdown][Markdown]]).
 
 ** Page title
 Above the editor, in large type: the page's =#+TITLE:= if it has one, else its name.
@@ -174,7 +174,7 @@ drawn or a headline folded.
 While typing, a list offers:
 - page names after =[[= (accepting closes the link with =]]=);
 - the headlines of a page after =[[Page::= or =[[Page::*=, and those of the open
-  page after =[[*= (see [[*Links to a headline or a target]]);
+  page after =[[*= (see [[#links-to-a-headline-or-a-target][Links to a headline or a target]]);
 - page names after =#=;
 - existing tags in the tags of a headline (=* Title :pro=), in =#+FILETAGS:= or after
   =:= in the text (accepting adds the closing =:=).
@@ -507,7 +507,7 @@ in Emacs (org-mode's keys). The text exported is the tab's when the page is open
 even when not saved yet, else the file's.
 
 To export the whole project at once, as a website whose pages link to each other,
-see [[*org-bloom: the site of the project][org-bloom]].
+see [[#org-bloom-the-site-of-the-project][org-bloom]].
 
 The page is laid out: its =#+TITLE:= (or its name) as the title, headlines with
 their TODO keyword and tags, paragraphs, lists (numbered, checkboxes, definitions
@@ -577,7 +577,7 @@ actions) is shown and prevents saving.
 The built-in profiles are in the application and can't be changed: changing one
 of their shortcuts copies them into a custom profile, which takes effect. Each
 custom profile is a file of its own, named after it (=keybindings/Personnalisé.json=
-by default), which can be edited as text (see [[*Settings as text]]).
+by default), which can be edited as text (see [[#settings-as-text][Settings as text]]).
 
 Built-in profiles get the new shortcuts of later versions automatically; a custom
 profile gets those of the actions it didn't know.
@@ -809,11 +809,11 @@ closes without saving. The explanations under a setting are in italics.
 - Images: show them, and the format of their size (org-mode or Logseq).
 - Thumbnails of the YouTube videos.
 - Frames around the editor: which are shown, in which column and in which order
-  (see [[*Left and right columns]]).
+  (see [[#left-and-right-columns][Left and right columns]]).
 
 ** Extensions
 - org-bloom and its command.
-- Git (see [[*Git]]): on or off, the SSH key for pull / push, how often the remote
+- Git (see [[#git][Git]]): on or off, the SSH key for pull / push, how often the remote
   is fetched, rebasing a diverged history on pull, the marker of the pages not
   pushed, commit and push by default, the commit message proposed, the automatic
   sync and the sync on quitting.

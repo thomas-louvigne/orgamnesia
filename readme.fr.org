@@ -19,7 +19,8 @@ relisez-le comme n'importe quelle contribution.
 - *Vos notes restent de simples fichiers =.org= ou =.md=* dans le dossier de votre
   choix : pas de base de données, pas de format propriétaire. Emacs, Obsidian, git
   ou un outil de synchro peuvent les lire en parallèle.
-- *Des pages liées*, comme dans un wiki : liens =[[Page]]=, liens entrants, tags.
+- *Des pages liées*, comme dans un wiki : liens =[[Page]]=, =[[Page|texte]]=,
+  =[[Page#Titre]]= ou =[texte](Page.md)=, liens entrants, tags.
 - *Léger* : une application de bureau native écrite en Rust, rapide à lancer.
 
 * Fonctionnalités
@@ -103,7 +104,7 @@ dépôts git) :
   =~/Library/Application Support/com.orgamnesia.app/= sous macOS,
   =%APPDATA%\com.orgamnesia.app\= sous Windows. Ils se modifient
   en texte depuis l'application, vérifiés pendant la frappe, avec un historique des
-  versions valides (voir [[file:docs/fonctionnalites.org::*Préférences en texte][Préférences en texte]]).
+  versions valides (voir [[file:docs/fonctionnalites.org#préférences-en-texte][Préférences en texte]]).
 
 * Développement
 

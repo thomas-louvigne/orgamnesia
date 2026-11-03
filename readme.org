@@ -19,7 +19,8 @@ other contribution.
 - *Your notes stay plain =.org= or =.md= files* in a folder you choose: no
   database, no proprietary format. Emacs, Obsidian, git or any sync tool can read
   them alongside.
-- *Linked pages*, as in a wiki: =[[Page]]= links, backlinks, tags.
+- *Linked pages*, as in a wiki: =[[Page]]=, =[[Page|text]]=, =[[Page#Title]]= or
+  =[text](Page.md)= links, backlinks, tags.
 - *Light*: a native desktop app written in Rust, quick to start.
 
 * Features
@@ -96,7 +97,7 @@ particulars (dictionaries, keys, signing in to git repositories): [[file:docs/in
   =~/Library/Application Support/com.orgamnesia.app/= on macOS,
   =%APPDATA%\com.orgamnesia.app\= on Windows. They can be edited
   as text from the app, checked as you type, with a history of the valid versions
-  (see [[file:docs/features.org::*Settings as text][Settings as text]]).
+  (see [[file:docs/features.org#settings-as-text][Settings as text]]).
 
 * Development
 
