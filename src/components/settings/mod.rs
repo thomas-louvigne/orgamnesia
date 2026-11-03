@@ -14,7 +14,7 @@ use crate::{
     i18n::{t, Lang},
     invoke,
     preferences::{self, File},
-    state::{AppCtx, Prefs},
+    state::{AppCtx, Prefs, Settings},
     storage,
 };
 use shortcuts::{KbDraft, KbSnapshot, ShortcutsTab};
@@ -54,6 +54,29 @@ impl Tab {
             Tab::Extensions => "tab_extensions",
             Tab::About => "tab_about",
         }
+    }
+}
+
+/// Puts back the defaults (`d`) of the settings shown in `tab`; the project
+/// folder stays, it is not a preference.
+fn reset_tab(tab: Tab, p: &mut Prefs, d: Prefs) {
+    macro_rules! take { ($($f:ident),*) => {{ $(p.$f = d.$f;)* }} }
+    match tab {
+        Tab::General => take!(restore_session, default_format, single_format, ask_format, check_updates, lang),
+        Tab::Links => take!(org_links, md_links, case_insensitive_links, update_links, hashtag_links,
+            hashtag_dashes, org_tag_links, org_tag_dashes, mark_broken_links, link_preview, link_preview_trigger),
+        Tab::Editing => take!(autosave, electric_mode, find_match_case, indent_headings, tab_folds, todo_enabled,
+            todo_keywords, delete_empty, delete_title_only, trash_auto_empty, trash_keep_days, trash_max_bytes),
+        Tab::Display => take!(show_page_title, show_line_numbers, show_images, image_size_format,
+            show_video_thumbnails, hide_leading_stars, layout, show_brand, show_project, show_git, show_pages,
+            show_backlinks, show_tags, show_broken_links, show_todos, show_org_bloom, show_quit_button,
+            show_settings_button),
+        Tab::Shortcuts => take!(emacs_mark),
+        Tab::Spelling => take!(spell, spell_lang, spell_dict_dir),
+        Tab::Extensions => take!(org_bloom, org_bloom_path, org_bloom_zip, org_bloom_no_external_deps, git_ext,
+            git_ssh_key, git_fetch, git_pull_rebase, git_unpushed_marker, git_commit_push, git_commit_template,
+            git_auto_sync, git_sync_on_quit),
+        Tab::About => {}
     }
 }
 
@@ -218,6 +241,13 @@ pub fn SettingsModal() -> impl IntoView {
         }
     };
 
+    // The current tab back to its defaults, in the draft (applied like any edit)
+    let reset = move |_| {
+        let tab = panel.get_untracked();
+        draft.update(|p| reset_tab(tab, p, preferences::prefs_of(&Settings::default())));
+        if tab == Tab::Shortcuts { kb.reset(); }
+    };
+
     view! {
         <div
             class="modal-overlay"
@@ -288,6 +318,14 @@ pub fn SettingsModal() -> impl IntoView {
                         on:click=edit_as_text
                         on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
                     >{move || t("pref_edit_text", lang())}</button>
+                    {move || (panel.get() != Tab::About).then(|| view! {
+                        <button
+                            class="btn-secondary"
+                            title=move || t("reset_tab_title", lang())
+                            on:click=reset
+                            on:mousedown=|e: web_sys::MouseEvent| e.stop_propagation()
+                        >{move || t("reset_tab", lang())}</button>
+                    })}
                     <button
                         class="btn-secondary"
                         on:click=move |_| ctx.ui.show_settings.set(false)

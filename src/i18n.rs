@@ -1259,6 +1259,10 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("crash",                Lang::En) => "Orgamnesia crashed, please copy this message:",
         ("crash",                Lang::Fr) => "Orgamnesia a planté, merci de copier ce message :",
         // The preference project (configuration files as text)
+        ("reset_tab",                    Lang::En) => "Default",
+        ("reset_tab",                    Lang::Fr) => "Par défaut",
+        ("reset_tab_title",              Lang::En) => "Put back the default settings of this tab (applied with Apply or Save)",
+        ("reset_tab_title",              Lang::Fr) => "Remet les préférences de cet onglet par défaut (appliquées avec Appliquer ou Enregistrer)",
         ("pref_edit_text",               Lang::En) => "Edit the settings as text",
         ("pref_edit_text",               Lang::Fr) => "Éditer les préférences en mode texte",
         ("pref_edit_text_title",         Lang::En) => "Open settings.json and keybindings.json in the editor (the preference project)",

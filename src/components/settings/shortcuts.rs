@@ -162,6 +162,11 @@ impl KbDraft {
         self.editor.set(editor);
     }
 
+    /// Back to the default built-in profile; the user's profiles stay.
+    pub fn reset(self) {
+        self.select_profile(Keybindings::default().active_profile);
+    }
+
     fn duplicate_profile(self, lang: Lang) {
         add_profile(
             self.active_id, self.profiles, lang, self.preset.get_untracked(),
