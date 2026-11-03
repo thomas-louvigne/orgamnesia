@@ -4,6 +4,14 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.0.0
+- Pages Markdown : les fichiers .md sont des pages à côté des .org, avec leurs titres, le pliage, les mots-clés TODO et les cases à cocher, les tableaux, les images, la coloration, l'en-tête YAML (titre et tags) et l'export. Au premier lancement, l'application demande le format des nouvelles pages et les raccourcis.
+- Liens : [[Page|texte]], [[Page#Titre]] et [texte](Page.md), chacun activé ou non pour les pages org-mode et pour les pages Markdown.
+- Liens vers un titre ou une cible ([[Page::*Titre]], [[Page::cible]]), et aperçu de la page vers laquelle mène un lien.
+- Export d'une page en PDF ou en un seul fichier HTML, depuis son onglet ou la liste des pages.
+- Préférences : un onglet « Liens », et un onglet « À propos » avec la version.
+- Correction : une page modifiée pendant son enregistrement n'est plus marquée enregistrée avant que le disque la contienne ; pages et préférences sont écrites en entier ou pas du tout.
+
 * 0.21.1
 - Windows : org-bloom n'est pas disponible ; son réglage est grisé.
 - Correction : sous Windows, les pages gardent les fins de ligne qu'elles ont dans le dépôt git, quel que soit le réglage core.autocrlf de git.
