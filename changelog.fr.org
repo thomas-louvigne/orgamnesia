@@ -6,6 +6,14 @@ versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org
 
 * 1.2.0
 - Git : la branche est une liste pour passer à une autre branche, locale ou distante, ou en créer une nouvelle.
+- Git : le commit et la synchronisation ne prennent que le dossier du projet, jamais le reste d'un dépôt dont il fait partie.
+- Premier lancement : le module git et la liste des tâches sont proposés, ou non.
+- Sécurité : un lien n'ouvre jamais un fichier d'aide, un complément, une image disque ou un lanceur macOS (.chm, .iso, .terminal…).
+- Correction : les fichiers cachés (verrous .#Note.org d'Emacs, ._Note.md de macOS) n'apparaissent plus comme des pages.
+- Correction : renommer une page en ne changeant que la casse marche sur macOS et Windows.
+- Correction : les noms de pages refusent : * ? " < > |, que Windows n'accepte pas.
+- Correction : les pages vides supprimées à la fermeture vont dans la corbeille.
+- Correction : annuler un remplacement dans le projet garde les pages non remises quand une écriture échoue.
 
 * 1.1.0
 - Correction : les tests de la compilation passent sous Windows.

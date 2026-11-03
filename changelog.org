@@ -6,6 +6,14 @@ The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
 * 1.2.0
 - Git: the branch is a list to switch to another branch, local or remote, or to create a new one.
+- Git: commit and sync take only the project's folder, never the rest of a repository it is part of.
+- First run: the git module and the to-do list are offered, or not.
+- Safety: a link never opens a help file, an add-in, a disk image or a macOS launcher (.chm, .iso, .terminal…).
+- Fix: hidden files (Emacs' .#Note.org locks, macOS' ._Note.md) no longer show as pages.
+- Fix: renaming a page changing only the case works on macOS and Windows.
+- Fix: page names refuse : * ? " < > |, which Windows can't take.
+- Fix: the blank pages deleted on quitting go to the trash.
+- Fix: undoing a project replacement keeps the pages not put back when a write fails.
 
 * 1.1.0
 - Fix: the build's tests pass on Windows.
