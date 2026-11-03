@@ -422,6 +422,10 @@ fn goto_target(pane: Pane, tab: Tab, second: bool) {
                 // The caret at the start of the headline or target, nothing selected
                 found.map(|(a, _)| (a, a))
             }
+            Goto::Focus => {
+                pane.focus();
+                None
+            }
         };
         if let Some((start, end)) = range { pane.select_page_range(start, end, true); }
     });

@@ -69,6 +69,11 @@ ouvre un champ qui cherche, sans tenir compte de la casse ni des accents :
 - les tags (choisir un tag l'affiche dans le cadre des tags) ;
 - et propose de créer la page si le nom tapé n'existe pas.
 
+Parmi les onglets et les pages trouvés, ceux dont le nom commence par le texte tapé
+viennent d'abord, le nom le plus court en premier, puis par ordre alphabétique. Sans
+rien taper, les onglets ouverts viennent d'abord. En ouvrir un met le curseur dans son
+texte, prêt à écrire.
+
 ** Sauvegarde et fichiers modifiés ailleurs
 - La sauvegarde est automatique à chaque frappe (désactivable) ; sinon, le
   raccourci « Sauvegarder ». Un onglet non sauvegardé est marqué.
@@ -187,10 +192,13 @@ des marqueurs (ou les retire s'ils y sont déjà) ; sans sélection, insère une
 de marqueurs avec le curseur au milieu.
 
 ** Nouveau titre
-Le raccourci « Nouveau titre » (Maj+Entrée ; Alt+Entrée en Emacs) insère, sous la
-ligne courante, un titre du même niveau que le titre en cours. Sur un élément de
-liste, comme =M-RET= dans org-mode, il insère plutôt un nouvel élément : même puce,
-numéro suivant, et une case à cocher vide quand l'élément en a une.
+Le raccourci « Nouveau titre » (Maj+Entrée ; Alt+Entrée en Emacs) coupe la ligne au
+curseur et commence un titre du même niveau que le titre en cours : le texte après
+le curseur devient celui du nouveau titre. Au début d'une ligne de texte, c'est cette
+ligne qui devient le titre ; sur les étoiles d'un titre, le nouveau se place dessous.
+Sur un élément de liste, comme =M-RET= dans org-mode, il commence de la même façon
+un nouvel élément : même puce, numéro suivant, et une case à cocher vide quand
+l'élément en a une.
 
 ** Niveau des titres
 Sur un titre, Alt+Maj+→ le descend d'un niveau et Alt+Maj+← le remonte d'un niveau,

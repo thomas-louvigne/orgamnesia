@@ -88,16 +88,27 @@ pub fn nearest_heading_level(chars: &[char], caret: usize) -> usize {
     }
 }
 
-/// Where to insert a new heading of the current level, and what: after the
-/// current line, `\n` and the stars. On a list item, a new item instead, as
-/// org's `M-RET`.
-pub fn new_heading(chars: &[char], caret: usize) -> (usize, String) {
-    let (_, line_end) = line_bounds(chars, caret);
-    if let Some(bullet) = motion::new_item_bullet(chars, caret) {
-        return (line_end, format!("\n{bullet}"));
-    }
-    let level = nearest_heading_level(chars, caret);
-    (line_end, format!("\n{} ", motion::heading_mark().to_string().repeat(level)))
+/// A new heading of the current level, or on a list item a new item (as org's
+/// `M-RET`), as the char range `from..to` to replace and its text: the line is cut
+/// at the caret, what follows it becoming the new one's text (the blanks around
+/// the cut go). At the start of a line of text, that line becomes the heading or
+/// item; on the stars or bullet of a line, the new one goes below it.
+pub fn new_heading(chars: &[char], caret: usize) -> (usize, usize, String) {
+    let (line_start, line_end) = line_bounds(chars, caret);
+    let (mark, text_start) = match motion::new_item_bullet(chars, caret) {
+        Some(bullet) => (bullet, motion::item_contents(chars, line_start)),
+        None => {
+            let stars = motion::heading_mark().to_string().repeat(nearest_heading_level(chars, caret));
+            let level = motion::headline_level(&chars[line_start..line_end]);
+            (format!("{stars} "), level.map(|l| line_start + l + 1))
+        }
+    };
+    if text_start.is_some_and(|text| caret <= text) { return (line_end, line_end, format!("\n{mark}")); }
+    let blank = |c: &&char| matches!(**c, ' ' | '\t');
+    let from = caret - chars[line_start..caret].iter().rev().take_while(blank).count();
+    let to = caret + chars[caret..line_end].iter().take_while(blank).count();
+    if from == line_start && to < line_end { return (from, to, mark); }
+    (from, to, format!("\n{mark}"))
 }
 
 /// What Emacs `C-k` removes at `pos`: up to the end of the line, or the line
@@ -490,14 +501,44 @@ mod tests {
     #[test]
     fn new_heading_uses_the_level_in_effect() {
         let t = c("* a\n** b\ntexte");
-        assert_eq!(new_heading(&t, 11), (14, "\n** ".to_string()));
-        assert_eq!(new_heading(&c("rien"), 2), (4, "\n* ".to_string()));
+        assert_eq!(new_heading(&t, 14), (14, 14, "\n** ".to_string()));
+        assert_eq!(new_heading(&c("rien"), 4), (4, 4, "\n* ".to_string()));
         let _md = motion::FormatGuard::set(orgamnesia_core::Format::Markdown);
-        assert_eq!(new_heading(&c("# A\n## B\ntexte"), 12), (14, "\n## ".to_string()));
+        assert_eq!(new_heading(&c("# A\n## B\ntexte"), 14), (14, 14, "\n## ".to_string()));
         drop(_md);
         // On a list item: a new item
-        assert_eq!(new_heading(&c("- a\n  suite"), 7), (11, "\n- ".to_string()));
-        assert_eq!(new_heading(&c("  9) [X] a"), 4), (10, "\n  10) [ ] ".to_string()));
+        assert_eq!(new_heading(&c("- a\n  suite"), 11), (11, 11, "\n- ".to_string()));
+        assert_eq!(new_heading(&c("  9) [X] a"), 10), (10, 10, "\n  10) [ ] ".to_string()));
+    }
+
+    #[test]
+    fn new_heading_cuts_a_list_item_at_the_caret() {
+        // In the text of an item, or of a line continuing it
+        assert_eq!(new_heading(&c("- ab"), 3), (3, 3, "\n- ".to_string()));
+        assert_eq!(new_heading(&c("  9) [X] un deux"), 12), (11, 12, "\n  10) [ ] ".to_string()));
+        assert_eq!(new_heading(&c("- a\n  suite"), 7), (7, 7, "\n- ".to_string()));
+        // At the start of a line continuing it: that line becomes the item
+        assert_eq!(new_heading(&c("- a\n  suite"), 6), (4, 6, "- ".to_string()));
+        // On the bullet, or just after it: the new item goes below
+        assert_eq!(new_heading(&c("- ab"), 0), (4, 4, "\n- ".to_string()));
+        assert_eq!(new_heading(&c("- ab"), 2), (4, 4, "\n- ".to_string()));
+        assert_eq!(new_heading(&c("  9) [X] a"), 4), (10, 10, "\n  10) [ ] ".to_string()));
+    }
+
+    #[test]
+    fn new_heading_cuts_the_line_at_the_caret() {
+        // In a text, in a heading: what follows the caret is the new heading's text
+        assert_eq!(new_heading(&c("* a\nun deux"), 5), (5, 5, "\n* ".to_string()));
+        assert_eq!(new_heading(&c("** titre suite"), 6), (6, 6, "\n** ".to_string()));
+        // The blanks around the cut go
+        assert_eq!(new_heading(&c("un deux"), 2), (2, 3, "\n* ".to_string()));
+        assert_eq!(new_heading(&c("un deux"), 3), (2, 3, "\n* ".to_string()));
+        // At the start of a line of text: that line becomes the heading
+        assert_eq!(new_heading(&c("* a\nb"), 4), (4, 4, "* ".to_string()));
+        // On a heading's stars, on an empty line: nothing to cut
+        assert_eq!(new_heading(&c("** a"), 0), (4, 4, "\n** ".to_string()));
+        assert_eq!(new_heading(&c("** a"), 3), (4, 4, "\n** ".to_string()));
+        assert_eq!(new_heading(&c("* a\n"), 4), (4, 4, "\n* ".to_string()));
     }
 
     #[test]

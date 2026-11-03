@@ -74,6 +74,10 @@ field that searches, ignoring case and accents:
 - the tags (picking one shows it in the tags frame);
 - and offers to create the page when the name typed doesn't exist.
 
+The tabs and pages found start with those whose name begins with the text typed, the
+shortest name first, then alphabetically. With nothing typed, the open tabs come first.
+Opening one puts the cursor in its text, ready for typing.
+
 [[file:images/quick-open.png]]
 
 ** Saving and outside changes
@@ -193,10 +197,12 @@ the markers (or removes them when already there); without a selection, inserts a
 pair of markers with the cursor between them.
 
 ** New headline
-The "New heading" shortcut (Shift+Enter; Alt+Enter in Emacs) inserts, below the
-current line, a headline of the same level as the current one. On a list item, as
-org-mode's =M-RET=, it inserts a new item instead: same bullet, next number, and an
-empty checkbox when the item has one.
+The "New heading" shortcut (Shift+Enter; Alt+Enter in Emacs) cuts the line at the
+cursor and starts a headline of the same level as the current one: the text after
+the cursor becomes the new headline's. At the start of a line of text, that line
+becomes the headline; on the stars of a headline, the new one goes below it. On a
+list item, as org-mode's =M-RET=, it starts a new item the same way: same bullet,
+next number, and an empty checkbox when the item has one.
 
 ** Headline level
 On a headline, Alt+Shift+→ moves it one level down and Alt+Shift+← one level up,

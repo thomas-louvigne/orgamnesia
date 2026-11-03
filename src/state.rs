@@ -15,6 +15,8 @@ pub enum Goto {
     Range(usize, usize),
     /// The place a link names in the page: `*Titre` (a headline), `cible` (a `<<cible>>`).
     Place(String),
+    /// Where it already is: only the keyboard goes to the editor.
+    Focus,
 }
 
 /// What the project search pop-in shows; kept while it is closed.

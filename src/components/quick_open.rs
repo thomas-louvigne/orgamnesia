@@ -1,8 +1,9 @@
 use leptos::{html, prelude::*};
+use wasm_bindgen::JsCast;
 
-use orgamnesia_core::names::fold;
+use orgamnesia_core::names::{fold, search_order};
 
-use crate::{actions, i18n::t, state::{AppCtx, FileEntry}};
+use crate::{actions, i18n::t, state::{AppCtx, FileEntry, Goto}};
 
 #[derive(Clone, Debug)]
 enum QuickItem {
@@ -26,11 +27,33 @@ impl QuickItem {
 fn do_open(ctx: AppCtx, item: QuickItem) {
     ctx.ui.show_quick_open.set(false);
     match item {
-        QuickItem::Tab { idx, .. } => ctx.work.active_tab.set(Some(idx)),
-        QuickItem::File(file) => actions::open_file(ctx, file, None),
+        QuickItem::Tab { idx, .. } => {
+            ctx.work.active_tab.set(Some(idx));
+            if let Some(path) = ctx.work.tabs.with_untracked(|tabs| tabs.get(idx).map(|t| t.path.clone())) {
+                ctx.work.goto.set(Some((path, Goto::Focus)));
+            }
+        }
+        QuickItem::File(file) => actions::open_file(ctx, file, Some(Goto::Focus)),
         QuickItem::Tag(tag) => ctx.show_tag(tag),
         QuickItem::Create { name } => actions::create_and_open_page(ctx, name),
     }
+}
+
+/// Scrolls the list just enough to show its line `i`.
+fn reveal(list: NodeRef<html::Div>, i: usize) {
+    let Some(list) = list.get_untracked() else { return };
+    let Ok(lines) = list.query_selector_all(".quick-open-item") else { return };
+    let Some(line) = lines.item(i as u32) else { return };
+    let line = line.unchecked_into::<web_sys::Element>().get_bounding_client_rect();
+    let view = list.get_bounding_client_rect();
+    let by = if line.top() < view.top() {
+        line.top() - view.top()
+    } else if line.bottom() > view.bottom() {
+        line.bottom() - view.bottom()
+    } else {
+        return;
+    };
+    list.set_scroll_top(list.scroll_top() + by.round() as i32);
 }
 
 #[component]
@@ -39,6 +62,7 @@ pub fn QuickOpenModal() -> impl IntoView {
     let query    = RwSignal::new(String::new());
     let selected = RwSignal::new(0usize);
     let input_ref = NodeRef::<html::Input>::new();
+    let list_ref = NodeRef::<html::Div>::new();
 
     Effect::new(move |_| {
         if let Some(el) = input_ref.get() { let _ = el.focus(); }
@@ -70,6 +94,9 @@ pub fn QuickOpenModal() -> impl IntoView {
                 }
             }
         });
+        if !q.is_empty() {
+            list.sort_by_cached_key(|item| search_order(&item.display_name(), &q));
+        }
 
         // The tags, when typing something and the tags frame is shown (`:pro` or `#pro` work too)
         let tag_q = q.trim_start_matches([':', '#']).trim_end_matches(':');
@@ -98,10 +125,12 @@ pub fn QuickOpenModal() -> impl IntoView {
             "ArrowDown" => {
                 e.prevent_default();
                 if len > 0 { selected.update(|s| *s = (*s + 1).min(len - 1)); }
+                reveal(list_ref, selected.get_untracked());
             }
             "ArrowUp" => {
                 e.prevent_default();
                 selected.update(|s| *s = s.saturating_sub(1));
+                reveal(list_ref, selected.get_untracked());
             }
             "Enter" => {
                 e.prevent_default();
@@ -131,7 +160,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                 />
                 {move || {
                     let list = items();
-                    let sel  = if list.is_empty() { 0 } else { selected.get().min(list.len() - 1) };
+                    let last = list.len().saturating_sub(1);
                     if list.is_empty() {
                         view! {
                             <div class="quick-open-empty">
@@ -140,9 +169,8 @@ pub fn QuickOpenModal() -> impl IntoView {
                         }.into_any()
                     } else {
                         view! {
-                            <div class="quick-open-list">
+                            <div class="quick-open-list" node_ref=list_ref>
                                 {list.into_iter().enumerate().map(|(i, item)| {
-                                    let is_sel = i == sel;
                                     let name   = item.display_name();
                                     let lang   = ctx.lang.get();
                                     let (icon, cls, hint): (&str, &str, Option<&str>) = match &item {
@@ -154,9 +182,12 @@ pub fn QuickOpenModal() -> impl IntoView {
                                     };
                                     view! {
                                         <div
-                                            class=if is_sel { "quick-open-item selected" } else { "quick-open-item" }
+                                            class=move || if selected.get().min(last) == i { "quick-open-item selected" } else { "quick-open-item" }
                                             on:click=move |_| do_open(ctx, item.clone())
-                                            on:mouseenter=move |_| selected.set(i)
+                                            // Only a mouse that moves: the list scrolling under a still one is not a choice
+                                            on:mousemove=move |e: web_sys::MouseEvent| {
+                                                if e.movement_x() != 0 || e.movement_y() != 0 { selected.set(i); }
+                                            }
                                         >
                                             <span class=format!("qo-icon {}", cls)>{icon}</span>
                                             <span class="qo-name">{name}</span>

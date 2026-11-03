@@ -50,9 +50,23 @@ pub fn page_key(s: &str, loose: bool) -> String {
     if loose { fold(s) } else { s.to_string() }
 }
 
+/// Sort key of the pages found for `query` (folded): those starting with it
+/// first, the shortest name first, then alphabetically.
+pub fn search_order(name: &str, query: &str) -> (bool, usize, String) {
+    let key = fold(name);
+    (!key.starts_with(query), name.chars().count(), key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn found_pages_sort_by_start_then_length_then_name() {
+        let mut names = ["Ma quête", "Quête très longue", "quêtes", "Quete", "Autre quête", "Quêtez"];
+        names.sort_by_key(|n| search_order(n, "quete"));
+        assert_eq!(names, ["Quete", "quêtes", "Quêtez", "Quête très longue", "Ma quête", "Autre quête"]);
+    }
 
     #[test]
     fn folds_case_and_accents() {

@@ -140,6 +140,13 @@ impl Pane {
         });
     }
 
+    /// Put the keyboard in the editor, the cursor staying where it is.
+    pub fn focus(self) {
+        after_tick(move || {
+            if let Some(el) = self.area.try_get_untracked().flatten() { let _ = el.focus(); }
+        });
+    }
+
     /// The textarea was edited: the page follows.
     pub fn commit(self, el: &Textarea) {
         let text = el.value();
