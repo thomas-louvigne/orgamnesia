@@ -4,6 +4,9 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.1.0
+- Fix: the build's tests pass on Windows.
+
 * 1.0.0
 - Markdown pages: .md files are pages alongside .org ones, with their headlines, folding, TODO keywords and checkboxes, tables, images, highlighting, YAML front matter (title and tags) and export. On the first run, the app asks the format of new pages and the shortcuts.
 - Links: [[Page|text]], [[Page#Headline]] and [text](Page.md), each turned on or off for org-mode and for Markdown pages.
