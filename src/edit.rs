@@ -231,9 +231,9 @@ pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -
 
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
 /// `#tag` or an org-mode `:tag:` (per `tags`); with the extended links, also
-/// `[[target|text]]`, `[[Page#Titre]]` and `[text](Page.md)`.
-pub fn linked_page_at(chars: &[char], pos: usize, tags: TagSyntax) -> Option<String> {
-    let syntax = tags.links();
+/// `[[target|text]]`, `[[Page#Titre]]` and `[text](Page.md)`, as read in a page of `format`.
+pub fn linked_page_at(chars: &[char], pos: usize, tags: TagSyntax, format: orgamnesia_core::Format) -> Option<String> {
+    let syntax = tags.links(format);
     let extended = (syntax != orgamnesia_core::links::LinkSyntax::NONE).then(|| {
         orgamnesia_core::links::scan(chars, syntax).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
     }).flatten();
@@ -534,25 +534,25 @@ mod tests {
     fn extended_links_under_the_cursor() {
         let t = c("[[Page|texte]] [[P#Titre]] [lien](Ma%20page.md)");
         let ext = TagSyntax { org_links: orgamnesia_core::links::LinkSyntax::ALL, ..Hashtags::Off.into() };
-        assert_eq!(linked_page_at(&t, 9, ext).as_deref(), Some("Page"));
-        assert_eq!(linked_page_at(&t, 17, ext).as_deref(), Some("P::*Titre"));
-        assert_eq!(linked_page_at(&t, 30, ext).as_deref(), Some("Ma page.md"));
-        assert_eq!(linked_page_at(&t, 9, Hashtags::Off.into()).as_deref(), Some("Page|texte"));
-        assert_eq!(linked_page_at(&t, 30, Hashtags::Off.into()), None);
+        assert_eq!(linked_page_at(&t, 9, ext, orgamnesia_core::Format::Org).as_deref(), Some("Page"));
+        assert_eq!(linked_page_at(&t, 17, ext, orgamnesia_core::Format::Org).as_deref(), Some("P::*Titre"));
+        assert_eq!(linked_page_at(&t, 30, ext, orgamnesia_core::Format::Org).as_deref(), Some("Ma page.md"));
+        assert_eq!(linked_page_at(&t, 9, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("Page|texte"));
+        assert_eq!(linked_page_at(&t, 30, Hashtags::Off.into(), orgamnesia_core::Format::Org), None);
     }
 
     #[test]
     fn links_under_the_cursor() {
         let t = c("voir [[Ma page]] et [[cible][texte]] #tag fin");
-        assert_eq!(linked_page_at(&t, 8, Hashtags::Dashes.into()).as_deref(), Some("Ma page"));
-        assert_eq!(linked_page_at(&t, 30, Hashtags::Dashes.into()).as_deref(), Some("cible"));
-        assert_eq!(linked_page_at(&t, 39, Hashtags::Dashes.into()).as_deref(), Some("tag"));
-        assert_eq!(linked_page_at(&t, 39, Hashtags::Off.into()), None);
-        assert_eq!(linked_page_at(&t, 1, Hashtags::Dashes.into()), None);
-        assert_eq!(linked_page_at(&c("* Titre :projet:"), 11, Hashtags::Off.into()).as_deref(), Some("projet"));
-        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into()).as_deref(), Some("exemple"));
+        assert_eq!(linked_page_at(&t, 8, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("Ma page"));
+        assert_eq!(linked_page_at(&t, 30, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("cible"));
+        assert_eq!(linked_page_at(&t, 39, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("tag"));
+        assert_eq!(linked_page_at(&t, 39, Hashtags::Off.into(), orgamnesia_core::Format::Org), None);
+        assert_eq!(linked_page_at(&t, 1, Hashtags::Dashes.into(), orgamnesia_core::Format::Org), None);
+        assert_eq!(linked_page_at(&c("* Titre :projet:"), 11, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("projet"));
+        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("exemple"));
         let off = TagSyntax { hashtags: Hashtags::Off, org: orgamnesia_core::OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
-        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off), None);
+        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off, orgamnesia_core::Format::Org), None);
     }
 
     #[test]

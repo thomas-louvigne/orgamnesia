@@ -8,7 +8,7 @@ use super::{
     dom::{after_tick, caret, get_pos, number_digits, reveal, set_cursor, set_selection, table_lines, text_columns, Textarea, CHAR_WIDTH, LINE_HEIGHT},
     images::{image_src, image_url, load_size, ImageSizes},
 };
-use crate::{images, invoke, state::{AppCtx, Tab}, tables};
+use crate::{images, state::{AppCtx, Tab}, tables};
 use orgamnesia_core::TodoKeywords;
 
 /// The signals of an editor pane, shared by its event handlers.
@@ -59,7 +59,7 @@ impl Pane {
             None => crate::actions::read_page(&file.path).await.ok()?,
         };
         let keywords = ctx.pref_untracked(|p| p.todo()).map(|d| TodoKeywords::for_page(&text, &d));
-        Some((text, keywords, orgamnesia_core::Format::of_path(&file.path).unwrap_or_default()))
+        Some((text, keywords, orgamnesia_core::Format::of_page(&file.path)))
     }
 
     pub fn new(ctx: AppCtx, tab: &Tab) -> Self {
@@ -89,12 +89,6 @@ impl Pane {
     /// The format of the page (org-mode for a file of neither).
     pub fn fmt(self) -> orgamnesia_core::Format {
         self.format.unwrap_or_default()
-    }
-
-    /// How the tags and links of this page are read (Markdown pages always have
-    /// the extended links).
-    pub fn tags_untracked(self) -> orgamnesia_core::TagSyntax {
-        self.ctx.tags_untracked().for_format(self.format)
     }
 
     /// Region to act on: mark..point when a mark is set (and enabled), else the native selection.
@@ -233,19 +227,8 @@ pub fn autosave(ctx: AppCtx, tab: Tab) {
         saving.set(true);
         let tab = tab.clone();
         spawn_local(async move {
-            loop {
-                let content = tab.content.get_untracked();
-                if let Err(e) = invoke::write_file(&tab.path, &content).await {
-                    ctx.error("save_error", &e);
-                    break;
-                }
-                ctx.bump_links();
-                if tab.content.get_untracked() == content {
-                    tab.dirty.set(false);
-                    break;
-                }
-            }
-            saving.set(false);
+            crate::actions::write_tab(ctx, &tab).await;
+            saving.try_set(false);
         });
     });
 }
@@ -280,10 +263,11 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
         let show_images = ctx.pref(|p| p.show_images);
         let show_videos = ctx.pref(|p| p.show_video_thumbnails);
         let _format = crate::motion::FormatGuard::set(pane.fmt());
+        let draw = crate::highlight::Draw::new(pane.fmt(), ctx.tags());
         tables::View::build(&content, pane.focus_pos.get(), columns, |raw| {
             let key = (raw.to_string(), w, digits);
             if let Some(n) = heights.with_value(|h| h.get(&key).copied()) { return n; }
-            let n = el.as_ref().and_then(|el| table_lines(el, raw, w, digits)).unwrap_or_else(|| raw.split('\n').count());
+            let n = el.as_ref().and_then(|el| table_lines(el, raw, w, digits, &draw)).unwrap_or_else(|| raw.split('\n').count());
             heights.update_value(|h| { h.insert(key, n); });
             n
         }, |image, attr, before| {

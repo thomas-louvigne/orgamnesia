@@ -94,7 +94,7 @@ impl ConfigState {
         if let Some(old) = self.applied.get(file).filter(|old| *old != text) {
             archive(dir, file, old)?;
         }
-        std::fs::write(target, text)?;
+        crate::write_atomic(target, text)?;
         self.applied.insert(file.clone(), text.to_string());
         self.problems.remove(file);
         Ok(())

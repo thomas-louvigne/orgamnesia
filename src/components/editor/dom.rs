@@ -92,13 +92,13 @@ pub fn number_digits(content: &str) -> usize {
 }
 
 /// Lines of text a table takes once drawn, the text being `width` px wide.
-pub fn table_lines(el: &Textarea, raw: &str, width: i32, digits: Option<usize>) -> Option<usize> {
+pub fn table_lines(el: &Textarea, raw: &str, width: i32, digits: Option<usize>, draw: &crate::highlight::Draw) -> Option<usize> {
     let doc = web_sys::window()?.document()?;
     let parent = el.parent_element()?;
     let probe = doc.create_element("div").ok()?;
     probe.set_class_name("hl-layer tbl-probe");
     probe.set_attribute("style", &format!("width: {width}px")).ok()?;
-    probe.set_inner_html(&format!("<div class='tbl-view'>{}</div>", tables::to_html(raw, text_columns(width, digits))));
+    probe.set_inner_html(&format!("<div class='tbl-view'>{}</div>", tables::to_html(raw, text_columns(width, digits), draw)));
     parent.append_child(&probe).ok()?;
     let height = probe.query_selector("table").ok()??.dyn_into::<web_sys::HtmlElement>().ok()?.offset_height();
     probe.remove();

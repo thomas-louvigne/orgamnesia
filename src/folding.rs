@@ -241,6 +241,16 @@ impl Swap {
         let Swap { a, mid, b } = self;
         if (a..=mid).contains(&p) { p + (b - mid) } else if p > mid && p <= b { p - (mid + 1 - a) } else { p }
     }
+
+    /// The folds `folds` (ranges of the page) once the swap is done: those
+    /// inside go with their text, sorted.
+    pub fn moved_folds(self, folds: &[(usize, usize)]) -> Vec<(usize, usize)> {
+        let mut out: Vec<_> = folds.iter()
+            .map(|&(a, b)| if a >= self.a && b <= self.b { (self.pos(a), self.pos(b)) } else { (a, b) })
+            .collect();
+        out.sort();
+        out
+    }
 }
 
 /// The subtree of the headline starting at `ls` and the one of its sibling above
@@ -399,6 +409,8 @@ mod tests {
         let down = move_subtree(&t, Format::Org, 0, false).unwrap();
         assert_eq!(down, up);
         assert_eq!(down.pos(0), 10);
+        // The folds of the two subtrees go with them; the one after stays
+        assert_eq!(up.moved_folds(&[(3, 15), (19, 25), (27, 30)]), vec![(3, 9), (13, 25), (27, 30)]);
         // The last one, no line break after it
         let t = c("* A\n** A1\n* B");
         assert_eq!(move_subtree(&t, Format::Org, 0, false).unwrap().text(&t), "* B\n* A\n** A1");

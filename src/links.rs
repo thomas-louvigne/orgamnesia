@@ -17,6 +17,15 @@ pub fn link_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
     Some((start, chars[start..caret].iter().collect()))
 }
 
+/// The place being typed in a link: `Page::*Ti` → (`Page`, `*Ti`, where `*Ti`
+/// starts); `*Ti` → (``, `*Ti`, 0), a headline of this page.
+pub fn place_prefix(prefix: &str) -> Option<(String, String, usize)> {
+    match prefix.split_once(orgamnesia_core::links::SEPARATOR) {
+        Some((page, place)) => Some((page.trim().to_string(), place.to_string(), page.chars().count() + 2)),
+        None => prefix.starts_with('*').then(|| (String::new(), prefix.to_string(), 0)),
+    }
+}
+
 /// Page names completing `prefix` (ignoring case and accents): names starting with it first
 /// (shortest first), then names containing it; the exact name is left out. With
 /// `tag: Some(_)`, only names usable as such a `#tag` are kept.
@@ -70,6 +79,14 @@ pub fn find_link(chars: &[char], target: &str, ignore_case: bool, tags: TagSynta
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn place_being_typed() {
+        assert_eq!(place_prefix("Page::*Ti"), Some(("Page".into(), "*Ti".into(), 6)));
+        assert_eq!(place_prefix(" Idée ::cib"), Some(("Idée".into(), "cib".into(), 8)));
+        assert_eq!(place_prefix("*Ti"), Some((String::new(), "*Ti".into(), 0)));
+        assert_eq!(place_prefix("Page"), None);
+    }
     use orgamnesia_core::OrgTags;
 
     fn c(s: &str) -> Vec<char> { s.chars().collect() }

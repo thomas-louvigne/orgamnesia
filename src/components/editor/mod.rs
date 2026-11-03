@@ -174,7 +174,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
         let pos = pane.page_pos(&el, el.selection_start().ok().flatten().unwrap_or(0) as usize);
         let chars: Vec<char> = content.get_untracked().chars().collect();
-        if let Some(name) = edit::linked_page_at(&chars, pos, pane.tags_untracked()) {
+        if let Some(name) = edit::linked_page_at(&chars, pos, pane.ctx.tags_untracked(), pane.fmt()) {
             e.prevent_default();
             follow_link(ctx, name);
         }
@@ -213,7 +213,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
 
     let highlighted = move || view.with(|v| match config {
         true => highlight::render_json(&v.text, ctx.pref(|p| p.show_line_numbers)),
-        false => highlight::render_view(v, ctx.tags().for_format(pane.format), pane.todo_keywords.get(), ctx.pref(|p| p.show_line_numbers), broken.check(), pane.fmt()),
+        false => highlight::render_view(v, ctx.tags(), pane.todo_keywords.get(), ctx.pref(|p| p.show_line_numbers), broken.check(), pane.fmt()),
     });
     // What is wrong (or the first thing odd) in a configuration file, marked where it is
     let problem_html = move || {

@@ -4,13 +4,8 @@
 use crate::{html::escape, images, links};
 use orgamnesia_core::{links as place, names::fold, Format, TodoKeywords};
 
-/// The `#+TITLE:` of the page.
-fn page_title(text: &str) -> Option<String> {
-    text.lines().find_map(|l| {
-        let l = l.trim();
-        l.get(..8).filter(|k| k.eq_ignore_ascii_case("#+title:")).map(|_| l[8..].trim().to_string())
-    }).filter(|t| !t.is_empty())
-}
+mod markdown;
+pub(crate) use markdown::is_rule_line;
 
 /// The HTML of the page `text` called `name`. `image` gives the URL an image
 /// link target is shown from.
@@ -28,7 +23,7 @@ pub fn page_html(
     // with a headline holding it (as a new page does)
     let first_headline = lines.iter().find(|l| !l.trim().is_empty() && (md || !l.trim_start().starts_with('#')))
         .and_then(|l| place::headline_title(l, keywords, format));
-    let written = if md { orgamnesia_core::frontmatter::title(text) } else { page_title(text) };
+    let written = format.title(text);
     let title = match written {
         Some(t) => Some(t),
         None if first_headline.is_some_and(|h| fold(&h) == fold(name)) => None,
@@ -69,42 +64,12 @@ impl Doc<'_> {
         while i < lines.len() {
             let line = lines[i];
             let t = line.trim();
-            if t.is_empty() || is_structure(line, self.md()) { self.paragraph(&mut out, &mut para); }
+            if t.is_empty() || is_structure(line, self.format) { self.paragraph(&mut out, &mut para); }
             if t.is_empty() { i += 1; continue; }
-            if self.md() {
-                // A fenced code block
-                if t.starts_with("```") || t.starts_with("~~~") {
-                    let fence = &t[..3];
-                    let end = lines[i + 1..].iter().position(|l| l.trim().starts_with(fence)).unwrap_or(lines.len() - i - 1);
-                    out.push_str(&format!("<pre>{}</pre>", escape(&lines[i + 1..i + 1 + end].join("\n"))));
-                    i += end + 2;
-                    continue;
-                }
-                // A quote: its lines without their `>`
-                if t.starts_with('>') {
-                    let n = lines[i..].iter().take_while(|l| l.trim_start().starts_with('>')).count();
-                    let inner: Vec<&str> = lines[i..i + n].iter()
-                        .map(|l| { let l = l.trim_start().trim_start_matches('>'); l.strip_prefix(' ').unwrap_or(l) })
-                        .collect();
-                    out.push_str(&format!("<blockquote>{}</blockquote>", self.body(&inner)));
-                    i += n;
-                    continue;
-                }
-                if let Some(level) = headline_level(line, true) {
-                    out.push_str(&self.headline(line, level));
-                    i += 1;
-                    continue;
-                }
-                if is_rule_line(t) {
-                    out.push_str("<hr>");
-                    i += 1;
-                    continue;
-                }
-                if let Some(target) = markdown_image_line(t) {
-                    out.push_str(&self.image(&target, None));
-                    i += 1;
-                    continue;
-                }
+            if self.md() && let Some((html, n)) = self.markdown_block(lines, i) {
+                out.push_str(&html);
+                i += n;
+                continue;
             }
             // A block: `#+BEGIN_SRC` … `#+END_SRC`
             if let Some(kind) = block_kind(t)
@@ -150,8 +115,8 @@ impl Doc<'_> {
                 i += 1;
                 continue;
             }
-            if list_item(line, self.md()).is_some() {
-                let n = list_lines(&lines[i..], self.md());
+            if list_item(line, self.format).is_some() {
+                let n = list_lines(&lines[i..], self.format);
                 out.push_str(&self.list(&lines[i..i + n]));
                 i += n;
                 continue;
@@ -184,7 +149,7 @@ impl Doc<'_> {
         let mut rest = chars[level..].iter().collect::<String>().trim().to_string();
         let mut html = String::new();
         let format = self.format;
-        if let Some(k) = self.keywords.and_then(|k| k.keyword_in(&chars, format)) {
+        if let Some(k) = self.keywords.and_then(|k| k.keyword(&chars, format)) {
             let word: String = chars[k.start..k.end].iter().collect();
             html.push_str(&format!("<span class='{}'>{}</span> ", if k.done { "done" } else { "todo" }, escape(&word)));
             rest = chars[k.end..].iter().collect::<String>().trim().to_string();
@@ -237,7 +202,7 @@ impl Doc<'_> {
         // The items, with the lines continuing them
         let mut items: Vec<(usize, bool, String)> = Vec::new();
         for line in lines {
-            match list_item(line, self.md()) {
+            match list_item(line, self.format) {
                 Some((indent, ordered, text)) => items.push((indent, ordered, text.to_string())),
                 None => if let Some(last) = items.last_mut() {
                     last.2.push(' ');
@@ -302,7 +267,7 @@ impl Doc<'_> {
         while i < chars.len() {
             let c = chars[i];
             // Markdown: an image in the text, `![texte](cible)`
-            if self.md() && c == '!' && chars.get(i + 1) == Some(&'[') && let Some(f) = md_link_any(&chars, i + 1) {
+            if self.md() && c == '!' && chars.get(i + 1) == Some(&'[') && let Some(f) = place::markdown_target(&chars, i + 1) {
                 out.push_str(&self.img(&f.0, None));
                 i = f.1;
                 continue;
@@ -312,18 +277,10 @@ impl Doc<'_> {
                 i = end;
                 continue;
             }
-            if self.md() {
-                if c == '`' && let Some(end) = (i + 1..chars.len()).find(|&j| chars[j] == '`') {
-                    out.push_str(&format!("<code>{}</code>", escape(&chars[i + 1..end].iter().collect::<String>())));
-                    i = end + 1;
-                    continue;
-                }
-                if let Some((tag, n, end)) = markdown_emphasis(&chars, i) {
-                    let inner: String = chars[i + n..end].iter().collect();
-                    out.push_str(&format!("<{tag}>{}</{tag}>", self.inline(&inner)));
-                    i = end + n;
-                    continue;
-                }
+            if self.md() && let Some((html, end)) = self.markdown_inline(&chars, i) {
+                out.push_str(&html);
+                i = end;
+                continue;
             }
             // `<<cible>>` is not shown, `<<<radio>>>` shows its text
             if c == '<' && chars.get(i + 1) == Some(&'<') && let Some(end) = (i + 2..chars.len()).find(|&j| chars[j] == '>' && chars.get(j + 1) == Some(&'>')) {
@@ -393,69 +350,14 @@ impl Doc<'_> {
     }
 }
 
-/// A line that ends a paragraph: a headline, block, keyword, table, list item, rule…
-/// (`md`: of a Markdown page).
-fn is_structure(line: &str, md: bool) -> bool {
+/// A line that ends a paragraph in a page of `format`: a headline, block,
+/// keyword, table, list item, rule…
+fn is_structure(line: &str, format: Format) -> bool {
+    if format == Format::Markdown { return markdown::is_structure(line); }
     let t = line.trim();
-    if md {
-        return headline_level(line, true).is_some() || t.starts_with('|') || t.starts_with('>') || t.starts_with("```")
-            || t.starts_with("~~~") || list_item(line, true).is_some() || markdown_image_line(t).is_some() || is_rule_line(t);
-    }
-    headline_level(line, false).is_some() || t.starts_with("#+") || t.starts_with('|') || t.starts_with(": ")
-        || t == ":" || list_item(line, false).is_some() || image_line(t).is_some() || is_drawer(t)
+    format.heading_level_of(line).is_some() || t.starts_with("#+") || t.starts_with('|') || t.starts_with(": ")
+        || t == ":" || list_item(line, format).is_some() || image_line(t).is_some() || is_drawer(t)
         || (t.len() >= 5 && t.chars().all(|c| c == '-'))
-}
-
-/// Marks of a headline (`** Titre`, `## Titre` in Markdown).
-fn headline_level(line: &str, md: bool) -> Option<usize> {
-    if md { Format::Markdown.heading_level_of(line) } else { Format::Org.heading_level_of(line) }
-}
-
-/// A Markdown rule: `---`, `***`, `___` (spaces between allowed).
-fn is_rule_line(t: &str) -> bool {
-    let marks: String = t.chars().filter(|c| !c.is_whitespace()).collect();
-    marks.len() >= 3 && ["-", "*", "_"].iter().any(|m| marks.chars().all(|c| c.to_string() == *m))
-}
-
-/// A line holding only a Markdown image: its target.
-fn markdown_image_line(t: &str) -> Option<String> {
-    let chars: Vec<char> = t.chars().collect();
-    if !t.starts_with("![") { return None; }
-    let (target, end) = md_link_any(&chars, 1)?;
-    (end == chars.len() && (images::is_image(&target) || target.contains("://"))).then_some(target)
-}
-
-/// The Markdown link `[texte](cible)` at `start`, whatever it leads to: its
-/// target (`%20` decoded, without a title) and where it ends.
-fn md_link_any(chars: &[char], start: usize) -> Option<(String, usize)> {
-    if chars.get(start) != Some(&'[') { return None; }
-    let close = (start + 1..chars.len()).find(|&j| chars[j] == ']')?;
-    if chars.get(close + 1) != Some(&'(') { return None; }
-    let paren = (close + 2..chars.len()).find(|&j| chars[j] == ')')?;
-    let dest: String = chars[close + 2..paren].iter().collect();
-    let dest = dest.trim();
-    let dest = dest.split_once(" \"").map_or(dest, |(d, _)| d).trim();
-    let dest = dest.strip_prefix('<').and_then(|d| d.strip_suffix('>')).unwrap_or(dest);
-    let target = if dest.contains("://") { dest.to_string() } else { place::percent_decode(dest) };
-    Some((target, paren + 1))
-}
-
-/// Markdown emphasis opening at `start`: the HTML tag, the length of its marks
-/// and where its text ends (`**gras**`, `__gras__`, `*it*`, `_it_`, `~~barré~~`).
-fn markdown_emphasis(chars: &[char], start: usize) -> Option<(&'static str, usize, usize)> {
-    for (marks, tag) in [("**", "b"), ("__", "b"), ("~~", "s"), ("*", "i"), ("_", "i")] {
-        let m: Vec<char> = marks.chars().collect();
-        let n = m.len();
-        if chars.get(start..start + n) != Some(&m[..]) { continue; }
-        if chars.get(start + n).is_none_or(|c| c.is_whitespace()) { continue; }
-        if m[0] == '_' && start > 0 && chars[start - 1].is_alphanumeric() { continue; }
-        let end = (start + n + 1..=chars.len().saturating_sub(n)).find(|&j| {
-            chars[j..j + n] == m[..] && !chars[j - 1].is_whitespace() && chars.get(j + n) != Some(&m[0])
-                && !(m[0] == '_' && chars.get(j + n).is_some_and(|c| c.is_alphanumeric()))
-        });
-        if let Some(end) = end { return Some((tag, n, end)); }
-    }
-    None
 }
 
 /// `#+BEGIN_SRC python` → `src`.
@@ -482,7 +384,8 @@ fn attr_width(t: &str) -> Option<String> {
 
 /// A list item (`- a`, `+ a`, ` * a`, `1. a`, `1) a`): its indent, whether it is
 /// numbered, and its text.
-fn list_item(line: &str, md: bool) -> Option<(usize, bool, &str)> {
+fn list_item(line: &str, format: Format) -> Option<(usize, bool, &str)> {
+    let md = format == Format::Markdown;
     let indent = line.len() - line.trim_start().len();
     let t = line.trim_start();
     for bullet in ["- ", "+ ", "* "] {
@@ -498,16 +401,16 @@ fn list_item(line: &str, md: bool) -> Option<(usize, bool, &str)> {
 
 /// How many of `lines` the list starting at the first takes: its items, the
 /// lines indented under them, and the blank lines between.
-fn list_lines(lines: &[&str], md: bool) -> usize {
+fn list_lines(lines: &[&str], format: Format) -> usize {
     let mut n = 0;
     for (i, line) in lines.iter().enumerate() {
         if line.trim().is_empty() {
             let next = lines[i + 1..].iter().find(|l| !l.trim().is_empty());
-            if !next.is_some_and(|l| list_item(l, md).is_some() || l.starts_with([' ', '\t'])) { break; }
+            if !next.is_some_and(|l| list_item(l, format).is_some() || l.starts_with([' ', '\t'])) { break; }
             continue;
         }
-        let indented = line.starts_with([' ', '\t']) && headline_level(line, md).is_none();
-        if list_item(line, md).is_none() && !indented { break; }
+        let indented = line.starts_with([' ', '\t']) && format.heading_level_of(line).is_none();
+        if list_item(line, format).is_none() && !indented { break; }
         n = i + 1;
     }
     n

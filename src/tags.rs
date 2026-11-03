@@ -59,48 +59,6 @@ pub fn org_tag_prefix(chars: &[char], caret: usize, org: OrgTags) -> Option<(usi
     (chars[b] == ':' && chars[b - 1].is_whitespace()).then_some((start, prefix))
 }
 
-/// `content` of the page `path` with the page tag `tag` added: in its
-/// `#+FILETAGS:` (org-mode) or the `tags:` of its front matter (Markdown).
-/// `None` when the page already has it.
-pub fn add_page_tag(content: &str, tag: &str, path: &str) -> Option<String> {
-    match orgamnesia_core::Format::of_path(path) {
-        Some(orgamnesia_core::Format::Markdown) => orgamnesia_core::frontmatter::add_tag(content, tag),
-        _ => add_filetag(content, tag),
-    }
-}
-
-/// `content` with the file tag `tag` added to its `#+FILETAGS:` line, which is
-/// created after the leading `#+` keywords (the top of the page) when missing.
-/// `None` when the page already has that file tag.
-pub fn add_filetag(content: &str, tag: &str) -> Option<String> {
-    let mut lines: Vec<String> = content.split('\n').map(String::from).collect();
-    let found = lines.iter().position(|l| filetags_value_start(&l.chars().collect::<Vec<_>>()).is_some());
-    match found {
-        Some(i) => {
-            let chars: Vec<char> = lines[i].chars().collect();
-            let v = filetags_value_start(&chars)?;
-            let head: String = chars[..v].iter().collect();
-            let value: String = chars[v..].iter().collect();
-            if value.split(':').any(|t| t.trim().eq_ignore_ascii_case(tag)) {
-                return None;
-            }
-            let value = value.trim_end();
-            lines[i] = if value.trim().is_empty() {
-                format!("{head} :{tag}:")
-            } else if value.ends_with(':') {
-                format!("{head}{value}{tag}:")
-            } else {
-                format!("{head}{value} :{tag}:")
-            };
-        }
-        None => {
-            let at = lines.iter().take_while(|l| l.trim_start().starts_with("#+")).count();
-            lines.insert(at, format!("#+FILETAGS: :{tag}:"));
-        }
-    }
-    Some(lines.join("\n"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,17 +66,6 @@ mod tests {
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
 
     const ORG: OrgTags = OrgTags { links: true, dashes: false };
-
-    #[test]
-    fn filetag_added() {
-        assert_eq!(add_filetag("* Page\n", "pro").as_deref(), Some("#+FILETAGS: :pro:\n* Page\n"));
-        assert_eq!(add_filetag("", "pro").as_deref(), Some("#+FILETAGS: :pro:\n"));
-        assert_eq!(add_filetag("#+title: P\n* P", "pro").as_deref(), Some("#+title: P\n#+FILETAGS: :pro:\n* P"));
-        assert_eq!(add_filetag("#+FILETAGS: :a:\nx", "b").as_deref(), Some("#+FILETAGS: :a:b:\nx"));
-        assert_eq!(add_filetag("#+filetags:\nx", "b").as_deref(), Some("#+filetags: :b:\nx"));
-        assert_eq!(add_filetag("#+filetags: :a:  \nx", "b").as_deref(), Some("#+filetags: :a:b:\nx"));
-        assert_eq!(add_filetag("x\n#+filetags: :A:\n", "a"), None);
-    }
 
     #[test]
     fn hashtag_prefix_while_typing() {

@@ -95,6 +95,9 @@ pub struct ProjectState {
     /// Every project opened, most recent first.
     pub projects: RwSignal<Vec<String>>,
     pub files: RwSignal<Vec<FileEntry>>,
+    /// Finds the page a link names, among `files`, per the settings (ignoring
+    /// case, default format); built again when they change.
+    pub resolver: Memo<orgamnesia_core::pages::Resolver<'static>>,
     /// Org-mode tags of the project (refreshed when pages change).
     pub tags: RwSignal<Vec<TagCount>>,
     /// Tag search shown in the tags panel (`projet+urgent-perso`).
@@ -205,6 +208,7 @@ pub struct AppCtx {
 impl AppCtx {
     pub fn new() -> Self {
         let prefs = RwSignal::new(Prefs::default());
+        let files = RwSignal::new(vec![]);
         Self {
             prefs,
             lang: Memo::new(move |_| prefs.with(|p| Lang::from_code(&p.lang))),
@@ -213,7 +217,11 @@ impl AppCtx {
             project: ProjectState {
                 vault_path: RwSignal::new(None),
                 projects: RwSignal::new(vec![]),
-                files: RwSignal::new(vec![]),
+                files,
+                resolver: Memo::new(move |_| {
+                    let (loose, default) = prefs.with(|p| (p.case_insensitive_links, p.default_format));
+                    orgamnesia_core::pages::Resolver::new(files.get(), loose, default)
+                }),
                 tags: RwSignal::new(vec![]),
                 tag_query: RwSignal::new(String::new()),
                 git: RwSignal::new(None),
@@ -297,25 +305,20 @@ impl AppCtx {
     /// that file, `Note` the page of that name (of the default format when there
     /// are two, see `orgamnesia_core::pages`).
     pub fn find_page(&self, name: &str) -> Option<FileEntry> {
-        let (loose, default) = self.pref_untracked(|p| (p.case_insensitive_links, p.default_format));
-        self.project.files.with_untracked(|fs| orgamnesia_core::pages::Resolver::new(fs, loose, default).resolve(name).cloned())
+        self.project.resolver.with_untracked(|r| r.resolve(name).cloned())
     }
 
     /// The names links give the pages, to complete them: their name, with its
     /// extension for the one its name alone doesn't lead to (`Note.md` next to `Note.org`).
     pub fn link_names(&self) -> Vec<String> {
-        let (loose, default) = self.pref_untracked(|p| (p.case_insensitive_links, p.default_format));
-        self.project.files.with_untracked(|fs| {
-            let r = orgamnesia_core::pages::Resolver::new(fs, loose, default);
-            fs.iter().map(|f| r.link_name(f)).collect()
-        })
+        let r = self.project.resolver;
+        self.project.files.with_untracked(|fs| r.with_untracked(|r| fs.iter().map(|f| r.link_name(f)).collect()))
     }
 
     /// Warn when the page `file` has a twin, a page of the same name in the other
     /// format: `[[Name]]` leads to only one of them.
     pub fn warn_twin(&self, file: &FileEntry) {
-        let (loose, default) = self.pref_untracked(|p| (p.case_insensitive_links, p.default_format));
-        let twin = self.project.files.with_untracked(|fs| orgamnesia_core::pages::Resolver::new(fs, loose, default).has_twin(file));
+        let twin = self.project.resolver.with_untracked(|r| r.has_twin(file));
         if twin { self.notify_t("twin_warning", &file.name); }
     }
 

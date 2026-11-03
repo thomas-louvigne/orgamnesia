@@ -69,7 +69,7 @@ impl Project {
                 .collect();
             if ranges.is_empty() { continue; }
             let after = search::replace_ranges(&chars, &ranges, with);
-            if let Err(e) = std::fs::write(&path, &after) { result = Err(e.into()); break; }
+            if let Err(e) = crate::write_atomic(&path, &after) { result = Err(e.into()); break; }
             self.store(&path, after.clone(), tags);
             self.remember(&path);
             outcome.pages += 1;
@@ -95,7 +95,7 @@ impl Project {
                 outcome.skipped += 1;
                 continue;
             }
-            std::fs::write(&page.path, &page.before)?;
+            crate::write_atomic(&page.path, &page.before)?;
             self.store(&page.path, page.before, tags);
             self.remember(&page.path);
             outcome.pages += 1;

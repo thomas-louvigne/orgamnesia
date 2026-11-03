@@ -31,6 +31,9 @@ pub struct Project {
     snapshot: files::Snapshot,
     /// The pages of the last project replacement, for its undo.
     last_replace: Vec<search::Replaced>,
+    /// The pages by the names links give them, with whether names ignore case,
+    /// kept until a page comes or goes (see `resolver`).
+    resolver: std::cell::RefCell<Option<(bool, Resolver<'static>)>>,
 }
 
 impl Project {
@@ -46,6 +49,7 @@ impl Project {
             formats,
             snapshot: files::Snapshot::new(),
             last_replace: Vec::new(),
+            resolver: Default::default(),
         };
         let files = files::list_pages(path, formats)?;
         for f in &files {
@@ -60,6 +64,17 @@ impl Project {
     /// next `refresh`, those of a format read again come back.
     pub fn set_formats(&mut self, formats: Formats) {
         self.formats = formats;
+        self.resolver.take();
+    }
+
+    /// Finds the page a link names (names ignoring case with `ignore_case`); built
+    /// again only when the pages or this setting change.
+    fn resolver(&self, ignore_case: bool) -> std::cell::Ref<'_, Resolver<'static>> {
+        if self.resolver.borrow().as_ref().is_none_or(|(ic, _)| *ic != ignore_case) {
+            let r = Resolver::new(self.files(), ignore_case, self.formats.default);
+            *self.resolver.borrow_mut() = Some((ignore_case, r));
+        }
+        std::cell::Ref::map(self.resolver.borrow(), |r| &r.as_ref().expect("just built").1)
     }
 
     /// The pages, sorted by name.
@@ -90,7 +105,7 @@ impl Project {
 
     pub fn write(&mut self, path: &str, content: String, tags: TagSyntax) -> Result<(), AppError> {
         self.check_page(path)?;
-        std::fs::write(path, &content)?;
+        crate::write_atomic(path, &content)?;
         self.store(path, content, tags);
         self.remember(path);
         Ok(())
@@ -109,7 +124,7 @@ impl Project {
             return Err(AppError::PageExists(name));
         }
         let content = format.title_line(&name);
-        std::fs::write(&path, &content)?;
+        crate::write_atomic(&path, &content)?;
         let path = crate::slash(&path);
         self.store(&path, content, tags);
         self.remember(&path);
@@ -239,7 +254,7 @@ impl Project {
     pub fn rename(&mut self, old_path: &str, new_name: &str, prefs: &Prefs) -> Result<FileEntry, AppError> {
         self.check_page(old_path)?;
         let new_name = valid_name(new_name)?;
-        let ext = Format::of_path(old_path).unwrap_or_default().ext();
+        let ext = Format::of_page(old_path).ext();
         let new_path = self.pages_dir.join(format!("{new_name}.{ext}"));
         let old_name = files::page_name(old_path);
         if new_path.exists() && new_name != old_name {
@@ -265,9 +280,9 @@ impl Project {
             for path in paths {
                 let Ok(text) = std::fs::read_to_string(&path) else { continue };
                 let rename = links::Rename { leads_here: &leads_here, old: &old_name, by_name, new: &new_name };
-                let updated = links::rewrite_links(&text, &rename, prefs.case_insensitive_links, tags.for_page(&path));
+                let updated = links::rewrite_links(&text, &rename, prefs.case_insensitive_links, tags, Format::of_page(&path));
                 if let Some(updated) = updated {
-                    std::fs::write(&path, &updated)?;
+                    crate::write_atomic(&path, &updated)?;
                     self.store(&path, updated, tags);
                     self.remember(&path);
                 }
@@ -300,7 +315,7 @@ impl Project {
     pub fn reindex(&mut self, tags: TagSyntax) {
         self.links = BacklinkIndex::new();
         for (path, content) in &self.pages {
-            self.links.index_file(path, &links::extract_links(content, tags.for_page(path)));
+            self.links.index_file(path, &links::extract_links(content, tags, Format::of_page(path)));
         }
     }
 
@@ -317,8 +332,7 @@ impl Project {
 
     /// Pages linking to the page `path`, by the names links give them.
     pub fn backlinks(&self, path: &str, ignore_case: bool) -> Vec<String> {
-        let files = self.files();
-        let resolver = Resolver::new(&files, ignore_case, self.formats.default);
+        let resolver = self.resolver(ignore_case);
         let sources = self.links.sources_where(|target| resolver.resolve(target).is_some_and(|f| f.path == path));
         self.link_names(&resolver, sources)
     }
@@ -326,8 +340,7 @@ impl Project {
     /// Links to pages that don't exist, most used first.
     pub fn broken_links(&self, ignore_case: bool) -> Vec<BrokenLink> {
         let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
-        let files = self.files();
-        let resolver = Resolver::new(&files, ignore_case, self.formats.default);
+        let resolver = self.resolver(ignore_case);
 
         // Group targets that only differ by case or accents when they are ignored
         let mut grouped: Vec<(String, BrokenLink)> = Vec::new();
@@ -359,8 +372,7 @@ impl Project {
     pub fn tags(&self, org: OrgTags) -> Vec<TagCount> {
         let mut counts = HashMap::<String, usize>::new();
         for (path, content) in &self.pages {
-            let markdown = Format::of_path(path) == Some(Format::Markdown);
-            for t in tags::written_tags(content, org, markdown) { *counts.entry(t).or_default() += 1; }
+            for t in tags::written_tags(content, org, Format::of_page(path)) { *counts.entry(t).or_default() += 1; }
         }
         let mut list: Vec<TagCount> = counts.into_iter().map(|(name, count)| TagCount { name, count }).collect();
         list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then_with(|| a.name.cmp(&b.name)));
@@ -372,8 +384,7 @@ impl Project {
         let Some(query) = tags::Query::parse(query, org) else { return vec![] };
         self.files().into_iter().flat_map(|f| {
             let content = self.pages.get(&f.path).map(String::as_str).unwrap_or("");
-            let markdown = Format::of_path(&f.path) == Some(Format::Markdown);
-            tags::search(content, &query, org, markdown).into_iter().map(move |h| TagHit {
+            tags::search(content, &query, org, Format::of_page(&f.path)).into_iter().map(move |h| TagHit {
                 page: f.name.clone(),
                 path: f.path.clone(),
                 heading: h.heading,
@@ -389,8 +400,8 @@ impl Project {
     pub fn todos(&self, keywords: &TodoKeywords) -> Vec<TodoHit> {
         self.files().into_iter().flat_map(|f| {
             let content = self.pages.get(&f.path).map(String::as_str).unwrap_or("");
-            let format = Format::of_path(&f.path).unwrap_or_default();
-            orgamnesia_core::todo::headlines_in(content, keywords, format).into_iter().map(move |h| TodoHit {
+            let format = Format::of_page(&f.path);
+            orgamnesia_core::todo::headlines(content, keywords, format).into_iter().map(move |h| TodoHit {
                 page: f.name.clone(),
                 path: f.path.clone(),
                 keyword: h.keyword,
@@ -403,13 +414,13 @@ impl Project {
     }
 
     fn store(&mut self, path: &str, content: String, tags: TagSyntax) {
-        self.links.index_file(path, &links::extract_links(&content, tags.for_page(path)));
-        self.pages.insert(path.to_string(), content);
+        self.links.index_file(path, &links::extract_links(&content, tags, Format::of_page(path)));
+        if self.pages.insert(path.to_string(), content).is_none() { self.resolver.take(); }
     }
 
     fn forget(&mut self, path: &str) {
         self.links.remove_source(path);
-        self.pages.remove(path);
+        if self.pages.remove(path).is_some() { self.resolver.take(); }
         self.snapshot.remove(path);
     }
 

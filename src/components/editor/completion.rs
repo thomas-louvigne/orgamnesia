@@ -8,7 +8,7 @@ use super::{
     pane::Pane,
 };
 use crate::{links, tags};
-use orgamnesia_core::links::{headlines, SEPARATOR};
+use orgamnesia_core::links::headlines;
 use wasm_bindgen_futures::spawn_local;
 
 const MAX_SUGGESTIONS: usize = 8;
@@ -49,15 +49,6 @@ impl Kind {
             Kind::OrgTag => ":",
             Kind::Place => "::",
         }
-    }
-}
-
-/// The place being typed in a link: `Page::*Ti` → (`Page`, `*Ti`, where `*Ti`
-/// starts); `*Ti` → (``, `*Ti`, 0), a headline of this page.
-fn place_prefix(prefix: &str) -> Option<(String, String, usize)> {
-    match prefix.split_once(SEPARATOR) {
-        Some((page, place)) => Some((page.trim().to_string(), place.to_string(), page.chars().count() + 2)),
-        None => prefix.starts_with('*').then(|| (String::new(), prefix.to_string(), 0)),
     }
 }
 
@@ -112,7 +103,7 @@ impl Completion {
                     .map(|(hash, p)| (hash + 1, p, Kind::Hashtag)))
         };
         let Some((start, prefix, kind)) = found else { self.close(); return };
-        if kind == Kind::Link && let Some((page, typed, at)) = place_prefix(&prefix) {
+        if kind == Kind::Link && let Some((page, typed, at)) = links::place_prefix(&prefix) {
             self.complete_place(el, start + at, caret, page, typed);
             return;
         }

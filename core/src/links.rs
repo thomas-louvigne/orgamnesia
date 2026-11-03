@@ -20,8 +20,11 @@ pub fn split(target: &str) -> (&str, Option<&str>) {
 }
 
 /// Which of the links not of org-mode are read: `[[Page|texte]]` (`pipe`),
-/// `[[Page#Titre]]` (`hash`), `[texte](Page.md)` (`markdown`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// `[[Page#Titre]]` (`hash`), `[texte](Page.md)` (`markdown`). In
+/// `settings.json`: `{"pipe": true, "hash": false, "markdown": true}`, a key
+/// left out being off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct LinkSyntax {
     pub pipe: bool,
     pub hash: bool,
@@ -156,6 +159,34 @@ fn markdown_link(chars: &[char], at: usize) -> Option<Found> {
     found(target, Some((page_start, page_start + file.chars().count())))
 }
 
+/// The Markdown link `[texte](cible)` starting at `at`, read as loosely as
+/// the export and images take it (a `"title"` after the target, `<cible>`):
+/// its target, `%20` decoded unless it is an address, and where it ends.
+pub fn markdown_target(chars: &[char], at: usize) -> Option<(String, usize)> {
+    if chars.get(at) != Some(&'[') { return None; }
+    let close = (at + 1..chars.len()).find(|&j| chars[j] == ']')?;
+    if chars.get(close + 1) != Some(&'(') { return None; }
+    let paren = (close + 2..chars.len()).find(|&j| chars[j] == ')')?;
+    let dest: String = chars[close + 2..paren].iter().collect();
+    let dest = dest.trim();
+    let dest = dest.split_once(" \"").map_or(dest, |(d, _)| d).trim();
+    let dest = dest.strip_prefix('<').and_then(|d| d.strip_suffix('>')).unwrap_or(dest);
+    let target = if dest.contains("://") { dest.to_string() } else { percent_decode(dest) };
+    Some((target, paren + 1))
+}
+
+/// The link to `target` written in `format`, showing `text` (none when empty):
+/// `[[target][text]]`, or `[text](target)` with the target `%`-encoded.
+/// `image`: a Markdown image, `![text](target)` (org-mode shows a link with
+/// no description to an image as the image).
+pub fn write(format: crate::Format, target: &str, text: &str, image: bool) -> String {
+    match format {
+        crate::Format::Org if text.is_empty() => format!("[[{target}]]"),
+        crate::Format::Org => format!("[[{target}][{text}]]"),
+        crate::Format::Markdown => format!("{}[{text}]({})", if image { "!" } else { "" }, percent_encode(target)),
+    }
+}
+
 /// `%20` and the like decoded.
 pub fn percent_decode(s: &str) -> String {
     let bytes = s.as_bytes();
@@ -266,7 +297,7 @@ pub fn is_page_target(target: &str) -> bool {
 pub fn headline_title(line: &str, keywords: Option<&TodoKeywords>, format: Format) -> Option<String> {
     let chars: Vec<char> = line.chars().collect();
     let stars = format.heading_level(&chars)?;
-    let start = keywords.and_then(|k| k.keyword_in(&chars, format)).map_or(stars, |k| k.end);
+    let start = keywords.and_then(|k| k.keyword(&chars, format)).map_or(stars, |k| k.end);
     let mut words: Vec<String> = chars[start..].iter().collect::<String>()
         .split_whitespace().map(String::from).collect();
     if format == Format::Markdown && words.last().is_some_and(|w| w.chars().all(|c| c == '#')) { words.pop(); }
@@ -412,6 +443,10 @@ mod tests {
             pair("Deux mots.md", Some("Deux mots.md")), pair("https://x.y", None), pair("./assets/a.pdf", None),
         ]);
         assert_eq!(percent_encode("a b(1)"), "a%20b%281%29");
+        assert_eq!(write(crate::Format::Org, "../assets/a b.png", "", true), "[[../assets/a b.png]]");
+        assert_eq!(write(crate::Format::Org, "f.pdf", "f", false), "[[f.pdf][f]]");
+        assert_eq!(write(crate::Format::Markdown, "../assets/a b.png", "", true), "![](../assets/a%20b.png)");
+        assert_eq!(write(crate::Format::Markdown, "f.pdf", "f", false), "[f](f.pdf)");
         assert_eq!(percent_decode("%C3%A9t%C3%A9%2"), "été%2");
     }
 

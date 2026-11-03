@@ -34,6 +34,12 @@ impl Format {
         Self::from_ext(ext)
     }
 
+    /// The format of the page `path`: from its extension, org-mode when it has
+    /// none of a page.
+    pub fn of_page(path: &str) -> Self {
+        Self::of_path(path).unwrap_or_default()
+    }
+
     /// As the settings write it: `org` or `markdown`.
     pub fn id(self) -> &'static str {
         match self {
@@ -68,6 +74,41 @@ impl Format {
         let mark = self.heading_mark();
         let n = line.chars().take_while(|&c| c == mark).count();
         (n > 0 && matches!(line.chars().nth(n), Some(' ' | '\n') | None)).then_some(n)
+    }
+
+    /// The title written in the page `text`: its `#+TITLE:` (org-mode), or the
+    /// `title:` of its front matter (Markdown).
+    pub fn title(self, text: &str) -> Option<String> {
+        match self {
+            Format::Org => crate::org::title(text),
+            Format::Markdown => crate::frontmatter::title(text),
+        }
+    }
+
+    /// `text` with its title set to `title` (see `title`).
+    pub fn set_title(self, text: &str, title: &str) -> String {
+        match self {
+            Format::Org => crate::org::set_title(text, title),
+            Format::Markdown => crate::frontmatter::set_title(text, title),
+        }
+    }
+
+    /// `text` with the page tag `tag` added: in its `#+FILETAGS:` (org-mode) or
+    /// the `tags:` of its front matter (Markdown). `None` when the page has it.
+    pub fn add_page_tag(self, text: &str, tag: &str) -> Option<String> {
+        match self {
+            Format::Org => crate::org::add_filetag(text, tag),
+            Format::Markdown => crate::frontmatter::add_tag(text, tag),
+        }
+    }
+
+    /// The page tags of its front matter (Markdown); none in org-mode, whose
+    /// `#+FILETAGS:` are read with the lines of the page.
+    pub fn front_tags(self, text: &str) -> Vec<String> {
+        match self {
+            Format::Org => Vec::new(),
+            Format::Markdown => crate::frontmatter::tags(text),
+        }
     }
 
     /// The first line of a new page called `name`: its title as a headline.

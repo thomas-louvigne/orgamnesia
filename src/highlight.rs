@@ -3,48 +3,45 @@
 //! marking spelling mistakes, find matches and problems of the configuration files.
 
 use crate::html::{escape, push_escaped};
-use orgamnesia_core::{links::{Found, Kind}, Format, Hashtags, OrgTags, TagSyntax, TodoKeywords};
+use orgamnesia_core::{links::{Found, Kind}, Format, TagSyntax, TodoKeywords};
 
 mod json;
+mod markdown;
 pub use json::render_json;
-
-fn markdown() -> bool {
-    crate::motion::format() == Format::Markdown
-}
-
-thread_local! {
-    /// How `#tags` and `:tags:` are drawn as links (set by `render_view`, read while
-    /// highlighting a line).
-    static TAGS: std::cell::Cell<TagSyntax> = const { std::cell::Cell::new(TagSyntax {
-        hashtags: Hashtags::Off,
-        org: OrgTags { links: true, dashes: true },
-        org_links: orgamnesia_core::links::LinkSyntax::NONE,
-        md_links: orgamnesia_core::links::LinkSyntax::ALL,
-        markdown: false,
-    }) };
-}
-
-fn tags() -> TagSyntax {
-    TAGS.with(|t| t.get())
-}
+use markdown::{markdown_code_lines, markdown_line};
 
 /// Whether a link target leads nowhere.
 pub type Broken = Box<dyn Fn(&str) -> bool>;
 
-thread_local! {
-    /// Whether a link target leads nowhere, when such links are marked (set by `render_view`).
-    static BROKEN: std::cell::RefCell<Option<Broken>> = const { std::cell::RefCell::new(None) };
+/// What drawing a page depends on, handed down to every part of the drawing.
+pub struct Draw {
+    pub format: Format,
+    /// How `#tags`, `:tags:` and links are read, for that format.
+    pub tags: TagSyntax,
+    /// The TODO keywords drawn on headlines (`None` when they are off).
+    pub todo: Option<TodoKeywords>,
+    /// Whether a link target leads nowhere, when such links are marked.
+    pub broken: Option<Broken>,
 }
 
-/// Class of a `[[link]]` to `target`.
-fn link_class(target: &str) -> &'static str {
-    let broken = BROKEN.with(|b| b.borrow().as_ref().is_some_and(|f| f(target)));
-    if broken { "link broken" } else { "link" }
-}
+impl Draw {
+    pub fn new(format: Format, tags: TagSyntax) -> Self {
+        Self { format, tags, todo: None, broken: None }
+    }
 
-thread_local! {
-    /// The TODO keywords of the page, `None` when they are off (set by `render_view`).
-    static TODO: std::cell::RefCell<Option<TodoKeywords>> = const { std::cell::RefCell::new(None) };
+    /// The links not of org-mode read in the page.
+    fn links(&self) -> orgamnesia_core::links::LinkSyntax {
+        self.tags.links(self.format)
+    }
+
+    fn markdown(&self) -> bool {
+        self.format == Format::Markdown
+    }
+
+    /// Class of a `[[link]]` to `target`.
+    fn link_class(&self, target: &str) -> &'static str {
+        if self.broken.as_ref().is_some_and(|f| f(target)) { "link broken" } else { "link" }
+    }
 }
 
 /// Plain-text copy of the document with the char range `start..end` wrapped in
@@ -69,20 +66,15 @@ pub fn render_view(
     view: &crate::tables::View, tags: TagSyntax, todo: Option<TodoKeywords>, numbers: bool,
     broken: Option<Broken>, format: Format,
 ) -> String {
-    let _format = crate::motion::FormatGuard::set(format);
-    TAGS.with(|t| t.set(tags.for_format(Some(format))));
-    TODO.with(|t| *t.borrow_mut() = todo);
-    BROKEN.with(|b| *b.borrow_mut() = broken);
-    let out = render_lines(view, numbers);
-    BROKEN.with(|b| *b.borrow_mut() = None);
-    out
+    let d = Draw { todo, broken, ..Draw::new(format, tags) };
+    render_lines(view, numbers, &d)
 }
 
-fn render_lines(view: &crate::tables::View, numbers: bool) -> String {
+fn render_lines(view: &crate::tables::View, numbers: bool, d: &Draw) -> String {
     let mut out = String::with_capacity(view.text.len() * 2);
     let lines: Vec<&str> = view.text.split('\n').collect();
     let heads = header_lines(&lines);
-    let code = if markdown() { markdown_code_lines(&lines, &view.text) } else { Default::default() };
+    let code = if d.markdown() { markdown_code_lines(&lines, &view.text) } else { Default::default() };
     // Number of the next line of the page
     let mut page_line = 1;
     // Where the HTML of the line just drawn starts, to mark it if a link of it is broken
@@ -134,7 +126,7 @@ fn render_lines(view: &crate::tables::View, numbers: bool) -> String {
             .and_then(|t| t.image.as_ref().map(|i| (t.start, i)));
         if let Some((at, img)) = image {
             let before = &line[..line.len() - line.chars().last().map_or(0, char::len_utf8)];
-            if !before.is_empty() { out.push_str(&highlight_line(before)); }
+            if !before.is_empty() { out.push_str(&highlight_line(before, d)); }
             // A video's thumbnail: a play button over it, and the video to open
             let (class, video, play) = match &img.video {
                 // Logseq's `{{video url}}`: a red cross at the bottom left, to replace it
@@ -157,11 +149,11 @@ fn render_lines(view: &crate::tables::View, numbers: bool) -> String {
             Some(t) if chars.next().is_none() && t < view.tables.len() => {
                 out.push_str(&crate::tables::INDENT.to_string().repeat(indent));
                 out.push_str(&format!("<span class='tbl-view' style='width: calc(100% - {indent}ch)'>"));
-                out.push_str(&crate::tables::to_html(&view.tables[t].raw, view.width.saturating_sub(indent)));
+                out.push_str(&crate::tables::to_html(&view.tables[t].raw, view.width.saturating_sub(indent), d));
                 out.push_str("</span>");
             }
             _ if fill => {}
-            _ => out.push_str(&highlight_line(line)),
+            _ => out.push_str(&highlight_line(line, d)),
         }
         // The fold character, invisible, followed by `…`
         if fold.is_some() {
@@ -171,34 +163,6 @@ fn render_lines(view: &crate::tables::View, numbers: bool) -> String {
         out.push('\n');
     }
     mark_broken(&mut out, drawn);
-    out
-}
-
-/// The lines of a Markdown page drawn as they are, with their class: those of
-/// its fenced code blocks (```` ``` ```` or `~~~` to the same), and of its front
-/// matter (`---` on the first line, to the next `---`).
-fn markdown_code_lines(lines: &[&str], text: &str) -> std::collections::HashMap<usize, &'static str> {
-    let mut out = std::collections::HashMap::new();
-    let mut n = orgamnesia_core::frontmatter::lines(text).map_or(0, |(_, end)| end);
-    out.extend((0..n).map(|i| (i, "kw")));
-    let mut fence: Option<&str> = None;
-    while n < lines.len() {
-        let t = lines[n].trim_start();
-        match fence {
-            None if t.starts_with("```") || t.starts_with("~~~") => {
-                fence = Some(&t[..3]);
-                out.insert(n, "md-code");
-            }
-            Some(f) => {
-                out.insert(n, "md-code");
-                if t.trim_end() == f || (t.starts_with(f) && t[3..].trim_start_matches(f.chars().next().unwrap_or('`')).trim().is_empty()) {
-                    fence = None;
-                }
-            }
-            None => {}
-        }
-        n += 1;
-    }
     out
 }
 
@@ -256,17 +220,17 @@ pub fn render_matches(content: &str, matches: &[(usize, usize)], current: Option
     }))
 }
 
-fn highlight_line(line: &str) -> String {
+fn highlight_line(line: &str, d: &Draw) -> String {
     let chars: Vec<char> = line.chars().collect();
     let text = |a: usize, b: usize| chars[a..b].iter().collect::<String>();
 
     // Headline: count leading '*' (`#` in Markdown)
-    let format = crate::motion::format();
+    let format = d.format;
     let mark = format.heading_mark();
     if let Some(stars) = format.heading_level(&chars) {
         let level = stars.min(6);
         // `TODO`, `DONE`…: drawn on their own, the title after them
-        let keyword = TODO.with(|t| t.borrow().as_ref().and_then(|k| k.keyword_in(&chars, format)));
+        let keyword = d.todo.as_ref().and_then(|k| k.keyword(&chars, format));
         let (keyword_html, title_start) = match keyword {
             Some(k) => (
                 format!("<span class='{}'>{}</span>", if k.done { "done" } else { "todo" }, escape(&text(k.start, k.end))),
@@ -274,9 +238,9 @@ fn highlight_line(line: &str) -> String {
             ),
             None => (String::new(), (stars + 1).min(chars.len())),
         };
-        let (title, tags_html) = match orgamnesia_core::hashtags::headline_tags_range(&chars, tags().org) {
+        let (title, tags_html) = match orgamnesia_core::hashtags::headline_tags_range(&chars, d.tags.org) {
             Some((a, b)) if a >= title_start => (text(title_start, a), format!(
-                "<span class='tags'>{}</span>{}", tag_links(&text(a, b)), escape(&text(b, chars.len())))),
+                "<span class='tags'>{}</span>{}", tag_links(&text(a, b), d), escape(&text(b, chars.len())))),
             _ => (text(title_start, chars.len()), String::new()),
         };
         return format!(
@@ -289,24 +253,24 @@ fn highlight_line(line: &str) -> String {
             if stars > 1 { format!("<span class='h-lead'>{}</span>", mark.to_string().repeat(stars - 1)) } else { String::new() },
             mark,
             if stars < chars.len() { " " } else { "" },
-            inline_html(&title),
+            inline_html(&title, d),
             tags_html,
         );
     }
 
-    if format == Format::Markdown { return markdown_line(line); }
+    if format == Format::Markdown { return markdown_line(line, d); }
 
     // `#+FILETAGS: :a:b:`
     if let Some(v) = orgamnesia_core::hashtags::filetags_value_start(&chars) {
         return format!("<span class='kw'>{}</span><span class='tags'>{}</span>",
-            escape(&text(0, v)), tag_links(&text(v, chars.len())));
+            escape(&text(0, v)), tag_links(&text(v, chars.len()), d));
     }
 
     // `#+TITLE: …`, drawn like `#+FILETAGS:`: the keyword dimmed, the value as text
     let indent = chars.iter().take_while(|c| c.is_whitespace()).count();
     if text(indent, chars.len()).get(..8).is_some_and(|k| k.eq_ignore_ascii_case("#+title:")) {
         return format!("<span class='kw'>{}</span>{}",
-            escape(&text(0, indent + 8)), inline_html(&text(indent + 8, chars.len())));
+            escape(&text(0, indent + 8)), inline_html(&text(indent + 8, chars.len()), d));
     }
 
     // Table line
@@ -315,36 +279,13 @@ fn highlight_line(line: &str) -> String {
     }
 
     // Regular paragraph line
-    inline_html(line)
-}
-
-/// A line of a Markdown page that is no headline: a quote (`> `), a rule
-/// (`---`), a table line, or a paragraph line.
-fn markdown_line(line: &str) -> String {
-    let t = line.trim();
-    if t.len() >= 3 && ['-', '*', '_'].into_iter().any(|c| t.chars().all(|x| x == c || x == ' ')) {
-        return format!("<span class='kw'>{}</span>", escape(line));
-    }
-    if line.trim_start().starts_with('>') {
-        return format!("<span class='md-quote'>{}</span>", inline_html(line));
-    }
-    if line.trim_start().starts_with('|') {
-        return format!("<span class='tbl'>{}</span>", escape(line));
-    }
-    // A checkbox, drawn as a TODO keyword: `[ ]` to do, `[x]` done
-    let chars: Vec<char> = line.chars().collect();
-    if let Some((at, done)) = orgamnesia_core::todo::checkbox(&chars) {
-        let part = |a: usize, b: usize| chars[a..b].iter().collect::<String>();
-        return format!("{}<span class='{}'>{}</span>{}", escape(&part(0, at - 1)), if done { "done" } else { "todo" },
-            escape(&part(at - 1, at + 2)), inline_html(&part(at + 2, chars.len())));
-    }
-    inline_html(line)
+    inline_html(line, d)
 }
 
 /// Org-mode tags (`:a:b:`) drawn as links to their pages (when they are links);
 /// separators left as they are.
-fn tag_links(s: &str) -> String {
-    let org = tags().org;
+fn tag_links(s: &str, d: &Draw) -> String {
+    let org = d.tags.org;
     let mut out = String::new();
     let mut word = String::new();
     let flush = |word: &mut String, out: &mut String| {
@@ -365,41 +306,27 @@ fn tag_links(s: &str) -> String {
 
 /// Convert inline org-mode markup to highlighted HTML.
 /// Inline markup of a piece of text (links, emphasis…), as in a paragraph.
-pub fn inline(s: &str) -> String {
-    inline_html(s)
+pub fn inline(s: &str, d: &Draw) -> String {
+    inline_html(s, d)
 }
 
-fn inline_html(s: &str) -> String {
+fn inline_html(s: &str, d: &Draw) -> String {
     let chars: Vec<char> = s.chars().collect();
     let mut out = String::new();
     let mut i = 0;
 
-    let md = markdown();
+    let md = d.markdown();
     while i < chars.len() {
         // Wiki link [[...]] (and the extended ones: `[[a|b]]`, `[texte](Page.md)`)
-        if chars[i] == '[' && let Some((html, len)) = try_link(&chars, i) {
+        if chars[i] == '[' && let Some((html, len)) = try_link(&chars, i, d) {
             out.push_str(&html);
             i += len;
             continue;
         }
         // Markdown: `code`, **bold**, __bold__, *italic*, _italic_, ~~struck~~
         if md {
-            if chars[i] == '`' && let Some(len) = closing(&chars, i, &['`'], true) {
-                let inner: String = chars[i..i + len].iter().collect();
-                out.push_str(&format!("<span class='md-code'>{}</span>", escape(&inner)));
-                i += len;
-                continue;
-            }
-            const DELIMS: [(&[char], &str); 5] =
-                [(&['*', '*'], "em-b"), (&['_', '_'], "em-b"), (&['~', '~'], "em-s"), (&['*'], "em-i"), (&['_'], "em-i")];
-            let found = matches!(chars[i], '*' | '_' | '~').then(|| DELIMS.into_iter()
-                .filter(|(d, _)| chars[i..].starts_with(d))
-                .find_map(|(d, class)| closing(&chars, i, d, false).map(|len| (d, class, len)))).flatten();
-            if let Some((d, class, len)) = found {
-                let n = d.len();
-                let inner: String = chars[i + n..i + len - n].iter().collect();
-                let d: String = d.iter().collect();
-                out.push_str(&format!("<span class='{class}'>{d}{}{d}</span>", inline_html(&inner)));
+            if let Some((html, len)) = markdown::inline_markup(&chars, i, d) {
+                out.push_str(&html);
                 i += len;
                 continue;
             }
@@ -409,7 +336,7 @@ fn inline_html(s: &str) -> String {
         }
         // #hashtag
         if chars[i] == '#'
-            && let Some((tag, end)) = orgamnesia_core::hashtags::hashtag_at(&chars, i, tags().hashtags)
+            && let Some((tag, end)) = orgamnesia_core::hashtags::hashtag_at(&chars, i, d.tags.hashtags)
         {
             out.push_str(&format!(
                 "<span class='link'>#<span class='link-t'>{}</span></span>", escape(&tag)));
@@ -417,34 +344,34 @@ fn inline_html(s: &str) -> String {
             continue;
         }
         // :tag: in the text
-        if chars[i] == ':' && tags().org.links
-            && let Some((_, end)) = orgamnesia_core::hashtags::text_tags_at(&chars, i, tags().org)
+        if chars[i] == ':' && d.tags.org.links
+            && let Some((_, end)) = orgamnesia_core::hashtags::text_tags_at(&chars, i, d.tags.org)
         {
             let s: String = chars[i..end].iter().collect();
-            out.push_str(&format!("<span class='tags'>{}</span>", tag_links(&s)));
+            out.push_str(&format!("<span class='tags'>{}</span>", tag_links(&s, d)));
             i = end;
             continue;
         }
         // Bold *...*
-        if chars[i] == '*' && let Some((html, len)) = try_em(&chars, i, '*', "em-b") {
+        if chars[i] == '*' && let Some((html, len)) = try_em(&chars, i, '*', "em-b", d) {
             out.push_str(&html);
             i += len;
             continue;
         }
         // Italic /.../
-        if chars[i] == '/' && let Some((html, len)) = try_em(&chars, i, '/', "em-i") {
+        if chars[i] == '/' && let Some((html, len)) = try_em(&chars, i, '/', "em-i", d) {
             out.push_str(&html);
             i += len;
             continue;
         }
         // Strikethrough +...+ (not inside a word: `1+2+3`)
-        if chars[i] == '+' && (i == 0 || !chars[i - 1].is_alphanumeric()) && let Some((html, len)) = try_em(&chars, i, '+', "em-s") {
+        if chars[i] == '+' && (i == 0 || !chars[i - 1].is_alphanumeric()) && let Some((html, len)) = try_em(&chars, i, '+', "em-s", d) {
             out.push_str(&html);
             i += len;
             continue;
         }
         // Underline _..._
-        if chars[i] == '_' && let Some((html, len)) = try_em(&chars, i, '_', "em-u") {
+        if chars[i] == '_' && let Some((html, len)) = try_em(&chars, i, '_', "em-u", d) {
             out.push_str(&html);
             i += len;
             continue;
@@ -456,54 +383,27 @@ fn inline_html(s: &str) -> String {
     out
 }
 
-/// The Markdown markup `delim` opening at `start` (not followed by a space, not
-/// inside a word for `_`): the length up to its closing `delim` (not after a
-/// space) included. `verbatim`: nothing inside is markup.
-fn closing(chars: &[char], start: usize, d: &[char], verbatim: bool) -> Option<usize> {
-    let n = d.len();
-    let open = start + n;
-    if open >= chars.len() || chars[open].is_whitespace() { return None; }
-    if d[0] == '_' && start > 0 && chars[start - 1].is_alphanumeric() { return None; }
-    let mut i = open;
-    while i + n <= chars.len() {
-        if !verbatim && chars[i] == '[' && let Some(len) = link_len(chars, i) {
-            i += len;
-            continue;
-        }
-        if chars[i..i + n] == d[..] && i > open && (verbatim || !chars[i - 1].is_whitespace())
-            // `**` does not close `*`
-            && (verbatim || chars.get(i + n) != Some(&d[0]))
-        {
-            let after = chars.get(i + n);
-            if d[0] == '_' && after.is_some_and(|c| c.is_alphanumeric()) { i += 1; continue; }
-            return Some(i + n - start);
-        }
-        i += 1;
-    }
-    None
+/// The length of the link starting at `start`, if one does (to skip it).
+fn link_len(chars: &[char], start: usize, d: &Draw) -> Option<usize> {
+    orgamnesia_core::links::link_starting(chars, start, d.links()).map(|f| f.end - start)
 }
 
 /// The link starting at `start` drawn: its target (`link-t`) and text
 /// (`link-d`); the target it leads to in `data-t` when it is not the one written
 /// (`[[Page|texte]]`, `[texte](Ma%20page.md)`).
-/// The length of the link starting at `start`, if one does (to skip it).
-fn link_len(chars: &[char], start: usize) -> Option<usize> {
-    orgamnesia_core::links::link_starting(chars, start, tags().links()).map(|f| f.end - start)
+fn try_link(chars: &[char], start: usize, d: &Draw) -> Option<(String, usize)> {
+    let f = orgamnesia_core::links::link_starting(chars, start, d.links())?;
+    Some((link_html(chars, &f, d), f.end - start))
 }
 
-fn try_link(chars: &[char], start: usize) -> Option<(String, usize)> {
-    let f = orgamnesia_core::links::link_starting(chars, start, tags().links())?;
-    Some((link_html(chars, &f), f.end - start))
-}
-
-fn link_html(chars: &[char], f: &Found) -> String {
+fn link_html(chars: &[char], f: &Found, d: &Draw) -> String {
     let text = |a: usize, b: usize| escape(&chars[a..b].iter().collect::<String>());
     let (written, html) = match f.kind {
         Kind::Org => {
             let inner_end = f.end - 2;
             let split = (f.start + 2..inner_end).find(|&j| chars[j] == ']' && chars[j + 1] == '[')
                 .map(|j| (j, 2))
-                .or_else(|| tags().links().pipe.then(|| (f.start + 2..inner_end).find(|&j| chars[j] == '|').map(|j| (j, 1))).flatten());
+                .or_else(|| d.links().pipe.then(|| (f.start + 2..inner_end).find(|&j| chars[j] == '|').map(|j| (j, 1))).flatten());
             match split {
                 Some((j, n)) => (chars[f.start + 2..j].iter().collect::<String>(), format!(
                     "[[<span class='link-t'>{}</span>{}<span class='link-d'>{}</span>]]",
@@ -519,17 +419,17 @@ fn link_html(chars: &[char], f: &Found) -> String {
         }
     };
     let data = if written.trim() == f.target { String::new() } else { format!(" data-t='{}'", escape(&f.target)) };
-    format!("<span class='{}'{data}>{html}</span>", link_class(&f.target))
+    format!("<span class='{}'{data}>{html}</span>", d.link_class(&f.target))
 }
 
-fn try_em(chars: &[char], start: usize, delim: char, class: &str) -> Option<(String, usize)> {
+fn try_em(chars: &[char], start: usize, delim: char, class: &str, d: &Draw) -> Option<(String, usize)> {
     if start + 2 >= chars.len() { return None; }
     let next = chars[start + 1];
     if next.is_whitespace() || next == delim { return None; }
     let mut i = start + 1;
     while i < chars.len() {
         // A link inside is drawn as a link: its target may hold the delimiter (`/[[a/b]]/`)
-        if chars[i] == '[' && let Some(len) = link_len(chars, i) {
+        if chars[i] == '[' && let Some(len) = link_len(chars, i, d) {
             i += len;
             continue;
         }
@@ -537,7 +437,7 @@ fn try_em(chars: &[char], start: usize, delim: char, class: &str) -> Option<(Str
             let inner: String = chars[start + 1..i].iter().collect();
             let html = format!(
                 "<span class='{class}'>{delim}{}{delim}</span>",
-                inline_html(&inner)
+                inline_html(&inner, d)
             );
             return Some((html, i + 1 - start));
         }
@@ -558,6 +458,12 @@ pub fn render_problem(content: &str, start: usize, end: usize, error: bool) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use orgamnesia_core::{Hashtags, OrgTags};
+
+    /// How the tests draw: org-mode, `:tags:` as links.
+    fn dr() -> Draw {
+        Draw::new(Format::Org, TagSyntax { org: OrgTags { links: true, dashes: true }, ..Hashtags::Off.into() })
+    }
 
     fn md(text: &str) -> String {
         let v = crate::tables::View { text: text.to_string(), ..Default::default() };
@@ -605,14 +511,14 @@ mod tests {
 
     #[test]
     fn headline_h1() {
-        let html = highlight_line("* Hello");
+        let html = highlight_line("* Hello", &dr());
         assert!(html.contains("h1"));
         assert!(html.contains("Hello"));
     }
 
     #[test]
     fn headline_h2_with_tag() {
-        let html = highlight_line("** Work :project:");
+        let html = highlight_line("** Work :project:", &dr());
         assert!(html.contains("h2"));
         assert!(html.contains("tags"));
         assert!(html.contains("<span class='tag-t'>project</span>"));
@@ -630,51 +536,51 @@ mod tests {
             out
         };
         for l in ["** Work :project:", "* T  :a:b:  ", "*", "* Idée :été:", "#+FILETAGS: :x:"] {
-            assert_eq!(strip(highlight_line(l)), l);
+            assert_eq!(strip(highlight_line(l, &dr())), l);
         }
     }
 
     #[test]
     fn filetags_rendered() {
-        let html = highlight_line("#+FILETAGS: :a:b:");
+        let html = highlight_line("#+FILETAGS: :a:b:", &dr());
         assert!(html.contains("<span class='tags'> :<span class='tag-t'>a</span>:<span class='tag-t'>b</span>:</span>"));
     }
 
     #[test]
     fn table_line_wrapped() {
-        let html = highlight_line("| A | B |");
+        let html = highlight_line("| A | B |", &dr());
         assert!(html.contains("tbl"));
     }
 
     #[test]
     fn bold_rendered() {
-        let html = inline_html("say *hello* now");
+        let html = inline_html("say *hello* now", &dr());
         assert!(html.contains("em-b"));
         assert!(html.contains("*hello*"));
     }
 
     #[test]
     fn italic_rendered() {
-        let html = inline_html("/world/");
+        let html = inline_html("/world/", &dr());
         assert!(html.contains("em-i"));
     }
 
     #[test]
     fn underline_rendered() {
-        let html = inline_html("_under_");
+        let html = inline_html("_under_", &dr());
         assert!(html.contains("em-u"));
     }
 
     #[test]
     fn link_simple_rendered() {
-        let html = inline_html("See [[My Page]] now");
+        let html = inline_html("See [[My Page]] now", &dr());
         assert!(html.contains("link-t"));
         assert!(html.contains("My Page"));
     }
 
     #[test]
     fn link_with_display_rendered() {
-        let html = inline_html("[[Target][label]]");
+        let html = inline_html("[[Target][label]]", &dr());
         assert!(html.contains("link-t"));
         assert!(html.contains("link-d"));
         assert!(html.contains("label"));
@@ -683,16 +589,16 @@ mod tests {
     #[test]
     fn link_inside_emphasis_rendered() {
         for s in ["*[[test]]*", "/[[test]]/", "_voir [[a/b][c]]_", "/[[a/b]]/"] {
-            let html = inline_html(s);
+            let html = inline_html(s, &dr());
             assert!(html.contains("<span class='link'>[[<span class='link-t'>"), "{s}: {html}");
         }
-        assert!(inline_html("/[[a/b]]/").starts_with("<span class='em-i'>/"));
-        assert!(inline_html("*gras /et italique/*").contains("<span class='em-i'>/et italique/</span>*</span>"));
+        assert!(inline_html("/[[a/b]]/", &dr()).starts_with("<span class='em-i'>/"));
+        assert!(inline_html("*gras /et italique/*", &dr()).contains("<span class='em-i'>/et italique/</span>*</span>"));
     }
 
     #[test]
     fn html_entities_escaped() {
-        let html = inline_html("3 < 4 & 5 > 2");
+        let html = inline_html("3 < 4 & 5 > 2", &dr());
         assert!(html.contains("&lt;"));
         assert!(html.contains("&amp;"));
         assert!(html.contains("&gt;"));
@@ -700,7 +606,7 @@ mod tests {
 
     #[test]
     fn no_bold_with_space_after_star() {
-        let html = inline_html("* not bold");
+        let html = inline_html("* not bold", &dr());
         assert!(!html.contains("em-b"));
     }
 
@@ -727,8 +633,8 @@ mod tests {
 
     #[test]
     fn title_keyword_dimmed_like_filetags() {
-        assert_eq!(highlight_line("#+TITLE: Ma page"), "<span class='kw'>#+TITLE:</span> Ma page");
-        assert!(highlight_line("#+FILETAGS: :a:").starts_with("<span class='kw'>#+FILETAGS:</span>"));
+        assert_eq!(highlight_line("#+TITLE: Ma page", &dr()), "<span class='kw'>#+TITLE:</span> Ma page");
+        assert!(highlight_line("#+FILETAGS: :a:", &dr()).starts_with("<span class='kw'>#+FILETAGS:</span>"));
     }
 
     #[test]

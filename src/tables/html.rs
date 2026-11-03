@@ -28,7 +28,7 @@ fn column_shares(lengths: &[usize], width: usize) -> Option<Vec<f64>> {
 
 /// A table's text as an HTML table, for text `width` characters wide.
 /// Rows above the first `|---|` line are headers.
-pub fn to_html(raw: &str, width: usize) -> String {
+pub fn to_html(raw: &str, width: usize, d: &highlight::Draw) -> String {
     let lines: Vec<&str> = raw.split('\n').collect();
     let is_rule = |l: &str| super::is_rule(l);
     let header_rows = lines.iter().position(|l| is_rule(l)).unwrap_or(0);
@@ -77,7 +77,7 @@ pub fn to_html(raw: &str, width: usize) -> String {
         for (i, &num) in numeric.iter().enumerate() {
             let cell = cells.get(i).map(String::as_str).unwrap_or("");
             let class = if num { " class='num'" } else { "" };
-            out.push_str(&format!("<{cell_tag}{class}>{}</{cell_tag}>", highlight::inline(cell)));
+            out.push_str(&format!("<{cell_tag}{class}>{}</{cell_tag}>", highlight::inline(cell, d)));
         }
         out.push_str("</tr>");
     }
@@ -89,22 +89,26 @@ pub fn to_html(raw: &str, width: usize) -> String {
 mod tests {
     use super::*;
 
+    fn org() -> highlight::Draw {
+        highlight::Draw::new(orgamnesia_core::Format::Org, orgamnesia_core::Hashtags::Off.into())
+    }
+
     #[test]
     fn html_has_headers_and_empty_rows() {
-        let html = to_html("| a | b |\n|---+---|\n| c |  |\n|  |  |", 80);
+        let html = to_html("| a | b |\n|---+---|\n| c |  |\n|  |  |", 80, &org());
         assert!(html.contains("<th>a</th><th>b</th>"));
         assert!(html.contains("<tr class='rule'><td>c</td><td></td>"));
         assert!(html.contains("<tr class='empty'>"));
         // Columns of numbers to the right, their header too
-        let html = to_html("| Livre | Pages |\n|---+---|\n| A | 560 |\n| B | 92 |", 80);
+        let html = to_html("| Livre | Pages |\n|---+---|\n| A | 560 |\n| B | 92 |", 80, &org());
         assert!(html.contains("<th>Livre</th><th class='num'>Pages</th>") && html.contains("<td class='num'>560</td>"));
     }
 
     #[test]
     fn header_rows_are_the_ones_above_the_first_rule() {
-        let html = to_html("| a | b |\n|---+---|", 80);
+        let html = to_html("| a | b |\n|---+---|", 80, &org());
         assert!(html.contains("<th>a</th>"));
-        assert!(!to_html("|---|\n| a |", 80).contains("<th>"));
+        assert!(!to_html("|---|\n| a |", 80, &org()).contains("<th>"));
     }
 
     #[test]
@@ -119,7 +123,7 @@ mod tests {
         // Three columns: at least 80 % of a third each
         let s = column_shares(&[3, 10, 900], 100).unwrap();
         assert!(s[0] >= 26.6 && s[1] >= 26.6 && (s.iter().sum::<f64>() - 100.0).abs() < 0.2, "{s:?}");
-        let html = to_html("| a | b |", 3);
+        let html = to_html("| a | b |", 3, &org());
         assert!(html.contains("<col style='width: 50%'>"));
     }
 }

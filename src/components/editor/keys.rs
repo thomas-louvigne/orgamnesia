@@ -263,11 +263,7 @@ fn todo_cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: Edi
     let ls = ls + chars[ls..le].iter().take_while(|&&c| c == tables::INDENT).count();
     let le = if le > ls && tables::fold_index(chars[le - 1]).is_some() { le - 1 } else { le };
     let forward = action == EditorAction::TodoNext;
-    // Markdown: a checkbox (`- [ ] tâche`) is ticked or unticked
-    let checkbox = (pane.fmt() == orgamnesia_core::Format::Markdown)
-        .then(|| orgamnesia_core::todo::checkbox(&chars[ls..le])).flatten()
-        .map(|(at, done)| (at, at + 1, if done { " " } else { "x" }.to_string()));
-    let Some((a, b, with)) = checkbox.or_else(|| keywords.cycle_in(&chars[ls..le], forward, pane.fmt())) else { return };
+    let Some((a, b, with)) = keywords.cycle(&chars[ls..le], forward, pane.fmt()) else { return };
     swallow(e);
     let (a, b) = (ls + a, ls + b);
     let new_b = splice(el, a, b, &with);
@@ -323,11 +319,7 @@ fn move_line(pane: Pane, el: &Textarea, up: bool) {
     if line_start(&page, end) == line && folding::is_headline(&page, pane.fmt(), line) {
         let Some(s) = folding::move_subtree(&page, pane.fmt(), line, up) else { return };
         // The folds inside go with their text
-        let folds = pane.folds.with_untracked(|f| {
-            let mut f: Vec<_> = f.iter().map(|&(a, b)| if a >= s.a && b <= s.b { (s.pos(a), s.pos(b)) } else { (a, b) }).collect();
-            f.sort();
-            f
-        });
+        let folds = pane.folds.with_untracked(|f| s.moved_folds(f));
         replace_lines(pane, el, &page, s.a, s.b, &s.text(&page), (s.pos(start), s.pos(end)), Some(folds));
         return;
     }
@@ -433,7 +425,7 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
         EditorAction::InsertLink => insert.link(el),
         EditorAction::InsertDate | EditorAction::InsertInactiveDate => insert.date(el, action == EditorAction::InsertDate),
         EditorAction::OpenLink => {
-            if let Some(name) = edit::linked_page_at(&chars, start, pane.tags_untracked()) {
+            if let Some(name) = edit::linked_page_at(&chars, start, pane.ctx.tags_untracked(), pane.fmt()) {
                 follow_link(ctx, name);
             }
         }

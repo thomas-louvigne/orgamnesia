@@ -6,14 +6,14 @@ use orgamnesia_core::{format::split_ext, links};
 
 /// Extract all `[[target]]` link targets — used for backlink indexing: the page
 /// they name (`Page` for `[[Page::*Titre]]`), else the target as it is.
-/// Also those of `tags.links()` among `[[Page|texte]]`, `[[Page#Titre]]` and
+/// Also those of `tags.links(format)` among `[[Page|texte]]`, `[[Page#Titre]]` and
 /// `[texte](Page.md)` (Markdown links to other things than pages are left out).
 /// Unless `tags.hashtags` is `Off`, every `#tag` counts as a link to the page `tag`.
 /// With `tags.org.links`, org-mode tags (`#+FILETAGS:`, `* Title :tag:`, `:tag:` in
 /// the text) are links to their page too.
-pub fn extract_links(content: &str, tags: TagSyntax) -> Vec<String> {
+pub fn extract_links(content: &str, tags: TagSyntax, format: orgamnesia_core::Format) -> Vec<String> {
     let chars: Vec<char> = content.chars().collect();
-    let found = links::scan(&chars, tags.links());
+    let found = links::scan(&chars, tags.links(format));
     let mut out = Vec::new();
     let mut next = found.iter().peekable();
     let mut i = 0;
@@ -35,7 +35,7 @@ pub fn extract_links(content: &str, tags: TagSyntax) -> Vec<String> {
         }
     }
     if tags.org.links {
-        out.extend(crate::tags::written_tags(content, tags.org, tags.markdown));
+        out.extend(crate::tags::written_tags(content, tags.org, format));
         out.extend(orgamnesia_core::hashtags::text_tag_ranges(&chars, tags.org).into_iter()
             .map(|(a, b)| chars[a..b].iter().collect::<String>()));
     }
@@ -62,13 +62,13 @@ pub struct Rename<'a> {
 /// Hashtags and org-mode tags naming `old` are renamed too (in the text only when
 /// they are links), when `new` can be a tag.
 /// Returns `None` when nothing changed. The display label is left untouched.
-pub fn rewrite_links(content: &str, rename: &Rename, ignore_case: bool, tags: TagSyntax) -> Option<String> {
+pub fn rewrite_links(content: &str, rename: &Rename, ignore_case: bool, tags: TagSyntax, format: orgamnesia_core::Format) -> Option<String> {
     let hashtags = tags.hashtags;
     let chars: Vec<char> = content.chars().collect();
     let norm = |s: &str| orgamnesia_core::names::page_key(s, ignore_case);
     let old = norm(rename.old);
     let new = rename.new;
-    let found = links::scan(&chars, tags.links());
+    let found = links::scan(&chars, tags.links(format));
     let mut next = found.iter().peekable();
     let mut out = String::with_capacity(content.len());
     let mut changed = false;
@@ -125,7 +125,7 @@ mod tests {
     fn rw(content: &str, old: &str, new: &str, ignore_case: bool, tags: TagSyntax) -> Option<String> {
         let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
         let leads_here = |t: &str| norm(split_ext(t).map_or(t, |(s, _)| s)) == norm(old);
-        rewrite_links(content, &Rename { leads_here: &leads_here, old, by_name: true, new }, ignore_case, tags)
+        rewrite_links(content, &Rename { leads_here: &leads_here, old, by_name: true, new }, ignore_case, tags, orgamnesia_core::Format::Org)
     }
 
     fn extended() -> TagSyntax { TagSyntax { org_links: links::LinkSyntax::ALL, ..Hashtags::Off.into() } }
@@ -133,8 +133,8 @@ mod tests {
     #[test]
     fn extended_links_are_read_and_renamed() {
         let t = "[[Old|x]] [[Old#Titre]] [y](Old.md) [z](https://a.b) [w](./assets/a.png) [[Old.md]]";
-        assert_eq!(extract_links(t, extended()), vec!["Old", "Old", "Old.md", "Old.md"]);
-        assert_eq!(extract_links("[[Old|x]] [y](Old.md)", Hashtags::Off.into()), vec!["Old|x"]);
+        assert_eq!(extract_links(t, extended(), orgamnesia_core::Format::Org), vec!["Old", "Old", "Old.md", "Old.md"]);
+        assert_eq!(extract_links("[[Old|x]] [y](Old.md)", Hashtags::Off.into(), orgamnesia_core::Format::Org), vec!["Old|x"]);
         let out = rw(t, "Old", "Deux mots", false, extended()).unwrap();
         assert_eq!(out, "[[Deux mots|x]] [[Deux mots#Titre]] [y](Deux%20mots.md) [z](https://a.b) [w](./assets/a.png) [[Deux mots.md]]");
         assert_eq!(rw("[y](<Old.md>)", "Old", "A b", false, extended()).unwrap(), "[y](<A b.md>)");
@@ -143,17 +143,17 @@ mod tests {
     // ── extract_links ──
     #[test]
     fn extract_links_finds_simple() {
-        let links = extract_links("See [[Page One]] done", Hashtags::Off.into());
+        let links = extract_links("See [[Page One]] done", Hashtags::Off.into(), orgamnesia_core::Format::Org);
         assert_eq!(links, vec!["Page One"]);
     }
     #[test]
     fn extract_links_with_display() {
-        let links = extract_links("[[Target][label]]", Hashtags::Off.into());
+        let links = extract_links("[[Target][label]]", Hashtags::Off.into(), orgamnesia_core::Format::Org);
         assert_eq!(links, vec!["Target"]);
     }
     #[test]
     fn extract_links_multiple() {
-        let links = extract_links("[[A]] and [[B]] and [[C][display]]", Hashtags::Off.into());
+        let links = extract_links("[[A]] and [[B]] and [[C][display]]", Hashtags::Off.into(), orgamnesia_core::Format::Org);
         assert_eq!(links, vec!["A", "B", "C"]);
     }
     #[test]
@@ -163,14 +163,14 @@ mod tests {
     }
     #[test]
     fn links_to_a_place_in_a_page() {
-        let links = extract_links("[[Recettes::*Desserts]] [[ A :: cible ][x]] [[*Titre]]", Hashtags::Off.into());
+        let links = extract_links("[[Recettes::*Desserts]] [[ A :: cible ][x]] [[*Titre]]", Hashtags::Off.into(), orgamnesia_core::Format::Org);
         assert_eq!(links, vec!["Recettes", "A", "*Titre"]);
         let out = rw("[[Old::*Titre]] [[Old ::cible][l]]", "Old", "New", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "[[New::*Titre]] [[New ::cible][l]]");
     }
     #[test]
     fn only_whole_links_count() {
-        let links = extract_links("[[A]] [[B sans fin [[C][voir #x]] [[D]", Hashtags::Dashes.into());
+        let links = extract_links("[[A]] [[B sans fin [[C][voir #x]] [[D]", Hashtags::Dashes.into(), orgamnesia_core::Format::Org);
         assert_eq!(links, vec!["A", "C"]);
         let out = rw("[[Old][voir #Old]] [[Old", "Old", "New", false, Hashtags::Dashes.into()).unwrap();
         assert_eq!(out, "[[New][voir #Old]] [[Old");
@@ -191,14 +191,14 @@ mod tests {
     #[test]
     fn hashtags_are_links_only_when_enabled() {
         let t = "Voir #idée et (#Rust) #+TITLE: x # note a#b [[P]] #fin-";
-        assert_eq!(extract_links(t, Hashtags::Dashes.into()), vec!["idée", "Rust", "P", "fin"]);
-        assert_eq!(extract_links(t, Hashtags::Off.into()), vec!["P"]);
+        assert_eq!(extract_links(t, Hashtags::Dashes.into(), orgamnesia_core::Format::Org), vec!["idée", "Rust", "P", "fin"]);
+        assert_eq!(extract_links(t, Hashtags::Off.into(), orgamnesia_core::Format::Org), vec!["P"]);
     }
     #[test]
     fn hashtag_dashes_only_when_allowed() {
         let t = "#mon-tag et #mon_tag";
-        assert_eq!(extract_links(t, Hashtags::Dashes.into()), vec!["mon-tag", "mon_tag"]);
-        assert_eq!(extract_links(t, Hashtags::Org.into()), vec!["mon", "mon_tag"]);
+        assert_eq!(extract_links(t, Hashtags::Dashes.into(), orgamnesia_core::Format::Org), vec!["mon-tag", "mon_tag"]);
+        assert_eq!(extract_links(t, Hashtags::Org.into(), orgamnesia_core::Format::Org), vec!["mon", "mon_tag"]);
     }
     #[test]
     fn rewrite_hashtags() {
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn org_tags_are_links() {
         let t = "#+FILETAGS: :projet:\n* T :urgent:projet:\n[[P]]";
-        assert_eq!(extract_links(t, Hashtags::Off.into()), vec!["P", "projet", "urgent", "projet"]);
+        assert_eq!(extract_links(t, Hashtags::Off.into(), orgamnesia_core::Format::Org), vec!["P", "projet", "urgent", "projet"]);
         let out = rw(t, "projet", "Projet2", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "#+FILETAGS: :Projet2:\n* T :urgent:Projet2:\n[[P]]");
     }
@@ -222,17 +222,17 @@ mod tests {
     fn org_tags_in_text_are_links_when_enabled() {
         let t = "* T :a:\nvoir :ex: et :mon-tag:";
         // Dashes allowed by default
-        assert_eq!(extract_links(t, Hashtags::Off.into()), vec!["a", "ex", "mon-tag"]);
+        assert_eq!(extract_links(t, Hashtags::Off.into(), orgamnesia_core::Format::Org), vec!["a", "ex", "mon-tag"]);
         let no_dashes = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: true, dashes: false }, ..Hashtags::Off.into() };
-        assert_eq!(extract_links(t, no_dashes), vec!["a", "ex"]);
+        assert_eq!(extract_links(t, no_dashes, orgamnesia_core::Format::Org), vec!["a", "ex"]);
         let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
-        assert!(extract_links(t, off).is_empty());
+        assert!(extract_links(t, off, orgamnesia_core::Format::Org).is_empty());
         let out = rw(t, "ex", "Exemple", false, Hashtags::Off.into()).unwrap();
         assert_eq!(out, "* T :a:\nvoir :Exemple: et :mon-tag:");
     }
     #[test]
     fn extract_links_empty() {
-        assert!(extract_links("no links here", Hashtags::Off.into()).is_empty());
+        assert!(extract_links("no links here", Hashtags::Off.into(), orgamnesia_core::Format::Org).is_empty());
     }
     // ── split_title_tags ──
     // ── parse_table_row ──

@@ -132,7 +132,7 @@ impl Speller {
         if !words.contains(&word) {
             words.push(word.clone());
             std::fs::create_dir_all(config_dir)?;
-            std::fs::write(config_dir.join(PERSONAL), words.join("\n") + "\n")?;
+            crate::write_atomic(config_dir.join(PERSONAL), words.join("\n") + "\n")?;
         }
         if let Ok(dict) = self.dict(prefs, config_dir) { let _ = dict.add(&word); }
         Ok(())

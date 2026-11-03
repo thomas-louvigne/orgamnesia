@@ -45,30 +45,14 @@ pub enum AppError {
     BadDictionary(String),
 }
 
+/// For logs and tests: the code, then what goes with it. The interface words
+/// errors itself, from `parts`.
 impl std::fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Io(e)            => write!(f, "{e}"),
-            Self::NoProject        => write!(f, "No project open"),
-            Self::VaultNotFound(p) => write!(f, "Project folder not found: {p}"),
-            Self::NotAFolder(p)    => write!(f, "Not a folder: {p}"),
-            Self::NotAPage(p)      => write!(f, "Not a page of the open project: {p}"),
-            Self::PageExists(n)    => write!(f, "Page '{n}' already exists"),
-            Self::InvalidName(n)   => write!(f, "Invalid page name: '{n}'"),
-            Self::OrgBloom(e)      => write!(f, "{e}"),
-            Self::OrgBloomNotFound(c) => write!(f, "'{c}' not found: install org-bloom, or set its path in the settings"),
-            Self::CannotRun { program, error } => write!(f, "cannot run '{program}': {error}"),
-            Self::FolderNotFound(p) => write!(f, "Folder not found: {p}"),
-            Self::Settings(e)      => write!(f, "Settings error: {e}"),
-            Self::ConfigInvalid(e) => write!(f, "Invalid configuration: {e}"),
-            Self::Dialog           => write!(f, "The folder picker could not be shown"),
-            Self::Git(e)           => write!(f, "{e}"),
-            Self::NoRemote         => write!(f, "no remote: add one with git remote add origin <url>"),
-            Self::Update(e)        => write!(f, "{e}"),
-            Self::NotAnImage(p)    => write!(f, "Not an image: {p}"),
-            Self::NoDictionary(l)  => write!(f, "No spelling dictionary for {l}"),
-            Self::BadDictionary(e) => write!(f, "Unreadable spelling dictionary: {e}"),
-        }
+        let (code, detail, cause) = self.parts();
+        write!(f, "{code}")?;
+        for part in [detail, cause].into_iter().flatten() { write!(f, ": {part}")?; }
+        Ok(())
     }
 }
 

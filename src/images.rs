@@ -127,16 +127,8 @@ pub fn parse(line: &[char]) -> Option<ImageLine> {
 /// The Markdown image `![texte](cible)` at the start of `chars`, of an image or
 /// a YouTube video: its target (`%20` decoded), and the chars it takes.
 fn markdown_image(chars: &[char]) -> Option<(String, usize)> {
-    let close = (2..chars.len()).find(|&j| chars[j] == ']')?;
-    if chars.get(close + 1) != Some(&'(') { return None; }
-    let paren = (close + 2..chars.len()).find(|&j| chars[j] == ')')?;
-    let dest: String = chars[close + 2..paren].iter().collect();
-    let dest = dest.trim();
-    // A title after the target: `![a](x.png "Titre")`
-    let dest = dest.split_once(" \"").map_or(dest, |(d, _)| d).trim();
-    let dest = dest.strip_prefix('<').and_then(|d| d.strip_suffix('>')).unwrap_or(dest);
-    let target = if dest.contains("://") { dest.to_string() } else { orgamnesia_core::links::percent_decode(dest) };
-    (!target.is_empty() && (is_image(&target) || youtube_id(&target).is_some())).then_some((target, paren + 1))
+    orgamnesia_core::links::markdown_target(chars, 1)
+        .filter(|(t, _)| !t.is_empty() && (is_image(t) || youtube_id(t).is_some()))
 }
 
 /// Logseq's `{{video url}}` (or `{{youtube url}}`) macro at the start of `chars`,

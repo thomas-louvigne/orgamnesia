@@ -75,13 +75,13 @@ pub fn LinksTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <div class="setting-section-title">{move || t("links_syntaxes", lang())}</div>
             <div class="setting-row"><label>{move || t("org_links", lang())}</label>
                 <span class="setting-hint">{move || t("org_links_hint", lang())}</span></div>
-            <Check draft get=|p| p.org_link_pipe set=|p, v| p.org_link_pipe = v label="link_pipe" sub=true />
-            <Check draft get=|p| p.org_link_hash set=|p, v| p.org_link_hash = v label="link_hash" sub=true />
-            <Check draft get=|p| p.org_link_markdown set=|p, v| p.org_link_markdown = v label="link_markdown" sub=true />
+            <Check draft get=|p| p.org_links.pipe set=|p, v| p.org_links.pipe = v label="link_pipe" sub=true />
+            <Check draft get=|p| p.org_links.hash set=|p, v| p.org_links.hash = v label="link_hash" sub=true />
+            <Check draft get=|p| p.org_links.markdown set=|p, v| p.org_links.markdown = v label="link_markdown" sub=true />
             <div class="setting-row"><label>{move || t("md_links", lang())}</label></div>
-            <Check draft get=|p| p.md_link_pipe set=|p, v| p.md_link_pipe = v label="link_pipe" sub=true />
-            <Check draft get=|p| p.md_link_hash set=|p, v| p.md_link_hash = v label="link_hash" sub=true />
-            <Check draft get=|p| p.md_link_markdown set=|p, v| p.md_link_markdown = v label="link_markdown" sub=true />
+            <Check draft get=|p| p.md_links.pipe set=|p, v| p.md_links.pipe = v label="link_pipe" sub=true />
+            <Check draft get=|p| p.md_links.hash set=|p, v| p.md_links.hash = v label="link_hash" sub=true />
+            <Check draft get=|p| p.md_links.markdown set=|p, v| p.md_links.markdown = v label="link_markdown" sub=true />
             <div class="setting-section-title">{move || t("links_pages", lang())}</div>
             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
             <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />

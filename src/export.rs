@@ -14,6 +14,7 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 use crate::{actions, components::editor::loaded_image_url, html::escape, images, invoke, links, state::{AppCtx, FileEntry, Tab}};
 use convert::page_html;
+pub(crate) use convert::is_rule_line;
 use orgamnesia_core::{links as place, Format, TodoKeywords};
 
 mod convert;
@@ -61,7 +62,7 @@ impl Page {
 /// link target is shown from (read first).
 async fn page_body(ctx: AppCtx, page: &Page, image: impl AsyncFn(&str) -> String) -> String {
     let text = &page.text;
-    let format = Format::of_path(&page.path).unwrap_or_default();
+    let format = Format::of_page(&page.path);
     let mut urls = HashMap::new();
     let targets = links::targets(text).into_iter().chain(markdown_images(text));
     for target in targets.filter(|t| images::is_image(t)) {
@@ -69,25 +70,17 @@ async fn page_body(ctx: AppCtx, page: &Page, image: impl AsyncFn(&str) -> String
         urls.insert(target, url);
     }
     let keywords = ctx.pref_untracked(|p| p.todo()).map(|d| TodoKeywords::for_page(text, &d));
-    let extended = ctx.tags_untracked().for_format(Some(format)).links();
+    let extended = ctx.tags_untracked().links(format);
     let url = |t: &str| urls.get(t).cloned().unwrap_or_else(|| t.to_string());
     format!("<div class='org-page'>{}</div>", page_html(text, &page.name, keywords.as_ref(), &url, format, extended))
 }
 
 /// The targets of the Markdown images of `text` (`![texte](cible)`), `%20` decoded.
 fn markdown_images(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut rest = text;
-    while let Some(at) = rest.find("![") {
-        rest = &rest[at + 2..];
-        let Some((_, after)) = rest.split_once("](") else { break };
-        let Some(end) = after.find(')') else { break };
-        let dest = after[..end].trim();
-        let dest = dest.split_once(" \"").map_or(dest, |(d, _)| d).trim();
-        let dest = dest.strip_prefix('<').and_then(|d| d.strip_suffix('>')).unwrap_or(dest);
-        out.push(if dest.contains("://") { dest.to_string() } else { place::percent_decode(dest) });
-    }
-    out
+    let chars: Vec<char> = text.chars().collect();
+    (1..chars.len()).filter(|&i| chars[i - 1] == '!')
+        .filter_map(|i| place::markdown_target(&chars, i).map(|(t, _)| t))
+        .collect()
 }
 
 /// Export the page `file` (as HTML or as PDF), from the list of pages: the text
@@ -122,7 +115,7 @@ async fn html_file(ctx: AppCtx, page: Page) {
             Err(_) => target.to_string(),
         }
     }).await;
-    let title = crate::components::page_title::page_title(&page.text, &page.path).unwrap_or_else(|| page.name.clone());
+    let title = orgamnesia_core::Format::of_page(&page.path).title(&page.text).unwrap_or_else(|| page.name.clone());
     let html = format!(
         "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n\
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
@@ -191,7 +184,7 @@ async fn print(ctx: AppCtx, page: Page) {
         }
     }
     // The name the PDF is offered under
-    doc.set_title(&crate::components::page_title::page_title(&page.text, &page.path).unwrap_or_else(|| page.name.clone()));
+    doc.set_title(&orgamnesia_core::Format::of_page(&page.path).title(&page.text).unwrap_or_else(|| page.name.clone()));
     let restore = wasm_bindgen::closure::Closure::once_into_js(move || {
         if let Some(doc) = web_sys::window().and_then(|w| w.document()) { doc.set_title("Orgamnesia"); }
     });

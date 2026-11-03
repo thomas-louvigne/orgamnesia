@@ -15,8 +15,6 @@ pub struct BrokenLinks {
     ctx: AppCtx,
     /// The page, whose folder file links start from.
     page: StoredValue<String>,
-    /// The pages of the project, and the settings telling which a name leads to.
-    files: Memo<orgamnesia_core::pages::Resolver<'static>>,
     /// The files the page links to that are missing (asked to the backend).
     missing: RwSignal<HashSet<String>>,
     sizes: RwSignal<ImageSizes>,
@@ -25,10 +23,6 @@ pub struct BrokenLinks {
 impl BrokenLinks {
     pub fn new(ctx: AppCtx, page: String, content: RwSignal<String>, sizes: RwSignal<ImageSizes>) -> Self {
         let page = StoredValue::new(page);
-        let files = Memo::new(move |_| {
-            let (loose, default) = ctx.pref(|p| (p.case_insensitive_links, p.default_format));
-            orgamnesia_core::pages::Resolver::new(ctx.project.files.get(), loose, default)
-        });
         // The files the page links to
         let file_links = Memo::new(move |_| {
             if !ctx.pref(|p| p.mark_broken_links) { return Vec::new(); }
@@ -57,7 +51,7 @@ impl BrokenLinks {
                 }
             });
         });
-        Self { ctx, page, files, missing, sizes }
+        Self { ctx, page, missing, sizes }
     }
 
     /// Whether a link target leads nowhere; `None` when broken links aren't marked.
@@ -65,7 +59,7 @@ impl BrokenLinks {
         let ctx = self.ctx;
         if !ctx.pref(|p| p.mark_broken_links) { return None; }
         let page = self.page.get_value();
-        let syntax = ctx.tags().for_page(&page).links();
+        let syntax = ctx.tags().links(orgamnesia_core::Format::of_page(&page));
         Some(Box::new(move |target: &str| {
             if let Some(file) = links::file_target(target) {
                 let path = images::resolve(&page, file);
@@ -80,7 +74,7 @@ impl BrokenLinks {
                 }).flatten();
                 let target = read.as_deref().unwrap_or(target);
                 let page = orgamnesia_core::links::split(target).0;
-                self.files.with(|r| r.resolve(page).is_none())
+                ctx.project.resolver.with(|r| r.resolve(page).is_none())
             } else {
                 false
             }

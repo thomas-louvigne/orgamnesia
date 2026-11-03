@@ -21,6 +21,27 @@ pub fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// Write `text` as the file `path`, all or nothing: into a hidden file next to
+/// it, flushed to the disk, then put in its place. A crash meanwhile leaves the
+/// file as it was, never cut short. A link is followed (the file it leads to is
+/// written); the file keeps its permissions.
+pub fn write_atomic(path: impl AsRef<Path>, text: impl AsRef<[u8]>) -> std::io::Result<()> {
+    use std::io::Write;
+    let path = path.as_ref();
+    let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let name = path.file_name().ok_or_else(|| std::io::Error::other("no file name"))?.to_string_lossy();
+    let tmp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
+    let written = (|| {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(text.as_ref())?;
+        file.sync_all()?;
+        if let Ok(meta) = std::fs::metadata(&path) { std::fs::set_permissions(&tmp, meta.permissions())?; }
+        std::fs::rename(&tmp, &path)
+    })();
+    if written.is_err() { let _ = std::fs::remove_file(&tmp); }
+    written
+}
+
 /// The home folder: `$HOME`, else `%USERPROFILE%` (Windows).
 pub fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).filter(|h| !h.is_empty()).map(PathBuf::from)
@@ -166,6 +187,28 @@ impl Default for AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn writes_all_or_nothing() {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-atomic-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("Note.org");
+        write_atomic(&file, "un").unwrap();
+        write_atomic(&file, "deux").unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "deux");
+        #[cfg(unix)]
+        {
+            let link = dir.join("Lien.org");
+            std::os::unix::fs::symlink(&file, &link).unwrap();
+            write_atomic(&link, "trois").unwrap();
+            assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+            assert_eq!(std::fs::read_to_string(&file).unwrap(), "trois");
+        }
+        // No temporary file left behind
+        let names: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into()).collect();
+        assert!(names.iter().all(|n| !n.ends_with(".tmp")), "{names:?}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn home_and_slashes() {

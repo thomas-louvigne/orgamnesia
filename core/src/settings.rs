@@ -50,14 +50,10 @@ pub struct Config {
     /// Ask the format of each new page.
     pub ask_format: Option<bool>,
     /// In org-mode pages, also read as links `[[Page|texte]]` (`pipe`),
-    /// `[[Page#Titre]]` (`hash`), `[texte](Page.md)` (`markdown`). Off by default.
-    pub org_link_pipe: Option<bool>,
-    pub org_link_hash: Option<bool>,
-    pub org_link_markdown: Option<bool>,
-    /// The same in Markdown pages. On by default.
-    pub md_link_pipe: Option<bool>,
-    pub md_link_hash: Option<bool>,
-    pub md_link_markdown: Option<bool>,
+    /// `[[Page#Titre]]` (`hash`), `[texte](Page.md)` (`markdown`). All off by default.
+    pub org_links: Option<LinkSyntax>,
+    /// The same in Markdown pages. All on by default.
+    pub md_links: Option<LinkSyntax>,
     /// Rewrite `[[links]]` in other pages when a page is renamed.
     pub update_links_on_rename: Option<bool>,
     /// Match `[[links]]` to pages ignoring case.
@@ -239,12 +235,8 @@ pub struct Prefs {
     pub default_format: Format,
     pub single_format: bool,
     pub ask_format: bool,
-    pub org_link_pipe: bool,
-    pub org_link_hash: bool,
-    pub org_link_markdown: bool,
-    pub md_link_pipe: bool,
-    pub md_link_hash: bool,
-    pub md_link_markdown: bool,
+    pub org_links: LinkSyntax,
+    pub md_links: LinkSyntax,
     pub update_links: bool,
     pub autosave: bool,
     pub delete_empty: bool,
@@ -328,12 +320,8 @@ impl Prefs {
             default_format: s.default_format.as_deref().and_then(Format::from_id).unwrap_or_default(),
             single_format: s.single_format.unwrap_or(false),
             ask_format: s.ask_format.unwrap_or(false),
-            org_link_pipe: s.org_link_pipe.unwrap_or(false),
-            org_link_hash: s.org_link_hash.unwrap_or(false),
-            org_link_markdown: s.org_link_markdown.unwrap_or(false),
-            md_link_pipe: s.md_link_pipe.unwrap_or(true),
-            md_link_hash: s.md_link_hash.unwrap_or(true),
-            md_link_markdown: s.md_link_markdown.unwrap_or(true),
+            org_links: s.org_links.unwrap_or(LinkSyntax::NONE),
+            md_links: s.md_links.unwrap_or(LinkSyntax::ALL),
             update_links: s.update_links_on_rename.unwrap_or(true),
             autosave: s.autosave.unwrap_or(true),
             delete_empty: s.delete_empty_pages.unwrap_or(false),
@@ -406,12 +394,8 @@ impl Prefs {
             default_format: Some(self.default_format.id().to_string()),
             single_format: Some(self.single_format),
             ask_format: Some(self.ask_format),
-            org_link_pipe: Some(self.org_link_pipe),
-            org_link_hash: Some(self.org_link_hash),
-            org_link_markdown: Some(self.org_link_markdown),
-            md_link_pipe: Some(self.md_link_pipe),
-            md_link_hash: Some(self.md_link_hash),
-            md_link_markdown: Some(self.md_link_markdown),
+            org_links: Some(self.org_links),
+            md_links: Some(self.md_links),
             update_links_on_rename: Some(self.update_links),
             case_insensitive_links: Some(self.case_insensitive_links),
             hashtag_links: Some(self.hashtag_links),
@@ -482,9 +466,8 @@ impl Prefs {
         TagSyntax {
             hashtags: Hashtags::new(self.hashtag_links, self.hashtag_dashes),
             org: OrgTags { links: self.org_tag_links, dashes: self.org_tag_dashes },
-            org_links: LinkSyntax { pipe: self.org_link_pipe, hash: self.org_link_hash, markdown: self.org_link_markdown },
-            md_links: LinkSyntax { pipe: self.md_link_pipe, hash: self.md_link_hash, markdown: self.md_link_markdown },
-            markdown: false,
+            org_links: self.org_links,
+            md_links: self.md_links,
         }
     }
 
@@ -567,6 +550,13 @@ mod tests {
         let blank = Settings { config: Config { todo_keywords: Some(" ".into()), ..Config::default() }, ..Settings::default() };
         assert_eq!(blank.prefs().todo_keywords, DEFAULT_TODO_KEYWORDS);
         assert_eq!(p.tags(), TagSyntax::from(Hashtags::Dashes));
+    }
+
+    #[test]
+    fn link_syntax_in_settings_json() {
+        let c: Config = serde_json::from_str(r#"{"org_links": {"pipe": true}, "md_links": {"hash": true, "markdown": true}}"#).unwrap();
+        assert_eq!(c.org_links, Some(LinkSyntax { pipe: true, ..LinkSyntax::NONE }));
+        assert_eq!(c.md_links, Some(LinkSyntax { pipe: false, ..LinkSyntax::ALL }));
     }
 
     #[test]

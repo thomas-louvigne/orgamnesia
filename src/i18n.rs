@@ -1323,7 +1323,9 @@ mod tests {
     #[test]
     fn every_key_is_translated() {
         let sources = [
-            include_str!("app.rs"), include_str!("actions.rs"), include_str!("state.rs"),
+            include_str!("app.rs"), include_str!("actions/mod.rs"), include_str!("actions/disk.rs"), include_str!("actions/history.rs"),
+            include_str!("actions/pages.rs"), include_str!("actions/project.rs"), include_str!("actions/tabs.rs"),
+            include_str!("state.rs"),
             include_str!("invoke.rs"), include_str!("lib.rs"), include_str!("org_bloom.rs"),
             include_str!("preferences.rs"), include_str!("components/config_bar.rs"),
             include_str!("components/editor/mod.rs"), include_str!("components/editor/find.rs"),

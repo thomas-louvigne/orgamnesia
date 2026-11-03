@@ -105,7 +105,7 @@ impl Preview {
         let mut text = lines.join("\n");
         if cut { text.push_str("\n…"); }
         let view = tables::View { text, ..Default::default() };
-        (Some(highlight::render_view(&view, ctx.tags_untracked().for_format(Some(format)), keywords, false, None, format)), "")
+        (Some(highlight::render_view(&view, ctx.tags_untracked(), keywords, false, None, format)), "")
     }
 
     /// The bubble, when shown.

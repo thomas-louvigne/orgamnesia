@@ -103,7 +103,7 @@ pub fn save_state(config_dir: &Path, settings: &Settings) -> Result<(), AppError
         assets_declined: settings.assets_declined.clone(),
     };
     std::fs::create_dir_all(config_dir)?;
-    std::fs::write(config_dir.join(STATE_FILE), serde_json::to_string_pretty(&state)?)?;
+    crate::write_atomic(config_dir.join(STATE_FILE), serde_json::to_string_pretty(&state)?)?;
     Ok(())
 }
 

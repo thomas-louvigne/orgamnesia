@@ -2,55 +2,6 @@ use leptos::prelude::*;
 
 use crate::{actions, i18n::t, state::{AppCtx, Tab}};
 
-/// Value of the page's `#+TITLE:` keyword, if it has a non-empty one.
-pub fn org_title(content: &str) -> Option<String> {
-    content.lines().find_map(title_value).map(str::trim).filter(|v| !v.is_empty()).map(String::from)
-}
-
-/// The text after `#+TITLE:` (any case) when `line` is that keyword.
-fn title_value(line: &str) -> Option<&str> {
-    let line = line.trim_start();
-    let key = line.get(..8)?;
-    key.eq_ignore_ascii_case("#+title:").then(|| &line[8..])
-}
-
-/// `content` with its `#+TITLE:` set to `title`: the keyword is rewritten in
-/// place, or added as the first line when the page has none.
-pub fn set_org_title(content: &str, title: &str) -> String {
-    let mut done = false;
-    let mut out: Vec<String> = content.split('\n').map(|line| {
-        if !done && title_value(line).is_some() {
-            done = true;
-            let indent = &line[..line.len() - line.trim_start().len()];
-            let key = &line.trim_start()[..8];
-            format!("{indent}{key} {title}")
-        } else {
-            line.to_string()
-        }
-    }).collect();
-    if !done {
-        out.insert(0, format!("#+TITLE: {title}"));
-    }
-    out.join("\n")
-}
-
-/// The title of the page `path` of `content`: its `#+TITLE:` (org-mode), or the
-/// `title:` of its front matter (Markdown).
-pub fn page_title(content: &str, path: &str) -> Option<String> {
-    match orgamnesia_core::Format::of_path(path) {
-        Some(orgamnesia_core::Format::Markdown) => orgamnesia_core::frontmatter::title(content),
-        _ => org_title(content),
-    }
-}
-
-/// `content` of the page `path` with its title set to `title` (see `page_title`).
-pub fn set_page_title(content: &str, path: &str, title: &str) -> String {
-    match orgamnesia_core::Format::of_path(path) {
-        Some(orgamnesia_core::Format::Markdown) => orgamnesia_core::frontmatter::set_title(content, title),
-        _ => set_org_title(content, title),
-    }
-}
-
 /// What the title's inline field is editing.
 #[derive(Clone, Copy, PartialEq)]
 enum EditMode {
@@ -69,7 +20,7 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
     let lang = move || ctx.lang.get();
     let content = tab.content;
     let title_path = tab.path.clone();
-    let title = Memo::new(move |_| content.with(|c| page_title(c, &title_path)));
+    let title = Memo::new(move |_| content.with(|c| orgamnesia_core::Format::of_page(&title_path).title(c)));
     let fixed = crate::preferences::config_file(&tab.path).is_some();
 
     let menu = RwSignal::new(None::<(i32, i32)>);
@@ -95,7 +46,7 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
             EditMode::Title => {
                 if v.is_empty() || title.get_untracked().as_deref() == Some(v.as_str()) { return; }
                 tab.dirty.set(true);
-                content.update(|c| *c = set_page_title(c, &path, &v));
+                content.update(|c| *c = orgamnesia_core::Format::of_page(&path).set_title(c, &v));
             }
         }
     };
@@ -180,26 +131,5 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
                 }
             })}
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reads_the_title_keyword() {
-        assert_eq!(org_title("#+TITLE: Mon titre\n* A"), Some("Mon titre".into()));
-        assert_eq!(org_title("* A\n  #+title:  Bas  \n"), Some("Bas".into()));
-        assert_eq!(org_title("#+TITLE:\n* A"), None);
-        assert_eq!(org_title("* #+TITLE: x"), None);
-        assert_eq!(org_title(""), None);
-    }
-
-    #[test]
-    fn sets_the_title_keyword() {
-        assert_eq!(set_org_title("* A", "T"), "#+TITLE: T\n* A");
-        assert_eq!(set_org_title("", "T"), "#+TITLE: T\n");
-        assert_eq!(set_org_title("x\n#+title: old\n#+TITLE: 2", "New"), "x\n#+title: New\n#+TITLE: 2");
     }
 }

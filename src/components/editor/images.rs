@@ -193,10 +193,7 @@ impl Images {
             let mut links = Vec::new();
             for path in paths {
                 match invoke::import_image(&page, &path).await {
-                    Ok(link) => links.push(match self.pane.fmt() {
-                        orgamnesia_core::Format::Markdown => format!("![]({})", orgamnesia_core::links::percent_encode(&link)),
-                        orgamnesia_core::Format::Org => format!("[[{link}]]"),
-                    }),
+                    Ok(link) => links.push(orgamnesia_core::links::write(self.pane.fmt(), &link, "", true)),
                     Err(e) => ctx.error("image_error", &e),
                 }
             }
@@ -216,10 +213,7 @@ impl Images {
             for path in paths {
                 let name = path.rsplit(['/', '\\']).next().unwrap_or(&path).replace(['[', ']'], "");
                 match invoke::import_file(&page, &path).await {
-                    Ok(link) => links.push(match self.pane.fmt() {
-                        orgamnesia_core::Format::Markdown => format!("[{name}]({})", orgamnesia_core::links::percent_encode(&link)),
-                        orgamnesia_core::Format::Org => format!("[[{link}][{name}]]"),
-                    }),
+                    Ok(link) => links.push(orgamnesia_core::links::write(self.pane.fmt(), &link, &name, false)),
                     Err(e) => ctx.error("file_import_error", &e),
                 }
             }

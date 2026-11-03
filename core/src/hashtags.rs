@@ -72,31 +72,22 @@ pub struct TagSyntax {
     pub org: OrgTags,
     pub org_links: crate::links::LinkSyntax,
     pub md_links: crate::links::LinkSyntax,
-    /// The page is in Markdown: its front matter's `tags:` tag it, `md_links` are read.
-    pub markdown: bool,
 }
 
 impl From<Hashtags> for TagSyntax {
     fn from(hashtags: Hashtags) -> Self {
         use crate::links::LinkSyntax;
-        Self { hashtags, org: OrgTags::default(), org_links: LinkSyntax::NONE, md_links: LinkSyntax::ALL, markdown: false }
+        Self { hashtags, org: OrgTags::default(), org_links: LinkSyntax::NONE, md_links: LinkSyntax::ALL }
     }
 }
 
 impl TagSyntax {
-    /// As read in a page of `format`.
-    pub fn for_format(self, format: Option<crate::Format>) -> Self {
-        Self { markdown: format == Some(crate::Format::Markdown), ..self }
-    }
-
-    /// The links not of org-mode read in the page.
-    pub fn links(self) -> crate::links::LinkSyntax {
-        if self.markdown { self.md_links } else { self.org_links }
-    }
-
-    /// As read in the page `path`.
-    pub fn for_page(self, path: &str) -> Self {
-        self.for_format(crate::Format::of_path(path))
+    /// The links not of org-mode read in a page of `format`.
+    pub fn links(self, format: crate::Format) -> crate::links::LinkSyntax {
+        match format {
+            crate::Format::Org => self.org_links,
+            crate::Format::Markdown => self.md_links,
+        }
     }
 }
 

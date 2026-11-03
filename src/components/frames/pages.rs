@@ -44,11 +44,9 @@ pub fn PagesFrame() -> impl IntoView {
     // Pages with a twin (a page of the same name in the other format), and among
     // them those their name alone doesn't lead to: struck through
     let twins = Memo::new(move |_| {
-        let (loose, default) = ctx.pref(|p| (p.case_insensitive_links, p.default_format));
-        ctx.project.files.with(|fs| {
-            let r = orgamnesia_core::pages::Resolver::new(fs, loose, default);
+        ctx.project.files.with(|fs| ctx.project.resolver.with(|r| {
             fs.iter().filter(|f| r.has_twin(f)).map(|f| (f.path.clone(), r.shadowed(f))).collect::<std::collections::HashMap<String, bool>>()
-        })
+        }))
     });
     // Pages differing from the remote (git extension): marked, to push
     let unpushed = Memo::new(move |_| {
