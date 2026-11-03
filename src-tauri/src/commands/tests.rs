@@ -64,8 +64,8 @@ fn links_tags_and_todos() {
         ("Une", "* TODO Écrire :projet:\nvers [[Deux]] et [[Nulle part]]\n"),
         ("Deux", "* Deux\n"),
     ]);
-    // The path as the backend lists it (`\` on Windows): the interface only sends those back
-    let deux = Path::new(&path).join("pages").join("Deux.org").to_string_lossy().to_string();
+    // The path as the backend lists it (`/` on Windows too, by `crate::slash`): the interface only sends those back
+    let deux = crate::slash(Path::new(&path).join("pages").join("Deux.org"));
     assert_eq!(block_on(links::get_backlinks(s(), deux)).unwrap(), vec!["Une".to_string()]);
     let broken = block_on(links::get_broken_links(s())).unwrap();
     // `:tags:` are links too, by default
