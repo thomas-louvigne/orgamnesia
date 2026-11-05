@@ -1,0 +1,44 @@
+#+TITLE: Publishing on the AUR
+
+The AUR package =orgamnesia= is the =PKGBUILD= and the =.SRCINFO= of this folder,
+pushed to their own git repository. Nothing else goes there.
+
+* Test the build
+
+From this folder, with =pkgver= being a tag already on GitHub:
+
+#+BEGIN_SRC sh
+sudo pacman -S --needed base-devel namcap
+makepkg -si
+namcap PKGBUILD ./*.pkg.tar.zst
+#+END_SRC
+
+Then start the app, and check its icon and its entry in the applications menu.
+
+* First publication
+
+Once: create an account on https://aur.archlinux.org and add an SSH public key to it.
+
+#+BEGIN_SRC sh
+git clone ssh://aur@aur.archlinux.org/orgamnesia.git ~/aur/orgamnesia
+cp PKGBUILD .SRCINFO ~/aur/orgamnesia/
+cd ~/aur/orgamnesia
+git add PKGBUILD .SRCINFO
+git commit -m "orgamnesia 1.2.0"
+git push origin HEAD:master
+#+END_SRC
+
+The package is online with this push: the AUR has no review. It only accepts the
+branch =master=.
+
+* Each release
+
+Once the release's tag is on GitHub, from this folder:
+
+#+BEGIN_SRC sh
+sed -i "s/^pkgver=.*/pkgver=X.Y.Z/; s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+makepkg --printsrcinfo > .SRCINFO
+#+END_SRC
+
+Commit both here, then copy them, commit and push as above. A change to the
+packaging alone, same version, increments =pkgrel= instead.
