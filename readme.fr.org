@@ -105,6 +105,9 @@ dépôts git) :
   =%APPDATA%\com.orgamnesia.app\= sous Windows. Ils se modifient
   en texte depuis l'application, vérifiés pendant la frappe, avec un historique des
   versions valides (voir [[file:docs/fonctionnalites.org#préférences-en-texte][Préférences en texte]]).
+- Toutes les préférences sont dans des fichiers JSON versionnables :
+  =settings.json= (les réglages) et =keybindings/<nom>.json= (un par profil de
+  raccourcis personnalisé). Une option absente d'un fichier prend sa valeur par défaut.
 
 * Développement
 

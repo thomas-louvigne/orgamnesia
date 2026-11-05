@@ -605,6 +605,11 @@ de leurs raccourcis les copie dans un profil personnalisé, qui prend effet. Cha
 profil personnalisé est un fichier à lui, à son nom (=keybindings/Personnalisé.json=
 par défaut), modifiable en texte (voir [[#préférences-en-texte][Préférences en texte]]).
 
+Sous Linux, WebKitGTK ouvre son sélecteur d'emojis avec Ctrl+., Ctrl+; et Ctrl+M.
+La case « Raccourcis du sélecteur d'emojis de WebKit » de Préférences > Raccourcis
+le désactive ; « Insérer un emoji », dans le menu du clic droit de l'éditeur, l'ouvre
+toujours.
+
 Les profils intégrés reçoivent automatiquement les nouveaux raccourcis des
 versions suivantes ; un profil personnalisé reçoit ceux des actions qu'il ne
 connaissait pas.
@@ -886,6 +891,8 @@ volets tels qu'ils étaient.
   invalide, une valeur du mauvais type, une clé inconnue (une faute de frappe), un
   profil qui n'existe pas, un raccourci donné à deux actions, un fichier au nom
   d'un profil intégré. Une action inconnue n'est qu'un avertissement.
+  Une option absente prend sa valeur par défaut (une action absente d'un profil,
+  celle de son profil de base).
 - *Appliquer* (ou le raccourci d'enregistrement) écrit le fichier et le met en
   vigueur, seulement s'il est valide. Ces fichiers ne sont jamais enregistrés
   automatiquement.

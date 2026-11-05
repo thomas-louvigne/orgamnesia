@@ -159,6 +159,11 @@ pub async fn set_session(session: Option<&Session>) -> Result<(), String> {
     call("set_session", serde_json::json!({ "session": session })).await
 }
 
+/// Opens WebKitGTK's emoji picker; whether the backend could.
+pub async fn show_emoji_picker() -> Result<bool, String> {
+    call("show_emoji_picker", serde_json::json!({})).await
+}
+
 /// The text of the system clipboard, read by the backend (the webview doesn't let
 /// the page read a text copied in another application).
 pub async fn read_clipboard() -> Result<Option<String>, String> {

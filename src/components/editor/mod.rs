@@ -370,6 +370,7 @@ fn context_menu(
             {item("shortcut_undo_edit", Some("undo"), true, action(EditorAction::Undo))}
             {item("shortcut_redo", Some("redo"), true, action(EditorAction::Redo))}
             {item("shortcut_select_all", Some("select_all"), true, action(EditorAction::SelectAll))}
+            {crate::emoji::available().then(|| item("insert_emoji", None, true, Box::new(crate::emoji::open)))}
             {with_images.then(|| view! {
                 <div class="ctx-menu-sep" role="separator" />
                 {item("image_insert", None, true, Box::new(move || images.pick()))}

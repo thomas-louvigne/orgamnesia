@@ -86,6 +86,7 @@ fn main() {
             commands::app::quit_app,
             commands::clipboard::read_clipboard,
             commands::clipboard::write_clipboard,
+            commands::emoji::show_emoji_picker,
             commands::config::set_session,
             commands::search::search_project,
             commands::search::replace_in_project,

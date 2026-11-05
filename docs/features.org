@@ -599,6 +599,10 @@ of their shortcuts copies them into a custom profile, which takes effect. Each
 custom profile is a file of its own, named after it (=keybindings/Personnalisé.json=
 by default), which can be edited as text (see [[#settings-as-text][Settings as text]]).
 
+On Linux, WebKitGTK opens its emoji picker on Ctrl+., Ctrl+; and Ctrl+M. The
+"WebKit's emoji picker shortcuts" box of Settings > Shortcuts turns this off;
+"Insert an emoji" in the editor's right-click menu still opens it.
+
 Built-in profiles get the new shortcuts of later versions automatically; a custom
 profile gets those of the actions it didn't know.
 
@@ -867,7 +871,8 @@ file, goes back to the project left, its tabs and panes as they were.
   puts the cursor there. Refused: invalid JSON, a value of the wrong type, an
   unknown key (a typo), a profile that doesn't exist, a shortcut given to two
   actions, a file named after a built-in profile. An unknown action is only a
-  warning.
+  warning. A missing option takes its default value (an action missing from a
+  profile, that of its base preset).
 - *Apply* (or the Save shortcut) writes the file and puts it in effect, only when
   it is valid. These files are never saved automatically.
 - *Going back*: "Back to the last valid version" drops the changes not applied;

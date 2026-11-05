@@ -98,6 +98,9 @@ particulars (dictionaries, keys, signing in to git repositories): [[file:docs/in
   =%APPDATA%\com.orgamnesia.app\= on Windows. They can be edited
   as text from the app, checked as you type, with a history of the valid versions
   (see [[file:docs/features.org#settings-as-text][Settings as text]]).
+- All the preferences are in JSON files you can keep under version control:
+  =settings.json= (the settings) and =keybindings/<name>.json= (one per custom
+  shortcut profile). An option missing from a file takes its default value.
 
 * Development
 

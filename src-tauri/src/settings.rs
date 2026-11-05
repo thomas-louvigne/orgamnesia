@@ -115,10 +115,11 @@ mod tests {
     fn frontend_payload_is_accepted() {
         // What the settings window sends on Apply/Save
         let json = r#"{"vault_path":"/x","org_bloom_path":null,"language":"fr",
-            "update_links_on_rename":true,"case_insensitive_links":true,"emacs_mark":true,
+            "update_links_on_rename":true,"case_insensitive_links":true,"emacs_mark":true,"webkit_emoji_shortcuts":false,
             "electric_mode":false,"autosave":true,"projects":["/x"]}"#;
         let s: Settings = serde_json::from_str(json).unwrap();
         assert_eq!(s.config.electric_mode, Some(false));
+        assert_eq!(s.config.webkit_emoji_shortcuts, Some(false));
         // Older files lack the newer fields
         let old: Settings = serde_json::from_str(r#"{"vault_path":null}"#).unwrap();
         assert_eq!(old.config.electric_mode, None);

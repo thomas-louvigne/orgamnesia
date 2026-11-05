@@ -299,6 +299,8 @@ pub fn ShortcutsTab(draft: RwSignal<Prefs>, kb: KbDraft) -> impl IntoView {
                     </div>
                 })
             }}
+            <Check draft get=|p| p.webkit_emoji_shortcuts set=|p, v| p.webkit_emoji_shortcuts = v
+                label="webkit_emoji_shortcuts" hint="webkit_emoji_shortcuts_hint" />
             <div class="shortcut-search">
                 <input
                     node_ref=search_ref

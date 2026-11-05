@@ -192,8 +192,16 @@ pub fn App() -> impl IntoView {
         if gone || tabs.is_empty() { ctx.work.single_window(); }
     });
 
+    crate::emoji::listen();
     // Global keyboard shortcuts (app-level; editor actions are handled in the editor)
     let kb_handle = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
+        // WebKitGTK opens its emoji picker on these keys unless the page keeps them
+        if e.ctrl_key() && !e.shift_key() && !e.alt_key() && !e.meta_key()
+            && matches!(e.key().as_str(), "." | ";" | "m" | "M")
+            && !ctx.pref_untracked(|p| p.webkit_emoji_shortcuts)
+        {
+            e.prevent_default();
+        }
         let resolution = ctx.keybindings.with_untracked(|kb| crate::keybindings::resolve(kb, &e));
         match resolution {
             Resolution::Action(Scope::App, id) => {

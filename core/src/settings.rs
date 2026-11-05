@@ -100,6 +100,8 @@ pub struct Config {
     pub link_preview_trigger: Option<String>,
     /// Emacs mark: Ctrl+Space starts a region that follows the cursor.
     pub emacs_mark: Option<bool>,
+    /// WebKitGTK's emoji picker opens on its own shortcuts (off: the app blocks them).
+    pub webkit_emoji_shortcuts: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
     pub electric_mode: Option<bool>,
     /// Save the active page on every change.
@@ -206,6 +208,7 @@ pub enum SplitKind {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Session {
     /// Folder of the project the pages belong to.
+    #[serde(default)]
     pub project: String,
     /// Paths of the pages open in tabs, in tab order.
     #[serde(default)]
@@ -306,6 +309,7 @@ pub struct Prefs {
     /// `ctrl` or `hover`: see `Config::link_preview_trigger`.
     pub link_preview_trigger: String,
     pub emacs_mark: bool,
+    pub webkit_emoji_shortcuts: bool,
     pub electric_mode: bool,
 }
 
@@ -388,6 +392,7 @@ impl Prefs {
             link_preview_trigger: s.link_preview_trigger.clone().filter(|t| t == "hover")
                 .unwrap_or_else(|| "ctrl".to_string()),
             emacs_mark: s.emacs_mark.unwrap_or(true),
+            webkit_emoji_shortcuts: s.webkit_emoji_shortcuts.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
         }
     }
@@ -422,6 +427,7 @@ impl Prefs {
             link_preview: Some(self.link_preview),
             link_preview_trigger: Some(self.link_preview_trigger.clone()),
             emacs_mark: Some(self.emacs_mark),
+            webkit_emoji_shortcuts: Some(self.webkit_emoji_shortcuts),
             electric_mode: Some(self.electric_mode),
             autosave: Some(self.autosave),
             delete_empty_pages: Some(self.delete_empty),
@@ -564,6 +570,14 @@ mod tests {
         let c: Config = serde_json::from_str(r#"{"org_links": {"pipe": true}, "md_links": {"hash": true, "markdown": true}}"#).unwrap();
         assert_eq!(c.org_links, Some(LinkSyntax { pipe: true, ..LinkSyntax::NONE }));
         assert_eq!(c.md_links, Some(LinkSyntax { pipe: false, ..LinkSyntax::ALL }));
+    }
+
+    #[test]
+    fn missing_keys_of_a_file_take_their_default() {
+        let profile: crate::keybindings::ProfileFile = serde_json::from_str("{}").unwrap();
+        assert_eq!(profile.editor_preset, "classic");
+        let session: Session = serde_json::from_str("{}").unwrap();
+        assert_eq!(session, Session::default());
     }
 
     #[test]

@@ -71,7 +71,7 @@ fn reset_tab(tab: Tab, p: &mut Prefs, d: Prefs) {
             show_video_thumbnails, hide_leading_stars, layout, show_brand, show_project, show_git, show_pages,
             show_backlinks, show_tags, show_broken_links, show_todos, show_org_bloom, show_quit_button,
             show_settings_button),
-        Tab::Shortcuts => take!(emacs_mark),
+        Tab::Shortcuts => take!(emacs_mark, webkit_emoji_shortcuts),
         Tab::Spelling => take!(spell, spell_lang, spell_dict_dir),
         Tab::Extensions => take!(org_bloom, org_bloom_path, org_bloom_zip, org_bloom_no_external_deps, git_ext,
             git_ssh_key, git_fetch, git_pull_rebase, git_unpushed_marker, git_commit_push, git_commit_template,

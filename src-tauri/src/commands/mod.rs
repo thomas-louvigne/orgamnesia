@@ -4,6 +4,7 @@
 pub mod app;
 pub mod clipboard;
 pub mod config;
+pub mod emoji;
 pub mod git;
 pub mod links;
 pub mod org_bloom;

@@ -46,6 +46,7 @@ pub const DEFAULT_PROFILE_NAME: &str = "Personnalisé";
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ProfileFile {
     /// Built-in preset it derives from (decides which editor actions exist).
+    #[serde(default = "default_preset")]
     pub editor_preset: String,
     #[serde(default)]
     pub app: Bindings,
