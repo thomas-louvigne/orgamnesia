@@ -140,6 +140,13 @@ impl Pane {
         });
     }
 
+    /// Put the keyboard in the editor, the cursor staying where it is.
+    pub fn focus(self) {
+        after_tick(move || {
+            if let Some(el) = self.area.try_get_untracked().flatten() { let _ = el.focus(); }
+        });
+    }
+
     /// The textarea was edited: the page follows.
     pub fn commit(self, el: &Textarea) {
         let text = el.value();
@@ -271,10 +278,10 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
             heights.update_value(|h| { h.insert(key, n); });
             n
         }, |image, attr, before| {
-            let video = images::youtube_id(&image.target);
+            let video = images::video(&image.target);
             if !(if video.is_some() { show_videos } else { show_images }) { return None; }
             let src = match &video {
-                Some(id) => images::youtube_thumbnail(id),
+                Some(v) => v.thumbnail(),
                 None => image_src(&page_path, &image.target),
             };
             // Shown as text until its size is known, and when it can't be loaded

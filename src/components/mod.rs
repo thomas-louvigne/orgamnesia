@@ -14,4 +14,5 @@ pub mod settings;
 pub mod shortcuts_help;
 pub mod tabs;
 pub mod update_modal;
+pub mod video_player;
 pub mod welcome;

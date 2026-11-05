@@ -74,6 +74,10 @@ field that searches, ignoring case and accents:
 - the tags (picking one shows it in the tags frame);
 - and offers to create the page when the name typed doesn't exist.
 
+The tabs and pages found start with those whose name begins with the text typed, the
+shortest name first, then alphabetically. With nothing typed, the open tabs come first.
+Opening one puts the cursor in its text, ready for typing.
+
 [[file:images/quick-open.png]]
 
 ** Saving and outside changes
@@ -193,10 +197,12 @@ the markers (or removes them when already there); without a selection, inserts a
 pair of markers with the cursor between them.
 
 ** New headline
-The "New heading" shortcut (Shift+Enter; Alt+Enter in Emacs) inserts, below the
-current line, a headline of the same level as the current one. On a list item, as
-org-mode's =M-RET=, it inserts a new item instead: same bullet, next number, and an
-empty checkbox when the item has one.
+The "New heading" shortcut (Shift+Enter; Alt+Enter in Emacs) cuts the line at the
+cursor and starts a headline of the same level as the current one: the text after
+the cursor becomes the new headline's. At the start of a line of text, that line
+becomes the headline; on the stars of a headline, the new one goes below it. On a
+list item, as org-mode's =M-RET=, it starts a new item the same way: same bullet,
+next number, and an empty checkbox when the item has one.
 
 ** Headline level
 On a headline, Alt+Shift+→ moves it one level down and Alt+Shift+← one level up,
@@ -451,7 +457,7 @@ As in org-mode, a keyword after the stars of a headline gives its state.
   adds one at each resize, the last one counts.
 - Can be turned off: the links then stay text.
 
-** YouTube videos
+** Videos
 A video is linked like any web page, with a plain org-mode link, which every tool
 reads (Emacs, Logseq, GitHub…):
 
@@ -460,11 +466,25 @@ reads (Emacs, Logseq, GitHub…):
 #+end_src
 
 Alone on its line (maybe after headline stars or a list dash), the link is drawn as
-the video's thumbnail, with a play button, while the cursor is not on it; a click
-opens the video in the browser. The thumbnail is downloaded from YouTube (shown as
-text offline), and is resized like an image. =youtube.com/watch?v==, =youtu.be/=,
-=/shorts/= and =/embed/= addresses are recognized; a link with a description
-(=[[url][title]]=) stays a link. Can be turned off in Settings > Display.
+the video's thumbnail, with a play button, while the cursor is not on it. The
+thumbnail is downloaded from the site (shown as text offline), and is resized like an
+image; a link with a description (=[[url][title]]=) stays a link. Can be turned off
+in Settings > Links.
+
+The sites recognized:
+- YouTube: =youtube.com/watch?v==, =youtu.be/=, =/shorts/=, =/embed/=, =/live/=;
+- Vimeo: =vimeo.com/123456= (and the hash of an unlisted video), =player.vimeo.com/video/=;
+- Dailymotion: =dailymotion.com/video/=, =dai.ly/=;
+- Twitch: past broadcasts (=twitch.tv/videos/=) and clips (=clips.twitch.tv/=,
+  =twitch.tv/channel/clip/=);
+- PeerTube, any instance: =/w/= and =/videos/watch/=.
+Vimeo, Twitch and PeerTube give no thumbnail by address: a card with the site's name
+is drawn instead.
+
+A click on the thumbnail plays the video in a window of the app, in the site's
+player (embedded), with a button to open it in the browser instead. Turned off in
+Settings > Links ("Play the videos in the app"), the click opens the video in the
+browser, and nothing is loaded from the site but the thumbnail.
 
 Logseq's ={{video url}}= macro (or ={{youtube url}}=) is read too, but marked: a
 red cross at the bottom left of its thumbnail, and a message saying to use the
@@ -793,6 +813,8 @@ closes without saving. The explanations under a setting are in italics.
 - Tags: =#keywords= and =:tags:= as links, with or without dashes.
 - Display: mark the broken links, link preview (on or off, and when it shows: Ctrl
   held or mouse resting).
+- Videos: their thumbnails, and playing them in the app (embedded player) or in the
+  browser.
 
 ** Editing
 - Auto-save.
@@ -807,7 +829,6 @@ closes without saving. The explanations under a setting are in italics.
 ** Display
 - Appearance: page title, line numbers, headline stars hidden but the last.
 - Images: show them, and the format of their size (org-mode or Logseq).
-- Thumbnails of the YouTube videos.
 - Frames around the editor: which are shown, in which column and in which order
   (see [[#left-and-right-columns][Left and right columns]]).
 

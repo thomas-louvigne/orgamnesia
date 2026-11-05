@@ -418,8 +418,8 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
 
         // ── Org: new heading at the same level as the current one ─────────────
         EditorAction::NewHeading => {
-            let (at, heading) = edit::new_heading(&chars, end);
-            replace(at, at, &heading);
+            let (from, to, heading) = edit::new_heading(&chars, end);
+            replace(from, to, &heading);
         }
         EditorAction::GlobalCycle => { global_cycle(pane, el); }
         EditorAction::InsertLink => insert.link(el),

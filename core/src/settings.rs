@@ -84,8 +84,12 @@ pub struct Config {
     pub mark_broken_links: Option<bool>,
     /// Draw the images of the page (a line holding only a link to an image).
     pub show_images: Option<bool>,
-    /// A line holding only a link to a YouTube video is drawn as its thumbnail.
+    /// A line holding only a link to a video (YouTube, Vimeo, Dailymotion, Twitch,
+    /// PeerTube) is drawn as its thumbnail.
     pub show_video_thumbnails: Option<bool>,
+    /// A click on a video's thumbnail plays it in the app, in the site's player
+    /// (embedded), instead of opening it in the browser.
+    pub embed_videos: Option<bool>,
     /// How a size given to an image is written: `org` (`#+ATTR_ORG: :width 300` on
     /// the line above, Emacs) or `logseq` (`{:height 200, :width 300}` after the link).
     pub image_size_format: Option<String>,
@@ -294,6 +298,7 @@ pub struct Prefs {
     pub todo_keywords: String,
     pub show_images: bool,
     pub show_video_thumbnails: bool,
+    pub embed_videos: bool,
     pub mark_broken_links: bool,
     /// `org` or `logseq`: see `Settings::image_size_format`.
     pub image_size_format: String,
@@ -375,6 +380,7 @@ impl Prefs {
                 .unwrap_or_else(|| DEFAULT_TODO_KEYWORDS.to_string()),
             show_images: s.show_images.unwrap_or(true),
             show_video_thumbnails: s.show_video_thumbnails.unwrap_or(true),
+            embed_videos: s.embed_videos.unwrap_or(true),
             mark_broken_links: s.mark_broken_links.unwrap_or(true),
             image_size_format: s.image_size_format.clone().filter(|f| f == "logseq")
                 .unwrap_or_else(|| "org".to_string()),
@@ -410,6 +416,7 @@ impl Prefs {
             todo_keywords: Some(self.todo_keywords.clone()),
             show_images: Some(self.show_images),
             show_video_thumbnails: Some(self.show_video_thumbnails),
+            embed_videos: Some(self.embed_videos),
             mark_broken_links: Some(self.mark_broken_links),
             image_size_format: Some(self.image_size_format.clone()),
             link_preview: Some(self.link_preview),
@@ -541,7 +548,7 @@ mod tests {
         assert!(p.autosave && p.git_ext && !p.org_bloom && !p.delete_empty && p.restore_session);
         assert_eq!(p.lang, "fr");
         assert_eq!(p.image_size_format, "org");
-        assert!(p.link_preview);
+        assert!(p.link_preview && p.embed_videos);
         assert_eq!(p.link_preview_trigger, "ctrl");
         assert_eq!(p.formats(), Formats { default: Format::Org, single: false });
         assert!(!p.ask_format);
