@@ -340,6 +340,7 @@ select.git-branch option { background: var(--bg2); color: var(--fg); font-weight
 
 /* ── Workspace ─────────────────────────────────────────────── */
 .workspace {
+    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -1129,20 +1130,18 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
     box-shadow: 0 8px 32px rgba(0,0,0,.5);
 }
 
-/* Settings window: resizable from its bottom-right corner */
-.modal-resizable {
-    resize: both;
-    overflow: hidden;
-    width: 860px;
-    height: 640px;
-    /* Room for an action's name beside its two shortcut columns; also enlarges
-       a smaller size remembered from before */
-    min-width: 680px;
-    min-height: 420px;
-    max-width: 95vw;
-    max-height: 95vh;
+/* The settings: the whole workspace, over the pages */
+.settings-page {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    outline: none;
 }
-.modal-resizable .modal-body { flex: 1; min-width: 0; min-height: 0; max-height: none; }
+.settings-page .modal-body { flex: 1; min-width: 0; min-height: 0; max-height: none; }
+.settings-page .modal-footer { flex-wrap: wrap; }
 
 .modal-header {
     display: flex;

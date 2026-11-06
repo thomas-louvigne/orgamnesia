@@ -9,7 +9,7 @@ use crate::{
         frames::Column,
         editor::EditorSplit,
         quick_open::QuickOpenModal,
-        settings::SettingsModal,
+        settings::SettingsPage,
         new_page_modal::NewPageModal,
         tabs::TabBar,
     },
@@ -272,6 +272,7 @@ pub fn App() -> impl IntoView {
                         })
                     }}
                     <EditorSplit />
+                    {move || ctx.ui.show_settings.get().then(|| view! { <SettingsPage /> })}
                 </main>
                 {move || has_column(true).then(|| view! {
                     <Resizer which=Drag::Panel />
@@ -279,7 +280,6 @@ pub fn App() -> impl IntoView {
                 })}
             </div>
             {move || ctx.ui.show_quick_open.get().then(|| view! { <QuickOpenModal /> })}
-            {move || ctx.ui.show_settings.get().then(|| view! { <SettingsModal /> })}
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <dialogs::ConfirmDialog /> })}
             {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <dialogs::DiskConflictDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}

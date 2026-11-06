@@ -15,6 +15,8 @@ fn push_tab(ctx: AppCtx, tab: Tab) {
 
 /// Open `file` in a tab (or activate its tab); with `goto`, also move the cursor there.
 pub fn open_file(ctx: AppCtx, file: FileEntry, goto: Option<Goto>) {
+    // Also for the page already shown: it is below them
+    ctx.ui.show_settings.set(false);
     let go = move |path: String| {
         if let Some(g) = goto { ctx.work.goto.set(Some((path, g))); }
     };

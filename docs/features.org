@@ -795,9 +795,10 @@ in Settings > Spelling, which also tells how to install a dictionary when none i
 - *Next misspelled word*: F7 in Classic, Ctrl+, in Emacs (as =flyspell-goto-next-error=).
 
 * Settings
-The settings window (Ctrl+,) can be moved and resized. "Apply" saves the changes
-without closing (a dot shows there are some), "Save" saves and closes, "Cancel"
-closes without saving. The explanations under a setting are in italics.
+The settings (Ctrl+,) open in the main area, over the pages, which stay as they
+are. "Apply" saves the changes without closing (a dot shows there are some), "Save"
+saves and closes, "Cancel" or Escape closes without saving, as does opening a page.
+The explanations under a setting are in italics.
 
 [[file:images/settings-editing.png]]
 
@@ -853,7 +854,7 @@ Profile, shortcuts of the application, the panes, the editor, the selection mark
 filters the actions by name or shortcut.
 
 * Settings as text
-"Edit the settings as text", at the bottom of the settings window, opens the
+"Edit the settings as text", at the bottom of the settings, opens the
 *preference* project: the configuration files in the editor, in place of the open
 project. This project is always in the projects menu; "← <project>", above the
 file, goes back to the project left, its tabs and panes as they were.

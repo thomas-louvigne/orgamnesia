@@ -814,9 +814,10 @@ dictionnaire quand aucun n'est trouvé.
 - *Faute suivante* : F7 en Classique, Ctrl+, en Emacs (comme =flyspell-goto-next-error=).
 
 * Préférences
-La fenêtre des préférences (Ctrl+,) se déplace et se redimensionne. « Appliquer »
-enregistre les changements sans fermer (un point signale qu'il y en a),
-« Sauvegarder » enregistre et ferme, « Annuler » ferme sans enregistrer.
+Les préférences (Ctrl+,) s'ouvrent dans la zone principale, par-dessus les pages,
+qui restent telles quelles. « Appliquer » enregistre les changements sans fermer
+(un point signale qu'il y en a), « Sauvegarder » enregistre et ferme, « Annuler » ou
+Échap ferme sans enregistrer, comme le fait l'ouverture d'une page.
 
 ** Général
 - Dossier du projet par défaut.
@@ -871,7 +872,7 @@ sélection (avec son option) et des états TODO (avec leur option). Un champ en 
 filtre les actions par leur nom ou leur raccourci.
 
 * Préférences en texte
-« Éditer les préférences en mode texte », en bas de la fenêtre des préférences,
+« Éditer les préférences en mode texte », en bas des préférences,
 ouvre le projet *preference* : les fichiers de configuration dans l'éditeur, à la
 place du projet ouvert. Ce projet est toujours dans le menu des projets ;
 « ← <projet> », au-dessus du fichier, ramène au projet quitté, ses onglets et ses
