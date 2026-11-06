@@ -283,7 +283,6 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <dialogs::ConfirmDialog /> })}
             {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <dialogs::DiskConflictDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
-            {move || ctx.ui.show_welcome.get().then(|| view! { <crate::components::welcome::WelcomeModal /> })}
             {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_modal::CommitModal /> })}
             {move || ctx.ui.git_history.get().map(|file| view! { <crate::components::git_history::GitHistoryModal file /> })}
             {move || ctx.ui.show_git_remote.get().then(|| view! { <crate::components::git_setup::RemoteModal /> })}

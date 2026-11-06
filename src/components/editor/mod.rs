@@ -17,7 +17,7 @@ use wasm_bindgen::JsCast;
 
 use crate::{
     actions::follow_link,
-    components::{config_bar::ConfigBar, empty_state::EmptyState, page_title::PageTitle, project_search::ProjectSearchPopin, frames::TagAddPopin, tabs::TabBar},
+    components::{config_bar::ConfigBar, empty_state::EmptyState, welcome::Welcome, page_title::PageTitle, project_search::ProjectSearchPopin, frames::TagAddPopin, tabs::TabBar},
     edit,
     highlight,
     i18n::t,
@@ -116,6 +116,7 @@ pub fn EditorArea(second: bool) -> impl IntoView {
             <div class="editor-pane-body">
             // `try_get`: these also re-run when the pane is closed (C-x 0), after `path` is disposed
             {move || match path.try_get().flatten() {
+                None if !second && ctx.ui.show_welcome.get() => view! { <Welcome /> }.into_any(),
                 None => view! { <EmptyState /> }.into_any(),
                 Some(p) => {
                     let tab = ctx.work.tabs.get_untracked().into_iter().find(|t| t.path == p);

@@ -1692,7 +1692,11 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .modal-footer-start { margin-right: auto; }
 
 /* First run: the format of the pages and the shortcuts */
-.modal.welcome { max-width: 34rem; }
+/* Top-aligned with auto margins: centered, a screen taller than the pane would lose its top */
+.welcome-page { justify-content: flex-start; }
+.welcome { width: 100%; max-width: 34rem; margin: auto; }
+.welcome-head { display: flex; flex-direction: column; align-items: center; }
+.welcome-body { margin-top: 24px; text-align: left; }
 .welcome-group { border: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .welcome-group legend { font-weight: 600; margin-bottom: 6px; }
 .welcome-choice {
