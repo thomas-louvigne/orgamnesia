@@ -7,7 +7,6 @@ mod shortcuts;
 mod tabs;
 
 use leptos::{ev, html, prelude::*};
-use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::{
@@ -97,24 +96,8 @@ pub fn SettingsPage() -> impl IntoView {
     });
     on_cleanup(move || esc_handle.remove());
 
-    // The keyboard comes here, not in the page hidden below, and goes back on closing
     let page_ref = NodeRef::<html::Div>::new();
-    Effect::new(move |_| {
-        if let Some(page) = page_ref.get() { let _ = page.focus(); }
-    });
-    on_cleanup(|| {
-        let editor = document().query_selector(".editor-area.focused textarea").ok().flatten();
-        if let Some(editor) = editor.and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok()) {
-            let _ = editor.focus();
-        }
-    });
-
-    // Another page or project shown (the columns stay usable): it would be hidden below
-    Effect::new(move |shown: Option<_>| {
-        let now = (ctx.work.active_tab.get(), ctx.project.vault_path.get(), ctx.project.preference.get());
-        if shown.is_some_and(|shown| shown != now) { ctx.ui.show_settings.set(false); }
-        now
-    });
+    super::panel::opened(ctx, page_ref, move || ctx.ui.show_settings.set(false));
 
     // What was last loaded/applied; the page differs from it when there is
     // something to apply. `None` until the saved settings have been read.
@@ -201,7 +184,7 @@ pub fn SettingsPage() -> impl IntoView {
     };
 
     view! {
-        <div node_ref=page_ref class="settings-page" tabindex="-1">
+        <div node_ref=page_ref class="main-panel" tabindex="-1">
             <div class="modal-header">
                 <h2>{move || t("settings", lang())}</h2>
                 <button

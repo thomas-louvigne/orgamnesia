@@ -243,7 +243,7 @@ pub struct ActionDef<A: 'static> {
 pub enum AppAction {
     NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
-    GitCommit, GitPull, GitPush, ExportPdf, ExportHtml,
+    GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml,
 }
 
 /// Editor actions.
@@ -299,6 +299,7 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::GitCommit, id: "git_commit",  label_key: "shortcut_git_commit" },
     ActionDef { action: AppAction::GitPull, id: "git_pull",      label_key: "shortcut_git_pull" },
     ActionDef { action: AppAction::GitPush, id: "git_push",      label_key: "shortcut_git_push" },
+    ActionDef { action: AppAction::GitHistory, id: "git_history", label_key: "shortcut_git_history" },
     ActionDef { action: AppAction::ExportPdf, id: "export_pdf",  label_key: "shortcut_export_pdf" },
     ActionDef { action: AppAction::ExportHtml, id: "export_html", label_key: "shortcut_export_html" },
 ];
@@ -414,6 +415,7 @@ pub fn default_app() -> Bindings {
         ("git_commit",       &["ctrl+shift+g"]),
         ("git_pull",         &["ctrl+shift+u"]),
         ("git_push",         &["ctrl+shift+p"]),
+        ("git_history",      &["ctrl+shift+l"]),
         ("export_pdf",       &["ctrl+p"]),
         ("export_html",      &["ctrl+shift+e"]),
     ])
@@ -522,10 +524,11 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("next_region",      &["F6"]),
             ("prev_region",      &["shift+F6"]),
             ("quit",             &["ctrl+x ctrl+c"]),
-            // Magit: `C-x g` (magit-status), then `c c` (commit), `F p` (pull), `P p` (push)
+            // Magit: `C-x g` (magit-status), then `c c` (commit), `F p` (pull), `P p` (push), `l l` (log)
             ("git_commit",       &["ctrl+x g c c"]),
             ("git_pull",         &["ctrl+x g shift+f p"]),
             ("git_push",         &["ctrl+x g shift+p p"]),
+            ("git_history",      &["ctrl+x g l l"]),
             // org-export-dispatch: `C-c C-e l p` (PDF), `C-c C-e h h` (HTML file)
             ("export_pdf",       &["ctrl+c ctrl+e l p"]),
             ("export_html",      &["ctrl+c ctrl+e h h"]),

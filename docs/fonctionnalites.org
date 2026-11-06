@@ -750,8 +750,9 @@ le nombre de commits à pousser ; une branche sans branche distante est poussée
   gestionnaire d'identifiants.
 
 *** Historique d'une page
-« Historique git… » dans le menu du clic droit d'un onglet ou d'une page de la liste
-des pages : les commits qui ont modifié la page, du plus récent au plus ancien, en
+L'icône d'horloge du cadre git (Classique : Ctrl+Maj+L ; Emacs : =C-x g l l=)
+pour la page affichée, ou « Historique git… » dans le menu du clic droit d'un onglet
+ou d'une page de la liste des pages : les commits qui ont modifié la page, du plus récent au plus ancien, en
 suivant ses renommages. Pour chacun, ses modifications, ou la page telle qu'elle
 était alors. « Restaurer cette version » la remet : dans son onglet si la page est
 ouverte (l'annulation de l'éditeur la défait), sinon sur le disque, après

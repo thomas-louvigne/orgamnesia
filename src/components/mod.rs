@@ -1,4 +1,4 @@
-pub mod commit_modal;
+pub mod commit_page;
 pub mod config_bar;
 pub mod dialogs;
 pub mod editor;
@@ -8,6 +8,7 @@ pub mod git_history;
 pub mod git_setup;
 pub mod new_page_modal;
 pub mod page_title;
+pub mod panel;
 pub mod project_search;
 pub mod quick_open;
 pub mod settings;

@@ -28,7 +28,7 @@ fn do_open(ctx: AppCtx, item: QuickItem) {
     ctx.ui.show_quick_open.set(false);
     match item {
         QuickItem::Tab { idx, .. } => {
-            ctx.ui.show_settings.set(false);
+            ctx.close_panels();
             ctx.work.active_tab.set(Some(idx));
             if let Some(path) = ctx.work.tabs.with_untracked(|tabs| tabs.get(idx).map(|t| t.path.clone())) {
                 ctx.work.goto.set(Some((path, Goto::Focus)));

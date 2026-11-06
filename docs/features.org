@@ -737,8 +737,9 @@ track it.
   (empty: the system's SSH setup). An =https://= remote needs a credential helper.
 
 *** History of a page
-"Git history…" in the right-click menu of a tab or of a page of the pages list: the
-commits that changed the page, newest first, following its renames. For each, what
+The clock icon of the git frame (Classic: Ctrl+Shift+L; Emacs: =C-x g l l=) for
+the page shown, or "Git history…" in the right-click menu of a tab or of a page of
+the pages list: the commits that changed the page, newest first, following its renames. For each, what
 it changed, or the page as it was then. "Restore this version" puts it back: in its
 tab when the page is open (the editor's undo takes it back), else on disk, after
 confirmation.

@@ -368,6 +368,14 @@ impl AppCtx {
     }
 
     /// Ask the user to confirm; `on_yes` runs only if they accept.
+    pub fn close_panels(&self) {
+        self.ui.show_settings.set(false);
+        self.ui.show_commit.set(false);
+        self.ui.git_history.set(None);
+        self.ui.show_clone.set(false);
+        self.ui.show_git_identity.set(false);
+    }
+
     pub fn ask_confirm(&self, message: String, on_yes: impl Fn() + Send + Sync + 'static) {
         self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: None, info: false, choice: None }));
     }

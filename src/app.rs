@@ -49,7 +49,8 @@ fn Resizer(which: Drag) -> impl IntoView {
 pub fn run_app_action(ctx: AppCtx, action: AppAction) {
     // What acts on the pages of a project has nothing to act on in the "preference" one
     let project_only = matches!(action, AppAction::NewPage | AppAction::ProjectSearch | AppAction::ProjectReplace
-        | AppAction::AddTag | AppAction::GitCommit | AppAction::GitPull | AppAction::GitPush | AppAction::ExportPdf | AppAction::ExportHtml);
+        | AppAction::AddTag | AppAction::GitCommit | AppAction::GitPull | AppAction::GitPush | AppAction::GitHistory
+        | AppAction::ExportPdf | AppAction::ExportHtml);
     if project_only && ctx.project.preference.get_untracked() {
         ctx.notify_t("pref_unavailable", "");
         return;
@@ -58,7 +59,7 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
     let active = ctx.work.active_tab.get_untracked();
     match action {
         AppAction::NewPage      => ctx.ui.show_new_page.set(true),
-        AppAction::OpenSettings => ctx.ui.show_settings.set(true),
+        AppAction::OpenSettings => { ctx.close_panels(); ctx.ui.show_settings.set(true) }
         AppAction::ShowShortcuts => ctx.ui.show_shortcuts.update(|s| *s = !*s),
         AppAction::QuickOpen    => ctx.ui.show_quick_open.set(true),
         AppAction::ProjectSearch  => ctx.ui.search.open.set(Some(false)),
@@ -91,6 +92,7 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
         AppAction::GitCommit       => crate::git::open_commit(ctx),
         AppAction::GitPull         => crate::git::pull(ctx),
         AppAction::GitPush         => crate::git::push(ctx),
+        AppAction::GitHistory      => crate::git::open_active_history(ctx),
         AppAction::ExportPdf | AppAction::ExportHtml => match ctx.work.active_tab_data() {
             Some(tab) if action == AppAction::ExportPdf => crate::export::export_pdf(ctx, tab),
             Some(tab) => crate::export::export_html(ctx, tab),
@@ -273,6 +275,10 @@ pub fn App() -> impl IntoView {
                     }}
                     <EditorSplit />
                     {move || ctx.ui.show_settings.get().then(|| view! { <SettingsPage /> })}
+                    {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_page::CommitPage /> })}
+                    {move || ctx.ui.git_history.get().map(|file| view! { <crate::components::git_history::GitHistoryPage file /> })}
+                    {move || ctx.ui.show_clone.get().then(|| view! { <crate::components::git_setup::ClonePage /> })}
+                    {move || ctx.ui.show_git_identity.get().then(|| view! { <crate::components::git_setup::IdentityPage /> })}
                 </main>
                 {move || has_column(true).then(|| view! {
                     <Resizer which=Drag::Panel />
@@ -283,12 +289,6 @@ pub fn App() -> impl IntoView {
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <dialogs::ConfirmDialog /> })}
             {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <dialogs::DiskConflictDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
-            {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_modal::CommitModal /> })}
-            {move || ctx.ui.git_history.get().map(|file| view! { <crate::components::git_history::GitHistoryModal file /> })}
-            {move || ctx.ui.show_git_remote.get().then(|| view! { <crate::components::git_setup::RemoteModal /> })}
-            {move || ctx.ui.show_git_branch.get().then(|| view! { <crate::components::git_setup::BranchModal /> })}
-            {move || ctx.ui.show_clone.get().then(|| view! { <crate::components::git_setup::CloneModal /> })}
-            {move || ctx.ui.show_git_identity.get().then(|| view! { <crate::components::git_setup::IdentityModal /> })}
             {move || ctx.ui.update.get().map(|info| view! { <crate::components::update_modal::UpdateModal info /> })}
             {move || ctx.ui.show_shortcuts.get().then(|| view! { <crate::components::shortcuts_help::ShortcutsHelp /> })}
             {move || ctx.ui.video.get().map(|(embed, url)| view! { <crate::components::video_player::VideoPlayer embed url /> })}

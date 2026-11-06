@@ -78,6 +78,29 @@ fn GitButtons() -> impl IntoView {
     }
 }
 
+/// The history of the page shown, an icon at the end of the branch's line.
+#[component]
+fn HistoryButton() -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let label = move || if ctx.work.active_tab.get().is_some() {
+        ctx.with_shortcut("shortcut_git_history", "git_history")
+    } else {
+        t("git_history_no_page", ctx.lang.get()).to_string()
+    };
+    view! {
+        <button class="btn-icon git-history-btn" title=label aria-label=label
+            prop:disabled=move || ctx.work.active_tab.get().is_none()
+            on:click=move |_| crate::git::open_active_history(ctx)>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                <path d="M3 3v5h5" />
+                <path d="M12 7v5l3.5 2" />
+            </svg>
+        </button>
+    }
+}
+
 /// The field asking the passphrase of the SSH key, to run `op` again. `wrong`:
 /// the last one was refused.
 #[component]
@@ -90,24 +113,26 @@ fn PassphraseField(op: crate::state::GitOp, wrong: bool) -> impl IntoView {
         if let Some(input) = input.get() { let _ = input.focus(); }
     });
     view! {
-        <form class="git-passphrase"
+        <form class="git-form"
             on:submit=move |e: web_sys::SubmitEvent| {
                 e.prevent_default();
                 let passphrase = value.get_untracked();
                 if !passphrase.is_empty() { crate::git::send_passphrase(ctx, op, passphrase); }
             }
+            // App shortcuts don't run while it is typed
             on:keydown=move |e: web_sys::KeyboardEvent| {
+                e.stop_propagation();
                 if e.key() == "Escape" { ctx.ui.git_passphrase.set(None); }
             }
         >
-            <label for="git-passphrase-input">
+            <label>
                 {move || t(if wrong { "git_passphrase_wrong" } else { "git_passphrase" }, lang())}
+                <input type="password" class="setting-input" autocomplete="off" node_ref=input
+                    prop:value=move || value.get()
+                    on:input=move |e| value.set(event_target_value(&e)) />
             </label>
-            <input id="git-passphrase-input" type="password" autocomplete="off" node_ref=input
-                prop:value=move || value.get()
-                on:input=move |e| value.set(event_target_value(&e)) />
             <span class="setting-hint">{move || t("git_passphrase_hint", lang())}</span>
-            <div class="git-passphrase-actions">
+            <div class="git-form-actions">
                 <button type="button" class="btn-secondary"
                     on:click=move |_| ctx.ui.git_passphrase.set(None)>
                     {move || t("cancel", lang())}
@@ -191,15 +216,16 @@ pub fn GitLine() -> impl IntoView {
     let git = move || ctx.project.git.get().unwrap_or_default();
     let items = move || {
         let st = git();
-        let mut items: Vec<(&'static str, String)> = vec![];
-        if busy() == Some(crate::state::GitOp::Sync) { items.push(("git-syncing", format!("⟳ {}", t("git_syncing", lang())))); }
-        if st.merging { items.push(("git-conflict", format!("⚠ {}", t("git_merging", lang())))); }
-        if st.changes > 0 { items.push(("git-dirty", format!("● {} {}", st.changes, t("git_to_commit", lang())))); }
-        if st.ahead > 0 { items.push(("git-ahead", format!("↑ {} {}", st.ahead, t("git_to_push", lang())))); }
-        if st.behind > 0 { items.push(("git-behind", format!("↓ {} {}", st.behind, t("git_to_pull", lang())))); }
-        if !st.remote { items.push(("git-local", t("git_no_remote", lang()).to_string())); }
-        else if !st.upstream { items.push(("git-local", t("git_no_upstream", lang()).to_string())); }
-        if items.is_empty() { items.push(("git-clean", format!("✓ {}", t("git_up_to_date", lang())))); }
+        // Each: its class, what the line shows, and in words. The commits to push
+        // are counted on the Push button.
+        let mut items: Vec<(&'static str, String, String)> = vec![];
+        if busy() == Some(crate::state::GitOp::Sync) { items.push(("git-syncing", "⟳".into(), t("git_syncing", lang()).to_string())); }
+        if st.merging { items.push(("git-conflict", "⚠".into(), t("git_merging", lang()).to_string())); }
+        if st.changes > 0 { items.push(("git-dirty", format!("● {}", st.changes), format!("{} {}", st.changes, t("git_to_commit", lang())))); }
+        if st.behind > 0 { items.push(("git-behind", format!("↓ {}", st.behind), format!("{} {}", st.behind, t("git_to_pull", lang())))); }
+        if !st.remote { items.push(("git-local", "○".into(), t("git_no_remote", lang()).to_string())); }
+        else if !st.upstream { items.push(("git-local", "○".into(), t("git_no_upstream", lang()).to_string())); }
+        if items.is_empty() && st.ahead == 0 { items.push(("git-clean", "✓".into(), t("git_up_to_date", lang()).to_string())); }
         items
     };
     let error = move || git().error.unwrap_or_default();
@@ -244,29 +270,32 @@ pub fn GitLine() -> impl IntoView {
                 <div class="git-head">
                     <GitIcon />
                     <BranchSelect />
-                </div>
-                <div class="git-items">
-                    // A click opens a file in conflict, the next one at each click
-                    {move || in_conflict.get().then(|| {
-                        view! {
-                            <button class="git-item git-conflict git-conflict-btn"
-                                title=move || t("git_open_conflict", lang())
-                                on:click=move |_| {
-                                    let n = next.get_value();
-                                    next.set_value(n + 1);
-                                    crate::git::open_conflict(ctx, n);
-                                }>
-                                {move || format!("⚠ {} {}", git().conflicts, t("git_in_conflict", lang()))}
-                            </button>
-                        }
-                    })}
-                    {move || items().into_iter().map(|(cls, text)| view! {
-                        <span class=format!("git-item {cls}")>{text}</span>
-                    }).collect_view()}
+                    <div class="git-items">
+                        // A click opens a file in conflict, the next one at each click
+                        {move || in_conflict.get().then(|| {
+                            view! {
+                                <button class="git-item git-conflict git-conflict-btn"
+                                    title=move || format!("{} {} — {}", git().conflicts, t("git_in_conflict", lang()), t("git_open_conflict", lang()))
+                                    on:click=move |_| {
+                                        let n = next.get_value();
+                                        next.set_value(n + 1);
+                                        crate::git::open_conflict(ctx, n);
+                                    }>
+                                    {move || format!("⚠ {}", git().conflicts)}
+                                </button>
+                            }
+                        })}
+                        {move || items().into_iter().map(|(cls, short, long)| view! {
+                            <span class=format!("git-item {cls}") role="img" title=long.clone() aria-label=long>{short}</span>
+                        }).collect_view()}
+                    </div>
+                    <HistoryButton />
                 </div>
                 <GitButtons />
                 {move || ctx.ui.git_passphrase.get().map(|(op, wrong)| view! { <PassphraseField op wrong /> })}
-                {move || (!git().remote).then(|| view! {
+                {move || ctx.ui.show_git_branch.get().then(|| view! { <crate::components::git_setup::BranchForm /> })}
+                {move || ctx.ui.show_git_remote.get().then(|| view! { <crate::components::git_setup::RemoteForm /> })}
+                {move || (!git().remote && !ctx.ui.show_git_remote.get()).then(|| view! {
                     <button class="git-setup-btn" prop:disabled=move || busy().is_some()
                         on:click=move |_| ctx.ui.show_git_remote.set(true)>
                         {move || t("git_remote_title", lang())}

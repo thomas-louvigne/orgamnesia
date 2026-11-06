@@ -231,18 +231,21 @@ pub fn fetch(ctx: AppCtx) {
     spawn_local(async move { let _ = invoke::git_fetch().await; });
 }
 
-/// Open the commit window (the pages are saved first, so their changes show).
-/// When git doesn't know who signs the commits yet, their name and email are
-/// asked first.
+/// Open the commit (the pages are saved first, so their changes show). When git
+/// doesn't know who signs the commits yet, their name and email are asked first.
 pub fn open_commit(ctx: AppCtx) {
     if !git_ready(ctx) || ctx.project.git_busy.get_untracked().is_some() { return; }
     spawn_local(async move {
         let known = invoke::git_identity().await.is_ok_and(|(name, email)| !name.is_empty() && !email.is_empty());
         if !known {
+            ctx.close_panels();
             ctx.ui.show_git_identity.set(true);
             return;
         }
-        if actions::save_dirty_tabs(ctx).await { ctx.ui.show_commit.set(true); }
+        if actions::save_dirty_tabs(ctx).await {
+            ctx.close_panels();
+            ctx.ui.show_commit.set(true);
+        }
     });
 }
 
@@ -409,9 +412,21 @@ pub fn open_conflict(ctx: AppCtx, n: usize) {
 
 // ─── History of a page ───────────────────────────────────────────────────────
 
-/// Open the history window of `file`.
+/// Open the history of `file`.
 pub fn open_history(ctx: AppCtx, file: FileEntry) {
-    if git_ready(ctx) { ctx.ui.git_history.set(Some(file)); }
+    if git_ready(ctx) {
+        ctx.close_panels();
+        ctx.ui.git_history.set(Some(file));
+    }
+}
+
+/// Open the history of the page shown; said when there is none.
+pub fn open_active_history(ctx: AppCtx) {
+    if !git_ready(ctx) { return; }
+    match ctx.work.active_tab_data() {
+        Some(tab) => open_history(ctx, FileEntry { name: tab.name, path: tab.path }),
+        None => ctx.notify_t("git_history_no_page", ""),
+    }
 }
 
 /// The history of the pages can be shown (tracked): the extension is on and

@@ -12,7 +12,7 @@ pub const SPLIT_ACTIONS: &[AppAction] = &[
 pub const MARK_ACTIONS: &[EditorAction] = &[EditorAction::SetMark, EditorAction::KeyboardQuit];
 
 /// Application actions of the git extension; shown in their own section.
-pub const GIT_ACTIONS: &[AppAction] = &[AppAction::GitCommit, AppAction::GitPull, AppAction::GitPush];
+pub const GIT_ACTIONS: &[AppAction] = &[AppAction::GitCommit, AppAction::GitPull, AppAction::GitPush, AppAction::GitHistory];
 
 /// Editor actions of the TODO states; shown in their own section.
 pub const TODO_ACTIONS: &[EditorAction] = &[EditorAction::TodoNext, EditorAction::TodoPrev];
