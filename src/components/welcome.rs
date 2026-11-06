@@ -1,5 +1,6 @@
-//! The window of the first run: the format of the pages, the shortcuts and
-//! the modules (git, the to-do list), all changed later in the settings.
+//! What the editor shows on the first run, in place of the empty state: the
+//! format of the pages, the shortcuts and the modules (git, the to-do list), all
+//! changed later in the settings.
 
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -8,7 +9,7 @@ use crate::{i18n::t, invoke, keybindings::Keybindings, state::AppCtx};
 use orgamnesia_core::Format;
 
 #[component]
-pub fn WelcomeModal() -> impl IntoView {
+pub fn Welcome() -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let format = RwSignal::new(ctx.pref_untracked(|p| p.default_format));
@@ -54,13 +55,14 @@ pub fn WelcomeModal() -> impl IntoView {
     };
 
     view! {
-        <div class="modal-overlay">
-            <div class="modal welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
-                <div class="modal-header">
-                    <h2 id="welcome-title">{move || t("welcome_title", lang())}</h2>
+        <div class="editor-empty welcome-page">
+            <section class="welcome" aria-labelledby="welcome-title">
+                <div class="welcome-head">
+                    <img class="empty-logo" src="app-icon.svg" alt="" />
+                    <h2 id="welcome-title" class="empty-title">{move || t("welcome_title", lang())}</h2>
+                    <p class="empty-text">{move || t("welcome_intro", lang())}</p>
                 </div>
-                <div class="modal-body">
-                    <p>{move || t("welcome_intro", lang())}</p>
+                <div class="welcome-body">
                     <fieldset class="welcome-group">
                         <legend>{move || t("default_format", lang())}</legend>
                         {choice("radio", "welcome-format", "org", "format_org", "welcome_org_hint",
@@ -84,12 +86,12 @@ pub fn WelcomeModal() -> impl IntoView {
                     </fieldset>
                     <p class="setting-hint">{move || t("welcome_later", lang())}</p>
                 </div>
-                <div class="modal-footer">
+                <div class="empty-actions">
                     <button class="btn-primary" prop:disabled=move || busy.get() on:click=start>
                         {move || t("welcome_start", lang())}
                     </button>
                 </div>
-            </div>
+            </section>
         </div>
     }
 }

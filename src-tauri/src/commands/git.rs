@@ -65,6 +65,14 @@ pub async fn git_push(state: State<'_, AppState>) -> Cmd<String> {
     with_git(&state, true, crate::git::push).await
 }
 
+/// The passphrase of the SSH key for the next commands, kept in memory only;
+/// `None` forgets it.
+#[tauri::command]
+pub async fn git_set_passphrase(passphrase: Option<String>) -> Cmd<()> {
+    *crate::lock(&crate::git::PASSPHRASE) = passphrase;
+    Ok(())
+}
+
 /// The branches of the open project's repository, local and remote.
 #[tauri::command]
 pub async fn git_branches(state: State<'_, AppState>) -> Cmd<Vec<String>> {

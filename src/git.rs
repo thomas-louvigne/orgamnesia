@@ -123,6 +123,32 @@ fn report(ctx: AppCtx, key: &'static str, err: &str) {
     ctx.notify(msg);
 }
 
+/// The remote refused the SSH key, which may need its passphrase: ask for it, to
+/// run `op` again. One already given is then wrong, and forgotten.
+fn ask_passphrase(ctx: AppCtx, op: GitOp, err: &str) {
+    if !err.to_lowercase().contains("permission denied") { return; }
+    let wrong = ctx.ui.git_passphrase_sent.get_untracked();
+    if wrong {
+        ctx.ui.git_passphrase_sent.set(false);
+        spawn_local(async move { let _ = invoke::git_set_passphrase(None).await; });
+    }
+    ctx.ui.git_passphrase.set(Some((op, wrong)));
+}
+
+/// The passphrase written: keep it, and run again what needed it.
+pub fn send_passphrase(ctx: AppCtx, op: GitOp, passphrase: String) {
+    ctx.ui.git_passphrase.set(None);
+    spawn_local(async move {
+        match invoke::git_set_passphrase(Some(&passphrase)).await {
+            Ok(()) => {
+                ctx.ui.git_passphrase_sent.set(true);
+                if op == GitOp::Pull { pull(ctx) } else { push(ctx) }
+            }
+            Err(e) => ctx.error("error", &e),
+        }
+    });
+}
+
 /// Read the git state of the open project again, now (the watcher would, a bit later).
 pub async fn refresh(ctx: AppCtx) {
     let Some(path) = ctx.project.vault_path.get_untracked() else { return };
@@ -170,6 +196,7 @@ pub fn pull(ctx: AppCtx) {
             }
             Err(e) => {
                 report(ctx, "git_pull_error", &e);
+                ask_passphrase(ctx, GitOp::Pull, &e);
                 if needs_merge(&e) { ctx.alert(t("git_merge_outside", ctx.lang.get_untracked()).to_string()); }
             }
         }
@@ -188,7 +215,11 @@ async fn push_now(ctx: AppCtx) -> bool {
             ctx.notify_t("git_pushed", "");
             true
         }
-        Err(e) => { report(ctx, "git_push_error", &e); false }
+        Err(e) => {
+            report(ctx, "git_push_error", &e);
+            ask_passphrase(ctx, GitOp::Push, &e);
+            false
+        }
     }
 }
 
@@ -200,18 +231,21 @@ pub fn fetch(ctx: AppCtx) {
     spawn_local(async move { let _ = invoke::git_fetch().await; });
 }
 
-/// Open the commit window (the pages are saved first, so their changes show).
-/// When git doesn't know who signs the commits yet, their name and email are
-/// asked first.
+/// Open the commit (the pages are saved first, so their changes show). When git
+/// doesn't know who signs the commits yet, their name and email are asked first.
 pub fn open_commit(ctx: AppCtx) {
     if !git_ready(ctx) || ctx.project.git_busy.get_untracked().is_some() { return; }
     spawn_local(async move {
         let known = invoke::git_identity().await.is_ok_and(|(name, email)| !name.is_empty() && !email.is_empty());
         if !known {
+            ctx.close_panels();
             ctx.ui.show_git_identity.set(true);
             return;
         }
-        if actions::save_dirty_tabs(ctx).await { ctx.ui.show_commit.set(true); }
+        if actions::save_dirty_tabs(ctx).await {
+            ctx.close_panels();
+            ctx.ui.show_commit.set(true);
+        }
     });
 }
 
@@ -378,9 +412,21 @@ pub fn open_conflict(ctx: AppCtx, n: usize) {
 
 // ─── History of a page ───────────────────────────────────────────────────────
 
-/// Open the history window of `file`.
+/// Open the history of `file`.
 pub fn open_history(ctx: AppCtx, file: FileEntry) {
-    if git_ready(ctx) { ctx.ui.git_history.set(Some(file)); }
+    if git_ready(ctx) {
+        ctx.close_panels();
+        ctx.ui.git_history.set(Some(file));
+    }
+}
+
+/// Open the history of the page shown; said when there is none.
+pub fn open_active_history(ctx: AppCtx) {
+    if !git_ready(ctx) { return; }
+    match ctx.work.active_tab_data() {
+        Some(tab) => open_history(ctx, FileEntry { name: tab.name, path: tab.path }),
+        None => ctx.notify_t("git_history_no_page", ""),
+    }
 }
 
 /// The history of the pages can be shown (tracked): the extension is on and

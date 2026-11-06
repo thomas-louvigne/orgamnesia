@@ -1,5 +1,6 @@
-//! Windows setting up git (git extension): adding a remote to the project's
-//! repository, and cloning a repository as a new project.
+//! Setting up git (git extension). In the git frame: adding a remote to the
+//! project's repository, making a branch. In the main area: who signs the commits,
+//! and cloning a repository as a new project.
 
 use leptos::{ev, prelude::*};
 use wasm_bindgen_futures::spawn_local;
@@ -11,114 +12,87 @@ use crate::{
     state::AppCtx,
 };
 
-use super::settings::fields::PathField;
+use super::{panel, settings::fields::PathField};
+
+/// One text to give, in the git frame: its title, what it is, the button sending it.
+#[component]
+fn FrameField(
+    title: &'static str,
+    hint: &'static str,
+    button: &'static str,
+    #[prop(optional)] placeholder: &'static str,
+    close: Callback<()>,
+    send: Callback<String>,
+) -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let value = RwSignal::new(String::new());
+    let input = NodeRef::<leptos::html::Input>::new();
+    Effect::new(move |_| if let Some(el) = input.get() { let _ = el.focus(); });
+    view! {
+        <form class="git-form"
+            on:submit=move |e: web_sys::SubmitEvent| {
+                e.prevent_default();
+                let text = value.get_untracked().trim().to_string();
+                if !text.is_empty() { close.run(()); send.run(text); }
+            }
+            // App shortcuts don't run while it is typed
+            on:keydown=move |e: web_sys::KeyboardEvent| {
+                e.stop_propagation();
+                if e.key() == "Escape" { close.run(()); }
+            }
+        >
+            <label>
+                {move || t(title, lang())}
+                <input node_ref=input type="text" class="setting-input" placeholder=placeholder
+                    prop:value=move || value.get()
+                    on:input=move |e| value.set(event_target_value(&e)) />
+            </label>
+            <span class="setting-hint">{move || t(hint, lang())}</span>
+            <div class="git-form-actions">
+                <button type="button" class="btn-secondary" on:click=move |_| close.run(())>
+                    {move || t("cancel", lang())}
+                </button>
+                <button type="submit" class="btn-primary" prop:disabled=move || value.with(|v| v.trim().is_empty())>
+                    {move || t(button, lang())}
+                </button>
+            </div>
+        </form>
+    }
+}
 
 /// The address of the remote to add as `origin`.
 #[component]
-pub fn RemoteModal() -> impl IntoView {
+pub fn RemoteForm() -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
-    let lang = move || ctx.lang.get();
-    let close = move || ctx.ui.show_git_remote.set(false);
-    let url = RwSignal::new(String::new());
-    let input_ref = NodeRef::<leptos::html::Input>::new();
-    Effect::new(move |_| if let Some(el) = input_ref.get() { let _ = el.focus(); });
-    let esc = window_event_listener(ev::keydown, move |e| if e.key() == "Escape" { close(); });
-    on_cleanup(move || esc.remove());
-
-    let add = move || {
-        let u = url.get_untracked().trim().to_string();
-        if u.is_empty() { return; }
-        close();
-        git::add_remote(ctx, u);
-    };
-
     view! {
-        <div class="modal-overlay" on:click=move |_| close()>
-            <div class="modal" role="dialog" aria-label=move || t("git_remote_title", lang()) on:click=|e| e.stop_propagation()>
-                <div class="modal-header">
-                    <h2>{move || t("git_remote_title", lang())}</h2>
-                    <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
-                </div>
-                <div class="modal-body">
-                    <input
-                        node_ref=input_ref
-                        type="text"
-                        class="setting-input"
-                        aria-label=move || t("git_remote_title", lang())
-                        placeholder="git@github.com:me/notes.git"
-                        prop:value=move || url.get()
-                        on:input=move |e| url.set(event_target_value(&e))
-                        on:keydown=move |e| { e.stop_propagation(); if e.key() == "Enter" { add(); } else if e.key() == "Escape" { close(); } }
-                    />
-                    <span class="setting-hint">{move || t("git_remote_hint", lang())}</span>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
-                    <button class="btn-primary" prop:disabled=move || url.with(|u| u.trim().is_empty()) on:click=move |_| add()>
-                        {move || t("git_remote_add", lang())}
-                    </button>
-                </div>
-            </div>
-        </div>
+        <FrameField title="git_remote_title" hint="git_remote_hint" button="git_remote_add"
+            placeholder="git@github.com:me/notes.git"
+            close=Callback::new(move |_| ctx.ui.show_git_remote.set(false))
+            send=Callback::new(move |url| git::add_remote(ctx, url)) />
     }
 }
 
 /// The name of a new branch, made from here and switched to.
 #[component]
-pub fn BranchModal() -> impl IntoView {
+pub fn BranchForm() -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
-    let lang = move || ctx.lang.get();
-    let close = move || ctx.ui.show_git_branch.set(false);
-    let name = RwSignal::new(String::new());
-    let input_ref = NodeRef::<leptos::html::Input>::new();
-    Effect::new(move |_| if let Some(el) = input_ref.get() { let _ = el.focus(); });
-    let esc = window_event_listener(ev::keydown, move |e| if e.key() == "Escape" { close(); });
-    on_cleanup(move || esc.remove());
-
-    let create = move || {
-        let n = name.get_untracked().trim().to_string();
-        if n.is_empty() { return; }
-        close();
-        git::switch_branch(ctx, n, true);
-    };
-
     view! {
-        <div class="modal-overlay" on:click=move |_| close()>
-            <div class="modal" role="dialog" aria-label=move || t("git_new_branch", lang()) on:click=|e| e.stop_propagation()>
-                <div class="modal-header">
-                    <h2>{move || t("git_new_branch", lang())}</h2>
-                    <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
-                </div>
-                <div class="modal-body">
-                    <input
-                        node_ref=input_ref
-                        type="text"
-                        class="setting-input"
-                        aria-label=move || t("git_new_branch", lang())
-                        prop:value=move || name.get()
-                        on:input=move |e| name.set(event_target_value(&e))
-                        on:keydown=move |e| { e.stop_propagation(); if e.key() == "Enter" { create(); } else if e.key() == "Escape" { close(); } }
-                    />
-                    <span class="setting-hint">{move || t("git_new_branch_hint", lang())}</span>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
-                    <button class="btn-primary" prop:disabled=move || name.with(|n| n.trim().is_empty()) on:click=move |_| create()>
-                        {move || t("git_branch_create", lang())}
-                    </button>
-                </div>
-            </div>
-        </div>
+        <FrameField title="git_new_branch" hint="git_new_branch_hint" button="git_branch_create"
+            close=Callback::new(move |_| ctx.ui.show_git_branch.set(false))
+            send=Callback::new(move |name| git::switch_branch(ctx, name, true)) />
     }
 }
 
 /// The name and email git signs the commits with, asked before the first
-/// commit; saved for all the user's repositories, then the commit window opens.
+/// commit; saved for all the user's repositories, then the commit opens.
 #[component]
-pub fn IdentityModal() -> impl IntoView {
+pub fn IdentityPage() -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let close = move || ctx.ui.show_git_identity.set(false);
+    let root = NodeRef::<leptos::html::Div>::new();
+    panel::opened(ctx, root, close);
     let name = RwSignal::new(String::new());
     let email = RwSignal::new(String::new());
     let busy = RwSignal::new(false);
@@ -157,27 +131,25 @@ pub fn IdentityModal() -> impl IntoView {
     };
 
     view! {
-        <div class="modal-overlay" on:click=move |_| close()>
-            <div class="modal" role="dialog" aria-label=move || t("git_identity_title", lang()) on:click=|e| e.stop_propagation()>
-                <div class="modal-header">
-                    <h2>{move || t("git_identity_title", lang())}</h2>
-                    <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
-                </div>
-                <div class="modal-body">
-                    <p class="setting-hint">{move || t("git_identity_hint", lang())}</p>
-                    <label class="commit-label" for="git-name">{move || t("git_identity_name", lang())}</label>
-                    <input id="git-name" node_ref=input_ref type="text" class="setting-input" autocomplete="name"
-                        prop:value=move || name.get() on:input=move |e| name.set(event_target_value(&e)) on:keydown=keys />
-                    <label class="commit-label" for="git-email">{move || t("git_identity_email", lang())}</label>
-                    <input id="git-email" type="email" class="setting-input" autocomplete="email"
-                        prop:value=move || email.get() on:input=move |e| email.set(event_target_value(&e)) on:keydown=keys />
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
-                    <button class="btn-primary" prop:disabled=move || !valid() || busy.get() on:click=move |_| save()>
-                        {move || t("git_identity_save", lang())}
-                    </button>
-                </div>
+        <div node_ref=root class="main-panel" tabindex="-1" role="region" aria-label=move || t("git_identity_title", lang())>
+            <div class="modal-header">
+                <h2>{move || t("git_identity_title", lang())}</h2>
+                <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
+            </div>
+            <div class="modal-body">
+                <p class="setting-hint">{move || t("git_identity_hint", lang())}</p>
+                <label class="commit-label" for="git-name">{move || t("git_identity_name", lang())}</label>
+                <input id="git-name" node_ref=input_ref type="text" class="setting-input" autocomplete="name"
+                    prop:value=move || name.get() on:input=move |e| name.set(event_target_value(&e)) on:keydown=keys />
+                <label class="commit-label" for="git-email">{move || t("git_identity_email", lang())}</label>
+                <input id="git-email" type="email" class="setting-input" autocomplete="email"
+                    prop:value=move || email.get() on:input=move |e| email.set(event_target_value(&e)) on:keydown=keys />
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                <button class="btn-primary" prop:disabled=move || !valid() || busy.get() on:click=move |_| save()>
+                    {move || t("git_identity_save", lang())}
+                </button>
             </div>
         </div>
     }
@@ -186,11 +158,13 @@ pub fn IdentityModal() -> impl IntoView {
 /// The address of a repository and the folder to clone it in; the clone is
 /// then opened as the project.
 #[component]
-pub fn CloneModal() -> impl IntoView {
+pub fn ClonePage() -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let busy = RwSignal::new(false);
     let close = move || if !busy.get_untracked() { ctx.ui.show_clone.set(false); };
+    let root = NodeRef::<leptos::html::Div>::new();
+    panel::opened(ctx, root, close);
     let url = RwSignal::new(String::new());
     // Beside the open project, else in the home folder
     let parent = RwSignal::new(ctx.project.vault_path.get_untracked()
@@ -223,40 +197,38 @@ pub fn CloneModal() -> impl IntoView {
     };
 
     view! {
-        <div class="modal-overlay" on:click=move |_| close()>
-            <div class="modal" role="dialog" aria-label=move || t("git_clone_title", lang()) on:click=|e| e.stop_propagation()>
-                <div class="modal-header">
-                    <h2>{move || t("git_clone_title", lang())}</h2>
-                    <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
-                </div>
-                <div class="modal-body">
-                    <label class="commit-label" for="clone-url">{move || t("git_clone_url", lang())}</label>
-                    <input
-                        id="clone-url"
-                        node_ref=input_ref
-                        type="text"
-                        class="setting-input"
-                        placeholder="git@github.com:me/notes.git"
-                        prop:disabled=move || busy.get()
-                        prop:value=move || url.get()
-                        on:input=move |e| url.set(event_target_value(&e))
-                        on:keydown=move |e| { e.stop_propagation(); if e.key() == "Enter" { do_clone(); } else if e.key() == "Escape" { close(); } }
-                    />
-                    <label class="commit-label">{move || t("git_clone_parent", lang())}</label>
-                    <PathField
-                        value=parent.into()
-                        on_change=Callback::new(move |v| parent.set(v))
-                        disabled=Signal::derive(move || busy.get())
-                    />
-                    <span class="setting-hint">{move || t("git_clone_hint", lang())}</span>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-secondary" prop:disabled=move || busy.get() on:click=move |_| close()>{move || t("cancel", lang())}</button>
-                    <button class="btn-primary" prop:disabled=move || !can_clone() on:click=move |_| do_clone()>
-                        {move || busy.get().then(|| view! { <span class="git-spinner" aria-hidden="true"></span> })}
-                        {move || t("git_clone", lang())}
-                    </button>
-                </div>
+        <div node_ref=root class="main-panel" tabindex="-1" role="region" aria-label=move || t("git_clone_title", lang())>
+            <div class="modal-header">
+                <h2>{move || t("git_clone_title", lang())}</h2>
+                <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
+            </div>
+            <div class="modal-body">
+                <label class="commit-label" for="clone-url">{move || t("git_clone_url", lang())}</label>
+                <input
+                    id="clone-url"
+                    node_ref=input_ref
+                    type="text"
+                    class="setting-input"
+                    placeholder="git@github.com:me/notes.git"
+                    prop:disabled=move || busy.get()
+                    prop:value=move || url.get()
+                    on:input=move |e| url.set(event_target_value(&e))
+                    on:keydown=move |e| { e.stop_propagation(); if e.key() == "Enter" { do_clone(); } else if e.key() == "Escape" { close(); } }
+                />
+                <label class="commit-label">{move || t("git_clone_parent", lang())}</label>
+                <PathField
+                    value=parent.into()
+                    on_change=Callback::new(move |v| parent.set(v))
+                    disabled=Signal::derive(move || busy.get())
+                />
+                <span class="setting-hint">{move || t("git_clone_hint", lang())}</span>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" prop:disabled=move || busy.get() on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                <button class="btn-primary" prop:disabled=move || !can_clone() on:click=move |_| do_clone()>
+                    {move || busy.get().then(|| view! { <span class="git-spinner" aria-hidden="true"></span> })}
+                    {move || t("git_clone", lang())}
+                </button>
             </div>
         </div>
     }

@@ -1,5 +1,6 @@
-//! The history window of a page (git extension): the commits that changed it,
-//! what each one changed or the page as it was then, and putting a version back.
+//! The history of a page (git extension), in the main area: the commits that
+//! changed it, what each one changed or the page as it was then, and putting a
+//! version back.
 
 use leptos::{ev, prelude::*};
 use wasm_bindgen_futures::spawn_local;
@@ -10,6 +11,8 @@ use crate::{
     invoke,
     state::{AppCtx, FileEntry, GitCommit},
 };
+
+use super::panel;
 
 /// A unified diff, its lines colored by what they are; git's headers left out.
 pub fn diff_view(text: &str) -> impl IntoView + use<> {
@@ -41,10 +44,12 @@ fn date(secs: i64, lang: Lang) -> String {
 }
 
 #[component]
-pub fn GitHistoryModal(file: FileEntry) -> impl IntoView {
+pub fn GitHistoryPage(file: FileEntry) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     let close = move || ctx.ui.git_history.set(None);
+    let root = NodeRef::<leptos::html::Div>::new();
+    panel::opened(ctx, root, close);
     // None while git is read
     let commits = RwSignal::new(None::<Vec<GitCommit>>);
     let selected = RwSignal::new(None::<usize>);
@@ -112,60 +117,57 @@ pub fn GitHistoryModal(file: FileEntry) -> impl IntoView {
 
     let name = file.name.clone();
     view! {
-        <div class="modal-overlay" on:click=move |_| close()>
-            <div class="modal history-modal" role="dialog" aria-label=move || t("git_history_title", lang())
-                on:click=|e| e.stop_propagation()>
-                <div class="modal-header">
-                    <h2>{move || format!("{} — {name}", t("git_history_title", lang()))}</h2>
-                    <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
-                </div>
-                <div class="modal-body history-body">
-                    {move || match commits.get() {
-                        None => view! { <p class="setting-hint">{t("git_reading", lang())}</p> }.into_any(),
-                        Some(list) if list.is_empty() => view! {
-                            <p class="setting-hint">{t("git_history_empty", lang())}</p>
-                        }.into_any(),
-                        Some(list) => view! {
-                            <ul class="history-list" role="listbox">
-                                {list.into_iter().enumerate().map(|(i, c)| view! {
-                                    <li
-                                        class=move || if selected.get() == Some(i) { "history-item list-item active" } else { "history-item list-item" }
-                                        role="option"
-                                        tabindex="0"
-                                        aria-selected=move || (selected.get() == Some(i)).to_string()
-                                        on:keydown=crate::a11y::list_item_keys
-                                        on:click=move |_| selected.set(Some(i))
-                                    >
-                                        <span class="history-subject">{c.subject.clone()}</span>
-                                        <span class="history-meta">{move || format!("{} · {}", date(c.date, lang()), c.author)}</span>
-                                    </li>
-                                }).collect_view()}
-                            </ul>
-                            <div class="history-view">
-                                <div class="history-switch" role="group">
-                                    <button class=move || if whole.get() { "btn-secondary" } else { "btn-secondary active" }
-                                        aria-pressed=move || (!whole.get()).to_string()
-                                        on:click=move |_| whole.set(false)>{move || t("git_history_changes", lang())}</button>
-                                    <button class=move || if whole.get() { "btn-secondary active" } else { "btn-secondary" }
-                                        aria-pressed=move || whole.get().to_string()
-                                        on:click=move |_| whole.set(true)>{move || t("git_history_whole", lang())}</button>
-                                </div>
-                                {move || match shown.get() {
-                                    None => view! { <p class="setting-hint">{t("git_reading", lang())}</p> }.into_any(),
-                                    Some(Err(e)) => view! { <p class="setting-hint">{e}</p> }.into_any(),
-                                    Some(Ok(text)) if whole.get_untracked() => view! { <pre class="diff-view">{text}</pre> }.into_any(),
-                                    Some(Ok(text)) => diff_view(&text).into_any(),
-                                }}
+        <div node_ref=root class="main-panel" tabindex="-1" role="region" aria-label=move || t("git_history_title", lang())>
+            <div class="modal-header">
+                <h2>{move || format!("{} — {name}", t("git_history_title", lang()))}</h2>
+                <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
+            </div>
+            <div class="modal-body history-body">
+                {move || match commits.get() {
+                    None => view! { <p class="setting-hint">{t("git_reading", lang())}</p> }.into_any(),
+                    Some(list) if list.is_empty() => view! {
+                        <p class="setting-hint">{t("git_history_empty", lang())}</p>
+                    }.into_any(),
+                    Some(list) => view! {
+                        <ul class="history-list" role="listbox">
+                            {list.into_iter().enumerate().map(|(i, c)| view! {
+                                <li
+                                    class=move || if selected.get() == Some(i) { "history-item list-item active" } else { "history-item list-item" }
+                                    role="option"
+                                    tabindex="0"
+                                    aria-selected=move || (selected.get() == Some(i)).to_string()
+                                    on:keydown=crate::a11y::list_item_keys
+                                    on:click=move |_| selected.set(Some(i))
+                                >
+                                    <span class="history-subject">{c.subject.clone()}</span>
+                                    <span class="history-meta">{move || format!("{} · {}", date(c.date, lang()), c.author)}</span>
+                                </li>
+                            }).collect_view()}
+                        </ul>
+                        <div class="history-view">
+                            <div class="history-switch" role="group">
+                                <button class=move || if whole.get() { "btn-secondary" } else { "btn-secondary active" }
+                                    aria-pressed=move || (!whole.get()).to_string()
+                                    on:click=move |_| whole.set(false)>{move || t("git_history_changes", lang())}</button>
+                                <button class=move || if whole.get() { "btn-secondary active" } else { "btn-secondary" }
+                                    aria-pressed=move || whole.get().to_string()
+                                    on:click=move |_| whole.set(true)>{move || t("git_history_whole", lang())}</button>
                             </div>
-                        }.into_any(),
-                    }}
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-secondary" on:click=move |_| close()>{move || t("close", lang())}</button>
-                    <button class="btn-primary" prop:disabled=move || commit().is_none() on:click=move |_| restore()>
-                        {move || t("git_restore", lang())}
-                    </button>
-                </div>
+                            {move || match shown.get() {
+                                None => view! { <p class="setting-hint">{t("git_reading", lang())}</p> }.into_any(),
+                                Some(Err(e)) => view! { <p class="setting-hint">{e}</p> }.into_any(),
+                                Some(Ok(text)) if whole.get_untracked() => view! { <pre class="diff-view">{text}</pre> }.into_any(),
+                                Some(Ok(text)) => diff_view(&text).into_any(),
+                            }}
+                        </div>
+                    }.into_any(),
+                }}
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" on:click=move |_| close()>{move || t("close", lang())}</button>
+                <button class="btn-primary" prop:disabled=move || commit().is_none() on:click=move |_| restore()>
+                    {move || t("git_restore", lang())}
+                </button>
             </div>
         </div>
     }

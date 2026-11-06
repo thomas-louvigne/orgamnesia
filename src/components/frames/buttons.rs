@@ -28,7 +28,7 @@ pub fn SettingsButton() -> impl IntoView {
             <button
                 class="btn-settings"
                 title=move || ctx.with_shortcut("settings_btn", "open_settings")
-                on:click=move |_| ctx.ui.show_settings.set(true)
+                on:click=move |_| { ctx.close_panels(); ctx.ui.show_settings.set(true) }
             >
                 {move || t("settings_btn", ctx.lang.get())}
             </button>

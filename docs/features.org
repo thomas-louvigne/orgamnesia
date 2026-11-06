@@ -744,14 +744,15 @@ track it.
   a git tool.
 - The common errors come with what to do: SSH key, https identifiers, name and email
   of git, push refused because the remote has new commits…
-- Pull and push never ask a question: ssh runs in batch mode. A key with a
-  passphrase must be loaded in =ssh-agent=; the key to use can be set in
-  Settings > Extensions (empty: the system's SSH setup). An =https://= remote needs
-  a credential helper.
+- A pull or push refused by SSH asks for the key's passphrase, in the git frame, then
+  runs again. It stays in memory until the app closes and is never saved; a key loaded
+  in =ssh-agent= needs nothing. The key to use can be set in Settings > Extensions
+  (empty: the system's SSH setup). An =https://= remote needs a credential helper.
 
 *** History of a page
-"Git history…" in the right-click menu of a tab or of a page of the pages list: the
-commits that changed the page, newest first, following its renames. For each, what
+The clock icon of the git frame (Classic: Ctrl+Shift+L; Emacs: =C-x g l l=) for
+the page shown, or "Git history…" in the right-click menu of a tab or of a page of
+the pages list: the commits that changed the page, newest first, following its renames. For each, what
 it changed, or the page as it was then. "Restore this version" puts it back: in its
 tab when the page is open (the editor's undo takes it back), else on disk, after
 confirmation.
@@ -808,9 +809,10 @@ in Settings > Spelling, which also tells how to install a dictionary when none i
 - *Next misspelled word*: F7 in Classic, Ctrl+, in Emacs (as =flyspell-goto-next-error=).
 
 * Settings
-The settings window (Ctrl+,) can be moved and resized. "Apply" saves the changes
-without closing (a dot shows there are some), "Save" saves and closes, "Cancel"
-closes without saving. The explanations under a setting are in italics.
+The settings (Ctrl+,) open in the main area, over the pages, which stay as they
+are. "Apply" saves the changes without closing (a dot shows there are some), "Save"
+saves and closes, "Cancel" or Escape closes without saving, as does opening a page.
+The explanations under a setting are in italics.
 
 [[file:images/settings-editing.png]]
 
@@ -866,7 +868,7 @@ Profile, shortcuts of the application, the panes, the editor, the selection mark
 filters the actions by name or shortcut.
 
 * Settings as text
-"Edit the settings as text", at the bottom of the settings window, opens the
+"Edit the settings as text", at the bottom of the settings, opens the
 *preference* project: the configuration files in the editor, in place of the open
 project. This project is always in the projects menu; "← <project>", above the
 file, goes back to the project left, its tabs and panes as they were.

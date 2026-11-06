@@ -15,16 +15,28 @@ async fn dialog<T>(show: impl FnOnce(tokio::sync::oneshot::Sender<T>)) -> Cmd<T>
 /// Folder picker, titled `title` when there is one. The folder may be created
 /// there (or named when it doesn't exist yet: then created); its path.
 #[tauri::command]
-pub async fn pick_folder(app: AppHandle, title: Option<String>) -> Cmd<Option<String>> {
+pub async fn pick_folder(app: AppHandle, state: State<'_, AppState>, title: Option<String>) -> Cmd<Option<String>> {
     use tauri_plugin_dialog::DialogExt;
     let mut picker = app.dialog().file().set_can_create_directories(true);
     if let Some(title) = title { picker = picker.set_title(title); }
+    if let Some(dir) = start_folder(state.settings().vault_path.as_deref()) { picker = picker.set_directory(dir); }
     let picked = dialog(|tx| picker.pick_folder(move |folder| {
         let _ = tx.send(folder.map(|f| f.to_string()));
     })).await?;
     // The interface splits paths by `/`
     let picked = picked.map(crate::slash);
     picked.map(|path| ensure_folder(&path).map(|()| path)).transpose()
+}
+
+/// Where the folder picker opens: the folder around the open project, or the
+/// home folder. Without a folder, GTK may open on its recent files (its setting
+/// `startup-mode`), a view without the button creating a folder.
+fn start_folder(project: Option<&str>) -> Option<std::path::PathBuf> {
+    project
+        .and_then(|p| std::path::Path::new(p).parent())
+        .filter(|dir| dir.is_dir())
+        .map(std::path::Path::to_path_buf)
+        .or_else(crate::home_dir)
 }
 
 /// `path` is a folder: created when there is nothing there.
@@ -224,5 +236,16 @@ mod tests {
         crate::lock(&state.settings).config.restore_session = Some(false);
         save_on_exit(&state, &config);
         assert!(std::fs::read_to_string(config.join("state.json")).unwrap().contains("\"session\": null"));
+    }
+
+    #[test]
+    fn the_folder_picker_opens_around_the_project_or_at_home() {
+        let around = std::env::temp_dir();
+        let project = around.join("orgamnesia-project");
+        assert_eq!(start_folder(project.to_str()), Some(around.clone()));
+        // No project, or the folder around it is gone
+        assert_eq!(start_folder(None), crate::home_dir());
+        let gone = around.join("orgamnesia-gone-folder").join("project");
+        assert_eq!(start_folder(gone.to_str()), crate::home_dir());
     }
 }

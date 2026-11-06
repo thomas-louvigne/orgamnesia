@@ -756,14 +756,17 @@ le nombre de commits à pousser ; une branche sans branche distante est poussée
 - Les erreurs courantes sont accompagnées de ce qu'il faut faire : clé SSH,
   identifiants https, nom et e-mail de git, push refusé parce que le dépôt distant
   a de nouveaux commits…
-- Pull et push ne posent jamais de question : ssh tourne en mode non interactif. Une
-  clé avec phrase de passe doit être chargée dans =ssh-agent= ; la clé à utiliser
-  se choisit dans Préférences > Extensions (vide : la configuration SSH du système).
-  Un dépôt distant en =https://= a besoin d'un gestionnaire d'identifiants.
+- Un pull ou un push refusé par SSH demande la phrase de passe de la clé, dans le
+  cadre git, puis se relance. Elle reste en mémoire jusqu'à la fermeture de
+  l'application et n'est jamais enregistrée ; une clé chargée dans =ssh-agent= n'a
+  besoin de rien. La clé à utiliser se choisit dans Préférences > Extensions (vide :
+  la configuration SSH du système). Un dépôt distant en =https://= a besoin d'un
+  gestionnaire d'identifiants.
 
 *** Historique d'une page
-« Historique git… » dans le menu du clic droit d'un onglet ou d'une page de la liste
-des pages : les commits qui ont modifié la page, du plus récent au plus ancien, en
+L'icône d'horloge du cadre git (Classique : Ctrl+Maj+L ; Emacs : =C-x g l l=)
+pour la page affichée, ou « Historique git… » dans le menu du clic droit d'un onglet
+ou d'une page de la liste des pages : les commits qui ont modifié la page, du plus récent au plus ancien, en
 suivant ses renommages. Pour chacun, ses modifications, ou la page telle qu'elle
 était alors. « Restaurer cette version » la remet : dans son onglet si la page est
 ouverte (l'annulation de l'éditeur la défait), sinon sur le disque, après
@@ -828,9 +831,10 @@ dictionnaire quand aucun n'est trouvé.
 - *Faute suivante* : F7 en Classique, Ctrl+, en Emacs (comme =flyspell-goto-next-error=).
 
 * Préférences
-La fenêtre des préférences (Ctrl+,) se déplace et se redimensionne. « Appliquer »
-enregistre les changements sans fermer (un point signale qu'il y en a),
-« Sauvegarder » enregistre et ferme, « Annuler » ferme sans enregistrer.
+Les préférences (Ctrl+,) s'ouvrent dans la zone principale, par-dessus les pages,
+qui restent telles quelles. « Appliquer » enregistre les changements sans fermer
+(un point signale qu'il y en a), « Sauvegarder » enregistre et ferme, « Annuler » ou
+Échap ferme sans enregistrer, comme le fait l'ouverture d'une page.
 
 ** Général
 - Dossier du projet par défaut.
@@ -885,7 +889,7 @@ sélection (avec son option) et des états TODO (avec leur option). Un champ en 
 filtre les actions par leur nom ou leur raccourci.
 
 * Préférences en texte
-« Éditer les préférences en mode texte », en bas de la fenêtre des préférences,
+« Éditer les préférences en mode texte », en bas des préférences,
 ouvre le projet *preference* : les fichiers de configuration dans l'éditeur, à la
 place du projet ouvert. Ce projet est toujours dans le menu des projets ;
 « ← <projet> », au-dessus du fichier, ramène au projet quitté, ses onglets et ses

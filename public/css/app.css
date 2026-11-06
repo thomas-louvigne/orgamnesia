@@ -217,18 +217,17 @@ select.git-branch {
 select.git-branch:hover, select.git-branch:focus-visible { border-color: var(--border); background: var(--bg3); outline: none; }
 select.git-branch option { background: var(--bg2); color: var(--fg); font-weight: 400; }
 .git-caret { position: absolute; right: 3px; pointer-events: none; color: var(--fg-dim); font-size: .85em; }
-.git-items { display: flex; flex-wrap: wrap; gap: 4px; }
-.git-item {
-    background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
-    padding: 1px 6px; white-space: nowrap;
-}
-.git-local { font-style: italic; }
+/* The state, at the end of the branch's line: short signs, in words when hovered */
+.git-items { display: flex; flex-shrink: 0; gap: 8px; margin-left: auto; }
+.git-item { background: none; border: none; padding: 0; white-space: nowrap; cursor: default; }
+.git-history-btn { display: inline-flex; flex-shrink: 0; padding: 2px; font-size: inherit; }
+.git-history-btn:disabled { opacity: .4; cursor: default; }
 .git-clean { color: var(--green); }
 .git-dirty { color: var(--yellow); }
 .git-ahead, .git-behind, .git-syncing { color: var(--accent2); }
-.git-conflict { color: var(--red); white-space: normal; }
+.git-conflict { color: var(--red); }
 .git-conflict-btn { font: inherit; cursor: pointer; }
-.git-conflict-btn:hover { border-color: var(--red); text-decoration: underline; }
+.git-conflict-btn:hover { text-decoration: underline; }
 .git-error { color: var(--red); overflow-wrap: anywhere; }
 .project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .project-caret { color: var(--fg-dim); margin-left: 6px; }
@@ -340,6 +339,7 @@ select.git-branch option { background: var(--bg2); color: var(--fg); font-weight
 
 /* ── Workspace ─────────────────────────────────────────────── */
 .workspace {
+    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -934,7 +934,7 @@ kbd {
 .status-close:hover { color: #fff; }
 
 /* ── Git extension: buttons under the project's state, commit window ── */
-.git-buttons { display: flex; gap: 4px; margin-top: 6px; }
+.git-buttons { display: flex; gap: 4px; }
 .git-btn {
     flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
     background: none; border: 1px solid var(--border); border-radius: 4px;
@@ -956,6 +956,12 @@ kbd {
 }
 .git-setup-btn:hover:not(:disabled) { color: var(--accent2); border-color: var(--accent); }
 .git-setup-btn:disabled { opacity: .4; cursor: default; }
+/* What is asked in the git frame: the passphrase, a remote, a branch */
+.git-form { align-self: stretch; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-meta); }
+.git-form label { display: flex; flex-direction: column; gap: 4px; color: var(--fg); overflow-wrap: anywhere; }
+.git-form input { width: 100%; box-sizing: border-box; }
+.git-form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.git-form-actions button { padding: 3px 10px; font-size: var(--fs-meta); }
 .git-spinner {
     width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%;
     border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
@@ -977,7 +983,6 @@ kbd {
     .git-spinner { animation-duration: 2.4s; }
     .bloom-mark.running { animation: none; }
 }
-.commit-modal { width: 600px; }
 /* A new version: what changed in each version since the running one */
 .update-modal { width: min(620px, 94vw); }
 .update-body { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; }
@@ -1021,8 +1026,7 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .diff-del { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
 .diff-hunk { color: var(--cyan); margin-top: 4px; }
 /* History of a page: its commits, and the one chosen */
-.history-modal { width: min(920px, 94vw); }
-.history-body { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; gap: 12px; height: 62vh; }
+.history-body { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 12px; }
 .history-list {
     list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; min-height: 0;
     border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
@@ -1129,20 +1133,18 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
     box-shadow: 0 8px 32px rgba(0,0,0,.5);
 }
 
-/* Settings window: resizable from its bottom-right corner */
-.modal-resizable {
-    resize: both;
-    overflow: hidden;
-    width: 860px;
-    height: 640px;
-    /* Room for an action's name beside its two shortcut columns; also enlarges
-       a smaller size remembered from before */
-    min-width: 680px;
-    min-height: 420px;
-    max-width: 95vw;
-    max-height: 95vh;
+/* A panel (the settings, a commit, the history of a page…): the whole workspace, over the pages */
+.main-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    outline: none;
 }
-.modal-resizable .modal-body { flex: 1; min-width: 0; min-height: 0; max-height: none; }
+.main-panel .modal-body { flex: 1; min-width: 0; min-height: 0; max-height: none; }
+.main-panel .modal-footer { flex-wrap: wrap; }
 
 .modal-header {
     display: flex;
@@ -1180,6 +1182,10 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .modal-tab.active { color: var(--fg); border-left-color: var(--accent); background: var(--bg2); }
 
 .tab-content { display: flex; flex-direction: column; gap: 16px; }
+.tab-content .setting-doc-link { max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+.about-head { display: flex; flex-direction: column; align-items: center; padding: 12px 0 8px; }
+.about-head .empty-logo { width: 128px; height: 128px; margin-bottom: 12px; }
+.about-title { font-family: var(--font-display); font-size: 32px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
 
 .btn-close {
     background: none; border: none; color: var(--fg-dim);
@@ -1692,7 +1698,11 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .modal-footer-start { margin-right: auto; }
 
 /* First run: the format of the pages and the shortcuts */
-.modal.welcome { max-width: 34rem; }
+/* Top-aligned with auto margins: centered, a screen taller than the pane would lose its top */
+.welcome-page { justify-content: flex-start; }
+.welcome { width: 100%; max-width: 34rem; margin: auto; }
+.welcome-head { display: flex; flex-direction: column; align-items: center; }
+.welcome-body { margin-top: 24px; text-align: left; }
 .welcome-group { border: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .welcome-group legend { font-weight: 600; margin-bottom: 6px; }
 .welcome-choice {

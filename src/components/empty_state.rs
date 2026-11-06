@@ -39,7 +39,7 @@ pub fn EmptyState() -> impl IntoView {
                                 {t("open_project", lang())}
                             </button>
                             {ctx.pref(|p| p.git_ext).then(|| view! {
-                                <button class="btn-secondary" on:click=move |_| ctx.ui.show_clone.set(true)>
+                                <button class="btn-secondary" on:click=move |_| { ctx.close_panels(); ctx.ui.show_clone.set(true) }>
                                     {t("git_clone_title", lang())}
                                 </button>
                             })}

@@ -13,6 +13,12 @@ versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org
 - Emojis : « Insérer un emoji » dans le menu du clic droit de l'éditeur sous Linux, et une case dans Réglages > Raccourcis pour couper les raccourcis de WebKit vers son sélecteur d'emojis.
 - Réglages : un bouton Par défaut remet l'onglet courant à ses valeurs d'origine. Une option absente d'un fichier de réglages prend sa valeur par défaut.
 - Correction : après un emoji dans une page, les commandes d'édition (couper, coller, recherche, complétion…) n'agissent plus au mauvais endroit.
+- Les préférences, le premier lancement et, pour git, le commit, l'historique, le clonage et l'identité s'affichent dans la zone principale, et non plus dans des fenêtres ; un nouveau dépôt distant et une nouvelle branche se demandent dans le cadre git.
+- Git : un pull ou un push refusé par SSH demande la phrase de passe de la clé dans le cadre git, puis se relance. Elle reste en mémoire jusqu'à la fermeture de l'application et n'est jamais enregistrée.
+- Git : une icône du cadre git ouvre l'historique de la page affichée (Ctrl+Maj+L, ou C-x g l l avec les raccourcis Emacs).
+- Git : le cadre tient sur deux lignes, la branche et l'état au-dessus, Pull, Commit et Push en dessous.
+- Préférences > À propos : le logo et le nom en grand, les liens vers le site, la documentation, le dernier commit et l'auteur.
+- Correction : sous Linux, le sélecteur de dossiers montre toujours le bouton de création d'un dossier.
 
 * 1.2.0
 - Git : la branche est une liste pour passer à une autre branche, locale ou distante, ou en créer une nouvelle.

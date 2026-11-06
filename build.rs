@@ -1,7 +1,7 @@
 fn main() {
     // The commit shown in Settings › About; "?" when built outside a git checkout.
     let commit = std::process::Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .ok()
         .filter(|o| o.status.success())

@@ -422,6 +422,11 @@ pub async fn git_push() -> Result<String, String> {
     call("git_push", serde_json::json!({})).await
 }
 
+/// The passphrase of the SSH key, kept in memory until the app closes; `None` forgets it.
+pub async fn git_set_passphrase(passphrase: Option<&str>) -> Result<(), String> {
+    call("git_set_passphrase", serde_json::json!({ "passphrase": passphrase })).await
+}
+
 pub async fn git_branches() -> Result<Vec<String>, String> {
     call("git_branches", serde_json::json!({})).await
 }
