@@ -4,6 +4,14 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.2.1
+- The settings, the first run and git's commit, history, cloning and identity are shown in the main area, no longer in windows; a new remote and a new branch are asked in the git frame.
+- Git: a pull or push refused by SSH asks for the key's passphrase in the git frame, then runs again. It stays in memory until the app closes and is never saved.
+- Git: an icon in the git frame opens the history of the page shown (Ctrl+Shift+L, or C-x g l l with the Emacs keys).
+- Git: the frame holds on two lines, the branch and the state above, Pull, Commit and Push below.
+- Settings > About: the logo and the name in large, the links to the website, the documentation, the latest commit and the author.
+- Correction: on Linux, the folder picker always shows the button creating a folder.
+
 * 1.2.0
 - Git: the branch is a list to switch to another branch, local or remote, or to create a new one.
 - Git: commit and sync take only the project's folder, never the rest of a repository it is part of.
