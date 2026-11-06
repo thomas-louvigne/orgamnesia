@@ -481,22 +481,44 @@ fn SiteFolder(draft: RwSignal<Prefs>) -> impl IntoView {
 }
 
 const PROJECT_URL: &str = "https://github.com/thomas-louvigne/orgamnesia";
+const COMMIT_URL: &str = concat!("https://github.com/thomas-louvigne/orgamnesia/commit/", env!("GIT_COMMIT"));
+const AUTHOR_GITHUB_URL: &str = "https://github.com/thomas-louvigne";
+const AUTHOR_X_URL: &str = "https://x.com/thomas_louvigne";
+const AUTHOR_MASTODON_URL: &str = "https://framapiaf.org/@zobi8225";
 
-/// Link to the project, version and commit the app was built from.
+/// A web address, shown whole and opened in the browser.
+#[component]
+fn AboutLink(url: &'static str) -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    view! {
+        <button class="setting-doc-link"
+            on:click=move |_| spawn_local(async move {
+                if let Err(e) = invoke::open_url(url).await { ctx.error("open_url_failed", &e); }
+            })>
+            {url}
+        </button>
+    }
+}
+
+/// The app's logo and name, its link, version and commit, and who makes it.
 #[component]
 pub fn AboutTab() -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
     view! {
         <div class="tab-content">
+            <div class="about-head">
+                <img class="empty-logo" src="app-icon.svg" alt="" />
+                <h3 class="about-title">"Orgamnesia"</h3>
+            </div>
             <div class="setting-row">
-                <label>"Orgamnesia"</label>
-                <button class="setting-doc-link"
-                    on:click=move |_| spawn_local(async move {
-                        if let Err(e) = invoke::open_url(PROJECT_URL).await { ctx.error("open_url_failed", &e); }
-                    })>
-                    {PROJECT_URL}
-                </button>
+                <label>{move || t("about_website", lang())}</label>
+                <AboutLink url=PROJECT_URL />
+            </div>
+            <div class="setting-row">
+                <label>{move || t("about_docs", lang())}</label>
+                // In the language of the app
+                {move || view! { <AboutLink url=t("about_docs_url", lang()) /> }}
             </div>
             <div class="setting-row">
                 <label>{move || t("about_version", lang())}</label>
@@ -504,7 +526,19 @@ pub fn AboutTab() -> impl IntoView {
             </div>
             <div class="setting-row">
                 <label>{move || t("about_commit", lang())}</label>
-                <code>{env!("GIT_COMMIT")}</code>
+                // "?": built outside a git checkout, no commit to link to
+                {if env!("GIT_COMMIT") == "?" {
+                    view! { <code>"?"</code> }.into_any()
+                } else {
+                    view! { <AboutLink url=COMMIT_URL /> }.into_any()
+                }}
+            </div>
+            <div class="setting-row">
+                <label>{move || t("about_author", lang())}</label>
+                <span>"Thomas Louvigne"</span>
+                <AboutLink url=AUTHOR_GITHUB_URL />
+                <AboutLink url=AUTHOR_X_URL />
+                <AboutLink url=AUTHOR_MASTODON_URL />
             </div>
         </div>
     }
