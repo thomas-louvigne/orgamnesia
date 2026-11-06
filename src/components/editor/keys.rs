@@ -20,6 +20,7 @@ use crate::{
     folding,
     keybindings::{EditorAction, Resolution, Scope},
     tables,
+    text_field,
 };
 
 /// Shortcuts a textarea handles natively; they only work when the active profile binds them.
@@ -47,6 +48,13 @@ pub fn on_keydown(pane: Pane, completion: Completion, find: Find, insert: Insert
     {
         let el = el.clone();
         after_tick(move || pane.track_caret(&el));
+    }
+
+    // The key after `M-z` is the character to kill up to
+    if let Some(zap) = text_field::zap_key(ctx, &el, &e) {
+        swallow(&e);
+        if let Some(c) = zap { zap_to(pane, &el, c); }
+        return;
     }
 
     if completion.on_keydown(&e, &el) { return; }
@@ -350,6 +358,46 @@ fn replace_lines(pane: Pane, el: &Textarea, page: &[char], a: usize, b: usize, t
     }
 }
 
+/// The page range `a..b` becomes `text`, the caret at the page position `caret`.
+/// Nothing when hidden text of a fold is in the range: it would change out of sight.
+fn replace_page(pane: Pane, el: &Textarea, page: &[char], a: usize, b: usize, text: &str, caret: usize) {
+    let folds = pane.folds.get_untracked();
+    if folds.iter().any(|&(x, y)| x < b && y > a) { return; }
+    let (va, vb) = (pane.view_pos(a), pane.view_pos(b));
+    let shown: String = el.value().chars().skip(va).take(vb.saturating_sub(va)).collect();
+    if shown == page[a..b].iter().collect::<String>() {
+        // Shown as it is: the textarea is edited, its undo stays right
+        splice(el, va, vb, text);
+        set_cursor(el, va + caret - a);
+        pane.commit(el);
+        pane.track_caret(el);
+    } else {
+        // Drawn otherwise (indented under a headline…): the page gets the text
+        let grown = text.chars().count() as isize - (b - a) as isize;
+        pane.folds.set(folds.iter().map(|&(x, y)| if x >= b {
+            (x.saturating_add_signed(grown), y.saturating_add_signed(grown))
+        } else { (x, y) }).collect());
+        let (before, after): (String, String) = (page[..a].iter().collect(), page[b..].iter().collect());
+        pane.set_page(format!("{before}{text}{after}"), caret);
+    }
+}
+
+/// `M-z c`: kill up to and including the next `c`.
+fn zap_to(pane: Pane, el: &Textarea, c: char) {
+    let chars: Vec<char> = el.value().chars().collect();
+    let at = caret(el);
+    let Some(b) = edit::zap_end(&chars, at, c) else {
+        pane.ctx.notify_t("zap_not_found", &c.to_string());
+        return;
+    };
+    let (pa, pb) = (pane.page_pos(el, at), pane.page_pos(el, b));
+    let len = pane.content.with_untracked(|t| t.chars().count());
+    crate::kill_ring::kill_range(pane.ctx, el, pane.page_text(el, at, b), pa, pb, len);
+    let cursor = splice(el, at, b, "");
+    set_cursor(el, cursor);
+    pane.commit(el);
+}
+
 /// An editor action of the keybindings (or of the context menu): motions,
 /// clipboard, emphasis, Emacs editing…
 pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, action: EditorAction) {
@@ -397,7 +445,10 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
                 }
             });
         }
-        EditorAction::SelectAll => el.select(),
+        EditorAction::SelectAll => {
+            pane.mark.set(None);
+            el.select();
+        }
         EditorAction::Recenter => recenter(el, &chars, end),
         EditorAction::Undo => { pane.undo(false); }
         EditorAction::Redo => { pane.undo(true); }
@@ -462,10 +513,19 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
             let el = el.clone();
             crate::kill_ring::yank(ctx, move |text| {
                 let (start, end) = get_pos(&el);
+                let at = pane.page_pos(&el, start);
                 let cursor = splice(&el, start, end, &text);
                 set_cursor(&el, cursor);
                 pane.commit(&el);
+                crate::kill_ring::yanked(&el, at, text);
             });
+        }
+        EditorAction::YankPop => {
+            let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+            match crate::kill_ring::yank_pop(el, pane.page_pos(el, caret(el)), &page) {
+                Some((a, b, with)) => replace_page(pane, el, &page, a, b, &with, a + with.chars().count()),
+                None => ctx.notify_t("yank_pop_none", ""),
+            }
         }
         EditorAction::MoveLineUp | EditorAction::MoveLineDown => {
             move_line(pane, el, action == EditorAction::MoveLineUp);
@@ -474,6 +534,36 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
             let (a, b) = edit::delete_forward_range(&chars, start, end);
             replace(a, b, "");
         }
+        // Worked out on the page: what the view draws in its place (fold, indentation) is not text
+        EditorAction::TransposeChars | EditorAction::TransposeWords
+        | EditorAction::UpcaseWord | EditorAction::DowncaseWord | EditorAction::CapitalizeWord
+        | EditorAction::DeleteHorizontalSpace | EditorAction::JustOneSpace | EditorAction::DeleteIndentation => {
+            let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+            if let Some((a, b, with)) = edit::text_edit(action, &page, pane.page_pos(el, caret(el))) {
+                replace_page(pane, el, &page, a, b, &with, edit::caret_after_edit(action, a, &with));
+            }
+        }
+        EditorAction::FillParagraph => {
+            let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+            let pos = pane.page_pos(el, caret(el));
+            if let Some((a, b, with)) = crate::motion::fill_paragraph(&page, pos, edit::FILL_COLUMN) {
+                // The caret stays on the same word: as many non-blank characters before it
+                let kept = page[a..pos].iter().filter(|c| !c.is_whitespace()).count();
+                let in_new = with.char_indices().filter(|(_, c)| !c.is_whitespace()).nth(kept)
+                    .map_or(with.chars().count(), |(i, _)| with[..i].chars().count());
+                replace_page(pane, el, &page, a, b, &with, a + in_new);
+            }
+        }
+        // The region's case: the view's own characters (a fold, indentation) have none
+        EditorAction::UpcaseRegion | EditorAction::DowncaseRegion => {
+            let (a, b) = pane.region_of(el);
+            if a < b {
+                let case = if action == EditorAction::UpcaseRegion { edit::Case::Upper } else { edit::Case::Lower };
+                replace(a, b, &edit::change_case(&chars[a..b], case));
+            }
+            pane.mark.set(None);
+        }
+        EditorAction::ZapToChar => text_field::arm_zap(ctx, el),
         EditorAction::SetMark => {
             if ctx.pref_untracked(|p| p.emacs_mark) {
                 let c = caret(el);

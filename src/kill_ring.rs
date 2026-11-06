@@ -3,7 +3,8 @@
 //! yank takes what is there (text copied in another app as well).
 //!
 //! As in Emacs, kills made one after the other make a single entry: `C-k C-k C-k`
-//! kills three lines (and their line breaks) that `C-y` puts back together.
+//! kills three lines (and their line breaks) that `C-y` puts back together. The
+//! entries before the last one are kept: `M-y` right after a yank goes through them.
 
 use std::cell::RefCell;
 
@@ -25,6 +26,29 @@ thread_local! {
     /// The last kill as it was put in the system clipboard; `None` when it
     /// couldn't be: the clipboard then still holds something older.
     static IN_CLIPBOARD: RefCell<Option<String>> = const { RefCell::new(None) };
+    /// The entries, the last kill at the end.
+    static RING: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static LAST_YANK: RefCell<Option<LastYank>> = const { RefCell::new(None) };
+}
+
+/// Entries kept (Emacs' `kill-ring-max`, as it long was).
+const RING_MAX: usize = 60;
+
+/// What the last yank put in the text: `M-y` replaces it while it is still there,
+/// the caret after it.
+struct LastYank {
+    field: web_sys::Element,
+    at: usize,
+    text: String,
+    /// How far back in the ring it is.
+    back: usize,
+}
+
+/// `text` becomes the last entry, in place of it when `joined` to it.
+fn remember(ring: &mut Vec<String>, text: String, joined: bool) {
+    if joined { ring.pop(); }
+    ring.push(text);
+    if ring.len() > RING_MAX { ring.remove(0); }
 }
 
 fn web_clipboard() -> Option<web_sys::Clipboard> {
@@ -57,12 +81,13 @@ pub fn kill_range(ctx: AppCtx, field: &web_sys::Element, text: String, a: usize,
     let follows = LAST.with(|l| l.borrow().as_ref()
         .filter(|k| k.field == *field && k.len == len)
         .map(|k| (k.at == a, k.at == b)));
+    let joined = follows.is_some_and(|(after, before)| after || before);
     let text = match follows {
         Some((true, _)) => ctx.work.kill_ring.get_untracked() + &text,
         Some((false, true)) => text + &ctx.work.kill_ring.get_untracked(),
         _ => text,
     };
-    keep(ctx, text);
+    keep(ctx, text, joined);
     LAST.with(|l| *l.borrow_mut() = Some(LastKill { field: field.clone(), at: a, len: len - (b - a) }));
 }
 
@@ -70,11 +95,12 @@ pub fn kill_range(ctx: AppCtx, field: &web_sys::Element, text: String, a: usize,
 pub fn kill(ctx: AppCtx, text: String) {
     if text.is_empty() { return; }
     LAST.with(|l| *l.borrow_mut() = None);
-    keep(ctx, text);
+    keep(ctx, text, false);
 }
 
 /// The kill ring holds `text`, and the system clipboard too.
-fn keep(ctx: AppCtx, text: String) {
+fn keep(ctx: AppCtx, text: String, joined: bool) {
+    RING.with(|r| remember(&mut r.borrow_mut(), text.clone(), joined));
     IN_CLIPBOARD.with(|c| *c.borrow_mut() = None);
     let written = text.clone();
     spawn_local(async move {
@@ -105,15 +131,67 @@ pub fn yank(ctx: AppCtx, insert: impl FnOnce(String) + 'static) {
         let pasted = read_clipboard().await;
         let killed = ctx.work.kill_ring.try_get_untracked().unwrap_or_default();
         let text = to_yank(pasted, killed, IN_CLIPBOARD.with(|c| c.borrow().clone()));
-        if !text.is_empty() { insert(text); }
+        if text.is_empty() { return; }
+        // Copied elsewhere: an entry too, for `M-y`
+        RING.with(|r| {
+            let mut ring = r.borrow_mut();
+            if ring.last() != Some(&text) { remember(&mut ring, text.clone(), false); }
+        });
+        insert(text);
     });
+}
+
+/// `text` was just yanked at `at` of `field` (positions of `yank_pop`).
+pub fn yanked(field: &web_sys::Element, at: usize, text: String) {
+    LAST_YANK.with(|y| *y.borrow_mut() = Some(LastYank { field: field.clone(), at, text, back: 0 }));
+}
+
+/// The entry `back` steps before the last one, and how far that is: past the
+/// oldest one it starts again from the last.
+fn entry_before(ring: &[String], back: usize) -> Option<(usize, &String)> {
+    if ring.is_empty() { return None; }
+    let back = (back + 1) % ring.len();
+    Some((back, &ring[ring.len() - 1 - back]))
+}
+
+/// What `M-y` does in the text `chars` of `field`, the caret at `caret`: the range
+/// of the last yank and the entry to put there. `None` when the last yank isn't
+/// right before the caret any more.
+pub fn yank_pop(field: &web_sys::Element, caret: usize, chars: &[char]) -> Option<(usize, usize, String)> {
+    LAST_YANK.with(|y| {
+        let mut y = y.borrow_mut();
+        let y = y.as_mut().filter(|y| y.field == *field)?;
+        let end = y.at + y.text.chars().count();
+        if caret != end || !chars.get(y.at..end)?.iter().copied().eq(y.text.chars()) { return None; }
+        let (back, entry) = RING.with(|r| entry_before(&r.borrow(), y.back).map(|(b, e)| (b, e.clone())))?;
+        y.back = back;
+        y.text = entry.clone();
+        Some((y.at, end, entry))
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::to_yank;
+    use super::{entry_before, remember, to_yank, RING_MAX};
 
     fn s(t: &str) -> String { t.to_string() }
+
+    #[test]
+    fn the_ring_keeps_the_kills() {
+        let mut ring = vec![];
+        remember(&mut ring, s("a"), false);
+        remember(&mut ring, s("b"), false);
+        // A kill joined to the one before takes its place
+        remember(&mut ring, s("bc"), true);
+        assert_eq!(ring, [s("a"), s("bc")]);
+        // M-y goes back, then starts again from the last
+        assert_eq!(entry_before(&ring, 0), Some((1, &s("a"))));
+        assert_eq!(entry_before(&ring, 1), Some((0, &s("bc"))));
+        assert_eq!(entry_before(&[], 0), None);
+        for i in 0..RING_MAX { remember(&mut ring, i.to_string(), false); }
+        assert_eq!(ring.len(), RING_MAX);
+        assert_eq!(ring[0], "0");
+    }
 
     #[test]
     fn yanks_the_kill_unless_something_was_copied_since() {

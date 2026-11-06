@@ -4,6 +4,16 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.2.1
+- Raccourcis Emacs : inverser des caractères (Ctrl+T) et des mots (Alt+T), changer la casse d'un mot (Alt+U, Alt+L, Alt+C) ou de la sélection (Ctrl+X Ctrl+U, Ctrl+X Ctrl+L), supprimer des espaces (Alt+\, Alt+Espace), joindre des lignes (Alt+^), couper jusqu'à un caractère (Alt+Z), remettre un paragraphe à la largeur (Alt+Q), tout sélectionner (Ctrl+X H), rétablir (Ctrl+Maj+?).
+- Kill ring d'Emacs : il garde les coupes précédentes, et Alt+Y juste après un collage remonte dans celles-ci.
+- Vidéos : les liens Vimeo, Dailymotion, Twitch et PeerTube s'affichent en miniatures comme ceux de YouTube ; un clic lit la vidéo dans l'application ou l'ouvre dans le navigateur, selon Réglages > Liens.
+- Ouverture rapide : les noms qui commencent par le texte tapé viennent d'abord, la liste suit les flèches, et ouvrir une page met le clavier dans son texte.
+- Nouveau titre : coupe la ligne au curseur, la suite devenant le texte du nouveau titre ou élément.
+- Emojis : « Insérer un emoji » dans le menu du clic droit de l'éditeur sous Linux, et une case dans Réglages > Raccourcis pour couper les raccourcis de WebKit vers son sélecteur d'emojis.
+- Réglages : un bouton Par défaut remet l'onglet courant à ses valeurs d'origine. Une option absente d'un fichier de réglages prend sa valeur par défaut.
+- Correction : après un emoji dans une page, les commandes d'édition (couper, coller, recherche, complétion…) n'agissent plus au mauvais endroit.
+
 * 1.2.0
 - Git : la branche est une liste pour passer à une autre branche, locale ou distante, ou en créer une nouvelle.
 - Git : le commit et la synchronisation ne prennent que le dossier du projet, jamais le reste d'un dépôt dont il fait partie.

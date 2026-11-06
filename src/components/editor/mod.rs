@@ -172,7 +172,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let on_click = move |e: web_sys::MouseEvent| {
         if !e.ctrl_key() { return; }
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
-        let pos = pane.page_pos(&el, el.selection_start().ok().flatten().unwrap_or(0) as usize);
+        let pos = pane.page_pos(&el, dom::get_pos(&el).0);
         let chars: Vec<char> = content.get_untracked().chars().collect();
         if let Some(name) = edit::linked_page_at(&chars, pos, pane.ctx.tags_untracked(), pane.fmt()) {
             e.prevent_default();

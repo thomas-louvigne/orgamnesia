@@ -3,7 +3,7 @@
 
 use wasm_bindgen::JsCast;
 
-use crate::{keybindings::after_ms, tables};
+use crate::{keybindings::after_ms, tables, text_field::{to_chars, to_units}};
 
 pub type Textarea = web_sys::HtmlTextAreaElement;
 
@@ -30,10 +30,14 @@ pub fn clipboard_write(text: &str) {
 
 // ─── Selection ───────────────────────────────────────────────────────────────
 
+// The textarea counts in UTF-16 units; here, as everywhere in the editor, positions
+// are in chars: they differ after an emoji.
+
 pub fn get_pos(el: &Textarea) -> (usize, usize) {
-    let s = el.selection_start().ok().flatten().unwrap_or(0) as usize;
-    let e = el.selection_end().ok().flatten().unwrap_or(0) as usize;
-    (s, e)
+    let chars: Vec<char> = el.value().chars().collect();
+    let s = el.selection_start().ok().flatten().unwrap_or(0);
+    let e = el.selection_end().ok().flatten().unwrap_or(0);
+    (to_chars(&chars, s), to_chars(&chars, e))
 }
 
 /// Caret position: the moving end of the selection.
@@ -51,21 +55,19 @@ pub fn after_tick(f: impl FnOnce() + 'static) {
 }
 
 pub fn set_cursor(el: &Textarea, pos: usize) {
-    let p = pos as u32;
-    el.set_selection_start(Some(p)).ok();
-    el.set_selection_end(Some(p)).ok();
+    set_selection(el, pos, pos);
 }
 
 pub fn set_selection(el: &Textarea, start: usize, end: usize) {
-    el.set_selection_start(Some(start as u32)).ok();
-    el.set_selection_end(Some(end as u32)).ok();
+    let chars: Vec<char> = el.value().chars().collect();
+    el.set_selection_start(Some(to_units(&chars, start))).ok();
+    el.set_selection_end(Some(to_units(&chars, end))).ok();
 }
 
 /// Replace [del_start..del_end) with `insert`, returns new cursor position.
 /// Uses execCommand so the browser's undo stack (Ctrl+Z) stays intact.
 pub fn splice(el: &Textarea, del_start: usize, del_end: usize, insert: &str) -> usize {
-    el.set_selection_start(Some(del_start as u32)).ok();
-    el.set_selection_end(Some(del_end as u32)).ok();
+    set_selection(el, del_start, del_end);
     exec_insert(insert);
     del_start + insert.chars().count()
 }

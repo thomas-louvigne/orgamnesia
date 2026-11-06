@@ -2,144 +2,117 @@
 
 #+HTML: <p align="center"><img src="src-tauri/icons/app-icon.svg" alt="Orgamnesia" width="128"></p>
 
-*Un wiki perso à la sauce =org-mode= : l'essentiel d'Obsidian en plus léger.*
+*Votre wiki perso, en =org-mode= ou en Markdown. L'essentiel d'Obsidian, en plus léger.*
 
-/[[file:readme.org][English version]]/
+*Vos notes restent de simples fichiers. Le reste, c'est du bonus.*
+
+[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Télécharger]] · [[file:docs/fonctionnalites.org][Toutes les fonctionnalités]] · [[file:readme.org][English]]
+
+[[file:docs/images/split.png]]
 
 #+BEGIN_QUOTE
-*Bêta, écrit avec une IA.* Des bugs et des changements sont à prévoir : gardez une
-copie de vos fichiers =.org= et =.md=. Le code a été écrit avec l'aide de Claude (Anthropic) ;
-relisez-le comme n'importe quelle contribution.
+*Bêta, écrite avec une IA (Claude, d'Anthropic).* Attendez-vous à des bugs et à des
+changements. Gardez une copie de vos notes, et relisez le code comme n'importe quelle
+contribution.
 #+END_QUOTE
-
-[[file:docs/screenshot.png]]
 
 * Pourquoi Orgamnesia
 
-- *Vos notes restent de simples fichiers =.org= ou =.md=* dans le dossier de votre
-  choix : pas de base de données, pas de format propriétaire. Emacs, Obsidian, git
-  ou un outil de synchro peuvent les lire en parallèle.
-- *Des pages liées*, comme dans un wiki : liens =[[Page]]=, =[[Page|texte]]=,
-  =[[Page#Titre]]= ou =[texte](Page.md)=, liens entrants, tags.
-- *Léger* : une application de bureau native écrite en Rust, rapide à lancer.
+- *Vos fichiers, pas les nôtres.* Des =.org= et des =.md= dans le dossier de votre
+  choix. Pas de base de données, pas de compte, pas de télémétrie, pas de format
+  propriétaire. Emacs, Obsidian, git ou votre outil de synchro les lisent en même temps.
+- *Org-mode ou Markdown ? Les deux.* Ils se mélangent dans un projet, et les liens
+  =[[Page]]= marchent partout.
+- *Un vrai wiki.* Liens, liens entrants, tags, complétion. Renommez une page : tous
+  les liens qui y mènent suivent.
+- *Le clavier d'abord.* Un profil Emacs très complet (=C-x C-s=, kill ring, =C-t=,
+  =M-q=…) ou un profil Classique, modifiables en entier.
+- *Git intégré.* Commit, pull, push, historique d'une page, synchro automatique, sans
+  quitter vos notes.
+- *Rapide.* Écrit en Rust, lancé en un instant.
+- *Libre.* Sous licence [[https://www.gnu.org/licenses/gpl-3.0.html][GPL v3]] : le code est ouvert, à lire, modifier et partager.
 
-* Fonctionnalités
+* Installer
 
-- *Ouvrir ou créer un dossier de notes* dans la même fenêtre : un nouveau dossier
-  reçoit =pages/= et =assets/=, prêt à écrire ; un dossier de fichiers =.org= ou =.md= existant s'ouvre tel quel.
-- *Liens et tags* : =[[Page]]=, =#mots-clés= et =:tags:=, avec complétion ;
-  renommer une page réécrit les liens qui y mènent. Liens vers un titre
-  (=[[Page::*Titre]]=) ou une cible (=[[Page::cible]]=), aperçu de la page au survol.
-- *Export* d'une page en PDF ou en HTML.
-- *Cadres* autour de l'éditeur : pages, liens entrants, tags, à faire, git…, placés
-  à votre guise.
-- *Ouverture rapide* (Ctrl+K) et *recherche et remplacement dans le projet*
-  (Ctrl+Maj+F).
-- *Éditeur org-mode et Markdown* : coloration, tableaux, états TODO et cases à
-  cocher, niveaux des titres, deux volets, raccourcis Emacs ou Classique. Les deux
-  formats se mélangent dans un projet, les liens =[[Page]]= marchent dans les deux.
-- *Correcteur d'orthographe* : fautes soulignées, suggestions au clic droit,
-  dictionnaire personnel (dictionnaires Hunspell).
-- *Corbeille* avec annulation, *sauvegarde automatique*, pages modifiées par un
-  autre programme rechargées.
-- *Préférences en texte* : les fichiers de réglages et de raccourcis ouverts dans
-  l'éditeur, vérifiés pendant la frappe, appliqués à chaud, avec historique.
-- *Git* : état du projet, commit (choix des fichiers, aperçu des modifications),
-  pull, push, historique d'une page, synchronisation automatique, clonage.
-- *Extensions* : site web statique avec
-  [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
-- Interface en français et en anglais.
+[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Téléchargez le fichier de votre système]], puis :
 
-Toutes les fonctionnalités en détail : [[file:docs/fonctionnalites.org][docs/fonctionnalites.org]].
+| Système                       | Fichier        | Installation                                     |
+|-------------------------------+----------------+--------------------------------------------------|
+| Debian, Ubuntu, Mint…         | =.deb=         | =sudo apt install ./Orgamnesia_*.deb=            |
+| Arch Linux                    | =.pkg.tar.zst= | =sudo pacman -U orgamnesia-*.pkg.tar.zst=        |
+| Tout Linux                    | =.AppImage=    | =chmod +x Orgamnesia_*.AppImage=, puis le lancer |
+| macOS 11+ (expérimental)      | =.dmg=         | glisser Orgamnesia dans Applications             |
+| Windows 10, 11 (expérimental) | =-setup.exe=   | double-cliquer, puis « Suivant »                 |
 
-* Prise en main
+*Linux est le seul système utilisé et testé au quotidien.* Les versions macOS et
+Windows sont compilées automatiquement, mais pas encore testées sur une vraie
+machine : elles peuvent ne pas marcher. Vos retours sont les bienvenus dans les
+[[https://github.com/thomas-louvigne/orgamnesia/issues][issues]].
 
-1. Lancez Orgamnesia et *ouvrez ou créez un dossier de notes* : un nouveau dossier
-   est préparé avec =pages/= et =assets/=, un dossier qui contient déjà des
-   fichiers =.org= ou =.md= s'ouvre tel quel. Au premier lancement, choisissez le
-   format des nouvelles pages (org-mode ou Markdown) et les raccourcis.
-2. *Créez une page* avec le bouton =+= de la liste des pages.
-3. Tapez =[[Autre page]]= pour faire un lien vers une autre page ; Ctrl+clic
-   l'ouvre, et la crée au besoin.
-4. Ctrl+K ouvre n'importe quelle page ; F1 liste tous les raccourcis.
+- *macOS* : l'application n'est pas signée et refuse de s'ouvrir la première fois.
+  Lancez =xattr -dr com.apple.quarantine /Applications/Orgamnesia.app=, ou passez par
+  /Réglages Système › Confidentialité et sécurité › Ouvrir quand même/.
+- *Windows* : pas besoin de droits d'administrateur, git est fourni. L'application
+  n'est pas signée : sur « Windows a protégé votre ordinateur », cliquez sur
+  /Informations complémentaires/ puis /Exécuter quand même/.
 
-* Installation
-
-Téléchargez le fichier de votre système sur la
-[[https://github.com/thomas-louvigne/orgamnesia/releases/latest][page des versions]] :
-
-| Système                        | Fichier        | Installation                                     |
-|--------------------------------+----------------+--------------------------------------------------|
-| Debian, Ubuntu, Mint…          | =.deb=         | =sudo apt install ./Orgamnesia_*.deb=            |
-| Arch Linux                     | =.pkg.tar.zst= | =sudo pacman -U orgamnesia-*.pkg.tar.zst=        |
-| Tout Linux                     | =.AppImage=    | =chmod +x Orgamnesia_*.AppImage=, puis le lancer |
-| macOS 11+ (expérimental)       | =.dmg=         | glisser Orgamnesia dans Applications             |
-| Windows 10, 11 (expérimental)  | =-setup.exe=   | double-cliquer, puis « Suivant »                 |
-
-*Les versions macOS et Windows sont expérimentales* : elles sont compilées
-automatiquement, mais n'ont pas encore été testées sur un Mac ni sur un ordinateur
-Windows. Elles peuvent ne pas fonctionner, ou pas entièrement. Linux est le système
-sur lequel l'application est utilisée et testée. Les retours (bugs, captures) sont
-les bienvenus dans les [[https://github.com/thomas-louvigne/orgamnesia/issues][issues]].
-
-*macOS* : l'application n'est pas signée, donc macOS refuse de l'ouvrir la première
-fois. Autorisez-la une fois avec
-=xattr -dr com.apple.quarantine /Applications/Orgamnesia.app=, ou par
-/Réglages Système › Confidentialité et sécurité › Ouvrir quand même/.
-
-*Windows* : l'installation ne demande pas de droits d'administrateur, et git est
-fourni avec l'application. Elle n'est pas signée : si Windows affiche « Windows a
-protégé votre ordinateur », cliquez sur /Informations complémentaires/ puis
-/Exécuter quand même/.
-
-Compiler depuis les sources, la dernière version de =main= sur Arch, et les
-particularités de macOS et de Windows (dictionnaires, touches, connexion aux
-dépôts git) :
+Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
 [[file:docs/installation.org][docs/installation.org]].
+
+* En route en une minute
+
+1. *Ouvrez un dossier de notes.* Un dossier existant s'ouvre tel quel ; un nouveau
+   reçoit =pages/= et =assets/=.
+2. *Créez une page* avec le =+= de la liste des pages.
+3. *Tapez =[[Autre page]]=.* Ctrl+clic l'ouvre, et la crée au besoin.
+4. *Ctrl+K* ouvre n'importe quelle page. *F1* liste tous les raccourcis.
+
+* Tout ce qu'il y a dedans
+
+- *Éditeur* : coloration, tableaux dessinés, images et vidéos dans la page, pliage,
+  états TODO, cases à cocher, deux volets.
+- *Liens* : vers une page, un titre ou une cible, avec aperçu au survol et liste des
+  pages à créer.
+- *Tags* : =#mots-clés= et =:tags:=, avec recherche combinée.
+- *Navigation* : ouverture rapide, recherche et remplacement dans tout le projet
+  (Ctrl+Maj+F), historique des pages.
+- *Cadres* : pages, liens entrants, tags, à faire, git… placés où vous voulez.
+- *Export* d'une page en PDF ou en HTML, *site statique* avec
+  [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
+- *Orthographe* : fautes soulignées, suggestions au clic droit, dictionnaire
+  personnel (Hunspell).
+- *Filet de sécurité* : sauvegarde automatique, corbeille avec annulation, pages
+  modifiées ailleurs rechargées.
+- *Réglages en texte* : du JSON ouvert dans l'éditeur, vérifié pendant la frappe,
+  appliqué à chaud, avec historique.
+- *Interface* en français et en anglais, *mises à jour* signées depuis l'application.
+
+Le détail, avec tous les raccourcis : [[file:docs/fonctionnalites.org][docs/fonctionnalites.org]].
 
 * Vos données
 
-- Les pages : les fichiers =.org= et =.md= du dossier du projet.
-- Les réglages : =~/.config/com.orgamnesia.app/= sous Linux,
-  =~/Library/Application Support/com.orgamnesia.app/= sous macOS,
-  =%APPDATA%\com.orgamnesia.app\= sous Windows. Ils se modifient
-  en texte depuis l'application, vérifiés pendant la frappe, avec un historique des
-  versions valides (voir [[file:docs/fonctionnalites.org#préférences-en-texte][Préférences en texte]]).
-- Toutes les préférences sont dans des fichiers JSON versionnables :
-  =settings.json= (les réglages) et =keybindings/<nom>.json= (un par profil de
-  raccourcis personnalisé). Une option absente d'un fichier prend sa valeur par défaut.
+- *Les pages* : les fichiers =.org= et =.md= de votre dossier. C'est tout.
+- *Aucune télémétrie.* Le réseau ne sert qu'aux mises à jour (désactivable), à git et
+  aux vidéos ou images en ligne de vos pages.
+- *Les réglages* : des fichiers JSON à versionner si vous voulez, =settings.json= et
+  =keybindings/<nom>.json=. Une option absente prend sa valeur par défaut. Ils sont
+  dans =~/.config/com.orgamnesia.app/= (Linux),
+  =~/Library/Application Support/com.orgamnesia.app/= (macOS) ou
+  =%APPDATA%\com.orgamnesia.app\= (Windows).
 
-* Développement
+* Développer
 
-Application de bureau en Rust : Tauri v2 (backend, =src-tauri/=) et Leptos 0.7
-(interface compilée en WebAssembly, =src/=) ; =core/= contient ce qu'ils partagent.
+Rust de bout en bout : Tauri v2 (=src-tauri/=), Leptos 0.7 compilé en WebAssembly
+(=src/=), et =core/= pour ce qu'ils partagent.
 
 #+BEGIN_SRC sh
 cargo tauri dev     # lancement avec rechargement à chaud
 cargo test --lib    # tests (aussi dans src-tauri/ et core/)
 #+END_SRC
 
-Installer les outils : [[file:docs/installation.org][docs/installation.org]].
+Installer les outils et publier une version : [[file:docs/installation.org][docs/installation.org]].
 
-** Publier une version
-
-1. Écrire les nouveautés pour les utilisateurs dans
-   [[file:changelog.fr.org][changelog.fr.org]] et [[file:changelog.org][changelog.org]] :
-   un titre =* X.Y.Z (date)=, puis des puces =- = en texte simple. Sans elles, la
-   publication échoue.
-2. Monter la version (les =Cargo.toml=, les =Cargo.lock=,
-   =src-tauri/tauri.conf.json=, =packaging/arch-release/PKGBUILD=) et pousser sur
-   =main= : la publication compile les paquets, les signe pour les mises à jour,
-   les publie avec les notes, puis =latest.json=, que lisent les applications
-   installées.
-
-Les paquets sont signés avec la clé créée par =cargo tauri signer generate= : sa
-moitié publique est dans =tauri.conf.json= (=plugins.updater.pubkey=), la privée et
-son mot de passe dans les secrets =TAURI_SIGNING_PRIVATE_KEY= et
-=TAURI_SIGNING_PRIVATE_KEY_PASSWORD= du dépôt. Gardez la clé privée : sans elle,
-les applications installées ne peuvent plus être mises à jour.
-
-* TODO-LIST
+* À venir
 
 - [ ] Tester la version Windows
 - [ ] Tester sur macOS

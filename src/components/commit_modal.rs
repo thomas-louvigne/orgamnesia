@@ -52,7 +52,7 @@ pub fn CommitModal() -> impl IntoView {
     Effect::new(move |_| {
         if changes.with(Option::is_some) && let Some(el) = area_ref.get() {
             let _ = el.focus();
-            let first = message.with_untracked(|m| m.lines().next().map_or(0, |l| l.chars().count()));
+            let first = message.with_untracked(|m| m.lines().next().map_or(0, |l| l.encode_utf16().count()));
             let _ = el.set_selection_range(0, first as u32);
         }
     });

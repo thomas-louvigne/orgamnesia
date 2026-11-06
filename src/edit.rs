@@ -62,6 +62,10 @@ pub fn move_lines(chars: &[char], pos: usize, delta: i32) -> usize {
     (s + col).min(e)
 }
 
+/// Column `fill_paragraph` wraps at.
+// shortcut: Emacs' default `fill-column` for every page, a setting if someone wants another width.
+pub const FILL_COLUMN: usize = 70;
+
 pub fn word_end_forward(chars: &[char], pos: usize) -> usize {
     let mut i = pos;
     while i < chars.len() && !chars[i].is_alphanumeric() { i += 1; }
@@ -165,6 +169,97 @@ pub fn delete_forward_range(chars: &[char], start: usize, end: usize) -> (usize,
     if start != end { return (start, end); }
     if start >= chars.len() && chars.last() == Some(&'\n') { return (chars.len() - 1, chars.len()); }
     (start, (start + 1).min(chars.len()))
+}
+
+/// What Emacs' `transpose-chars` does at `pos`: the characters on each side of it
+/// swap, or at the end of a line the two before it. The range `a..b` and its new
+/// text, the caret going after it; `None` when there are not two characters.
+pub fn transpose_chars(chars: &[char], pos: usize) -> Option<(usize, usize, String)> {
+    let at = if chars.get(pos).is_none_or(|&c| c == '\n') { pos.checked_sub(1)? } else { pos };
+    if at == 0 || at >= chars.len() { return None; }
+    Some((at - 1, at + 1, [chars[at], chars[at - 1]].iter().collect()))
+}
+
+/// What Emacs' `transpose-words` does at `pos`: the word holding it or before it
+/// swaps with the next one. `None` when there is no next one.
+fn transpose_words(chars: &[char], pos: usize) -> Option<(usize, usize, String)> {
+    let s1 = word_start_backward(chars, pos);
+    let e1 = word_end_forward(chars, s1);
+    let e2 = word_end_forward(chars, e1);
+    let s2 = word_start_backward(chars, e2);
+    if s1 >= e1 || s2 < e1 || s2 >= e2 { return None; }
+    Some((s1, e2, chars[s2..e2].iter().chain(&chars[e1..s2]).chain(&chars[s1..e1]).collect()))
+}
+
+#[derive(Clone, Copy)]
+pub enum Case { Upper, Lower, Capitalized }
+
+/// `text` in that case. Capitalized: each word's first letter or digit up, the rest down.
+pub fn change_case(text: &[char], case: Case) -> String {
+    let mut starts_word = true;
+    let mut out = String::with_capacity(text.len());
+    for &c in text {
+        match case {
+            Case::Upper => out.extend(c.to_uppercase()),
+            Case::Capitalized if starts_word => out.extend(c.to_uppercase()),
+            Case::Lower | Case::Capitalized => out.extend(c.to_lowercase()),
+        }
+        starts_word = !c.is_alphanumeric();
+    }
+    out
+}
+
+/// The run of spaces and tabs around `pos`.
+fn blanks_around(chars: &[char], pos: usize) -> (usize, usize) {
+    let blank = |c: char| c == ' ' || c == '\t';
+    let (mut a, mut b) = (pos, pos);
+    while a > 0 && blank(chars[a - 1]) { a -= 1; }
+    while b < chars.len() && blank(chars[b]) { b += 1; }
+    (a, b)
+}
+
+/// What Emacs' `delete-indentation` does: the line of `pos` joins the one above,
+/// one space between them unless one is empty or that's inside brackets.
+fn join_line(chars: &[char], pos: usize) -> Option<(usize, usize, String)> {
+    let ls = line_bounds(chars, pos).0;
+    if ls == 0 { return None; }
+    let (a, _) = blanks_around(chars, ls - 1);
+    let (_, b) = blanks_around(chars, ls);
+    let space = a > 0 && !matches!(chars[a - 1], '\n' | '(') && chars.get(b).is_some_and(|c| !matches!(c, '\n' | ')'));
+    Some((a, b, if space { " ".to_string() } else { String::new() }))
+}
+
+/// The text edit of an action that works at the caret: the range `a..b` and its
+/// new text. `None` when the action is another one, or has nothing to do there.
+pub fn text_edit(action: EditorAction, chars: &[char], pos: usize) -> Option<(usize, usize, String)> {
+    use EditorAction::*;
+    let word = |case| {
+        let b = word_end_forward(chars, pos);
+        (pos < b).then(|| (pos, b, change_case(&chars[pos..b], case)))
+    };
+    let (a, b) = blanks_around(chars, pos.min(chars.len()));
+    match action {
+        TransposeChars => transpose_chars(chars, pos),
+        TransposeWords => transpose_words(chars, pos),
+        UpcaseWord => word(Case::Upper),
+        DowncaseWord => word(Case::Lower),
+        CapitalizeWord => word(Case::Capitalized),
+        DeleteHorizontalSpace => (a < b).then(String::new).map(|s| (a, b, s)),
+        JustOneSpace => Some((a, b, " ".to_string())),
+        DeleteIndentation => join_line(chars, pos),
+        _ => None,
+    }
+}
+
+/// Where the caret goes after `text_edit` on `a..b` with `text`: after it, but
+/// where the lines met after a join, as in Emacs.
+pub fn caret_after_edit(action: EditorAction, a: usize, text: &str) -> usize {
+    if action == EditorAction::DeleteIndentation { a } else { a + text.chars().count() }
+}
+
+/// Where a kill up to and including the next `c` after `pos` ends (Emacs' `zap-to-char`).
+pub fn zap_end(chars: &[char], pos: usize, c: char) -> Option<usize> {
+    Some(pos + chars.get(pos..)?.iter().position(|&d| d == c)? + 1)
 }
 
 /// The pair a typed character belongs to: `(` and `)` → `("(", ")")`…
@@ -496,6 +591,78 @@ mod tests {
         // At the end, after a last newline: that newline
         assert_eq!(delete_forward_range(&c("ab\n"), 3, 3), (2, 3));
         assert_eq!(delete_forward_range(&c("ab\n"), 2, 2), (2, 3));
+    }
+
+    #[test]
+    fn text_edits() {
+        use EditorAction::*;
+        // The text once edited, the caret marked by `|`
+        let edit = |action, t: &str| {
+            let pos = t.chars().position(|c| c == '|').unwrap();
+            let t = c(&t.replace('|', ""));
+            text_edit(action, &t, pos).map(|(a, b, with)| {
+                let caret = caret_after_edit(action, a, &with);
+                let done: Vec<char> = t[..a].iter().copied().chain(with.chars()).chain(t[b..].iter().copied()).collect();
+                let (x, y) = done.split_at(caret);
+                format!("{}|{}", x.iter().collect::<String>(), y.iter().collect::<String>())
+            })
+        };
+        let s = |t: &str| Some(t.to_string());
+        // Words: around the caret, what is between them stays
+        assert_eq!(edit(TransposeWords, "foo |bar baz"), s("bar foo| baz"));
+        assert_eq!(edit(TransposeWords, "f|oo, bar"), s("bar, foo|"));
+        assert_eq!(edit(TransposeWords, "|l'été"), s("été'l|"));
+        assert_eq!(edit(TransposeWords, "foo bar|"), None);
+        assert_eq!(edit(TransposeWords, "foo bar| ."), None);
+        // Case: from the caret to the end of the word
+        assert_eq!(edit(UpcaseWord, "un mo|t ici"), s("un moT| ici"));
+        assert_eq!(edit(UpcaseWord, "un| été ici"), s("un ÉTÉ| ici"));
+        assert_eq!(edit(DowncaseWord, "|MOT ICI"), s("mot| ICI"));
+        assert_eq!(edit(CapitalizeWord, "|mOT ici"), s("Mot| ici"));
+        assert_eq!(edit(CapitalizeWord, "...|  mOT"), s("...  Mot|"));
+        assert_eq!(edit(UpcaseWord, "fin|  "), s("fin  |"));
+        // Spaces
+        assert_eq!(edit(DeleteHorizontalSpace, "a \t| \tb"), s("a|b"));
+        assert_eq!(edit(DeleteHorizontalSpace, "a|b"), None);
+        assert_eq!(edit(JustOneSpace, "a  |  b"), s("a |b"));
+        assert_eq!(edit(JustOneSpace, "a|b"), s("a |b"));
+        // A line break is not a space
+        assert_eq!(edit(DeleteHorizontalSpace, "a\n | b"), s("a\n|b"));
+        // Joining: one space, none with an empty line or inside brackets
+        assert_eq!(edit(DeleteIndentation, "un  \n   de|ux"), s("un| deux"));
+        assert_eq!(edit(DeleteIndentation, "\nde|ux"), s("|deux"));
+        assert_eq!(edit(DeleteIndentation, "un\n|"), s("un|"));
+        assert_eq!(edit(DeleteIndentation, "f(\n|x\n)"), s("f(|x\n)"));
+        assert_eq!(edit(DeleteIndentation, "x\n|)"), s("x|)"));
+        assert_eq!(edit(DeleteIndentation, "se|ule"), None);
+        // Not one of these actions
+        assert_eq!(edit(Yank, "a|b"), None);
+        // Zap: the character goes too
+        assert_eq!(zap_end(&c("a,b,c"), 0, ','), Some(2));
+        assert_eq!(zap_end(&c("a,b,c"), 2, ','), Some(4));
+        assert_eq!(zap_end(&c("ab"), 0, ','), None);
+        assert_eq!(zap_end(&c("ab"), 9, 'a'), None);
+        // Region case keeps what has no case
+        assert_eq!(change_case(&c("ab\u{f800} é"), Case::Upper), "AB\u{f800} É");
+        assert_eq!(change_case(&c("ÀB"), Case::Lower), "àb");
+    }
+
+    #[test]
+    fn transpose() {
+        let swap = |t: &str, pos| transpose_chars(&c(t), pos);
+        let s = |t: &str| t.to_string();
+        // In a line: around the caret
+        assert_eq!(swap("abc", 1), Some((0, 2, s("ba"))));
+        // At the end of the text or of a line: the two before it
+        assert_eq!(swap("abc", 3), Some((1, 3, s("cb"))));
+        assert_eq!(swap("abc\nd", 3), Some((1, 3, s("cb"))));
+        // At the start of a line: the line break goes across, as in Emacs
+        assert_eq!(swap("ab\ncd", 3), Some((2, 4, s("c\n"))));
+        assert_eq!(swap("a😀b", 2), Some((1, 3, s("b😀"))));
+        // Not two characters
+        assert_eq!(swap("abc", 0), None);
+        assert_eq!(swap("a", 1), None);
+        assert_eq!(swap("", 0), None);
     }
 
     #[test]

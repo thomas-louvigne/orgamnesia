@@ -637,8 +637,8 @@ profile gets those of the actions it didn't know.
 | Action                         | Classic             | Emacs                         |
 |--------------------------------+---------------------+-------------------------------|
 | Copy / cut / paste             | Ctrl+C / X / V      | Alt+W / Ctrl+W / Ctrl+Y       |
-| Select all                     | Ctrl+A              | —                             |
-| Undo / redo                    | Ctrl+Z / Ctrl+Y     | Ctrl+/, Ctrl+X U / —          |
+| Select all                     | Ctrl+A              | Ctrl+X H                      |
+| Undo / redo                    | Ctrl+Z / Ctrl+Y     | Ctrl+/, Ctrl+X U / Ctrl+Shift+? |
 | New heading, or list item      | Shift+Enter         | Alt+Enter                     |
 | Open link                      | Ctrl+Enter          | Ctrl+C Ctrl+O                 |
 | Find / previous                | Ctrl+F, F3 / Shift+F3 | Ctrl+S / Ctrl+R             |
@@ -673,6 +673,19 @@ profile gets those of the actions it didn't know.
 | Kill to end of line            | —                   | Ctrl+K                        |
 | Kill next / previous word      | —                   | Alt+D / Alt+Backspace         |
 | Delete next character          | —                   | Ctrl+D                        |
+| Swap the characters around the caret | —             | Ctrl+T                        |
+| Swap the words around the caret | —                  | Alt+T                         |
+| Word: upper / lower / capitalized | —                | Alt+U / Alt+L / Alt+C         |
+| Selection: upper / lower case  | —                   | Ctrl+X Ctrl+U / Ctrl+X Ctrl+L |
+| Delete the spaces around / leave one | —             | Alt+\ / Alt+Space             |
+| Join the line to the one above | —                   | Alt+^                         |
+| Kill up to a character         | —                   | Alt+Z, then the character     |
+| Rewrap the paragraph (70 columns) | —                | Alt+Q                         |
+| After a yank, the kill before it | —                 | Alt+Y                         |
+
+Alt+Q leaves alone what is not prose (tables, blocks, headlines); the text of a list
+item goes under its text, and a link is not cut. These actions have no shortcut in
+Classic, but can be given one in Settings > Shortcuts.
 
 In Classic, movement and selection stay those of the system (arrows, Home, End,
 Shift+arrows…). In a profile, the browser's editing shortcuts that are not assigned

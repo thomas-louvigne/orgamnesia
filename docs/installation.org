@@ -159,3 +159,21 @@ Les dépôts peuvent être n'importe où. Deux façons de s'y connecter :
   (ceux de LibreOffice). D'autres se choisissent dans les préférences.
 - *Extension org-bloom* : elle n'est pas fournie ; à installer à part.
 - *Réglages* : dans =%APPDATA%\com.orgamnesia.app\=.
+
+* Publier une version
+
+1. Écrire les nouveautés pour les utilisateurs dans
+   [[file:../changelog.fr.org][changelog.fr.org]] et [[file:../changelog.org][changelog.org]] :
+   un titre =* X.Y.Z (date)=, puis des puces =- = en texte simple. Sans elles, la
+   publication échoue.
+2. Monter la version (les =Cargo.toml=, les =Cargo.lock=,
+   =src-tauri/tauri.conf.json=, =packaging/arch-release/PKGBUILD=) et pousser sur
+   =main= : la publication compile les paquets, les signe pour les mises à jour,
+   les publie avec les notes, puis =latest.json=, que lisent les applications
+   installées.
+
+Les paquets sont signés avec la clé créée par =cargo tauri signer generate= : sa
+moitié publique est dans =tauri.conf.json= (=plugins.updater.pubkey=), la privée et
+son mot de passe dans les secrets =TAURI_SIGNING_PRIVATE_KEY= et
+=TAURI_SIGNING_PRIVATE_KEY_PASSWORD= du dépôt. Gardez la clé privée : sans elle,
+les applications installées ne peuvent plus être mises à jour.

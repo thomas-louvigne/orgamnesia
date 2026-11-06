@@ -251,7 +251,9 @@ pub enum AppAction {
 pub enum EditorAction {
     Copy, Cut, Paste, SelectAll, Undo, Redo, NewHeading,
     BeginningOfLine, EndOfLine, KillLine, KillWordForward, KillWordBackward, Yank,
-    KillRegion, CopyRegion, DeleteCharForward,
+    KillRegion, CopyRegion, DeleteCharForward, TransposeChars, TransposeWords,
+    UpcaseWord, DowncaseWord, CapitalizeWord, UpcaseRegion, DowncaseRegion,
+    DeleteHorizontalSpace, JustOneSpace, DeleteIndentation, ZapToChar, FillParagraph, YankPop,
     ForwardChar, BackwardChar, NextLine, PreviousLine, ForwardWord, BackwardWord,
     BeginningOfBuffer, EndOfBuffer, ScrollDown, ScrollUp, Recenter,
     BackwardSentence, ForwardSentence, BackwardParagraph, ForwardParagraph, BackwardElement, ForwardElement,
@@ -322,6 +324,19 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::KillRegion, id: "kill_region",         label_key: "shortcut_kill_region" },
     ActionDef { action: EditorAction::CopyRegion, id: "copy_region",         label_key: "shortcut_copy_region" },
     ActionDef { action: EditorAction::DeleteCharForward, id: "delete_char_forward", label_key: "shortcut_del_char_fwd" },
+    ActionDef { action: EditorAction::TransposeChars, id: "transpose_chars",   label_key: "shortcut_transpose_chars" },
+    ActionDef { action: EditorAction::TransposeWords, id: "transpose_words",   label_key: "shortcut_transpose_words" },
+    ActionDef { action: EditorAction::UpcaseWord, id: "upcase_word",           label_key: "shortcut_upcase_word" },
+    ActionDef { action: EditorAction::DowncaseWord, id: "downcase_word",       label_key: "shortcut_downcase_word" },
+    ActionDef { action: EditorAction::CapitalizeWord, id: "capitalize_word",   label_key: "shortcut_capitalize_word" },
+    ActionDef { action: EditorAction::UpcaseRegion, id: "upcase_region",       label_key: "shortcut_upcase_region" },
+    ActionDef { action: EditorAction::DowncaseRegion, id: "downcase_region",   label_key: "shortcut_downcase_region" },
+    ActionDef { action: EditorAction::DeleteHorizontalSpace, id: "delete_horizontal_space", label_key: "shortcut_delete_horizontal_space" },
+    ActionDef { action: EditorAction::JustOneSpace, id: "just_one_space",      label_key: "shortcut_just_one_space" },
+    ActionDef { action: EditorAction::DeleteIndentation, id: "delete_indentation", label_key: "shortcut_delete_indentation" },
+    ActionDef { action: EditorAction::ZapToChar, id: "zap_to_char",            label_key: "shortcut_zap_to_char" },
+    ActionDef { action: EditorAction::FillParagraph, id: "fill_paragraph",     label_key: "shortcut_fill_paragraph" },
+    ActionDef { action: EditorAction::YankPop, id: "yank_pop",                 label_key: "shortcut_yank_pop" },
     ActionDef { action: EditorAction::ForwardChar, id: "forward_char",        label_key: "shortcut_forward_char" },
     ActionDef { action: EditorAction::BackwardChar, id: "backward_char",       label_key: "shortcut_backward_char" },
     ActionDef { action: EditorAction::NextLine, id: "next_line",           label_key: "shortcut_next_line" },
@@ -547,7 +562,25 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("kill_region",         &["ctrl+w"]),
             ("copy_region",         &["alt+w"]),
             ("delete_char_forward", &["ctrl+d"]),
+            ("transpose_chars",     &["ctrl+t"]),
+            ("transpose_words",     &["alt+t"]),
+            ("upcase_word",         &["alt+u"]),
+            ("downcase_word",       &["alt+l"]),
+            ("capitalize_word",     &["alt+c"]),
+            ("upcase_region",       &["ctrl+x ctrl+u"]),
+            ("downcase_region",     &["ctrl+x ctrl+l"]),
+            ("delete_horizontal_space", &["alt+\\"]),
+            ("just_one_space",      &["alt+space"]),
+            // `^` needs Shift on QWERTY; on AZERTY it is a dead key, known by its place (`[`)
+            ("delete_indentation",  &["alt+^", "shift+alt+^", "alt+["]),
+            ("zap_to_char",         &["alt+z"]),
+            ("fill_paragraph",      &["alt+q"]),
+            ("yank_pop",            &["alt+y"]),
             ("undo",                &["ctrl+/", "ctrl+x u"]),
+            // undo-redo: `C-?`, `C-M-_` (`_` needs Shift on QWERTY, not on AZERTY)
+            ("redo",                &["ctrl+shift+?", "ctrl+shift+alt+_", "ctrl+alt+_"]),
+            // mark-whole-buffer
+            ("select_all",          &["ctrl+x h"]),
             // org-meta-return: a new headline, or a new item on a list item
             ("new_heading",         &["alt+Enter"]),
             ("open_link",           &["ctrl+c ctrl+o"]),
@@ -693,6 +726,13 @@ mod tests {
             for id in preset_editor(preset).keys() {
                 assert!(EditorAction::from_id(id).is_some(), "{preset}: {id}");
             }
+        }
+    }
+
+    #[test]
+    fn presets_have_no_conflicts() {
+        for preset in EDITOR_PRESETS {
+            assert_eq!(conflicts(&preset_app(preset), &preset_editor(preset)), vec![], "{preset}");
         }
     }
 

@@ -156,3 +156,19 @@ The repositories may be anywhere. Two ways to sign in:
   Others can be chosen in the settings.
 - *org-bloom extension*: not included; to install apart.
 - *Settings*: in =%APPDATA%\com.orgamnesia.app\=.
+
+* Releasing a version
+
+1. Write what is new for the users in [[file:../changelog.org][changelog.org]] and
+   [[file:../changelog.fr.org][changelog.fr.org]]: a =* X.Y.Z (date)= headline, then
+   =- = items in plain text. The release fails without them.
+2. Raise the version (=Cargo.toml= files, =Cargo.lock= files,
+   =src-tauri/tauri.conf.json=, =packaging/arch-release/PKGBUILD=) and push to
+   =main=: the release workflow builds the packages, signs them for the updater,
+   publishes them with the notes, then =latest.json=, which the installed apps read.
+
+The packages are signed with the key made by =cargo tauri signer generate=: its
+public half is in =tauri.conf.json= (=plugins.updater.pubkey=), the private one and
+its password in the =TAURI_SIGNING_PRIVATE_KEY= and
+=TAURI_SIGNING_PRIVATE_KEY_PASSWORD= secrets of the repository. Keep the private
+key: without it, the installed apps can't be updated any more.

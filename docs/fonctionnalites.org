@@ -643,8 +643,8 @@ connaissait pas.
 | Action                       | Classique          | Emacs                       |
 |------------------------------+--------------------+-----------------------------|
 | Copier / couper / coller     | Ctrl+C / X / V     | Alt+W / Ctrl+W / Ctrl+Y     |
-| Tout sélectionner            | Ctrl+A             | —                           |
-| Annuler / rétablir           | Ctrl+Z / Ctrl+Y    | Ctrl+/, Ctrl+X U / —        |
+| Tout sélectionner            | Ctrl+A             | Ctrl+X H                    |
+| Annuler / rétablir           | Ctrl+Z / Ctrl+Y    | Ctrl+/, Ctrl+X U / Ctrl+Shift+? |
 | Nouveau titre, ou élément de liste | Maj+Entrée    | Alt+Entrée                  |
 | Suivre le lien               | Ctrl+Entrée        | Ctrl+C Ctrl+O               |
 | Rechercher / précédent       | Ctrl+F, F3 / Maj+F3 | Ctrl+S / Ctrl+R            |
@@ -679,6 +679,20 @@ connaissait pas.
 | Couper jusqu'à fin de ligne  | —                  | Ctrl+K                      |
 | Couper le mot suivant / préc. | —                 | Alt+D / Alt+Retour arrière  |
 | Supprimer le caractère suivant | —                | Ctrl+D                      |
+| Inverser les caractères autour du curseur | —     | Ctrl+T                      |
+| Inverser les mots autour du curseur | —           | Alt+T                       |
+| Mot : majuscules / minuscules / capitale | —      | Alt+U / Alt+L / Alt+C       |
+| Sélection : majuscules / minuscules | —           | Ctrl+X Ctrl+U / Ctrl+X Ctrl+L |
+| Supprimer les espaces autour / en laisser un | —  | Alt+\ / Alt+Espace          |
+| Joindre la ligne à la précédente | —              | Alt+^                       |
+| Couper jusqu'à un caractère  | —                  | Alt+Z, puis le caractère    |
+| Remettre le paragraphe à la largeur (70 colonnes) | — | Alt+Q                   |
+| Après un collage, la coupe précédente | —         | Alt+Y                       |
+
+Alt+Q laisse de côté ce qui n'est pas du texte courant (tableaux, blocs, titres) ; le
+texte d'un élément de liste s'aligne sous son texte et un lien n'est pas coupé. Ces
+actions n'ont pas de raccourci en Classique, mais peuvent en recevoir un dans
+Réglages > Raccourcis.
 
 En Classique, les déplacements et la sélection restent ceux du système (flèches,
 Origine, Fin, Maj+flèches…). Dans un profil, les raccourcis d'édition du navigateur

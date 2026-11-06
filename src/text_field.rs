@@ -1,7 +1,8 @@
 //! The editor actions that make sense in the other text fields of the app (tags,
 //! search, page title, commit message…): the Emacs kills and yank, sharing the
-//! editor's kill ring (see `kill_ring`), the caret movements and the mark. Copy, cut, paste and
-//! undo are left to the browser, which does them in any field.
+//! editor's kill ring (see `kill_ring`), the caret movements, the mark and the text
+//! edits at the caret. Copy, cut, paste and undo are left to the browser, which does
+//! them in any field.
 
 use std::cell::RefCell;
 
@@ -20,6 +21,57 @@ enum Field {
 thread_local! {
     /// The mark set in a field (Ctrl+Space): the field and its position, in chars.
     static MARK: RefCell<Option<(web_sys::Element, usize)>> = const { RefCell::new(None) };
+    /// The field (or the editor) where `M-z` waits for its character.
+    static ZAP: RefCell<Option<web_sys::Element>> = const { RefCell::new(None) };
+}
+
+/// `M-z` was pressed in `el`: the next key says up to which character to kill.
+pub fn arm_zap(ctx: AppCtx, el: &web_sys::Element) {
+    ZAP.with(|z| *z.borrow_mut() = Some(el.clone()));
+    let keys = ctx.keybindings.with_untracked(|kb| crate::keybindings::first_shortcut(kb, "zap_to_char"));
+    ctx.set_chord_status(&keys.unwrap_or_default());
+}
+
+/// The key pressed in `el`, when `M-z` waits for a character there: `Some` with the
+/// character, or none when the key cancels it (or is only a modifier, and it waits on).
+pub fn zap_key(ctx: AppCtx, el: &web_sys::Element, e: &web_sys::KeyboardEvent) -> Option<Option<char>> {
+    let armed = ZAP.with(|z| z.borrow().as_ref() == Some(el));
+    if !armed {
+        ZAP.with(|z| z.borrow_mut().take());
+        return None;
+    }
+    let key = e.key();
+    if matches!(key.as_str(), "Shift" | "Control" | "Alt" | "AltGraph" | "Meta" | "Dead") { return Some(None); }
+    ZAP.with(|z| z.borrow_mut().take());
+    ctx.clear_chord_status();
+    // Ctrl alone is a command (`C-g`); with Alt, on some systems, it is AltGr typing a character
+    if e.meta_key() || (e.ctrl_key() && !e.alt_key()) { return Some(None); }
+    if key == "Enter" { return Some(Some('\n')); }
+    let mut chars = key.chars();
+    match (chars.next(), chars.next()) {
+        (Some(c), None) => Some(Some(c)),
+        _ => Some(None),
+    }
+}
+
+/// The key that follows `M-z` in a text field; true when it was that.
+pub fn on_zap_key(ctx: AppCtx, e: &web_sys::KeyboardEvent) -> bool {
+    let Some(field) = Field::of(e) else { return false };
+    let Some(zap) = zap_key(ctx, field.element(), e) else { return false };
+    e.prevent_default();
+    if let (Some(c), Some((_, end))) = (zap, field.selection()) {
+        let chars: Vec<char> = field.value().chars().collect();
+        let at = to_chars(&chars, end);
+        match edit::zap_end(&chars, at, c) {
+            Some(b) => {
+                let text = chars[at..b].iter().collect();
+                crate::kill_ring::kill_range(ctx, field.element(), text, at, b, chars.len());
+                replace(&field, &chars, at, b, "");
+            }
+            None => ctx.notify_t("zap_not_found", &c.to_string()),
+        }
+    }
+    true
 }
 
 impl Field {
@@ -66,12 +118,12 @@ impl Field {
 }
 
 /// Position in chars of a position in UTF-16 units of `chars`, and back.
-fn to_chars(chars: &[char], units: u32) -> usize {
+pub(crate) fn to_chars(chars: &[char], units: u32) -> usize {
     let mut n = 0;
     chars.iter().take_while(|c| { n += c.len_utf16() as u32; n <= units }).count()
 }
 
-fn to_units(chars: &[char], pos: usize) -> u32 {
+pub(crate) fn to_units(chars: &[char], pos: usize) -> u32 {
     chars[..pos.min(chars.len())].iter().map(|c| c.len_utf16() as u32).sum()
 }
 
@@ -164,13 +216,44 @@ pub fn run(ctx: AppCtx, e: &web_sys::KeyboardEvent, action: EditorAction) -> boo
             crate::kill_ring::yank(ctx, move |text| {
                 let chars: Vec<char> = field.value().chars().collect();
                 let Some((s, e)) = field.selection() else { return };
-                replace(&field, &chars, to_chars(&chars, s), to_chars(&chars, e), &text);
+                let at = to_chars(&chars, s);
+                replace(&field, &chars, at, to_chars(&chars, e), &text);
+                crate::kill_ring::yanked(field.element(), at, text);
             });
         }
         DeleteCharForward => {
             let (a, b) = edit::delete_forward_range(&chars, start, end);
             replace(&field, &chars, a, b, "");
         }
+        TransposeChars | TransposeWords | UpcaseWord | DowncaseWord | CapitalizeWord
+        | DeleteHorizontalSpace | JustOneSpace | DeleteIndentation => {
+            if let Some((a, b, with)) = edit::text_edit(action, &chars, caret) {
+                replace(&field, &chars, a, b, &with);
+                if action == DeleteIndentation {
+                    let at = to_units(&chars, edit::caret_after_edit(action, a, &with));
+                    field.set_selection(at, at, false);
+                }
+            }
+        }
+        UpcaseRegion | DowncaseRegion => {
+            let (a, b) = region();
+            if a < b {
+                let case = if action == UpcaseRegion { edit::Case::Upper } else { edit::Case::Lower };
+                replace(&field, &chars, a, b, &edit::change_case(&chars[a..b], case));
+            }
+            clear_mark();
+        }
+        ZapToChar => arm_zap(ctx, field.element()),
+        SelectAll => {
+            clear_mark();
+            field.set_selection(0, to_units(&chars, chars.len()), false);
+        }
+        YankPop => match crate::kill_ring::yank_pop(field.element(), caret, &chars) {
+            Some((a, b, with)) => {
+                replace(&field, &chars, a, b, &with);
+            }
+            None => ctx.notify_t("yank_pop_none", ""),
+        },
         SetMark if ctx.pref_untracked(|p| p.emacs_mark) => {
             if mark == Some(caret) {
                 clear_mark(); // twice at the same spot cancels
@@ -195,6 +278,7 @@ pub fn run(ctx: AppCtx, e: &web_sys::KeyboardEvent, action: EditorAction) -> boo
 /// true when it was done (the key is then stopped).
 pub fn on_keydown(ctx: AppCtx, e: &web_sys::KeyboardEvent) -> bool {
     use crate::keybindings::{Resolution, Scope};
+    if on_zap_key(ctx, e) { return true; }
     let Resolution::Action(Scope::Editor, id) =
         ctx.keybindings.with_untracked(|kb| crate::keybindings::resolve(kb, e))
     else { return false };

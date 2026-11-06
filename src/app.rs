@@ -202,6 +202,7 @@ pub fn App() -> impl IntoView {
         {
             e.prevent_default();
         }
+        if text_field::on_zap_key(ctx, &e) { return; }
         let resolution = ctx.keybindings.with_untracked(|kb| crate::keybindings::resolve(kb, &e));
         match resolution {
             Resolution::Action(Scope::App, id) => {

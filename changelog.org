@@ -4,6 +4,16 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.2.1
+- Emacs shortcuts: swap characters (Ctrl+T) and words (Alt+T), change the case of a word (Alt+U, Alt+L, Alt+C) or of the selection (Ctrl+X Ctrl+U, Ctrl+X Ctrl+L), delete spaces (Alt+\, Alt+Space), join lines (Alt+^), kill up to a character (Alt+Z), rewrap a paragraph (Alt+Q), select all (Ctrl+X H), redo (Ctrl+Shift+?).
+- Emacs kill ring: it keeps the previous kills, and Alt+Y right after a yank goes back through them.
+- Videos: Vimeo, Dailymotion, Twitch and PeerTube links are drawn as thumbnails, like YouTube's; a click plays the video in the app or opens it in the browser, as set in Settings > Links.
+- Quick open: the names that start with the text typed come first, the list follows the arrows, and opening a page puts the keyboard in its text.
+- New heading: cuts the line at the caret, what follows becoming the text of the new heading or item.
+- Emojis: "Insert an emoji" in the editor's right-click menu on Linux, and a box in Settings > Shortcuts to turn off WebKit's shortcuts for its emoji picker.
+- Settings: a Default button puts the current tab back to its defaults. An option missing from a settings file takes its default value.
+- Fix: after an emoji in a page, editing commands (kills, yank, search, completion…) no longer act at the wrong place.
+
 * 1.2.0
 - Git: the branch is a list to switch to another branch, local or remote, or to create a new one.
 - Git: commit and sync take only the project's folder, never the rest of a repository it is part of.

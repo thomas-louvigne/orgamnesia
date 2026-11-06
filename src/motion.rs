@@ -500,6 +500,89 @@ fn elements(chars: &[char]) -> Vec<Elem> {
     els.elems
 }
 
+/// A line a paragraph can't be rewrapped with: not prose, though it is no element
+/// of its own (a Markdown fence or quote, an org comment, a planning line…).
+fn unfillable_line(line: &[char]) -> bool {
+    let t: String = line.iter().collect();
+    let t = t.trim_start();
+    match format() {
+        Format::Markdown => is_fence(t) || t.starts_with('>') || t.starts_with("---"),
+        _ => t == "#" || t == ":" || t.starts_with("# ") || t.starts_with(": ")
+            || ["SCHEDULED:", "DEADLINE:", "CLOSED:"].iter().any(|k| t.starts_with(k)),
+    }
+}
+
+fn is_fence(line: &str) -> bool {
+    line.starts_with("```") || line.starts_with("~~~")
+}
+
+/// The words of a paragraph. A link stays whole: no line break inside brackets
+/// (the app reads a link on one line).
+fn fill_words(text: &[char]) -> Vec<String> {
+    let mut words = vec![String::new()];
+    let mut depth = 0usize;
+    for &c in text {
+        match c {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        match (c.is_whitespace(), depth) {
+            (true, 0) => words.push(String::new()),
+            (true, _) => words.last_mut().unwrap().push(' '),
+            (false, _) => words.last_mut().unwrap().push(c),
+        }
+    }
+    words.retain(|w| !w.is_empty());
+    words
+}
+
+/// What Emacs' `fill-paragraph` does: the prose paragraph holding `pos` (or the
+/// text of its list item) rewrapped at `width` columns. Its range and new text;
+/// `None` elsewhere (a table, a block, a headline…) or when it is already so.
+pub fn fill_paragraph(chars: &[char], pos: usize, width: usize) -> Option<(usize, usize, String)> {
+    let ls = line_start(chars, pos);
+    if is_blank(chars, ls) { return None; }
+    let at = item_contents(chars, ls).map_or(pos, |text| pos.max(text));
+    let els = elements(chars);
+    let e = &els[element_at(&els, at, chars.len())?];
+    let first = line_start(chars, e.begin);
+    let in_item = e.begin > first && item_contents(chars, first) == Some(e.begin);
+    if !in_item && starts_element(chars, first) { return None; }
+    // Blank lines after it belong to the element, not to the text
+    let end = e.begin + chars[e.begin..e.end].iter().rposition(|c| !c.is_whitespace())? + 1;
+    let lines = |a: usize, b: usize| chars[a..b].split(|&c| c == '\n');
+    if lines(first, end).any(unfillable_line) { return None; }
+    if format() == Format::Markdown {
+        let fence = |l: &[char]| is_fence(l.iter().collect::<String>().trim_start());
+        if lines(0, first).filter(|l| fence(l)).count() % 2 == 1 { return None; }
+    }
+    let (start, indent) = if in_item {
+        (e.begin, " ".repeat(e.begin - first))
+    } else {
+        let start = first + indent_of(chars, first);
+        (start, chars[first..start].iter().collect())
+    };
+    let mut out: String = chars[first..start].iter().collect();
+    let mut column = start - first;
+    for (i, word) in fill_words(&chars[start..end]).iter().enumerate() {
+        let n = word.chars().count();
+        if i > 0 {
+            if column + 1 + n > width {
+                out.push('\n');
+                out.push_str(&indent);
+                column = indent.chars().count();
+            } else {
+                out.push(' ');
+                column += 1;
+            }
+        }
+        out.push_str(word);
+        column += n;
+    }
+    (out != chars[first..end].iter().collect::<String>()).then_some((first, end, out))
+}
+
 /// The bullet that starts a new item after the list item holding `pos` (org
 /// `M-RET`): its indentation, the same bullet or the next number, and an empty
 /// checkbox when it has one.
@@ -687,6 +770,41 @@ mod tests {
         assert_eq!(forward_element(&t, at("#+begin")), at("x\n"));
         assert_eq!(backward_element(&t, at("x\n")), at("#+begin"));
         assert_eq!(backward_element(&t, at("b\n")), at("#+begin"));
+    }
+
+    #[test]
+    fn fills_paragraphs() {
+        let fill = |t: &str, pos| fill_paragraph(&c(t), pos, 10).map(|(a, b, s)| {
+            let t = c(t);
+            format!("{}{s}{}", t[..a].iter().collect::<String>(), t[b..].iter().collect::<String>())
+        });
+        let s = |t: &str| Some(t.to_string());
+        // Wrapped, and joined: only the paragraph of the caret
+        assert_eq!(fill("aaa bbb ccc ddd\n\nzzz zzz zzz zzz", 1), s("aaa bbb\nccc ddd\n\nzzz zzz zzz zzz"));
+        assert_eq!(fill("a\nb\n\n", 0), s("a b\n\n"));
+        // Already so; a word longer than the width stays whole
+        assert_eq!(fill("aaa bbb\nccc", 0), None);
+        assert_eq!(fill("aaaaaaaaaaaaaa b", 0), s("aaaaaaaaaaaaaa\nb"));
+        // Its indentation; a list item's text goes under the text
+        assert_eq!(fill("  aaa bbb ccc", 3), s("  aaa bbb\n  ccc"));
+        assert_eq!(fill("- aaa bbb ccc\n- x", 0), s("- aaa bbb\n  ccc\n- x"));
+        assert_eq!(fill("- [ ] aaa bbb", 8), s("- [ ] aaa\n      bbb"));
+        // A link stays whole
+        assert_eq!(fill("a [[b][c d e f g]] h", 0), s("a\n[[b][c d e f g]]\nh"));
+        // Not prose
+        for t in ["* Un titre un peu long", "| a | b c d e f g h i j |", ":PROPERTIES:\n:ID: a b c d e f g\n:END:",
+                  "#+TITLE: a b c d e f g", "#+begin_src\naaa bbb ccc ddd\n#+end_src", "\n",
+                  "# aaa bbb ccc ddd", "SCHEDULED: <2026-01-01 a b c>", "- "] {
+            let pos = t.find("aaa").unwrap_or(0);
+            assert_eq!(fill(t, pos), None, "{t}");
+        }
+        // Markdown: a fence, a quote, front matter
+        let _md = FormatGuard::set(Format::Markdown);
+        assert_eq!(fill("aaa bbb ccc", 0), s("aaa bbb\nccc"));
+        for t in ["```\naaa bbb ccc\n```", "> aaa bbb ccc", "---\naaa bbb ccc\n---"] {
+            assert_eq!(fill(t, t.find("aaa").unwrap()), None, "{t}");
+        }
+        assert_eq!(fill("```\n\naaa bbb ccc\n\n```", 5), None);
     }
 
     #[test]
