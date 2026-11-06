@@ -78,6 +78,49 @@ fn GitButtons() -> impl IntoView {
     }
 }
 
+/// The field asking the passphrase of the SSH key, to run `op` again. `wrong`:
+/// the last one was refused.
+#[component]
+fn PassphraseField(op: crate::state::GitOp, wrong: bool) -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let value = RwSignal::new(String::new());
+    let input = NodeRef::<leptos::html::Input>::new();
+    Effect::new(move |_| {
+        if let Some(input) = input.get() { let _ = input.focus(); }
+    });
+    view! {
+        <form class="git-passphrase"
+            on:submit=move |e: web_sys::SubmitEvent| {
+                e.prevent_default();
+                let passphrase = value.get_untracked();
+                if !passphrase.is_empty() { crate::git::send_passphrase(ctx, op, passphrase); }
+            }
+            on:keydown=move |e: web_sys::KeyboardEvent| {
+                if e.key() == "Escape" { ctx.ui.git_passphrase.set(None); }
+            }
+        >
+            <label for="git-passphrase-input">
+                {move || t(if wrong { "git_passphrase_wrong" } else { "git_passphrase" }, lang())}
+            </label>
+            <input id="git-passphrase-input" type="password" autocomplete="off" node_ref=input
+                prop:value=move || value.get()
+                on:input=move |e| value.set(event_target_value(&e)) />
+            <span class="setting-hint">{move || t("git_passphrase_hint", lang())}</span>
+            <div class="git-passphrase-actions">
+                <button type="button" class="btn-secondary"
+                    on:click=move |_| ctx.ui.git_passphrase.set(None)>
+                    {move || t("cancel", lang())}
+                </button>
+                <button type="submit" class="btn-primary"
+                    prop:disabled=move || value.with(String::is_empty)>
+                    {move || t(if op == crate::state::GitOp::Pull { "git_pull" } else { "git_push" }, lang())}
+                </button>
+            </div>
+        </form>
+    }
+}
+
 /// The value of the "New branch…" entry: no branch name can start with '-'.
 const NEW_BRANCH: &str = "-new";
 
@@ -222,6 +265,7 @@ pub fn GitLine() -> impl IntoView {
                     }).collect_view()}
                 </div>
                 <GitButtons />
+                {move || ctx.ui.git_passphrase.get().map(|(op, wrong)| view! { <PassphraseField op wrong /> })}
                 {move || (!git().remote).then(|| view! {
                     <button class="git-setup-btn" prop:disabled=move || busy().is_some()
                         on:click=move |_| ctx.ui.show_git_remote.set(true)>

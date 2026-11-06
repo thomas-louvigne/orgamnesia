@@ -3,6 +3,7 @@
 use orgamnesia_lib::{AppState, commands};
 
 fn main() {
+    if orgamnesia_lib::git::answer_askpass() { return; }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -61,6 +62,7 @@ fn main() {
             commands::git::git_commit,
             commands::git::git_pull,
             commands::git::git_push,
+            commands::git::git_set_passphrase,
             commands::git::git_fetch,
             commands::git::git_branches,
             commands::git::git_switch,

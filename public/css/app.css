@@ -957,6 +957,11 @@ kbd {
 }
 .git-setup-btn:hover:not(:disabled) { color: var(--accent2); border-color: var(--accent); }
 .git-setup-btn:disabled { opacity: .4; cursor: default; }
+.git-passphrase { align-self: stretch; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-meta); }
+.git-passphrase label { color: var(--fg); overflow-wrap: anywhere; }
+.git-passphrase input { width: 100%; box-sizing: border-box; }
+.git-passphrase-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.git-passphrase-actions button { padding: 3px 10px; font-size: var(--fs-meta); }
 .git-spinner {
     width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%;
     border: 2px solid color-mix(in srgb, currentColor 30%, transparent);

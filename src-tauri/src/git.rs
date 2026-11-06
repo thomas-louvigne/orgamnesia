@@ -14,6 +14,32 @@ pub use orgamnesia_core::{GitChange, GitChangeKind, GitCommit, GitStatus};
 /// a locked ref.
 pub static WRITING: Mutex<()> = Mutex::new(());
 
+/// The passphrase of the SSH key, as written in the app: in memory until it is
+/// closed, never on disk.
+pub static PASSPHRASE: Mutex<Option<String>> = Mutex::new(None);
+
+/// How the passphrase reaches this program when ssh runs it as its `SSH_ASKPASS`.
+const ASKPASS_VAR: &str = "ORGAMNESIA_SSH_PASSPHRASE";
+
+/// What to answer ssh asking `prompt`: the passphrase of a key, and nothing else
+/// (it must not go to a server asking for a password).
+fn askpass_reply<'a>(prompt: &str, passphrase: &'a str) -> Option<&'a str> {
+    prompt.to_lowercase().contains("passphrase").then_some(passphrase)
+}
+
+/// Run by ssh as its `SSH_ASKPASS` (see `remote`): answers, and the program stops
+/// there. `false` when started as the app.
+pub fn answer_askpass() -> bool {
+    use std::io::Write;
+    let Ok(passphrase) = std::env::var(ASKPASS_VAR) else { return false };
+    let prompt = std::env::args().nth(1).unwrap_or_default();
+    match askpass_reply(&prompt, &passphrase) {
+        Some(reply) => { let _ = writeln!(std::io::stdout(), "{reply}"); }
+        None => std::process::exit(1),
+    }
+    true
+}
+
 /// What `git init` writes in `.gitignore`: the backups of the editors.
 const GITIGNORE: &str = "# Editor backups\n*~\n\\#*\\#\n.#*\n.DS_Store\n";
 
@@ -344,9 +370,9 @@ fn git(path: &str) -> Command {
 }
 
 /// A git command that talks to the remote: it must never wait for an answer no
-/// one can give (password, passphrase, unknown host), so git and ssh run in
-/// batch mode; on Windows, https identifiers are asked in a window. With
-/// `ssh_key`, ssh uses that key only.
+/// one can give (password, unknown host), so git and ssh run in batch mode; on
+/// Windows, https identifiers are asked in a window. With `ssh_key`, ssh uses that
+/// key only. With a passphrase written in the app, ssh gets it from this program.
 fn remote(mut c: Command, path: &str, ssh_key: &str) -> Command {
     // The ssh command of the repository's settings, if any, else `ssh`; on
     // Windows, its own OpenSSH, which uses Windows' ssh agent (MinGit's doesn't)
@@ -354,7 +380,12 @@ fn remote(mut c: Command, path: &str, ssh_key: &str) -> Command {
     let base = run(git(path).args(["config", "--get", "core.sshCommand"])).ok()
         .map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
         .unwrap_or_else(|| if cfg!(windows) && windows_ssh.is_file() { crate::slash(windows_ssh) } else { "ssh".into() });
-    c.env("GIT_SSH_COMMAND", ssh_command(&base, ssh_key));
+    let passphrase = crate::lock(&PASSPHRASE).clone();
+    let askpass = passphrase.zip(std::env::current_exe().ok());
+    c.env("GIT_SSH_COMMAND", ssh_command(&base, ssh_key, askpass.is_some()));
+    if let Some((passphrase, program)) = askpass {
+        c.env("SSH_ASKPASS", program).env("SSH_ASKPASS_REQUIRE", "force").env(ASKPASS_VAR, passphrase);
+    }
     if cfg!(windows) {
         // No terminal to wait on (no console window): an https identifier is
         // asked by Git Credential Manager in a window of its own, signing in
@@ -367,9 +398,15 @@ fn remote(mut c: Command, path: &str, ssh_key: &str) -> Command {
     c
 }
 
-/// The command git runs for ssh (read by a shell, hence the quoting).
-fn ssh_command(base: &str, ssh_key: &str) -> String {
-    let mut cmd = format!("{base} -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new");
+/// The command git runs for ssh (read by a shell, hence the quoting). With
+/// `askpass`, the passphrase of a key is the one thing it may ask.
+fn ssh_command(base: &str, ssh_key: &str, askpass: bool) -> String {
+    let asks = if askpass {
+        "-o PasswordAuthentication=no -o KbdInteractiveAuthentication=no -o NumberOfPasswordPrompts=1"
+    } else {
+        "-o BatchMode=yes"
+    };
+    let mut cmd = format!("{base} {asks} -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new");
     let key = ssh_key.trim();
     if !key.is_empty() {
         let key = crate::expand_home(key);
@@ -483,11 +520,21 @@ mod tests {
 
     #[test]
     fn ssh_never_asks() {
-        let c = ssh_command("ssh", "");
+        let c = ssh_command("ssh", "", false);
         assert!(c.starts_with("ssh -o BatchMode=yes") && !c.contains("-i"));
-        let c = ssh_command("ssh -p 2222", "/k/it's key");
+        let c = ssh_command("ssh -p 2222", "/k/it's key", false);
         assert!(c.starts_with("ssh -p 2222 -o BatchMode=yes"));
         assert!(c.ends_with(" -i '/k/it'\\''s key' -o IdentitiesOnly=yes"), "{c}");
+    }
+
+    #[test]
+    fn with_a_passphrase_ssh_asks_for_nothing_else() {
+        let c = ssh_command("ssh", "", true);
+        assert!(!c.contains("BatchMode"), "{c}");
+        assert!(c.contains("-o PasswordAuthentication=no") && c.contains("-o KbdInteractiveAuthentication=no"), "{c}");
+        assert_eq!(askpass_reply("Enter passphrase for key '/k': ", "secret"), Some("secret"));
+        assert_eq!(askpass_reply("git@host's password: ", "secret"), None);
+        assert_eq!(askpass_reply("Username for 'https://github.com': ", "secret"), None);
     }
 
     fn sh(dir: &Path, args: &[&str]) {

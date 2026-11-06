@@ -742,10 +742,12 @@ le nombre de commits à pousser ; une branche sans branche distante est poussée
 - Les erreurs courantes sont accompagnées de ce qu'il faut faire : clé SSH,
   identifiants https, nom et e-mail de git, push refusé parce que le dépôt distant
   a de nouveaux commits…
-- Pull et push ne posent jamais de question : ssh tourne en mode non interactif. Une
-  clé avec phrase de passe doit être chargée dans =ssh-agent= ; la clé à utiliser
-  se choisit dans Préférences > Extensions (vide : la configuration SSH du système).
-  Un dépôt distant en =https://= a besoin d'un gestionnaire d'identifiants.
+- Un pull ou un push refusé par SSH demande la phrase de passe de la clé, dans le
+  cadre git, puis se relance. Elle reste en mémoire jusqu'à la fermeture de
+  l'application et n'est jamais enregistrée ; une clé chargée dans =ssh-agent= n'a
+  besoin de rien. La clé à utiliser se choisit dans Préférences > Extensions (vide :
+  la configuration SSH du système). Un dépôt distant en =https://= a besoin d'un
+  gestionnaire d'identifiants.
 
 *** Historique d'une page
 « Historique git… » dans le menu du clic droit d'un onglet ou d'une page de la liste

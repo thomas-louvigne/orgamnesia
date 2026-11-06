@@ -152,6 +152,10 @@ pub struct Workspace {
 pub struct Ui {
     pub show_projects: RwSignal<bool>,
     pub show_settings: RwSignal<bool>,
+    /// The SSH passphrase is asked, to run this again; `true` when the last one was refused.
+    pub git_passphrase: RwSignal<Option<(GitOp, bool)>>,
+    /// The app holds a passphrase: a refusal now means it is not the right one.
+    pub git_passphrase_sent: RwSignal<bool>,
     pub show_new_page: RwSignal<bool>,
     /// The name the new page window opens with (a link followed to a page not
     /// created yet, when the format of new pages is asked).
@@ -255,6 +259,8 @@ impl AppCtx {
             ui: Ui {
                 show_projects: RwSignal::new(false),
                 show_settings: RwSignal::new(false),
+                git_passphrase: RwSignal::new(None),
+                git_passphrase_sent: RwSignal::new(false),
                 show_new_page: RwSignal::new(false),
                 new_page_name: RwSignal::new(String::new()),
                 show_welcome: RwSignal::new(false),

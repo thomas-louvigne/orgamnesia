@@ -731,10 +731,10 @@ track it.
   a git tool.
 - The common errors come with what to do: SSH key, https identifiers, name and email
   of git, push refused because the remote has new commits…
-- Pull and push never ask a question: ssh runs in batch mode. A key with a
-  passphrase must be loaded in =ssh-agent=; the key to use can be set in
-  Settings > Extensions (empty: the system's SSH setup). An =https://= remote needs
-  a credential helper.
+- A pull or push refused by SSH asks for the key's passphrase, in the git frame, then
+  runs again. It stays in memory until the app closes and is never saved; a key loaded
+  in =ssh-agent= needs nothing. The key to use can be set in Settings > Extensions
+  (empty: the system's SSH setup). An =https://= remote needs a credential helper.
 
 *** History of a page
 "Git history…" in the right-click menu of a tab or of a page of the pages list: the
