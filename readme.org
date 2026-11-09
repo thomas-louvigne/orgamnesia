@@ -11,8 +11,8 @@
 [[file:docs/images/split.png]]
 
 #+BEGIN_QUOTE
-*Beta, written with AI (Anthropic's Claude).* Expect bugs and changes. Keep a copy of
-your notes, and review the code as you would any other contribution.
+*Written with AI (Anthropic's Claude).* Review the code as you would any other
+contribution.
 #+END_QUOTE
 
 * Why Orgamnesia

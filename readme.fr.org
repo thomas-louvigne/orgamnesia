@@ -11,8 +11,7 @@
 [[file:docs/images/split.png]]
 
 #+BEGIN_QUOTE
-*Bêta, écrite avec une IA (Claude, d'Anthropic).* Attendez-vous à des bugs et à des
-changements. Gardez une copie de vos notes, et relisez le code comme n'importe quelle
+*Écrite avec une IA (Claude, d'Anthropic).* Relisez le code comme n'importe quelle
 contribution.
 #+END_QUOTE
 
