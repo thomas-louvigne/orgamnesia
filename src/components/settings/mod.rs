@@ -17,7 +17,7 @@ use crate::{
     state::{AppCtx, Prefs, Settings},
 };
 use shortcuts::{KbDraft, KbSnapshot, ShortcutsTab};
-use tabs::{AboutTab, DisplayTab, EditingTab, ExtensionsTab, GeneralTab, LinksTab, SpellingTab};
+use tabs::{AboutTab, DisplayTab, ThemesTab, EditingTab, ExtensionsTab, GeneralTab, LinksTab, SpellingTab};
 
 /// Everything the settings window edits, to tell whether there is anything to apply.
 #[derive(Clone, PartialEq)]
@@ -33,6 +33,7 @@ enum Tab {
     Links,
     Editing,
     Display,
+    Themes,
     Shortcuts,
     Spelling,
     Extensions,
@@ -40,7 +41,7 @@ enum Tab {
 }
 
 impl Tab {
-    const ALL: [Tab; 8] = [Tab::General, Tab::Links, Tab::Editing, Tab::Display, Tab::Shortcuts, Tab::Spelling, Tab::Extensions, Tab::About];
+    const ALL: [Tab; 9] = [Tab::General, Tab::Links, Tab::Editing, Tab::Display, Tab::Themes, Tab::Shortcuts, Tab::Spelling, Tab::Extensions, Tab::About];
 
     fn label(self) -> &'static str {
         match self {
@@ -48,6 +49,7 @@ impl Tab {
             Tab::Links => "tab_links",
             Tab::Editing => "tab_editing",
             Tab::Display => "tab_display",
+            Tab::Themes => "tab_themes",
             Tab::Shortcuts => "tab_shortcuts",
             Tab::Spelling => "tab_spelling",
             Tab::Extensions => "tab_extensions",
@@ -70,6 +72,7 @@ fn reset_tab(tab: Tab, p: &mut Prefs, d: Prefs) {
             show_video_thumbnails, hide_leading_stars, layout, show_brand, show_project, show_git, show_pages,
             show_backlinks, show_tags, show_broken_links, show_todos, show_org_bloom, show_quit_button,
             show_settings_button),
+        Tab::Themes => take!(theme),
         Tab::Shortcuts => take!(emacs_mark, webkit_emoji_shortcuts),
         Tab::Spelling => take!(spell, spell_lang, spell_dict_dir),
         Tab::Extensions => take!(org_bloom, org_bloom_path, org_bloom_zip, org_bloom_no_external_deps, git_ext,
@@ -212,6 +215,7 @@ pub fn SettingsPage() -> impl IntoView {
                         Tab::Links => view! { <LinksTab draft /> }.into_any(),
                         Tab::Editing => view! { <EditingTab draft /> }.into_any(),
                         Tab::Display => view! { <DisplayTab draft /> }.into_any(),
+                        Tab::Themes => view! { <ThemesTab draft /> }.into_any(),
                         Tab::Shortcuts => view! { <ShortcutsTab draft kb /> }.into_any(),
                         Tab::Spelling => view! { <SpellingTab draft /> }.into_any(),
                         Tab::Extensions => view! { <ExtensionsTab draft /> }.into_any(),

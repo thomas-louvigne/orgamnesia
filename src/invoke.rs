@@ -291,6 +291,26 @@ pub async fn site_config() -> Result<Option<SiteConfig>, String> {
     call("site_config", serde_json::json!({})).await
 }
 
+/// File names of the user's themes (`themes/*.css` of the configuration).
+pub async fn list_themes() -> Result<Vec<String>, String> {
+    call("list_themes", serde_json::json!({})).await
+}
+
+/// The CSS of the user's theme `name`.
+pub async fn read_theme(name: &str) -> Result<String, String> {
+    call("read_theme", serde_json::json!({ "name": name })).await
+}
+
+/// A new theme of the user holding `text`, named after `name`; its file name.
+pub async fn create_theme(name: &str, text: &str) -> Result<String, String> {
+    call("create_theme", serde_json::json!({ "name": name, "text": text })).await
+}
+
+/// Show the themes folder in the file manager.
+pub async fn open_themes_folder() -> Result<(), String> {
+    call("open_themes_folder", serde_json::json!({})).await
+}
+
 /// Show a folder in the file manager.
 pub async fn open_folder(path: &str) -> Result<(), String> {
     call("open_folder", serde_json::json!({ "path": path })).await

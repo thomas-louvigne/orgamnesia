@@ -8,6 +8,18 @@
     <link data-trunk rel="copy-file" href="src-tauri/icons/app-icon.svg" />
     <link data-trunk rel="copy-dir" href="public/fonts" />
     <link data-trunk rel="rust" data-wasm-opt="z" />
+    <script>
+        // The theme last in effect, before the app starts (see src/theme.rs)
+        try {
+            const css = localStorage.getItem('theme_css');
+            if (css) {
+                const style = document.createElement('style');
+                style.id = 'theme';
+                style.textContent = css;
+                document.head.appendChild(style);
+            }
+        } catch (e) {}
+    </script>
 </head>
 <body>
 <script>

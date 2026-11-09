@@ -1,0 +1,30 @@
+/* Orgamnesia theme: Day (light).
+   A theme is one CSS file, loaded after the app's own: it gives the colours
+   below, and may restyle anything else. See "Themes" in docs/features.org
+   (docs/fonctionnalites.org in French). */
+:root {
+    /* Native controls (checkboxes, selects, scrollbars) */
+    color-scheme: light;
+    /* Surfaces: the page (bg), the frames around it (bg2), the deepest wells (bg3) */
+    --bg:       #fbfaff;
+    --bg2:      #f2f0f8;
+    --bg3:      #e8e5f1;
+    --border:   #d3cee3;
+    --fg:       #2b2838;
+    /* Secondary text: ≥ 4.5:1 on every surface */
+    --fg-dim:   #5f5a75;
+    /* Fills of actions and selection (white text on it 6.7:1)… */
+    --accent:   #6a43b8;
+    /* …and interactive text, focus, the selected item */
+    --accent2:  #5a33a6;
+    --link:     #1a64b0;
+    --green:    #346d18;
+    --yellow:   #7f5c00;
+    --orange:   #9c520c;
+    /* Level-1 headlines, errors, deleting */
+    --red:      #c22a45;
+    --purple:   #8a3aa8;
+    --cyan:     #11707b;
+    /* Bold text */
+    --fg-strong: #000;
+}

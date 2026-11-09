@@ -119,7 +119,6 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [ ] Paquet dans l'AUR pour Arch Linux
 - [ ] Paquet dans les dépôts Debian
 - [ ] Raccourcis clavier vi
-- [ ] Gestion des thèmes
 
 * Licence
 

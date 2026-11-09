@@ -1,0 +1,30 @@
+/* Orgamnesia theme: Fjord (dark, cool blue-grey; colours after the Nord palette, MIT).
+   A theme is one CSS file, loaded after the app's own: it gives the colours
+   below, and may restyle anything else. See "Themes" in docs/features.org
+   (docs/fonctionnalites.org in French). */
+:root {
+    /* Native controls (checkboxes, selects, scrollbars) */
+    color-scheme: dark;
+    /* Surfaces: the page (bg), the frames around it (bg2), the deepest wells (bg3) */
+    --bg:       #2e3440;
+    --bg2:      #292e39;
+    --bg3:      #242933;
+    --border:   #3b4252;
+    --fg:       #d8dee9;
+    /* Secondary text: ≥ 4.5:1 on every surface */
+    --fg-dim:   #9aa4b8;
+    /* Fills of actions and selection (white text on it 5.5:1)… */
+    --accent:   #4c6a92;
+    /* …and interactive text, focus, the selected item: the frost blue */
+    --accent2:  #88c0d0;
+    --link:     #81a1c1;
+    --green:    #a3be8c;
+    --yellow:   #ebcb8b;
+    --orange:   #dc9a80;
+    /* Level-1 headlines, errors, deleting (aurora red, lightened for contrast) */
+    --red:      #e08891;
+    --purple:   #c29fbc;
+    --cyan:     #8fbcbb;
+    /* Bold text */
+    --fg-strong: #eceff4;
+}

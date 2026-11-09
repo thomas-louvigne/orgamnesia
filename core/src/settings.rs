@@ -42,6 +42,9 @@ pub struct Config {
     /// Command building the site (org-bloom extension); empty: `org-bloom`.
     pub org_bloom_path: Option<String>,
     pub language: Option<String>,
+    /// Theme: `auto` (light or dark as the system is), `dark`, `light`, or the
+    /// file name of one of the user's (`themes/<name>.css`).
+    pub theme: Option<String>,
     /// Format of the new pages: `org` (`.org`) or `markdown` (`.md`); between two
     /// pages of the same name, the one `[[Name]]` leads to.
     pub default_format: Option<String>,
@@ -238,6 +241,8 @@ pub struct Prefs {
     pub org_bloom_path: String,
     /// Interface language code (`fr`, `en`).
     pub lang: String,
+    /// See `Config::theme`.
+    pub theme: String,
     /// See `Config::default_format`.
     pub default_format: Format,
     pub single_format: bool,
@@ -326,6 +331,7 @@ impl Prefs {
             vault: settings.vault_path.clone().unwrap_or_default(),
             org_bloom_path: s.org_bloom_path.clone().unwrap_or_default(),
             lang: s.language.clone().unwrap_or_else(|| "fr".to_string()),
+            theme: s.theme.clone().unwrap_or_else(|| "auto".to_string()),
             default_format: s.default_format.as_deref().and_then(Format::from_id).unwrap_or_default(),
             single_format: s.single_format.unwrap_or(false),
             ask_format: s.ask_format.unwrap_or(false),
@@ -438,6 +444,7 @@ impl Prefs {
             restore_session: Some(self.restore_session),
             show_brand: Some(self.show_brand),
             show_page_title: Some(self.show_page_title),
+            theme: Some(self.theme.clone()),
             show_quit_button: Some(self.show_quit_button),
             show_line_numbers: Some(self.show_line_numbers),
             show_pages: Some(self.show_pages),

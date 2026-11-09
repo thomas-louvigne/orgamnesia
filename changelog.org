@@ -4,6 +4,10 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.2.3
+- Themes: a Themes tab in the settings chooses the colours of the app: Automatic (light or dark as the system is, following it), Night, Day, Fjord (dark blue-grey, after Nord), Paper (warm light) or Dracula.
+- Your own themes: a theme is one CSS file in the themes folder of the settings. Duplicate copies a theme there to change it, Reload reads it again; the docs explain the colours to set.
+
 * 1.2.2
 - Search: a .* button searches with a regular expression, in the page and in the whole project; $1, ${name} in the replacement take the groups of the match. Accents then count, and an invalid expression says so.
 

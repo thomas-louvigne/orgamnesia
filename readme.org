@@ -115,7 +115,6 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Package in the AUR for Arch Linux
 - [ ] Package in the Debian repositories
 - [ ] Vi keybindings
-- [ ] Theme management
 
 * License
 

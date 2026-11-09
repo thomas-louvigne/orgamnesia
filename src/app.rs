@@ -168,6 +168,7 @@ pub fn App() -> impl IntoView {
 
     spawn_local(session::load_startup(ctx, Owner::current().expect("App owner")));
     watchers::start(ctx);
+    crate::theme::start(ctx);
     crate::update::at_start(ctx);
 
     // Page history: each time the focused pane shows another page, the one it

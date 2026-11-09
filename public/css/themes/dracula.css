@@ -1,0 +1,31 @@
+/* Orgamnesia theme: Dracula (dark; the palette of https://draculatheme.com, MIT).
+   A theme is one CSS file, loaded after the app's own: it gives the colours
+   below, and may restyle anything else. See "Themes" in docs/features.org
+   (docs/fonctionnalites.org in French). */
+:root {
+    /* Native controls (checkboxes, selects, scrollbars) */
+    color-scheme: dark;
+    /* Surfaces: Background (bg), and Dracula's two darker ones for the frames and wells */
+    --bg:       #282a36;
+    --bg2:      #21222c;
+    --bg3:      #191a21;
+    /* Current Line */
+    --border:   #44475a;
+    --fg:       #f8f8f2;
+    /* Comment, lightened: #6272a4 is 3:1 only, secondary text needs ≥ 4.5:1 */
+    --fg-dim:   #8c97c4;
+    /* Fills of actions and selection: Purple darkened so white text reads on it (4.8:1)… */
+    --accent:   #7e5bd6;
+    /* …and Purple itself: interactive text, focus, the selected item */
+    --accent2:  #bd93f9;
+    --link:     #8be9fd;
+    --green:    #50fa7b;
+    --yellow:   #f1fa8c;
+    --orange:   #ffb86c;
+    --red:      #ff5555;
+    /* Pink: tags, as Dracula's keywords */
+    --purple:   #ff79c6;
+    --cyan:     #8be9fd;
+    /* Bold text */
+    --fg-strong: #ffffff;
+}

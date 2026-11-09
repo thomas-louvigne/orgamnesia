@@ -23,6 +23,7 @@ keybindings.
 - [[#trash][Trash]]
 - [[#keyboard-shortcuts][Keyboard shortcuts]]
 - [[#extensions][Extensions]]
+- [[#themes][Themes]]
 - [[#settings][Settings]]
 - [[#settings-as-text][Settings as text]]
 - [[#files][Files]]
@@ -812,6 +813,67 @@ in Settings > Spelling, which also tells how to install a dictionary when none i
   Your own words are kept in =dictionary.txt=, in the settings folder.
 - *Next misspelled word*: F7 in Classic, Ctrl+, in Emacs (as =flyspell-goto-next-error=).
 
+* Themes
+Settings > Themes chooses the colours of the app: *Automatic* (Day or Night, as
+the system is set to light or dark, and following it when it changes), *Night*
+(dark, the default look), *Day* (light), *Fjord* (a calm dark blue-grey, after the
+Nord palette) or *Paper* (a warm cream for long reading) or *Dracula* (the palette of
+[[https://draculatheme.com][draculatheme.com]]), and the user's themes.
+
+** Making a theme
+A theme is one CSS file in the =themes/= folder of the settings
+(=~/.config/com.orgamnesia.app/themes/= on Linux). The app loads it after its own
+style, so it can change anything, but most of the time it only gives the colours.
+
+1. In Settings > Themes, choose the theme to start from and click *Duplicate*: it
+   is copied to =themes/<name>-copy.css=, chosen in its place, and the folder opens.
+2. Rename the file if you like (the name shown is the file name without =.css=),
+   and change the colours in it with any editor.
+3. Click *Reload* (and choose the renamed file if you renamed it), then *Apply*.
+   A file changed while it is in effect needs *Reload* only.
+
+A file dropped in the folder by hand is listed after a *Reload*. A theme whose
+file can't be read is replaced by the automatic one, and the status bar says why.
+
+** The colours of a theme
+The colours are CSS variables of =:root=:
+
+| Variable                  | What it colours                                         |
+|---------------------------+---------------------------------------------------------|
+| =--bg=                    | the page, the main background                           |
+| =--bg2=                   | the frames around the page: columns, bars, dialogs      |
+| =--bg3=                   | the deepest wells: fields, hovered items, code          |
+| =--border=                | borders and separators                                  |
+| =--fg=                    | the text                                                |
+| =--fg-dim=                | secondary text: hints, counts, keywords                 |
+| =--fg-strong=             | bold text                                               |
+| =--accent=                | fills of buttons, selection, the status bar (white text on it) |
+| =--accent2=               | interactive text, focus, the selected item              |
+| =--link=                  | links in the page                                       |
+| =--red= =--orange= =--yellow= =--green= =--cyan= =--purple= | headline levels, TODO states, tags, tables, errors, diffs |
+
+Add =color-scheme: light;= or =color-scheme: dark;= in =:root= so that the native
+controls (checkboxes, lists, scroll bars) match. Secondary text should keep a
+contrast of at least 4.5:1 on the three backgrounds.
+
+A small theme:
+
+#+BEGIN_SRC css
+:root {
+    color-scheme: light;
+    --bg: #fdf6e3;  --bg2: #eee8d5;  --bg3: #e4dcc4;  --border: #d3cbb3;
+    --fg: #3b4b52;  --fg-dim: #4f5c61;  --fg-strong: #000;
+    --accent: #2f6f9f;  --accent2: #22577d;  --link: #1f62a8;
+    --red: #b8322f;  --orange: #9d4a0f;  --yellow: #7a5c00;
+    --green: #4f6a00;  --cyan: #156560;  --purple: #8a3f8f;
+}
+/* Anything else can be restyled too, for example the page's font */
+.edit-layer, .hl-layer { font-family: 'Iosevka', monospace; }
+#+END_SRC
+
+The built-in themes, a good starting point, are in the sources, in
+=public/css/themes/=; *Duplicate* also copies them.
+
 * Settings
 The settings (Ctrl+,) open in the main area, over the pages, which stay as they
 are. "Apply" saves the changes without closing (a dot shows there are some), "Save"
@@ -854,6 +916,10 @@ The explanations under a setting are in italics.
 - Images: show them, and the format of their size (org-mode or Logseq).
 - Frames around the editor: which are shown, in which column and in which order
   (see [[#left-and-right-columns][Left and right columns]]).
+
+** Themes
+- The theme: automatic, Night, Day, Fjord, Paper, Dracula or one of the user's; Duplicate, Open the
+  folder, Reload (see [[#themes][Themes]]).
 
 ** Extensions
 - org-bloom and its command.
@@ -905,7 +971,7 @@ file, goes back to the project left, its tabs and panes as they were.
 - Pages stay plain =.org= or =.md= files, readable and editable with Emacs,
   Obsidian or any other editor.
 - Settings: =~/.config/com.orgamnesia.app/=: =settings.json= (the settings),
-  =keybindings/= (the custom shortcut profiles), =state.json= (what the app keeps
+  =keybindings/= (the custom shortcut profiles), =themes/= (the user's themes), =state.json= (what the app keeps
   for itself: the open project, the projects, the pages open on quit),
   =history/= (the previous valid versions of the configuration files) and
   =dictionary.txt= (the words added to the dictionary).

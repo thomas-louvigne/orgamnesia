@@ -25,6 +25,7 @@ mod storage;
 mod tags;
 mod tables;
 mod text_field;
+pub mod theme;
 mod update;
 mod watchers;
 

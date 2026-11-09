@@ -1,0 +1,32 @@
+/* Orgamnesia theme: Night (dark).
+   A theme is one CSS file, loaded after the app's own: it gives the colours
+   below, and may restyle anything else. See "Themes" in docs/features.org
+   (docs/fonctionnalites.org in French). */
+:root {
+    /* Native controls (checkboxes, selects, scrollbars) */
+    color-scheme: dark;
+    /* Night ink taken from the app icon: surfaces faintly violet, from the page (bg)
+       to the frames around it (bg2) and the deepest wells (bg3) */
+    --bg:       #252331;
+    --bg2:      #1e1c29;
+    --bg3:      #171521;
+    --border:   #3b3752;
+    --fg:       #cbc6dc;
+    /* Secondary text: ≥ 4.5:1 on every surface */
+    --fg-dim:   #8f89a8;
+    /* The icon's violet: fills of actions and selection (white text on it 5.6:1)… */
+    --accent:   #7650c4;
+    /* …and its light violet: interactive text, focus, the selected item */
+    --accent2:  #b9a0f2;
+    /* Links inside the page keep a blue of their own, apart from the violet tags */
+    --link:     #61afef;
+    --green:    #98c379;
+    --yellow:   #e5c07b;
+    --orange:   #d19a66;
+    /* The icon's coral: level-1 headlines, errors, deleting */
+    --red:      #ef6f83;
+    --purple:   #c678dd;
+    --cyan:     #56b6c2;
+    /* Bold text */
+    --fg-strong: #fff;
+}

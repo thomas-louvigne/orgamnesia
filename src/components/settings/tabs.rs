@@ -500,6 +500,82 @@ fn AboutLink(url: &'static str) -> impl IntoView {
     }
 }
 
+/// The theme: the built-in ones and the user's CSS files of `themes/`.
+#[component]
+pub fn ThemesTab(draft: RwSignal<Prefs>) -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let files = RwSignal::new(Vec::<String>::new());
+    let list = move || spawn_local(async move {
+        match invoke::list_themes().await {
+            Ok(names) => files.set(names),
+            Err(e) => ctx.error("theme_error", &e),
+        }
+    });
+    list();
+    // The chosen theme as a new file of the user's, to change it from there
+    let duplicate = move |_| spawn_local(async move {
+        let id = draft.with_untracked(|p| p.theme.clone());
+        let base = crate::theme::resolve(&id).trim_end_matches(".css");
+        let made = match crate::theme::css_of(&id).await {
+            Ok(css) => invoke::create_theme(&format!("{base}-copy"), &css).await,
+            Err(e) => Err(e),
+        };
+        match made {
+            Ok(file) => {
+                draft.update(|p| p.theme = file);
+                list();
+                let _ = invoke::open_themes_folder().await;
+            }
+            Err(e) => ctx.error("theme_error", &e),
+        }
+    });
+    let open_folder = move |_| spawn_local(async move {
+        if let Err(e) = invoke::open_themes_folder().await { ctx.error("theme_error", &e); }
+    });
+    // A theme file changed outside: read again, as is the one in effect
+    let reload = move |_| { list(); crate::theme::reload(ctx); };
+    view! {
+        <div class="tab-content">
+            <div class="setting-row">
+                <label>{move || t("theme", lang())}</label>
+                <select
+                    // Once its options are there too
+                    prop:value=move || { files.track(); draft.with(|p| p.theme.clone()) }
+                    on:change=move |e| draft.update(|p| p.theme = event_target_value(&e))
+                >
+                    <option value="auto">{move || t("theme_auto", lang())}</option>
+                    {crate::theme::BUILTINS.iter().map(|&(id, label, _)| {
+                        view! { <option value=id>{move || t(label, lang())}</option> }
+                    }).collect_view()}
+                    {move || files.get().into_iter().map(|f| {
+                        let name = f.trim_end_matches(".css").to_string();
+                        view! { <option value=f>{name}</option> }
+                    }).collect_view()}
+                    // A theme set by hand whose file is not there (any more)
+                    {move || draft.with(|p| {
+                        let id = p.theme.clone();
+                        (crate::theme::builtin(&id).is_none() && !files.with(|f| f.contains(&id)))
+                            .then(|| view! { <option value=id.clone()>{id.clone()}</option> })
+                    })}
+                </select>
+            </div>
+            <div class="setting-row">
+                <span class="setting-hint">{move || t("theme_hint", lang())}</span>
+            </div>
+            <div class="setting-row">
+                <button class="btn-secondary" title=move || t("theme_duplicate_title", lang()) on:click=duplicate>
+                    {move || t("theme_duplicate", lang())}
+                </button>
+                <button class="btn-secondary" on:click=open_folder>{move || t("theme_open_folder", lang())}</button>
+                <button class="btn-secondary" title=move || t("theme_reload_title", lang()) on:click=reload>
+                    {move || t("theme_reload", lang())}
+                </button>
+            </div>
+        </div>
+    }
+}
+
 /// The app's logo and name, its link, version and commit, and who makes it.
 #[component]
 pub fn AboutTab() -> impl IntoView {

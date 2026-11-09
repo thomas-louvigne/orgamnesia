@@ -4,6 +4,10 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.2.3
+- Thèmes : un onglet Thèmes dans les préférences choisit les couleurs de l'application : Automatique (clair ou sombre comme le système, en le suivant), Nuit, Jour, Fjord (gris-bleu sombre, d'après Nord), Papier (clair chaud) ou Dracula.
+- Vos propres thèmes : un thème est un fichier CSS du dossier themes des réglages. Dupliquer y copie un thème pour le modifier, Recharger le relit ; la documentation explique les couleurs à donner.
+
 * 1.2.2
 - Recherche : un bouton .* cherche avec une expression régulière, dans la page comme dans tout le projet ; $1, ${nom} dans le remplacement reprennent les groupes trouvés. Les accents comptent alors, et une expression invalide est signalée.
 

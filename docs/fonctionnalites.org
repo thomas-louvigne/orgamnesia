@@ -18,6 +18,7 @@ des captures d'écran, est dans [[file:features.org][features.org]].
 - [[#corbeille][Corbeille]]
 - [[#raccourcis-clavier][Raccourcis clavier]]
 - [[#extensions][Extensions]]
+- [[#thèmes][Thèmes]]
 - [[#préférences][Préférences]]
 - [[#préférences-en-texte][Préférences en texte]]
 - [[#fichiers][Fichiers]]
@@ -834,6 +835,72 @@ dictionnaire quand aucun n'est trouvé.
   Vos mots sont gardés dans =dictionary.txt=, dans le dossier des réglages.
 - *Faute suivante* : F7 en Classique, Ctrl+, en Emacs (comme =flyspell-goto-next-error=).
 
+* Thèmes
+Préférences > Thèmes choisit les couleurs de l'application : *Automatique* (Jour ou
+Nuit selon que le système est en clair ou en sombre, en le suivant quand il
+change), *Nuit* (sombre, l'apparence par défaut), *Jour* (clair), *Fjord* (un
+gris-bleu sombre et calme, d'après la palette Nord) ou *Papier* (un crème chaud
+pour lire longtemps) ou *Dracula* (la palette de
+[[https://draculatheme.com][draculatheme.com]]), et les thèmes de l'utilisateur.
+
+** Faire un thème
+Un thème est un fichier CSS du dossier =themes/= des réglages
+(=~/.config/com.orgamnesia.app/themes/= sous Linux). L'application le charge après
+son propre style : il peut donc tout changer, mais le plus souvent il ne donne que
+les couleurs.
+
+1. Dans Préférences > Thèmes, choisir le thème de départ et cliquer sur
+   *Dupliquer* : il est copié dans =themes/<nom>-copy.css=, choisi à sa place, et
+   le dossier s'ouvre.
+2. Renommer le fichier si besoin (le nom affiché est celui du fichier sans
+   =.css=), et changer ses couleurs avec n'importe quel éditeur.
+3. Cliquer sur *Recharger* (et choisir le fichier renommé s'il l'a été), puis
+   *Appliquer*. Un fichier modifié alors qu'il est en vigueur n'a besoin que de
+   *Recharger*.
+
+Un fichier déposé à la main dans le dossier apparaît après un *Recharger*. Un
+thème dont le fichier ne peut pas être lu est remplacé par le thème automatique,
+et la barre d'état dit pourquoi.
+
+** Les couleurs d'un thème
+Les couleurs sont des variables CSS de =:root= :
+
+| Variable                  | Ce qu'elle colore                                       |
+|---------------------------+---------------------------------------------------------|
+| =--bg=                    | la page, le fond principal                              |
+| =--bg2=                   | les cadres autour de la page : colonnes, barres, fenêtres |
+| =--bg3=                   | les creux : champs, éléments survolés, code             |
+| =--border=                | bordures et séparateurs                                 |
+| =--fg=                    | le texte                                                |
+| =--fg-dim=                | le texte secondaire : aides, compteurs, mots-clés       |
+| =--fg-strong=             | le texte en gras                                        |
+| =--accent=                | le fond des boutons, de la sélection, de la barre d'état (texte blanc dessus) |
+| =--accent2=               | le texte interactif, le focus, l'élément choisi         |
+| =--link=                  | les liens de la page                                    |
+| =--red= =--orange= =--yellow= =--green= =--cyan= =--purple= | niveaux de titres, états TODO, tags, tableaux, erreurs, diffs |
+
+Ajouter =color-scheme: light;= ou =color-scheme: dark;= dans =:root= pour que les
+contrôles natifs (cases, listes, barres de défilement) s'accordent. Le texte
+secondaire devrait garder un contraste d'au moins 4,5:1 sur les trois fonds.
+
+Un petit thème :
+
+#+BEGIN_SRC css
+:root {
+    color-scheme: light;
+    --bg: #fdf6e3;  --bg2: #eee8d5;  --bg3: #e4dcc4;  --border: #d3cbb3;
+    --fg: #3b4b52;  --fg-dim: #4f5c61;  --fg-strong: #000;
+    --accent: #2f6f9f;  --accent2: #22577d;  --link: #1f62a8;
+    --red: #b8322f;  --orange: #9d4a0f;  --yellow: #7a5c00;
+    --green: #4f6a00;  --cyan: #156560;  --purple: #8a3f8f;
+}
+/* Tout le reste peut aussi être retouché, par exemple la police de la page */
+.edit-layer, .hl-layer { font-family: 'Iosevka', monospace; }
+#+END_SRC
+
+Les thèmes intégrés, un bon point de départ, sont dans les sources, dans
+=public/css/themes/= ; *Dupliquer* les copie aussi.
+
 * Préférences
 Les préférences (Ctrl+,) s'ouvrent dans la zone principale, par-dessus les pages,
 qui restent telles quelles. « Appliquer » enregistre les changements sans fermer
@@ -875,6 +942,10 @@ qui restent telles quelles. « Appliquer » enregistre les changements sans ferm
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
 - Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans
   quel ordre (voir [[#colonnes-de-gauche-et-de-droite][Colonnes de gauche et de droite]]).
+
+** Thèmes
+- Le thème : automatique, Nuit, Jour, Fjord, Papier, Dracula ou l'un de ceux de l'utilisateur ; Dupliquer,
+  Ouvrir le dossier, Recharger (voir [[#thèmes][Thèmes]]).
 
 ** Extensions
 - org-bloom et sa commande.
@@ -931,7 +1002,8 @@ volets tels qu'ils étaient.
 - Les pages restent de simples fichiers =.org= ou =.md=, lisibles et modifiables
   avec Emacs, Obsidian ou tout autre éditeur.
 - Réglages : =~/.config/com.orgamnesia.app/= : =settings.json= (les réglages),
-  =keybindings/= (les profils de raccourcis personnalisés), =state.json= (ce que
+  =keybindings/= (les profils de raccourcis personnalisés), =themes/= (les thèmes
+  de l'utilisateur), =state.json= (ce que
   l'application garde pour elle : le projet ouvert, les projets, les pages ouvertes
   à la fermeture), =history/= (les versions valides précédentes des fichiers de
   configuration) et =dictionary.txt= (les mots ajoutés au dictionnaire).
