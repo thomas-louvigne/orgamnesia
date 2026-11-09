@@ -361,14 +361,6 @@ fn wiki_link_at(chars: &[char], pos: usize, hashtags: Hashtags) -> Option<String
     None
 }
 
-pub use orgamnesia_core::search::replace_ranges;
-
-/// Without `match_case`, case and accents are ignored ("regle" finds "Règle").
-pub fn find_all(chars: &[char], query: &str, match_case: bool) -> Vec<(usize, usize)> {
-    let opts = orgamnesia_core::SearchOptions { match_case, whole_word: false };
-    orgamnesia_core::search::find_all(chars, query, opts)
-}
-
 /// A `[[target]]` / `[[target][description]]` link of the text.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Link {
@@ -761,18 +753,5 @@ mod tests {
         assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("exemple"));
         let off = TagSyntax { hashtags: Hashtags::Off, org: orgamnesia_core::OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
         assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off, orgamnesia_core::Format::Org), None);
-    }
-
-    #[test]
-    fn finds_every_occurrence() {
-        let c: Vec<char> = "Élan, élan ÉLAN aaa".chars().collect();
-        assert_eq!(find_all(&c, "élan", false), vec![(0, 4), (6, 10), (11, 15)]);
-        assert_eq!(find_all(&c, "élan", true), vec![(6, 10)]);
-        assert_eq!(find_all(&c, "aa", false), vec![(16, 18)]);
-        assert!(find_all(&c, "", false).is_empty());
-        // Accents ignored too, unless matching case
-        let c: Vec<char> = "La règle, les Règles, regle".chars().collect();
-        assert_eq!(find_all(&c, "regle", false), vec![(3, 8), (14, 19), (22, 27)]);
-        assert_eq!(find_all(&c, "regle", true), vec![(22, 27)]);
     }
 }

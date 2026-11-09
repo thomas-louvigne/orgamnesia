@@ -4,6 +4,9 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.2.2
+- Recherche : un bouton .* cherche avec une expression régulière, dans la page comme dans tout le projet ; $1, ${nom} dans le remplacement reprennent les groupes trouvés. Les accents comptent alors, et une expression invalide est signalée.
+
 * 1.2.1
 - Raccourcis Emacs : inverser des caractères (Ctrl+T) et des mots (Alt+T), changer la casse d'un mot (Alt+U, Alt+L, Alt+C) ou de la sélection (Ctrl+X Ctrl+U, Ctrl+X Ctrl+L), supprimer des espaces (Alt+\, Alt+Espace), joindre des lignes (Alt+^), couper jusqu'à un caractère (Alt+Z), remettre un paragraphe à la largeur (Alt+Q), tout sélectionner (Ctrl+X H), rétablir (Ctrl+Maj+?).
 - Kill ring d'Emacs : il garde les coupes précédentes, et Alt+Y juste après un collage remonte dans celles-ci.

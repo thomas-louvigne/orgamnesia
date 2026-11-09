@@ -4,6 +4,9 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.2.2
+- Search: a .* button searches with a regular expression, in the page and in the whole project; $1, ${name} in the replacement take the groups of the match. Accents then count, and an invalid expression says so.
+
 * 1.2.1
 - Emacs shortcuts: swap characters (Ctrl+T) and words (Alt+T), change the case of a word (Alt+U, Alt+L, Alt+C) or of the selection (Ctrl+X Ctrl+U, Ctrl+X Ctrl+L), delete spaces (Alt+\, Alt+Space), join lines (Alt+^), kill up to a character (Alt+Z), rewrap a paragraph (Alt+Q), select all (Ctrl+X H), redo (Ctrl+Shift+?).
 - Emacs kill ring: it keeps the previous kills, and Alt+Y right after a yank goes back through them.

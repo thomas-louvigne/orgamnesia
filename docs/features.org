@@ -216,6 +216,10 @@ together with its sub-headlines, as Emacs' =M-S-<right>= / =M-S-<left>= do
   current match) or "All".
 - By default, finding ignores case and accents ("regle" finds "Règle"); a button,
   or a setting, makes it exact.
+- The =.*= button searches with a regular expression: =^= and =$= stand for the
+  start and end of each line, and =$1=, =${name}= in the replacement take the
+  groups of the match. Accents then count; an invalid expression shows "Invalid
+  regex" (its detail when hovering).
 - While finding, tables are shown as text.
 
 *** In the whole project
@@ -223,7 +227,7 @@ together with its sub-headlines, as Emacs' =M-S-<right>= / =M-S-<left>= do
 the pane, at the height of the page title. The results come while typing, grouped
 by page, with the line around each match; ↑ / ↓ pick one, Enter or a click opens
 the page on it. Pages with unsaved changes are searched in their current text.
-Options: match case and accents (Aa), whole words (ab).
+Options: match case and accents (Aa), whole words (ab), regular expression (.*).
 
 "Replace in the project" (Ctrl+Shift+H, =C-x p r=) adds the replace field: each match
 shows the old and the new text, and checkboxes leave a page or a match out. After

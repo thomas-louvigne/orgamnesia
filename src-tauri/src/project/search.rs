@@ -68,7 +68,7 @@ impl Project {
                 .filter(|&(start, _)| !skip_hits.contains(&(&path, start)))
                 .collect();
             if ranges.is_empty() { continue; }
-            let after = search::replace_ranges(&chars, &ranges, with);
+            let after = search::replace_matches(&chars, &ranges, query, opts, with);
             if let Err(e) = crate::write_atomic(&path, &after) { result = Err(e.into()); break; }
             self.store(&path, after.clone(), tags);
             self.remember(&path);
@@ -115,7 +115,7 @@ mod tests {
     use super::*;
     use orgamnesia_core::Hashtags;
 
-    const ANY: SearchOptions = SearchOptions { match_case: false, whole_word: false };
+    const ANY: SearchOptions = SearchOptions { match_case: false, whole_word: false, regex: false };
 
     #[test]
     fn searches_every_page() {

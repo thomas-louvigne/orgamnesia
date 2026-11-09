@@ -114,7 +114,6 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Test on macOS
 - [ ] Package in the AUR for Arch Linux
 - [ ] Package in the Debian repositories
-- [ ] Regular expressions in searches
 - [ ] Vi keybindings
 - [ ] Theme management
 

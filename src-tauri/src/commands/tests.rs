@@ -83,7 +83,7 @@ fn search_and_replace_in_the_project() {
     let app = mock_app();
     let s = || app.state::<AppState>();
     let path = open_project(&s(), "cmd-search", &[("Une", "* Une\nchat et chaton\n")]);
-    let options = SearchOptions { match_case: false, whole_word: true };
+    let options = SearchOptions { match_case: false, whole_word: true, regex: false };
     let found = block_on(search::search_project(s(), "chat".into(), options, HashMap::new())).unwrap();
     assert_eq!(found.total, 1);
     assert!(!block_on(search::can_undo_replace(s())).unwrap());

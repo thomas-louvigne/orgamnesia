@@ -24,7 +24,7 @@ git clone ssh://aur@aur.archlinux.org/orgamnesia.git ~/aur/orgamnesia
 cp PKGBUILD .SRCINFO ~/aur/orgamnesia/
 cd ~/aur/orgamnesia
 git add PKGBUILD .SRCINFO
-git commit -m "orgamnesia 1.2.1"
+git commit -m "orgamnesia 1.2.2"
 git push origin HEAD:master
 #+END_SRC
 

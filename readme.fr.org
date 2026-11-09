@@ -118,7 +118,6 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [ ] Tester sur macOS
 - [ ] Paquet dans l'AUR pour Arch Linux
 - [ ] Paquet dans les dépôts Debian
-- [ ] Expressions régulières dans les recherches
 - [ ] Raccourcis clavier vi
 - [ ] Gestion des thèmes
 

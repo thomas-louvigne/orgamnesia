@@ -1,6 +1,6 @@
 pkgbase = orgamnesia
 	pkgdesc = A personal wiki, org-mode style: the essentials of Obsidian, lighter.
-	pkgver = 1.2.1
+	pkgver = 1.2.2
 	pkgrel = 1
 	url = https://github.com/thomas-louvigne/orgamnesia
 	arch = x86_64
@@ -24,7 +24,7 @@ pkgbase = orgamnesia
 	conflicts = orgamnesia-git
 	options = !lto
 	options = !debug
-	source = orgamnesia::git+https://github.com/thomas-louvigne/orgamnesia.git#tag=v1.2.1
+	source = orgamnesia::git+https://github.com/thomas-louvigne/orgamnesia.git#tag=v1.2.2
 	sha256sums = SKIP
 
 pkgname = orgamnesia

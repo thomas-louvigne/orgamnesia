@@ -6,8 +6,9 @@ use super::{
     dom::{after_tick, get_pos, reveal, set_cursor, set_selection, splice, Textarea},
     pane::Pane,
 };
+use orgamnesia_core::{search, SearchOptions};
+
 use crate::{
-    edit,
     i18n::t,
     keybindings::{EditorAction, Resolution, Scope},
 };
@@ -20,7 +21,8 @@ pub struct Find {
     replace_ref: NodeRef<leptos::html::Input>,
     query: RwSignal<String>,
     replacement: RwSignal<String>,
-    match_case: RwSignal<bool>,
+    /// Case and regular expression; whole words is left to the project search.
+    options: RwSignal<SearchOptions>,
     /// Page ranges of the matches, and the one selected.
     pub matches: Memo<Vec<(usize, usize)>>,
     pub current: RwSignal<Option<usize>>,
@@ -33,12 +35,15 @@ impl Find {
         let ctx = pane.ctx;
         let query = RwSignal::new(String::new());
         // Starts as the settings say, and follows them when they change
-        let match_case = RwSignal::new(false);
-        Effect::new(move |_| match_case.set(ctx.pref(|p| p.find_match_case)));
+        let options = RwSignal::new(SearchOptions::default());
+        Effect::new(move |_| {
+            let match_case = ctx.pref(|p| p.find_match_case);
+            options.update(|o| o.match_case = match_case);
+        });
         let matches = Memo::new(move |_| {
             if pane.find.with(|f| f.is_none()) { return vec![]; }
             let q = query.get();
-            pane.content.with(|c| edit::find_all(&c.chars().collect::<Vec<_>>(), &q, match_case.get()))
+            pane.content.with(|c| search::find_all(&c.chars().collect::<Vec<_>>(), &q, options.get()))
         });
         Self {
             pane,
@@ -46,7 +51,7 @@ impl Find {
             replace_ref: NodeRef::new(),
             query,
             replacement: RwSignal::new(String::new()),
-            match_case,
+            options,
             matches,
             current: RwSignal::new(None),
             anchor: StoredValue::new(0),
@@ -130,7 +135,9 @@ impl Find {
             self.step(true);
             return;
         };
-        let with = self.replacement.get_untracked();
+        let chars: Vec<char> = self.pane.content.get_untracked().chars().collect();
+        let with = search::replacements(&chars, &[(a, b)], &self.query.get_untracked(), self.options.get_untracked(), &self.replacement.get_untracked())
+            .remove(0);
         splice(&el, self.pane.view_pos(a), self.pane.view_pos(b), &with);
         self.pane.commit(&el);
         self.anchor.set_value(a + with.chars().count());
@@ -145,7 +152,7 @@ impl Find {
         // Replaced in the page, which then takes the place of the whole view
         let chars: Vec<char> = self.pane.content.get_untracked().chars().collect();
         let all = el.value().chars().count();
-        let out = edit::replace_ranges(&chars, &found, &self.replacement.get_untracked());
+        let out = search::replace_matches(&chars, &found, &self.query.get_untracked(), self.options.get_untracked(), &self.replacement.get_untracked());
         // A single edit, so one undo brings everything back
         splice(&el, 0, all, &out);
         set_cursor(&el, 0);
@@ -186,7 +193,8 @@ impl Find {
     /// The bar, when open.
     pub fn bar(self) -> impl IntoView {
         let ctx = self.pane.ctx;
-        let Find { query, replacement, match_case, matches, current, .. } = self;
+        let Find { query, replacement, options, matches, current, .. } = self;
+        let bad_regex = move || query.with(|q| search::regex_error(q, options.get()));
         move || self.pane.find.get().map(|with_replace| {
             let lang = ctx.lang.get();
             view! {
@@ -206,21 +214,30 @@ impl Find {
                             on:input=move |e| { query.set(event_target_value(&e)); self.show_from_anchor(); }
                             on:keydown=move |e| self.on_key(e, false)
                         />
-                        <span class=move || if !query.get().is_empty() && matches.with(|m| m.is_empty()) {
-                            "find-count none"
-                        } else { "find-count" }>
+                        <span
+                            class=move || if !query.get().is_empty() && matches.with(|m| m.is_empty()) {
+                                "find-count none"
+                            } else { "find-count" }
+                            title=bad_regex
+                        >
                             {move || {
                                 let n = matches.with(|m| m.len());
                                 if query.get().is_empty() { String::new() }
+                                else if bad_regex().is_some() { t("find_bad_regex", ctx.lang.get()).to_string() }
                                 else if n == 0 { t("find_none", ctx.lang.get()).to_string() }
                                 else { format!("{}/{n}", current.get().map_or(0, |i| i + 1)) }
                             }}
                         </span>
                         <button
-                            class=move || if match_case.get() { "find-btn active" } else { "find-btn" }
+                            class=move || if options.get().match_case { "find-btn active" } else { "find-btn" }
                             title=t("find_case_title", lang)
-                            on:click=move |_| { match_case.update(|c| *c = !*c); self.show_from_anchor(); }
+                            on:click=move |_| { options.update(|o| o.match_case = !o.match_case); self.show_from_anchor(); }
                         >"Aa"</button>
+                        <button
+                            class=move || if options.get().regex { "find-btn active" } else { "find-btn" }
+                            title=t("find_regex_title", lang)
+                            on:click=move |_| { options.update(|o| o.regex = !o.regex); self.show_from_anchor(); }
+                        >".*"</button>
                         <button class="find-btn" title=move || ctx.with_shortcut("find_prev_title", "find_previous") on:click=move |_| self.step(false)>"↑"</button>
                         <button class="find-btn" title=t("find_next_title", lang) on:click=move |_| self.step(true)>"↓"</button>
                         <button class="find-btn" on:click=move |_| self.close()>"×"</button>

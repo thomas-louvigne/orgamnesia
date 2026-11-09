@@ -246,6 +246,9 @@ pub fn ProjectSearchPopin() -> impl IntoView {
         let lang = lang();
         s.results.with(|r| {
             if s.query.with(|q| q.is_empty()) { return String::new(); }
+            if s.query.with(|q| orgamnesia_core::search::regex_error(q, s.options.get()).is_some()) {
+                return t("find_bad_regex", lang).to_string();
+            }
             if r.total == 0 { return t("find_none", lang).to_string(); }
             let mut text = format!("{} · {}", count(r.total, "ps_hit", "ps_hits", lang), count(r.pages.len(), "ps_page", "ps_pages", lang));
             if r.truncated { text.push_str(&format!(" · {}", t("ps_truncated", lang))); }
@@ -290,6 +293,11 @@ pub fn ProjectSearchPopin() -> impl IntoView {
                     title=move || t("ps_whole_word", lang())
                     on:click=move |_| s.options.update(|o| o.whole_word = !o.whole_word)
                 >"ab"</button>
+                <button
+                    class=move || if s.options.get().regex { "find-btn active" } else { "find-btn" }
+                    title=move || t("find_regex_title", lang())
+                    on:click=move |_| s.options.update(|o| o.regex = !o.regex)
+                >".*"</button>
                 <button class="find-btn" title=move || t("close", lang()) on:click=move |_| close(ctx)>"×"</button>
             </div>
             {move || with_replace().then(|| view! {

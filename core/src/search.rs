@@ -12,6 +12,9 @@ pub struct SearchOptions {
     pub match_case: bool,
     /// Only whole words: "chat" does not find "chaton".
     pub whole_word: bool,
+    /// `query` is a regular expression (accents then count, `$1` in the replacement).
+    #[serde(default)]
+    pub regex: bool,
 }
 
 /// A match in a page.
@@ -73,8 +76,37 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+/// The regular expression of `query`: `^` and `$` at each line, case per `opts`.
+fn build_regex(query: &str, opts: SearchOptions) -> Result<regex::Regex, regex::Error> {
+    let pattern = if opts.whole_word { format!(r"\b(?:{query})\b") } else { query.to_string() };
+    regex::RegexBuilder::new(&pattern).case_insensitive(!opts.match_case).multi_line(true).build()
+}
+
+/// Why `query` is not a valid regular expression, when `opts` asks for one.
+pub fn regex_error(query: &str, opts: SearchOptions) -> Option<String> {
+    if !opts.regex || query.is_empty() { return None; }
+    build_regex(query, opts).err().map(|e| e.to_string())
+}
+
+/// Byte offset in the text of `chars` of each char, and of its end.
+fn byte_offsets(chars: &[char]) -> Vec<usize> {
+    let mut at = 0;
+    let mut out: Vec<usize> = chars.iter().map(|c| { let b = at; at += c.len_utf8(); b }).collect();
+    out.push(at);
+    out
+}
+
 /// Char ranges of the occurrences of `query` in `chars`, without overlap.
+/// An invalid regular expression finds nothing; empty matches are left out.
 pub fn find_all(chars: &[char], query: &str, opts: SearchOptions) -> Vec<(usize, usize)> {
+    if opts.regex {
+        let Ok(re) = build_regex(query, opts) else { return vec![] };
+        if query.is_empty() { return vec![]; }
+        let text: String = chars.iter().collect();
+        let bytes = byte_offsets(chars);
+        let char_at = |b: usize| bytes.binary_search(&b).unwrap_or_else(|i| i);
+        return re.find_iter(&text).filter(|m| !m.is_empty()).map(|m| (char_at(m.start()), char_at(m.end()))).collect();
+    }
     let norm = |c: char| if opts.match_case { c } else { fold_char(c) };
     let q: Vec<char> = query.chars().map(norm).collect();
     let mut found = Vec::new();
@@ -96,13 +128,29 @@ pub fn find_all(chars: &[char], query: &str, opts: SearchOptions) -> Vec<(usize,
     found
 }
 
-/// `chars` with each of the `ranges` (sorted, not overlapping) replaced by `with`.
-pub fn replace_ranges(chars: &[char], ranges: &[(usize, usize)], with: &str) -> String {
+/// The text each of the `ranges` (matches of `query`) is replaced by: `with`,
+/// where with a regular expression `$1`, `${name}` stand for the groups of the match.
+pub fn replacements(chars: &[char], ranges: &[(usize, usize)], query: &str, opts: SearchOptions, with: &str) -> Vec<String> {
+    let re = if opts.regex { build_regex(query, opts).ok() } else { None };
+    let Some(re) = re else { return vec![with.to_string(); ranges.len()] };
+    let text: String = chars.iter().collect();
+    let bytes = byte_offsets(chars);
+    ranges.iter().map(|&(a, _)| {
+        let mut out = String::new();
+        // Searched from the match, so `^` and `\b` see the text before it
+        if let Some(caps) = re.captures_at(&text, bytes[a]) { caps.expand(with, &mut out); }
+        out
+    }).collect()
+}
+
+/// `chars` with each of the `ranges` (matches of `query`) replaced as `replacements` says.
+pub fn replace_matches(chars: &[char], ranges: &[(usize, usize)], query: &str, opts: SearchOptions, with: &str) -> String {
+    let texts = replacements(chars, ranges, query, opts, with);
     let mut out = String::new();
     let mut at = 0;
-    for &(a, b) in ranges {
+    for (&(a, b), text) in ranges.iter().zip(&texts) {
         out.extend(&chars[at..a]);
-        out.push_str(with);
+        out.push_str(text);
         at = b;
     }
     out.extend(&chars[at..]);
@@ -148,9 +196,30 @@ mod tests {
     use super::*;
 
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
-    const ANY: SearchOptions = SearchOptions { match_case: false, whole_word: false };
-    const CASE: SearchOptions = SearchOptions { match_case: true, whole_word: false };
-    const WORD: SearchOptions = SearchOptions { match_case: false, whole_word: true };
+    const ANY: SearchOptions = SearchOptions { match_case: false, whole_word: false, regex: false };
+    const CASE: SearchOptions = SearchOptions { match_case: true, whole_word: false, regex: false };
+    const WORD: SearchOptions = SearchOptions { match_case: false, whole_word: true, regex: false };
+    const RE: SearchOptions = SearchOptions { match_case: false, whole_word: false, regex: true };
+
+    #[test]
+    fn regular_expressions() {
+        let t = c("Été 2024, été 25\nfin");
+        // Char ranges even after multi-byte chars
+        assert_eq!(find_all(&t, r"\d+", RE), vec![(4, 8), (14, 16)]);
+        assert_eq!(find_all(&t, "été", RE), vec![(0, 3), (10, 13)]);
+        assert_eq!(find_all(&t, "été", SearchOptions { match_case: true, ..RE }), vec![(10, 13)]);
+        assert_eq!(find_all(&t, "^fin$", RE), vec![(17, 20)]);
+        assert_eq!(find_all(&t, "2", SearchOptions { whole_word: true, ..RE }), vec![]);
+        // Empty matches and invalid patterns find nothing
+        assert!(find_all(&t, "x*", RE).is_empty());
+        assert!(find_all(&t, "(", RE).is_empty());
+        assert!(regex_error("(", RE).is_some());
+        assert!(regex_error("(", ANY).is_none());
+        let r = find_all(&t, r"(\p{L}+) (\d+)", RE);
+        assert_eq!(replace_matches(&t, &r, r"(\p{L}+) (\d+)", RE, "$2-$1"), "2024-Été, 25-été\nfin");
+        // Without regex, `$1` stays as written
+        assert_eq!(replace_matches(&t, &find_all(&t, "fin", ANY), "fin", ANY, "$1"), "Été 2024, été 25\n$1");
+    }
 
     #[test]
     fn finds_every_occurrence() {
@@ -175,11 +244,11 @@ mod tests {
     }
 
     #[test]
-    fn replace_ranges_replaces_every_match() {
+    fn replace_matches_replaces_every_match() {
         let t = c("un chat, deux chats");
-        assert_eq!(replace_ranges(&t, &[(3, 7), (14, 18)], "chien"), "un chien, deux chiens");
-        assert_eq!(replace_ranges(&t, &[], "x"), "un chat, deux chats");
-        assert_eq!(replace_ranges(&t, &[(0, 3)], ""), "chat, deux chats");
+        assert_eq!(replace_matches(&t, &[(3, 7), (14, 18)], "chat", ANY, "chien"), "un chien, deux chiens");
+        assert_eq!(replace_matches(&t, &[], "chat", ANY, "x"), "un chat, deux chats");
+        assert_eq!(replace_matches(&t, &[(0, 3)], "un ", ANY, ""), "chat, deux chats");
     }
 
     #[test]

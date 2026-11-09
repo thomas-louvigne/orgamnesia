@@ -212,6 +212,10 @@ avec ses sous-titres, comme =M-S-<right>= / =M-S-<left>= dans Emacs
   « Remplacer » (l'occurrence courante) ou « Tout ».
 - Par défaut, la recherche ignore la casse et les accents (« regle » trouve
   « Règle ») ; un bouton, ou une préférence, la rend exacte.
+- Le bouton =.*= cherche avec une expression régulière : =^= et =$= marquent le
+  début et la fin de chaque ligne, et =$1=, =${nom}= dans le remplacement
+  reprennent les groupes trouvés. Les accents comptent alors ; une expression
+  invalide affiche « Regex invalide » (le détail au survol).
 - Pendant la recherche, les tableaux sont affichés en texte.
 
 *** Dans tout le projet
@@ -220,7 +224,7 @@ haut du volet, au niveau du titre de la page. Les résultats arrivent pendant la
 frappe, groupés par page, avec la ligne autour de chaque occurrence ; ↑ / ↓ en
 choisissent un, Entrée ou un clic ouvre la page dessus. Les pages non enregistrées
 sont cherchées dans leur texte en cours. Options : respecter la casse et les
-accents (Aa), mots entiers (ab).
+accents (Aa), mots entiers (ab), expression régulière (.*).
 
 « Remplacer dans le projet » (Ctrl+Maj+H, =C-x p r=) ajoute le champ de remplacement :
 chaque occurrence montre l'ancien et le nouveau texte, et des cases permettent de
