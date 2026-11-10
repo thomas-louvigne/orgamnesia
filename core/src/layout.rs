@@ -26,12 +26,14 @@ pub enum Frame {
     OrgBloom,
     /// Button opening the graph of the pages (graph extension).
     Graph,
+    /// "Did you know?": a tip on a feature, with its shortcut.
+    Tips,
 }
 
 impl Frame {
-    pub const ALL: [Frame; 12] = [
+    pub const ALL: [Frame; 13] = [
         Frame::Brand, Frame::Project, Frame::Git, Frame::OrgBloom, Frame::Pages, Frame::Settings,
-        Frame::Graph, Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken, Frame::Quit,
+        Frame::Graph, Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken, Frame::Quit, Frame::Tips,
     ];
 
     /// Its name in `settings.json`.
@@ -49,6 +51,7 @@ impl Frame {
             Frame::Quit => "quit",
             Frame::OrgBloom => "org_bloom",
             Frame::Graph => "graph",
+            Frame::Tips => "tips",
         }
     }
 
@@ -64,7 +67,7 @@ impl Frame {
 
     /// The column it is in when none was chosen.
     fn default_right(self) -> bool {
-        matches!(self, Frame::Graph | Frame::Backlinks | Frame::Tags | Frame::Todos | Frame::Broken | Frame::Quit)
+        matches!(self, Frame::Graph | Frame::Backlinks | Frame::Tags | Frame::Todos | Frame::Broken | Frame::Quit | Frame::Tips)
     }
 }
 
@@ -91,7 +94,7 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             left: vec![Frame::Brand, Frame::Project, Frame::Git, Frame::OrgBloom, Frame::Pages, Frame::Settings],
-            right: vec![Frame::Quit, Frame::Graph, Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken],
+            right: vec![Frame::Quit, Frame::Graph, Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken, Frame::Tips],
         }
     }
 }
@@ -185,6 +188,8 @@ mod tests {
     #[test]
     fn moves() {
         let mut l = Layout::default();
+        // The positions below are those of the right column without it
+        l.right.retain(|f| *f != Frame::Tips);
         l.move_frame(Frame::Git, Move::OtherColumn, |_| false);
         assert_eq!(l.right.last(), Some(&Frame::Git));
         assert!(!l.left.contains(&Frame::Git));

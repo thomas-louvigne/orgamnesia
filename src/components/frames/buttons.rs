@@ -27,6 +27,7 @@ pub fn SettingsButton() -> impl IntoView {
         <div class="frame sidebar-footer">
             <button
                 class="btn-settings"
+                data-shortcut="open_settings"
                 title=move || ctx.with_shortcut("settings_btn", "open_settings")
                 on:click=move |_| { ctx.close_panels(); ctx.ui.show_settings.set(true) }
             >
@@ -44,6 +45,7 @@ pub fn GraphButton() -> impl IntoView {
         <div class="frame bloom-frame">
             <button
                 class="git-btn bloom-btn"
+                data-shortcut="graph"
                 title=move || ctx.with_shortcut("graph_title", "graph")
                 aria-pressed=move || ctx.ui.show_graph.get().to_string()
                 on:click=move |_| crate::app::run_app_action(ctx, AppAction::Graph)
@@ -64,6 +66,7 @@ pub fn QuitButton() -> impl IntoView {
             <button
                 class="btn-quit"
                 aria-label=move || t("quit_button_title", ctx.lang.get())
+                data-shortcut="quit"
                 title=move || ctx.with_shortcut("quit_button_title", "quit")
                 on:click=move |_| crate::app::run_app_action(ctx, AppAction::Quit)
             >

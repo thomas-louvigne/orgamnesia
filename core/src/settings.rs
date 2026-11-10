@@ -105,6 +105,8 @@ pub struct Config {
     pub emacs_mark: Option<bool>,
     /// WebKitGTK's emoji picker opens on its own shortcuts (off: the app blocks them).
     pub webkit_emoji_shortcuts: Option<bool>,
+    /// A button clicked whose action has a shortcut recalls it (a few times).
+    pub shortcut_tips: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
     pub electric_mode: Option<bool>,
     /// Save the active page on every change.
@@ -135,6 +137,8 @@ pub struct Config {
     pub show_backlinks: Option<bool>,
     pub show_tags: Option<bool>,
     pub show_broken_links: Option<bool>,
+    /// The "Did you know?" frame.
+    pub show_tips: Option<bool>,
     /// "To do" frame: the headlines of the project with a TODO keyword.
     pub show_todos: Option<bool>,
     /// Name of the open project, with the menu of the projects.
@@ -269,6 +273,7 @@ pub struct Prefs {
     pub show_backlinks: bool,
     pub show_tags: bool,
     pub show_broken_links: bool,
+    pub show_tips: bool,
     pub show_todos: bool,
     pub show_project: bool,
     pub show_git: bool,
@@ -321,6 +326,7 @@ pub struct Prefs {
     pub link_preview_trigger: String,
     pub emacs_mark: bool,
     pub webkit_emoji_shortcuts: bool,
+    pub shortcut_tips: bool,
     pub electric_mode: bool,
 }
 
@@ -359,6 +365,7 @@ impl Prefs {
             show_backlinks: s.show_backlinks.unwrap_or(true),
             show_tags: s.show_tags.unwrap_or(true),
             show_broken_links: s.show_broken_links.unwrap_or(true),
+            show_tips: s.show_tips.unwrap_or(true),
             show_todos: s.show_todos.unwrap_or(true),
             show_project: s.show_project.unwrap_or(true),
             show_git: s.show_git.unwrap_or(true),
@@ -407,6 +414,7 @@ impl Prefs {
                 .unwrap_or_else(|| "ctrl".to_string()),
             emacs_mark: s.emacs_mark.unwrap_or(true),
             webkit_emoji_shortcuts: s.webkit_emoji_shortcuts.unwrap_or(true),
+            shortcut_tips: s.shortcut_tips.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
         }
     }
@@ -442,6 +450,7 @@ impl Prefs {
             link_preview_trigger: Some(self.link_preview_trigger.clone()),
             emacs_mark: Some(self.emacs_mark),
             webkit_emoji_shortcuts: Some(self.webkit_emoji_shortcuts),
+            shortcut_tips: Some(self.shortcut_tips),
             electric_mode: Some(self.electric_mode),
             autosave: Some(self.autosave),
             delete_empty_pages: Some(self.delete_empty),
@@ -459,6 +468,7 @@ impl Prefs {
             show_backlinks: Some(self.show_backlinks),
             show_tags: Some(self.show_tags),
             show_broken_links: Some(self.show_broken_links),
+            show_tips: Some(self.show_tips),
             show_todos: Some(self.show_todos),
             show_project: Some(self.show_project),
             show_git: Some(self.show_git),
@@ -529,6 +539,7 @@ impl Prefs {
             Frame::Tags => self.show_tags,
             Frame::Todos => self.show_todos,
             Frame::Broken => self.show_broken_links,
+            Frame::Tips => self.show_tips,
             Frame::Quit => self.show_quit_button,
             Frame::OrgBloom => self.show_org_bloom,
             Frame::Graph => self.show_graph,
@@ -547,6 +558,7 @@ impl Prefs {
             Frame::Tags => &mut self.show_tags,
             Frame::Todos => &mut self.show_todos,
             Frame::Broken => &mut self.show_broken_links,
+            Frame::Tips => &mut self.show_tips,
             Frame::Quit => &mut self.show_quit_button,
             Frame::OrgBloom => &mut self.show_org_bloom,
             Frame::Graph => &mut self.show_graph,

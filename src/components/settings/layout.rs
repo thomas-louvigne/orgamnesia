@@ -20,6 +20,7 @@ fn frame_label(frame: Frame) -> &'static str {
         Frame::Quit => "show_quit_button",
         Frame::OrgBloom => "show_org_bloom",
         Frame::Graph => "show_graph",
+        Frame::Tips => "show_tips",
     }
 }
 

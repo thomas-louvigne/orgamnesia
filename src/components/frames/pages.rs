@@ -70,6 +70,7 @@ pub fn PagesFrame() -> impl IntoView {
                 {move || (!ctx.project.preference.get()).then(|| view! {
                     <button
                         class="btn-icon"
+                        data-shortcut="new_page"
                         title={move || ctx.with_shortcut("new_page_title", "new_page")}
                         aria-label={move || t("new_page_title", ctx.lang.get())}
                         on:click=move |_| trigger_new_page()
@@ -238,7 +239,8 @@ pub fn PagesFrame() -> impl IntoView {
                             close();
                             trigger_new_page();
                         }>
-                            {move || t("new_page_title", ctx.lang.get())}
+                            <span>{move || t("new_page_title", ctx.lang.get())}</span>
+                            {move || ctx.shortcut("new_page").map(|k| view! { <span class="ctx-menu-key">{k}</span> })}
                         </button>
                         // Deleting comes last, set apart
                         {target.map(|f| view! {

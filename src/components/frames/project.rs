@@ -31,10 +31,14 @@ pub fn ProjectSwitcher() -> impl IntoView {
         <div class="frame project-switcher">
             <button
                 class="project-current"
-                title=move || if ctx.project.preference.get() {
-                    t("pref_project_title", ctx.lang.get()).to_string()
-                } else {
-                    ctx.project.vault_path.get().unwrap_or_default()
+                data-shortcut="switch_project"
+                title=move || {
+                    let place = if ctx.project.preference.get() {
+                        t("pref_project_title", ctx.lang.get()).to_string()
+                    } else {
+                        ctx.project.vault_path.get().unwrap_or_default()
+                    };
+                    format!("{place}\n{}", ctx.with_shortcut("shortcut_switch_project", "switch_project"))
                 }
                 on:click=move |_| ctx.ui.show_projects.update(|v| *v = !*v)
             >

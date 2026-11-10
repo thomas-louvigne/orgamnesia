@@ -271,6 +271,7 @@ pub fn ProjectSearchPopin() -> impl IntoView {
             <div class="find-row">
                 <button
                     class=move || if with_replace() { "find-btn find-toggle open" } else { "find-btn find-toggle" }
+                    data-shortcut="project_replace"
                     title=move || ctx.with_shortcut("find_replace_toggle", "project_replace")
                     on:click=move |_| s.open.set(Some(!with_replace()))
                 >"›"</button>

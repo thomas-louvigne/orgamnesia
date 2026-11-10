@@ -135,6 +135,7 @@ fn TabItem(
             <button
                 class="tab-close"
                 aria-label=move || t("shortcut_close_tab", ctx.lang.get())
+                data-shortcut="close_tab"
                 title=move || ctx.with_shortcut("shortcut_close_tab", "close_tab")
                 style=hidden_while_editing
                 on:click=close

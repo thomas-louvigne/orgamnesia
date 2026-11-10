@@ -9,6 +9,7 @@ mod org_bloom;
 mod pages;
 pub mod project;
 mod tags;
+mod tips;
 mod todos;
 
 use leptos::prelude::*;
@@ -24,6 +25,7 @@ use pages::PagesFrame;
 use project::ProjectSwitcher;
 use tags::TagsFrame;
 pub use tags::TagAddPopin;
+use tips::TipsFrame;
 use todos::TodosFrame;
 
 /// The frames shown in the column left of the editor, or right of it.
@@ -61,6 +63,7 @@ fn frame_view(frame: Frame, right: bool) -> AnyView {
         Frame::Quit => view! { <QuitButton /> }.into_any(),
         Frame::OrgBloom => view! { <OrgBloomFrame /> }.into_any(),
         Frame::Graph => view! { <GraphButton /> }.into_any(),
+        Frame::Tips => view! { <TipsFrame /> }.into_any(),
     }
 }
 

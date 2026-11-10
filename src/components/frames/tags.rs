@@ -203,6 +203,7 @@ pub fn TagsFrame() -> impl IntoView {
                 <span>{move || format!("{} ({})", t("tags", ctx.lang.get()), ctx.project.tags.with(Vec::len))}</span>
                 <button
                     class="panel-add"
+                    data-shortcut="add_tag"
                     disabled=move || ctx.work.active_tab_data().is_none()
                     title=move || if ctx.work.active_tab_data().is_some() {
                         ctx.with_shortcut("tag_add_title", "add_tag")

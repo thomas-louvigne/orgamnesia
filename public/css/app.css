@@ -839,6 +839,9 @@ kbd {
 .panel-add:hover:not(:disabled) { color: var(--fg); border-color: var(--accent); }
 .panel-add:disabled { opacity: .4; cursor: default; }
 
+/* "Did you know?": one tip, quiet */
+.tips-text { margin: 0; padding: 8px 12px 10px; color: var(--fg-dim); font-size: var(--fs-meta); line-height: 1.45; }
+
 .no-backlinks {
     padding: 12px 16px;
     color: var(--fg-dim);
@@ -1511,6 +1514,7 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .qo-file   { color: var(--fg-dim); }
 .qo-tag    { color: var(--purple); font-weight: bold; }
 .qo-create { color: var(--green); font-size: 15px; font-weight: bold; }
+.qo-cmd    { color: var(--accent); font-weight: bold; }
 
 .qo-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -1522,6 +1526,8 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
     padding: 1px 6px;
     flex-shrink: 0;
 }
+/* The shortcut of a command, to learn it on the way */
+.qo-cmd ~ .qo-hint { color: var(--fg-dim); background: var(--bg3); font-family: var(--font-mono, monospace); }
 
 /* ── Shortcuts cheat sheet (F1) ────────────────────────────── */
 .shortcuts-help { width: 640px; max-height: 76vh; }

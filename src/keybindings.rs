@@ -287,3 +287,41 @@ fn display_combo(binding: &str) -> String {
         .collect::<Vec<_>>()
         .join("+")
 }
+
+// ─── Recalling shortcuts ──────────────────────────────────────────────────────
+
+/// A button with a `data-shortcut` (the id of an action) clicked with the mouse
+/// recalls the shortcut of that action in the status bar, three times at most
+/// per action and per session, while the setting is on.
+pub fn listen_tips(ctx: crate::state::AppCtx) {
+    use leptos::prelude::*;
+    use std::{cell::RefCell, collections::HashMap};
+    use wasm_bindgen::{closure::Closure, JsCast};
+    thread_local! { static SHOWN: RefCell<HashMap<String, u8>> = RefCell::new(HashMap::new()); }
+    let on_click = Closure::<dyn Fn(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
+        // `detail` 0: Enter or Space on the button, or a click made by the app; the keyboard is already used
+        if e.detail() == 0 || !ctx.pref_untracked(|p| p.shortcut_tips) { return; }
+        let Some(el) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .and_then(|t| t.closest("[data-shortcut]").ok().flatten()) else { return };
+        let Some(id) = el.get_attribute("data-shortcut") else { return };
+        let Some(keys) = ctx.keybindings.with_untracked(|kb| first_shortcut(kb, &id)) else { return };
+        let fresh = SHOWN.with_borrow_mut(|shown| {
+            let n = shown.entry(id.clone()).or_insert(0);
+            *n += 1;
+            *n <= 3
+        });
+        if !fresh { return; }
+        let lang = ctx.lang.get_untracked();
+        let label = APP_ACTIONS.iter().find(|a| a.id == id).map(|a| a.label_key)
+            .or_else(|| EDITOR_ACTIONS.iter().find(|a| a.id == id).map(|a| a.label_key))
+            .map(|k| crate::i18n::t(k, lang));
+        let tip = crate::i18n::t("shortcut_tip", lang);
+        ctx.notify(match label {
+            Some(label) => format!("{tip} {label} — {keys}"),
+            None => format!("{tip} {keys}"),
+        });
+    });
+    let Some(window) = web_sys::window() else { return };
+    let _ = window.add_event_listener_with_callback_and_bool("click", on_click.as_ref().unchecked_ref(), true);
+    on_click.forget(); // as long as the app
+}

@@ -4,6 +4,14 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.4.0
+- Commandes : tapez > dans l'ouverture rapide (Ctrl+K) pour lister toutes les actions de l'application avec leur raccourci ; Entrée lance celle choisie.
+- Changer de projet au clavier : Ctrl+Alt+P (ou C-x p p avec les raccourcis Emacs) ouvre le menu des projets ; les flèches choisissent, Entrée ouvre, Échap ferme. À l'ouverture, le reste de la fenêtre s'assombrit et le menu ressort.
+- Projets : un projet dont le dossier n'existe plus n'apparaît plus dans le menu ; il revient si le dossier revient.
+- Le saviez-vous ? : un cadre, dans la colonne droite par défaut, donne une astuce avec le raccourci de votre profil ; › passe à la suivante. On peut le masquer ou le déplacer dans Réglages > Affichage.
+- Raccourcis : un bouton cliqué à la souris rappelle son raccourci dans la barre d'état, trois fois au plus par action. Se coupe dans Réglages > Raccourcis.
+- Le menu du clic droit sur les pages montre le raccourci de Nouvelle page.
+
 * 1.3.0
 - Graphe (bêta) : une extension, désactivée par défaut, proposée au premier lancement et dans Réglages > Extensions. Elle dessine les pages et leurs liens en 3D dans la zone principale (Ctrl+Maj+M, ou C-c g avec les raccourcis Emacs). Un clic ouvre une page ; glisser déplace le graphe, le bouton droit tourne autour, la molette ou la barre zoome, ▶ le fait tourner tout seul. Les pages sans lien sont d'une autre couleur.
 - Graphe : pendant qu'il tourne ou se déplace, les noms de la page affichée et des pages liées à elle, dans un sens ou dans l'autre, restent écrits.

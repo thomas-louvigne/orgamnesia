@@ -202,6 +202,7 @@ impl Find {
                     <div class="find-row">
                         <button
                             class=if with_replace { "find-btn find-toggle open" } else { "find-btn find-toggle" }
+                            data-shortcut="replace"
                             title=move || ctx.with_shortcut("find_replace_toggle", "replace")
                             on:click=move |_| self.pane.find.set(Some(!with_replace))
                         >"›"</button>
@@ -238,7 +239,7 @@ impl Find {
                             title=t("find_regex_title", lang)
                             on:click=move |_| { options.update(|o| o.regex = !o.regex); self.show_from_anchor(); }
                         >".*"</button>
-                        <button class="find-btn" title=move || ctx.with_shortcut("find_prev_title", "find_previous") on:click=move |_| self.step(false)>"↑"</button>
+                        <button class="find-btn" data-shortcut="find_previous" title=move || ctx.with_shortcut("find_prev_title", "find_previous") on:click=move |_| self.step(false)>"↑"</button>
                         <button class="find-btn" title=t("find_next_title", lang) on:click=move |_| self.step(true)>"↓"</button>
                         <button class="find-btn" on:click=move |_| self.close()>"×"</button>
                     </div>

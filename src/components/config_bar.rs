@@ -131,6 +131,7 @@ pub fn ConfigBar(tab: Tab, file: File) -> impl IntoView {
                 </div>
                 <button
                     class="btn-primary"
+                    data-shortcut="save"
                     title=move || ctx.with_shortcut("pref_apply_title", "save")
                     disabled=move || !valid() || !dirty.get()
                     on:click=move |_| preferences::apply(ctx, apply_tab.clone())

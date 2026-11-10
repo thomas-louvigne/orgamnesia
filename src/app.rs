@@ -211,6 +211,7 @@ pub fn App() -> impl IntoView {
 
     crate::emoji::listen();
     crate::components::frames::project::listen(ctx);
+    crate::keybindings::listen_tips(ctx);
     // Global keyboard shortcuts (app-level; editor actions are handled in the editor)
     let kb_handle = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
         // WebKitGTK opens its emoji picker on these keys unless the page keeps them

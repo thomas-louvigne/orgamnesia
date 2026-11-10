@@ -50,6 +50,7 @@ fn GitButtons() -> impl IntoView {
                 (_, true) => "git-btn ready",
                 _ => "git-btn",
             }
+            data-shortcut=id
             title=tip
             aria-label=tip
             prop:disabled=move || busy().is_some() || !enabled(&git())
@@ -88,7 +89,7 @@ fn HistoryButton() -> impl IntoView {
         t("git_history_no_page", ctx.lang.get()).to_string()
     };
     view! {
-        <button class="btn-icon git-history-btn" title=label aria-label=label
+        <button class="btn-icon git-history-btn" data-shortcut="git_history" title=label aria-label=label
             prop:disabled=move || ctx.work.active_tab.get().is_none()
             on:click=move |_| crate::git::open_active_history(ctx)>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
