@@ -114,7 +114,7 @@ mod tests {
         // 200 pages, a linked core of 20 and 180 pages without links
         let links: Vec<(usize, usize)> = (1..20).map(|i| (0, i)).collect();
         let pos = layout(200, &links);
-        let all = pos.iter().map(|p| len(p)).fold(0.0, f64::max);
+        let all = pos.iter().map(len).fold(0.0, f64::max);
         assert!(all < 25.0 * super::EDGE, "{all}");
     }
 
