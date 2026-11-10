@@ -2,6 +2,7 @@
 //! creating) one.
 
 use leptos::prelude::*;
+use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::{
@@ -17,6 +18,15 @@ use crate::{
 #[component]
 pub fn ProjectSwitcher() -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
+    // The known projects whose folder exists, asked again at each opening (a folder may come back)
+    let shown = RwSignal::new(Vec::<String>::new());
+    Effect::new(move |_| {
+        if !ctx.ui.show_projects.get() { return; }
+        let all = ctx.project.projects.get();
+        spawn_local(async move {
+            if let Ok(list) = invoke::existing_folders(&all).await { shown.set(list); }
+        });
+    });
     view! {
         <div class="frame project-switcher">
             <button
@@ -54,7 +64,7 @@ pub fn ProjectSwitcher() -> impl IntoView {
                 <div class="ctx-overlay" on:click=move |_| ctx.ui.show_projects.set(false) />
                 <div class="project-menu">
                     <For
-                        each=move || ctx.project.projects.get()
+                        each=move || shown.get()
                         key=|p| p.clone()
                         let:path
                     >
@@ -131,4 +141,45 @@ pub fn ProjectSwitcher() -> impl IntoView {
             })}
         </div>
     }
+}
+
+/// While the menu is open, Up / Down move through it, Enter opens the project
+/// chosen, Escape closes it, wherever the focus is (the editor keeps it, and
+/// would take the arrows otherwise): hence a capturing listener, for the whole app.
+pub fn listen(ctx: AppCtx) {
+    let on_key = Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| {
+        if !ctx.ui.show_projects.get_untracked() || e.ctrl_key() || e.alt_key() || e.meta_key() || e.shift_key() { return; }
+        let key = e.key();
+        if !matches!(key.as_str(), "ArrowUp" | "ArrowDown" | "Enter" | "Escape") { return; }
+        e.prevent_default();
+        e.stop_propagation();
+        if key == "Escape" { ctx.ui.show_projects.set(false); return; }
+        let Some(items) = document().query_selector_all(".project-menu .project-item").ok() else { return };
+        let items: Vec<web_sys::HtmlElement> = (0..items.length())
+            .filter_map(|i| items.item(i)?.dyn_into().ok()).collect();
+        let has = |el: &web_sys::HtmlElement, class: &str| el.class_list().contains(class);
+        let selected = items.iter().position(|el| has(el, "selected"));
+        if key == "Enter" {
+            // Nothing chosen yet: Enter keeps the open project
+            match selected {
+                Some(i) => items[i].click(),
+                None => ctx.ui.show_projects.set(false),
+            }
+            return;
+        }
+        if items.is_empty() { return; }
+        // From the open project the first time
+        let from = selected.or_else(|| items.iter().position(|el| has(el, "active")));
+        let n = items.len();
+        let next = match (from, key == "ArrowDown") {
+            (Some(i), true) => (i + 1) % n,
+            (Some(i), false) => (i + n - 1) % n,
+            (None, true) => 0,
+            (None, false) => n - 1,
+        };
+        for (i, el) in items.iter().enumerate() { let _ = el.class_list().toggle_with_force("selected", i == next); }
+        items[next].scroll_into_view_with_bool(false);
+    });
+    let _ = window().add_event_listener_with_callback_and_bool("keydown", on_key.as_ref().unchecked_ref(), true);
+    on_key.forget(); // as long as the app
 }

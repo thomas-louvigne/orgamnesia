@@ -7,7 +7,7 @@ mod buttons;
 mod git;
 mod org_bloom;
 mod pages;
-mod project;
+pub mod project;
 mod tags;
 mod todos;
 

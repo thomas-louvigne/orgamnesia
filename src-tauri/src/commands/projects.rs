@@ -50,6 +50,13 @@ pub async fn check_disk(state: State<'_, AppState>) -> Cmd<Option<VaultChanges>>
     state.with_project(|p| p.refresh(tags))
 }
 
+/// The paths of `paths` that are folders: a project whose folder is gone (or on an
+/// unplugged disk) is left out of the menu, but kept in the list for when it is back.
+#[tauri::command]
+pub fn existing_folders(paths: Vec<String>) -> Vec<String> {
+    paths.into_iter().filter(|p| Path::new(p).is_dir()).collect()
+}
+
 /// Forget a project (the folder itself is left untouched); returns the remaining list.
 #[tauri::command]
 pub async fn remove_project(state: State<'_, AppState>, app: AppHandle, path: String) -> Cmd<Vec<String>> {
@@ -105,6 +112,13 @@ mod tests {
     use super::*;
     use crate::commands::testing::{block_on, folder, mock_app, open_project};
     use tauri::Manager;
+
+    #[test]
+    fn missing_folders_are_left_out() {
+        let here = folder("cmd-projects-existing").to_string_lossy().into_owned();
+        let gone = format!("{here}/gone");
+        assert_eq!(existing_folders(vec![gone, here.clone()]), vec![here]);
+    }
 
     #[test]
     fn projects_are_opened_and_forgotten() {

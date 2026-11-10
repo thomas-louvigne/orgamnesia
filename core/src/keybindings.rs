@@ -243,7 +243,7 @@ pub struct ActionDef<A: 'static> {
 pub enum AppAction {
     NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
-    GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml, Graph,
+    GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml, Graph, SwitchProject,
 }
 
 /// Editor actions.
@@ -305,6 +305,7 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::ExportPdf, id: "export_pdf",  label_key: "shortcut_export_pdf" },
     ActionDef { action: AppAction::ExportHtml, id: "export_html", label_key: "shortcut_export_html" },
     ActionDef { action: AppAction::Graph, id: "graph", label_key: "shortcut_graph" },
+    ActionDef { action: AppAction::SwitchProject, id: "switch_project", label_key: "shortcut_switch_project" },
 ];
 
 /// Every editor action, whatever the profile: a profile simply leaves the ones
@@ -435,6 +436,7 @@ pub fn default_app() -> Bindings {
         ("export_pdf",       &["ctrl+p"]),
         ("export_html",      &["ctrl+shift+e"]),
         ("graph",            &["ctrl+shift+m"]),
+        ("switch_project",   &["ctrl+alt+p"]),
     ])
 }
 
@@ -550,6 +552,8 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("export_pdf",       &["ctrl+c ctrl+e l p"]),
             ("export_html",      &["ctrl+c ctrl+e h h"]),
             ("graph",            &["ctrl+c g"]),
+            // project.el: `C-x p p` (project-switch-project)
+            ("switch_project",   &["ctrl+x p p", "ctrl+alt+p"]),
         ]),
         _ => default_app(),
     }

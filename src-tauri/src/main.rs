@@ -35,6 +35,7 @@ fn main() {
             commands::config::config_problems,
             commands::projects::open_vault,
             commands::projects::remove_project,
+            commands::projects::existing_folders,
             commands::projects::check_disk,
             commands::projects::assets_offer,
             commands::projects::answer_assets,

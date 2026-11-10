@@ -180,6 +180,10 @@ pub async fn check_disk() -> Result<Option<VaultChanges>, String> {
     call("check_disk", serde_json::json!({})).await
 }
 
+pub async fn existing_folders(paths: &[String]) -> Result<Vec<String>, String> {
+    call("existing_folders", serde_json::json!({ "paths": paths })).await
+}
+
 pub async fn open_vault(path: &str) -> Result<Vec<FileEntry>, String> {
     call("open_vault", serde_json::json!({ "path": path })).await
 }

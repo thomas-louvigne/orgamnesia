@@ -101,6 +101,12 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
             ctx.close_panels();
             ctx.ui.show_graph.set(true);
         },
+        // The menu lives in the project frame
+        AppAction::SwitchProject => if !ctx.pref_untracked(|p| p.frame_shown(orgamnesia_core::Frame::Project)) {
+            ctx.notify_t("project_frame_off", "");
+        } else {
+            ctx.ui.show_projects.update(|v| *v = !*v);
+        },
         AppAction::ExportPdf | AppAction::ExportHtml => match ctx.work.active_tab_data() {
             Some(tab) if action == AppAction::ExportPdf => crate::export::export_pdf(ctx, tab),
             Some(tab) => crate::export::export_html(ctx, tab),
@@ -204,6 +210,7 @@ pub fn App() -> impl IntoView {
     });
 
     crate::emoji::listen();
+    crate::components::frames::project::listen(ctx);
     // Global keyboard shortcuts (app-level; editor actions are handled in the editor)
     let kb_handle = window_event_listener(ev::keydown, move |e: web_sys::KeyboardEvent| {
         // WebKitGTK opens its emoji picker on these keys unless the page keeps them
