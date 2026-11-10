@@ -643,6 +643,7 @@ connaissait pas.
 | Quitter                     | Ctrl+Q           | Ctrl+X Ctrl+C             |
 | Exporter la page en PDF     | Ctrl+P           | Ctrl+C Ctrl+E L P         |
 | Exporter la page en HTML    | Ctrl+Maj+E       | Ctrl+C Ctrl+E H H         |
+| Graphe des pages (bêta)     | Ctrl+Maj+M       | Ctrl+C G                  |
 
 *** Éditeur
 | Action                       | Classique          | Emacs                       |
@@ -835,6 +836,25 @@ dictionnaire quand aucun n'est trouvé.
   Vos mots sont gardés dans =dictionary.txt=, dans le dossier des réglages.
 - *Faute suivante* : F7 en Classique, Ctrl+, en Emacs (comme =flyspell-goto-next-error=).
 
+** Graphe (bêta)
+Les pages du projet et les liens entre elles, dessinés en 3D dans la zone principale.
+Désactivé par défaut : proposé au premier lancement, ou dans Préférences >
+Extensions. Cette extension est en bêta : elle peut être lente sur un gros projet.
+
+- *Ouvrir / fermer* : Ctrl+Maj+M en Classique, Ctrl+C G en Emacs ; Échap la ferme.
+- *Une boule par page*, plus grosse avec plus de liens, plus pâle quand elle est
+  loin ; la page affichée est dans la couleur d'accent, les pages sans aucun lien
+  dans une autre.
+- *Cliquer* une page l'ouvre. *Glisser* déplace le graphe ; *glisser avec le
+  bouton droit* tourne autour, et autour d'une page quand on appuie dessus (elle
+  glisse au milieu). La *molette* ou la barre en bas à droite zoome ; ▶ fait
+  tourner le graphe tout seul jusqu'à ■ ; « Recentrer » remontre tout le graphe.
+- *Clavier*, sur le graphe : les flèches tournent autour, + et - zooment, Espace
+  lance ou arrête la rotation.
+- Les noms s'affichent dès qu'ils sont assez grands pour être lus ; survoler une
+  page montre son nom.
+- Le nombre d'images par seconde (FPS) est affiché dans un coin.
+
 * Thèmes
 Préférences > Thèmes choisit les couleurs de l'application : *Automatique* (Jour ou
 Nuit selon que le système est en clair ou en sombre, en le suivant quand il
@@ -953,6 +973,7 @@ qui restent telles quelles. « Appliquer » enregistre les changements sans ferm
   consultation du dépôt distant, le rebase d'un historique divergent au pull, le
   marqueur des pages non poussées, commit et push par défaut, le message de commit
   proposé, la synchronisation automatique et celle en quittant.
+- Le graphe des pages (bêta, voir Graphe plus haut).
 
 ** Orthographe
 - Souligner les fautes d'orthographe.

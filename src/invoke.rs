@@ -249,6 +249,11 @@ pub async fn get_backlinks(path: &str) -> Result<Vec<String>, String> {
     call("get_backlinks", serde_json::json!({ "path": path })).await
 }
 
+/// The pages and the links between them, for the graph view.
+pub async fn get_graph() -> Result<orgamnesia_core::Graph, String> {
+    call("get_graph", serde_json::json!({})).await
+}
+
 pub async fn get_broken_links() -> Result<Vec<BrokenLink>, String> {
     call("get_broken_links", serde_json::json!({})).await
 }

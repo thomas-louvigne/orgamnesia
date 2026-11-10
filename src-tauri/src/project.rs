@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use orgamnesia_core::{
-    format::split_ext, pages::Resolver, BrokenLink, FileEntry, Format, Formats, OrgTags, Prefs, TagCount, TagHit,
+    format::split_ext, pages::Resolver, BrokenLink, FileEntry, Format, Formats, Graph, OrgTags, Prefs, TagCount, TagHit,
     TagSyntax, TodoHit, TodoKeywords, VaultChanges,
 };
 
@@ -14,6 +14,7 @@ use backlinks::BacklinkIndex;
 
 pub mod backlinks;
 pub mod files;
+pub mod graph;
 pub mod links;
 mod search;
 
@@ -328,6 +329,21 @@ impl Project {
         self.link_names(&resolver, sources)
     }
 
+    /// Every page, with the links between pages that exist.
+    pub fn graph(&self, ignore_case: bool) -> Graph {
+        let resolver = self.resolver(ignore_case);
+        let pages = self.files();
+        let index: HashMap<&str, usize> = pages.iter().enumerate().map(|(i, f)| (f.path.as_str(), i)).collect();
+        let mut links = std::collections::BTreeSet::new();
+        for (target, sources, _) in self.links.all_links() {
+            let Some(to) = resolver.resolve(&target).and_then(|f| index.get(f.path.as_str()).copied()) else { continue };
+            for from in sources.iter().filter_map(|s| index.get(s.as_str()).copied()) {
+                if from != to { links.insert((from, to)); }
+            }
+        }
+        Graph { links: links.into_iter().collect(), pages, pos: vec![] }
+    }
+
     /// Links to pages that don't exist, most used first.
     pub fn broken_links(&self, ignore_case: bool) -> Vec<BrokenLink> {
         let norm = |s: &str| orgamnesia_core::names::page_key(s.trim(), ignore_case);
@@ -512,6 +528,10 @@ mod tests {
 
         p.create("b", None, Hashtags::Dashes.into()).unwrap();
         assert_eq!(p.backlinks(&path_of(&p, "b"), false), vec!["a"]);
+        // a → b only: c doesn't exist
+        let g = p.graph(false);
+        assert_eq!(g.pages.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), vec!["a", "b"]);
+        assert_eq!(g.links, vec![(0, 1)]);
         assert_eq!(p.broken_links(false).iter().map(|b| b.target.as_str()).collect::<Vec<_>>(), vec!["c"]);
         assert!(matches!(p.create("b", None, Hashtags::Dashes.into()), Err(AppError::PageExists(_))));
 

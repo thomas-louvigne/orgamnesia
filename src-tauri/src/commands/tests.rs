@@ -67,6 +67,8 @@ fn links_tags_and_todos() {
     // The path as the backend lists it (`/` on Windows too, by `crate::slash`): the interface only sends those back
     let deux = crate::slash(Path::new(&path).join("pages").join("Deux.org"));
     assert_eq!(block_on(links::get_backlinks(s(), deux)).unwrap(), vec!["Une".to_string()]);
+    let graph = block_on(links::get_graph(s())).unwrap();
+    assert_eq!((graph.links, graph.pos.len()), (vec![(1, 0)], 2));
     let broken = block_on(links::get_broken_links(s())).unwrap();
     // `:tags:` are links too, by default
     assert_eq!(broken.iter().map(|b| b.target.as_str()).collect::<Vec<_>>(), vec!["Nulle part", "projet"]);

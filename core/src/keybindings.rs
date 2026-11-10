@@ -243,7 +243,7 @@ pub struct ActionDef<A: 'static> {
 pub enum AppAction {
     NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
-    GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml,
+    GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml, Graph,
 }
 
 /// Editor actions.
@@ -304,6 +304,7 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::GitHistory, id: "git_history", label_key: "shortcut_git_history" },
     ActionDef { action: AppAction::ExportPdf, id: "export_pdf",  label_key: "shortcut_export_pdf" },
     ActionDef { action: AppAction::ExportHtml, id: "export_html", label_key: "shortcut_export_html" },
+    ActionDef { action: AppAction::Graph, id: "graph", label_key: "shortcut_graph" },
 ];
 
 /// Every editor action, whatever the profile: a profile simply leaves the ones
@@ -433,6 +434,7 @@ pub fn default_app() -> Bindings {
         ("git_history",      &["ctrl+shift+l"]),
         ("export_pdf",       &["ctrl+p"]),
         ("export_html",      &["ctrl+shift+e"]),
+        ("graph",            &["ctrl+shift+m"]),
     ])
 }
 
@@ -547,6 +549,7 @@ pub fn preset_app(preset: &str) -> Bindings {
             // org-export-dispatch: `C-c C-e l p` (PDF), `C-c C-e h h` (HTML file)
             ("export_pdf",       &["ctrl+c ctrl+e l p"]),
             ("export_html",      &["ctrl+c ctrl+e h h"]),
+            ("graph",            &["ctrl+c g"]),
         ]),
         _ => default_app(),
     }

@@ -1,6 +1,6 @@
 //! Backlinks, broken links, tags and TODO headlines of the project.
 
-use orgamnesia_core::{BrokenLink, TagCount, TagHit, TodoHit};
+use orgamnesia_core::{BrokenLink, Graph, TagCount, TagHit, TodoHit};
 use tauri::State;
 
 use super::Cmd;
@@ -11,6 +11,18 @@ use crate::AppState;
 pub async fn get_backlinks(state: State<'_, AppState>, path: String) -> Cmd<Vec<String>> {
     let ignore_case = state.prefs().case_insensitive_links;
     state.with_project(|p| Ok(p.backlinks(&path, ignore_case)))
+}
+
+/// The pages and the links between them, for the graph view.
+#[tauri::command]
+pub async fn get_graph(state: State<'_, AppState>) -> Cmd<Graph> {
+    let ignore_case = state.prefs().case_insensitive_links;
+    let mut graph = state.with_project(|p| Ok(p.graph(ignore_case)))?;
+    // Placed once the project is let go, on a thread of its own
+    let (n, links) = (graph.pages.len(), graph.links.clone());
+    graph.pos = tauri::async_runtime::spawn_blocking(move || crate::project::graph::layout(n, &links))
+        .await.map_err(|e| crate::error::AppError::Io(std::io::Error::other(e.to_string())))?;
+    Ok(graph)
 }
 
 #[tauri::command]

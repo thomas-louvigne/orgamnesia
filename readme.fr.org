@@ -21,7 +21,7 @@ contribution.
   choix. Pas de base de données, pas de compte, pas de télémétrie, pas de format
   propriétaire. Emacs, Obsidian, git ou votre outil de synchro les lisent en même temps.
 - *Org-mode ou Markdown ? Les deux.* Ils se mélangent dans un projet, et les liens
-  =[[Page]]= marchent partout.
+  =[​[Page]]= marchent partout.
 - *Un vrai wiki.* Liens, liens entrants, tags, complétion. Renommez une page : tous
   les liens qui y mènent suivent.
 - *Le clavier d'abord.* Un profil Emacs très complet (=C-x C-s=, kill ring, =C-t=,
@@ -63,7 +63,7 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
 1. *Ouvrez un dossier de notes.* Un dossier existant s'ouvre tel quel ; un nouveau
    reçoit =pages/= et =assets/=.
 2. *Créez une page* avec le =+= de la liste des pages.
-3. *Tapez =[[Autre page]]=.* Ctrl+clic l'ouvre, et la crée au besoin.
+3. *Tapez =[​[Autre page]]=.* Ctrl+clic l'ouvre, et la crée au besoin.
 4. *Ctrl+K* ouvre n'importe quelle page. *F1* liste tous les raccourcis.
 
 * Tout ce qu'il y a dedans

@@ -167,6 +167,8 @@ pub struct Config {
     pub spell_dict_dir: Option<String>,
     /// Git extension: show the git state of the project under its name.
     pub git_status_enabled: Option<bool>,
+    /// Graph extension: the pages and their links drawn in the main area.
+    pub graph_enabled: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
     pub git_ssh_key: Option<String>,
     /// Git extension: every so many minutes, commit the changes, pull and push
@@ -276,6 +278,7 @@ pub struct Prefs {
     pub org_bloom_zip: bool,
     pub org_bloom_no_external_deps: bool,
     pub git_ext: bool,
+    pub graph: bool,
     pub git_ssh_key: String,
     /// See `Settings::git_auto_sync_minutes`.
     pub git_auto_sync: u64,
@@ -363,6 +366,7 @@ impl Prefs {
             org_bloom_zip: s.org_bloom_zip.unwrap_or(false),
             org_bloom_no_external_deps: s.org_bloom_no_external_deps.unwrap_or(false),
             git_ext: s.git_status_enabled.unwrap_or(true),
+            graph: s.graph_enabled.unwrap_or(false),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
             git_auto_sync: s.git_auto_sync_minutes.unwrap_or(0),
             git_sync_on_quit: s.git_sync_on_quit.unwrap_or(false),
@@ -462,6 +466,7 @@ impl Prefs {
             org_bloom_zip: Some(self.org_bloom_zip),
             org_bloom_no_external_deps: Some(self.org_bloom_no_external_deps),
             git_status_enabled: Some(self.git_ext),
+            graph_enabled: Some(self.graph),
             git_ssh_key: some(&self.git_ssh_key),
             git_auto_sync_minutes: Some(self.git_auto_sync),
             git_sync_on_quit: Some(self.git_sync_on_quit),

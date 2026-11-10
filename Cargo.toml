@@ -20,6 +20,7 @@ web-sys = { version = "0.3", features = [
     "Storage", "MediaQueryList", "console", "DomRect", "DomRectList",
     "Navigator", "Clipboard", "Node", "NodeList", "DomTokenList",
     "HtmlImageElement", "Blob", "BlobPropertyBag", "Url", "Location",
+    "HtmlCanvasElement", "CanvasRenderingContext2d", "CssStyleDeclaration",
 ] }
 serde              = { version = "1", features = ["derive"] }
 serde_json         = "1"

@@ -77,7 +77,7 @@ fn reset_tab(tab: Tab, p: &mut Prefs, d: Prefs) {
         Tab::Spelling => take!(spell, spell_lang, spell_dict_dir),
         Tab::Extensions => take!(org_bloom, org_bloom_path, org_bloom_zip, org_bloom_no_external_deps, git_ext,
             git_ssh_key, git_fetch, git_pull_rebase, git_unpushed_marker, git_commit_push, git_commit_template,
-            git_auto_sync, git_sync_on_quit),
+            git_auto_sync, git_sync_on_quit, graph),
         Tab::About => {}
     }
 }

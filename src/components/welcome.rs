@@ -16,6 +16,7 @@ pub fn Welcome() -> impl IntoView {
     let profile = RwSignal::new(ctx.keybindings.with_untracked(|kb| kb.editor_preset.clone()));
     let git = RwSignal::new(ctx.pref_untracked(|p| p.git_ext));
     let todos = RwSignal::new(ctx.pref_untracked(|p| p.show_todos));
+    let graph = RwSignal::new(ctx.pref_untracked(|p| p.graph));
     let busy = RwSignal::new(false);
 
     let start = move |_| {
@@ -25,6 +26,7 @@ pub fn Welcome() -> impl IntoView {
         prefs.default_format = format.get_untracked();
         prefs.git_ext = git.get_untracked();
         prefs.show_todos = todos.get_untracked();
+        prefs.graph = graph.get_untracked();
         let kb = Keybindings::with_profiles(Some(&profile.get_untracked()), ctx.keybindings.with_untracked(|k| k.profiles.clone()));
         spawn_local(async move {
             let settings = prefs.to_settings(ctx.project.projects.get_untracked());
@@ -83,6 +85,8 @@ pub fn Welcome() -> impl IntoView {
                             Signal::derive(move || git.get()), Callback::new(move |_| git.update(|v| *v = !*v)))}
                         {choice("checkbox", "welcome-todos", "todos", "welcome_todos", "welcome_todos_hint",
                             Signal::derive(move || todos.get()), Callback::new(move |_| todos.update(|v| *v = !*v)))}
+                        {choice("checkbox", "welcome-graph", "graph", "welcome_graph", "welcome_graph_hint",
+                            Signal::derive(move || graph.get()), Callback::new(move |_| graph.update(|v| *v = !*v)))}
                     </fieldset>
                     <p class="setting-hint">{move || t("welcome_later", lang())}</p>
                 </div>

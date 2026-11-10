@@ -164,6 +164,8 @@ pub struct Ui {
     pub show_welcome: RwSignal<bool>,
     pub show_quick_open: RwSignal<bool>,
     pub show_commit: RwSignal<bool>,
+    /// The graph of the pages (graph extension).
+    pub show_graph: RwSignal<bool>,
     /// The history window of this page (git extension).
     pub git_history: RwSignal<Option<FileEntry>>,
     /// The window adding a remote to the project's repository.
@@ -266,6 +268,7 @@ impl AppCtx {
                 show_welcome: RwSignal::new(false),
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
+                show_graph: RwSignal::new(false),
                 git_history: RwSignal::new(None),
                 show_git_remote: RwSignal::new(false),
                 show_git_branch: RwSignal::new(false),
@@ -371,6 +374,7 @@ impl AppCtx {
     pub fn close_panels(&self) {
         self.ui.show_settings.set(false);
         self.ui.show_commit.set(false);
+        self.ui.show_graph.set(false);
         self.ui.git_history.set(None);
         self.ui.show_clone.set(false);
         self.ui.show_git_identity.set(false);

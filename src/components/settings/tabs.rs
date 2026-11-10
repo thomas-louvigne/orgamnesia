@@ -202,7 +202,7 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
     }
 }
 
-/// The org-bloom and git extensions.
+/// The org-bloom, git and graph extensions.
 #[component]
 pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
@@ -278,6 +278,9 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="git_auto_sync" hint="git_auto_sync_hint" disabled=|p| !p.git_ext />
             <Check draft get=|p| p.git_sync_on_quit set=|p, v| p.git_sync_on_quit = v
                 label="git_sync_on_quit" hint="git_sync_on_quit_hint" sub=true disabled=|p| !p.git_ext />
+            <hr class="setting-separator" />
+            <Check draft get=|p| p.graph set=|p, v| p.graph = v
+                label="graph_enabled" hint="graph_hint" />
         </div>
     }
 }

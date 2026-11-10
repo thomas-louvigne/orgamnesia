@@ -6,6 +6,7 @@ pub mod empty_state;
 pub mod frames;
 pub mod git_history;
 pub mod git_setup;
+pub mod graph;
 pub mod new_page_modal;
 pub mod page_title;
 pub mod panel;

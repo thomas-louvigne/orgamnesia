@@ -43,6 +43,7 @@ fn main() {
             commands::pages::create_page,
             commands::links::get_backlinks,
             commands::links::get_broken_links,
+            commands::links::get_graph,
             commands::links::list_tags,
             commands::links::search_tags,
             commands::links::list_todos,

@@ -637,6 +637,7 @@ profile gets those of the actions it didn't know.
 | Quit                        | Ctrl+Q           | Ctrl+X Ctrl+C             |
 | Export the page as PDF      | Ctrl+P           | Ctrl+C Ctrl+E L P         |
 | Export the page as HTML     | Ctrl+Shift+E     | Ctrl+C Ctrl+E H H         |
+| Graph of the pages (beta)   | Ctrl+Shift+M     | Ctrl+C G                  |
 
 *** Editor
 | Action                         | Classic             | Emacs                         |
@@ -813,6 +814,23 @@ in Settings > Spelling, which also tells how to install a dictionary when none i
   Your own words are kept in =dictionary.txt=, in the settings folder.
 - *Next misspelled word*: F7 in Classic, Ctrl+, in Emacs (as =flyspell-goto-next-error=).
 
+** Graph (beta)
+The pages of the project and the links between them, drawn in 3D in the main area.
+Off by default: offered on the first run, or in Settings > Extensions. This
+extension is in beta: it may be slow on a big project.
+
+- *Open / close*: Ctrl+Shift+M in Classic, Ctrl+C G in Emacs; Escape closes it.
+- *A ball per page*, bigger with more links, fainter when far; the page shown is
+  in the accent colour, the pages without any link in another one.
+- *Click* a page to open it. *Drag* to move the graph; *drag with the right
+  button* to turn around it, and around a page when pressed on it (it glides to
+  the middle). The *wheel* or the bar at the bottom right zooms; ▶ turns the
+  graph on its own until ■; "Center" shows the whole graph again.
+- *Keyboard*, on the graph: the arrows turn around it, + and - zoom, Space plays
+  or stops.
+- The names show once they are big enough to be read; hovering a page shows its name.
+- The frame rate (FPS) is shown in a corner.
+
 * Themes
 Settings > Themes chooses the colours of the app: *Automatic* (Day or Night, as
 the system is set to light or dark, and following it when it changes), *Night*
@@ -927,6 +945,7 @@ The explanations under a setting are in italics.
   is fetched, rebasing a diverged history on pull, the marker of the pages not
   pushed, commit and push by default, the commit message proposed, the automatic
   sync and the sync on quitting.
+- The graph of the pages (beta, see [[#graph-beta][Graph]]).
 
 ** Spelling
 - Underline the misspelled words.

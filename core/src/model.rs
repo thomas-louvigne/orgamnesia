@@ -9,6 +9,17 @@ pub struct FileEntry {
     pub path: String,
 }
 
+/// The pages of the project and the links between them, for the graph view.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct Graph {
+    pub pages: Vec<FileEntry>,
+    /// (source, target) indexes in `pages`: each pair once, no page to itself.
+    pub links: Vec<(usize, usize)>,
+    /// Where each page is in space (x, y, z), in the order of `pages`.
+    #[serde(default)]
+    pub pos: Vec<[f64; 3]>,
+}
+
 /// A `[[link]]` whose page does not exist, with the pages using it.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BrokenLink {

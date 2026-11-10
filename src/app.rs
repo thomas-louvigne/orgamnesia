@@ -50,7 +50,7 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
     // What acts on the pages of a project has nothing to act on in the "preference" one
     let project_only = matches!(action, AppAction::NewPage | AppAction::ProjectSearch | AppAction::ProjectReplace
         | AppAction::AddTag | AppAction::GitCommit | AppAction::GitPull | AppAction::GitPush | AppAction::GitHistory
-        | AppAction::ExportPdf | AppAction::ExportHtml);
+        | AppAction::ExportPdf | AppAction::ExportHtml | AppAction::Graph);
     if project_only && ctx.project.preference.get_untracked() {
         ctx.notify_t("pref_unavailable", "");
         return;
@@ -93,6 +93,14 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
         AppAction::GitPull         => crate::git::pull(ctx),
         AppAction::GitPush         => crate::git::push(ctx),
         AppAction::GitHistory      => crate::git::open_active_history(ctx),
+        AppAction::Graph => if !ctx.pref_untracked(|p| p.graph) {
+            ctx.notify_t("graph_off", "");
+        } else if ctx.ui.show_graph.get_untracked() {
+            ctx.ui.show_graph.set(false);
+        } else {
+            ctx.close_panels();
+            ctx.ui.show_graph.set(true);
+        },
         AppAction::ExportPdf | AppAction::ExportHtml => match ctx.work.active_tab_data() {
             Some(tab) if action == AppAction::ExportPdf => crate::export::export_pdf(ctx, tab),
             Some(tab) => crate::export::export_html(ctx, tab),
@@ -278,6 +286,7 @@ pub fn App() -> impl IntoView {
                     <EditorSplit />
                     {move || ctx.ui.show_settings.get().then(|| view! { <SettingsPage /> })}
                     {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_page::CommitPage /> })}
+                    {move || ctx.ui.show_graph.get().then(|| view! { <crate::components::graph::GraphPage /> })}
                     {move || ctx.ui.git_history.get().map(|file| view! { <crate::components::git_history::GitHistoryPage file /> })}
                     {move || ctx.ui.show_clone.get().then(|| view! { <crate::components::git_setup::ClonePage /> })}
                     {move || ctx.ui.show_git_identity.get().then(|| view! { <crate::components::git_setup::IdentityPage /> })}

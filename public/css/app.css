@@ -1122,6 +1122,27 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .main-panel .modal-body { flex: 1; min-width: 0; min-height: 0; max-height: none; }
 .main-panel .modal-footer { flex-wrap: wrap; }
 
+/* The graph of the pages (graph extension): a canvas, its colours read from these */
+.graph-body { position: relative; padding: 0; overflow: hidden; }
+.graph-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; outline: none; }
+.graph-canvas.pointing { cursor: pointer; }
+.graph-canvas.dragging { cursor: grabbing; }
+.graph-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.graph-beta {
+    font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--orange); border: 1px solid var(--orange); border-radius: 4px; padding: 1px 5px; vertical-align: middle;
+}
+.graph-fps {
+    position: absolute; left: 12px; top: 10px; pointer-events: none;
+    font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--fg-dim);
+}
+.graph-tools {
+    position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+}
+.graph-tools input[type=range] { width: 140px; }
+.graph-tools .btn-secondary { min-width: 28px; }
+
 .modal-header {
     display: flex;
     align-items: center;

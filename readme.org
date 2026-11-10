@@ -20,7 +20,7 @@ contribution.
 - *Your files, not ours.* =.org= and =.md= files in a folder you choose. No database,
   no account, no telemetry, no proprietary format. Emacs, Obsidian, git or your sync
   tool read them alongside.
-- *Org-mode or Markdown? Both.* They mix in a project, and =[[Page]]= links work
+- *Org-mode or Markdown? Both.* They mix in a project, and =[​[Page]]= links work
   everywhere.
 - *A real wiki.* Links, backlinks, tags, completion. Rename a page: every link to it
   follows.
@@ -61,7 +61,7 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 1. *Open a folder of notes.* An existing one opens as is; a new one gets =pages/= and
    =assets/=.
 2. *Create a page* with the =+= of the list of pages.
-3. *Type =[[Other page]]=.* Ctrl+click opens it, and creates it if needed.
+3. *Type =[​[Other page]]=.* Ctrl+click opens it, and creates it if needed.
 4. *Ctrl+K* opens any page. *F1* lists all the shortcuts.
 
 * What's inside
