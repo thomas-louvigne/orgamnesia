@@ -2,7 +2,7 @@
 
 #+HTML: <p align="center"><img src="src-tauri/icons/app-icon.svg" alt="Orgamnesia" width="128"></p>
 
-*Your personal wiki, in =org-mode= or Markdown. The essentials of Obsidian, lighter.*
+*Your personal wiki, in org-mode or Markdown. The essentials of Obsidian, lighter.*
 
 *Your notes stay plain files. Everything else is a bonus.*
 
@@ -61,7 +61,7 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 1. *Open a folder of notes.* An existing one opens as is; a new one gets =pages/= and
    =assets/=.
 2. *Create a page* with the =+= of the list of pages.
-3. *Type =[​[Other page]]=.* Ctrl+click opens it, and creates it if needed.
+3. *Type* =[​[Other page]]=. Ctrl+click opens it, and creates it if needed.
 4. *Ctrl+K* opens any page. *F1* lists all the shortcuts.
 
 * What's inside
@@ -71,9 +71,11 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 - *Links*: to a page, a headline or a target, with a preview on hover and the list of
   pages to create.
 - *Tags*: =#keywords= and =:tags:=, with combined search.
-- *Navigation*: quick open, project-wide search and replace (Ctrl+Shift+F), page
-  history.
-- *Frames*: pages, backlinks, tags, to do, git… placed where you want.
+- *Navigation*: quick open, every command with =>= in it, project-wide search and
+  replace (Ctrl+Shift+F), page history, switching project from the keyboard.
+- *Graph* (beta): the pages and their links in 3D.
+- *Frames*: pages, backlinks, tags, to do, git, tips… placed where you want.
+- *Themes*: Night, Day, Fjord, Paper, Dracula, or your own in one CSS file.
 - *Export* of a page as PDF or HTML, *static site* with
   [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
 - *Spelling*: misspelled words underlined, suggestions on right click, your own
@@ -82,6 +84,11 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 - *Settings as text*: JSON opened in the editor, checked as you type, applied at once,
   with a history.
 - *Interface* in French and English, signed *updates* from inside the app.
+
+| [[file:docs/images/theme-day.png]] | [[file:docs/images/theme-paper.png]] |
+| Day                                | Paper                                |
+| [[file:docs/images/theme-fjord.png]] | [[file:docs/images/theme-dracula.png]] |
+| Fjord                              | Dracula                              |
 
 Every detail, with all the shortcuts: [[file:docs/features.org][docs/features.org]].
 

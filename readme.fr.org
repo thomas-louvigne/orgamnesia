@@ -2,7 +2,7 @@
 
 #+HTML: <p align="center"><img src="src-tauri/icons/app-icon.svg" alt="Orgamnesia" width="128"></p>
 
-*Votre wiki perso, en =org-mode= ou en Markdown. L'essentiel d'Obsidian, en plus léger.*
+*Votre wiki perso, en org-mode ou en Markdown. L'essentiel d'Obsidian, en plus léger.*
 
 *Vos notes restent de simples fichiers. Le reste, c'est du bonus.*
 
@@ -63,7 +63,7 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
 1. *Ouvrez un dossier de notes.* Un dossier existant s'ouvre tel quel ; un nouveau
    reçoit =pages/= et =assets/=.
 2. *Créez une page* avec le =+= de la liste des pages.
-3. *Tapez =[​[Autre page]]=.* Ctrl+clic l'ouvre, et la crée au besoin.
+3. *Tapez* =[​[Autre page]]=. Ctrl+clic l'ouvre, et la crée au besoin.
 4. *Ctrl+K* ouvre n'importe quelle page. *F1* liste tous les raccourcis.
 
 * Tout ce qu'il y a dedans
@@ -73,9 +73,12 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
 - *Liens* : vers une page, un titre ou une cible, avec aperçu au survol et liste des
   pages à créer.
 - *Tags* : =#mots-clés= et =:tags:=, avec recherche combinée.
-- *Navigation* : ouverture rapide, recherche et remplacement dans tout le projet
-  (Ctrl+Maj+F), historique des pages.
-- *Cadres* : pages, liens entrants, tags, à faire, git… placés où vous voulez.
+- *Navigation* : ouverture rapide, toutes les commandes avec =>= dedans, recherche et
+  remplacement dans tout le projet (Ctrl+Maj+F), historique des pages, changement de
+  projet au clavier.
+- *Graphe* (bêta) : les pages et leurs liens en 3D.
+- *Cadres* : pages, liens entrants, tags, à faire, git, astuces… placés où vous voulez.
+- *Thèmes* : Nuit, Jour, Fjord, Papier, Dracula, ou le vôtre en un fichier CSS.
 - *Export* d'une page en PDF ou en HTML, *site statique* avec
   [[https://github.com/thomas-louvigne/org-bloom][org-bloom]].
 - *Orthographe* : fautes soulignées, suggestions au clic droit, dictionnaire
@@ -85,6 +88,11 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
 - *Réglages en texte* : du JSON ouvert dans l'éditeur, vérifié pendant la frappe,
   appliqué à chaud, avec historique.
 - *Interface* en français et en anglais, *mises à jour* signées depuis l'application.
+
+| [[file:docs/images/theme-day.png]] | [[file:docs/images/theme-paper.png]] |
+| Jour                               | Papier                               |
+| [[file:docs/images/theme-fjord.png]] | [[file:docs/images/theme-dracula.png]] |
+| Fjord                              | Dracula                              |
 
 Le détail, avec tous les raccourcis : [[file:docs/fonctionnalites.org][docs/fonctionnalites.org]].
 

@@ -276,6 +276,10 @@ fn display_combo(binding: &str) -> String {
             "ctrl"  => "Ctrl".to_string(),
             "shift" => "Shift".to_string(),
             "alt"   => "Alt".to_string(),
+            "ArrowLeft"  => "←".to_string(),
+            "ArrowRight" => "→".to_string(),
+            "ArrowUp"    => "↑".to_string(),
+            "ArrowDown"  => "↓".to_string(),
             k       => {
                 let mut c = k.chars();
                 match c.next() {
