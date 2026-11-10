@@ -118,6 +118,10 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [ ] Paquet dans l'AUR pour Arch Linux
 - [ ] Paquet dans les dépôts Debian
 - [ ] Raccourcis clavier vi
+- [ ] Second cerveau avec l'IA : un modèle de =CLAUDE.md= à poser dans un projet, pour qu'un agent (Claude Code…) comprenne les pages, les liens, les tags et les TODO
+- [ ] Serveur MCP : chercher, lire, rétroliens, tags, TODO et créer des pages depuis Claude Desktop, Claude Code ou un autre client
+- [ ] Mentions non liées : les pages qui citent la page ouverte sans lien, avec un bouton pour lier
+- [ ] Capture rapide dans une page Inbox, et une revue de la semaine (pages modifiées, TODO ouverts)
 
 * Licence
 

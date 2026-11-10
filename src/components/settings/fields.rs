@@ -21,9 +21,15 @@ pub fn Check(
     #[prop(optional)] sub: bool,
     /// Greyed out while this is true (the setting it depends on is off).
     #[prop(optional)] disabled: Option<fn(&Prefs) -> bool>,
+    /// Action whose shortcut in the active profile replaces "{key}" in the hint.
+    #[prop(optional)] shortcut: Option<&'static str>,
 ) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
     let lang = move || ctx.lang.get();
+    let hint_text = move |h: &'static str| match shortcut {
+        Some(id) => t(h, lang()).replace("{key}", &ctx.shortcut(id).unwrap_or_else(|| "—".into())),
+        None => t(h, lang()).to_string(),
+    };
     view! {
         <div class=if sub { "setting-row setting-sub" } else { "setting-row" }>
             <label class="setting-check">
@@ -35,7 +41,7 @@ pub fn Check(
                 />
                 {move || t(label, lang())}
             </label>
-            {hint.map(|h| view! { <span class="setting-hint">{move || t(h, lang())}</span> })}
+            {hint.map(|h| view! { <span class="setting-hint">{move || hint_text(h)}</span> })}
         </div>
     }
 }

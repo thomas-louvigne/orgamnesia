@@ -17,7 +17,7 @@ use orgamnesia_core::Frame;
 use crate::{actions, i18n::t, state::{AppCtx, Goto}};
 use backlinks::BacklinksFrame;
 use broken::BrokenFrame;
-use buttons::{Brand, QuitButton, SettingsButton};
+use buttons::{Brand, GraphButton, QuitButton, SettingsButton};
 use git::GitLine;
 use org_bloom::OrgBloomFrame;
 use pages::PagesFrame;
@@ -60,6 +60,7 @@ fn frame_view(frame: Frame, right: bool) -> AnyView {
         Frame::Broken => view! { <BrokenFrame right /> }.into_any(),
         Frame::Quit => view! { <QuitButton /> }.into_any(),
         Frame::OrgBloom => view! { <OrgBloomFrame /> }.into_any(),
+        Frame::Graph => view! { <GraphButton /> }.into_any(),
     }
 }
 

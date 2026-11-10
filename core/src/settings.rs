@@ -169,6 +169,8 @@ pub struct Config {
     pub git_status_enabled: Option<bool>,
     /// Graph extension: the pages and their links drawn in the main area.
     pub graph_enabled: Option<bool>,
+    /// Graph button (when the extension is on).
+    pub show_graph: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
     pub git_ssh_key: Option<String>,
     /// Git extension: every so many minutes, commit the changes, pull and push
@@ -279,6 +281,7 @@ pub struct Prefs {
     pub org_bloom_no_external_deps: bool,
     pub git_ext: bool,
     pub graph: bool,
+    pub show_graph: bool,
     pub git_ssh_key: String,
     /// See `Settings::git_auto_sync_minutes`.
     pub git_auto_sync: u64,
@@ -367,6 +370,7 @@ impl Prefs {
             org_bloom_no_external_deps: s.org_bloom_no_external_deps.unwrap_or(false),
             git_ext: s.git_status_enabled.unwrap_or(true),
             graph: s.graph_enabled.unwrap_or(false),
+            show_graph: s.show_graph.unwrap_or(true),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
             git_auto_sync: s.git_auto_sync_minutes.unwrap_or(0),
             git_sync_on_quit: s.git_sync_on_quit.unwrap_or(false),
@@ -467,6 +471,7 @@ impl Prefs {
             org_bloom_no_external_deps: Some(self.org_bloom_no_external_deps),
             git_status_enabled: Some(self.git_ext),
             graph_enabled: Some(self.graph),
+            show_graph: Some(self.show_graph),
             git_ssh_key: some(&self.git_ssh_key),
             git_auto_sync_minutes: Some(self.git_auto_sync),
             git_sync_on_quit: Some(self.git_sync_on_quit),
@@ -507,6 +512,7 @@ impl Prefs {
             Frame::Git => self.git_ext,
             Frame::Todos => self.todo_enabled,
             Frame::OrgBloom => self.org_bloom,
+            Frame::Graph => self.graph,
             _ => true,
         }
     }
@@ -525,6 +531,7 @@ impl Prefs {
             Frame::Broken => self.show_broken_links,
             Frame::Quit => self.show_quit_button,
             Frame::OrgBloom => self.show_org_bloom,
+            Frame::Graph => self.show_graph,
         }
     }
 
@@ -542,6 +549,7 @@ impl Prefs {
             Frame::Broken => &mut self.show_broken_links,
             Frame::Quit => &mut self.show_quit_button,
             Frame::OrgBloom => &mut self.show_org_bloom,
+            Frame::Graph => &mut self.show_graph,
         }
     }
 

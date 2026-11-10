@@ -4,6 +4,12 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.3.0
+- Graphe (bêta) : une extension, désactivée par défaut, proposée au premier lancement et dans Réglages > Extensions. Elle dessine les pages et leurs liens en 3D dans la zone principale (Ctrl+Maj+M, ou C-c g avec les raccourcis Emacs). Un clic ouvre une page ; glisser déplace le graphe, le bouton droit tourne autour, la molette ou la barre zoome, ▶ le fait tourner tout seul. Les pages sans lien sont d'une autre couleur.
+- Graphe : pendant qu'il tourne ou se déplace, les noms de la page affichée et des pages liées à elle, dans un sens ou dans l'autre, restent écrits.
+- Graphe : un bouton Graphe, dans la colonne droite par défaut, l'ouvre ou le ferme. Il n'apparaît que si l'extension est activée ; on peut le masquer ou le déplacer dans Réglages > Affichage.
+- Réglages : les aides donnent les raccourcis de votre profil (Classique, Emacs ou le vôtre), et non plus ceux du profil Classique.
+
 * 1.2.3
 - Thèmes : un onglet Thèmes dans les préférences choisit les couleurs de l'application : Automatique (clair ou sombre comme le système, en le suivant), Nuit, Jour, Fjord (gris-bleu sombre, d'après Nord), Papier (clair chaud) ou Dracula.
 - Vos propres thèmes : un thème est un fichier CSS du dossier themes des réglages. Dupliquer y copie un thème pour le modifier, Recharger le relit ; la documentation explique les couleurs à donner.

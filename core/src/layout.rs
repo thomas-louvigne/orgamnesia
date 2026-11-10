@@ -24,12 +24,14 @@ pub enum Frame {
     Quit,
     /// Button building the site of the project (org-bloom extension).
     OrgBloom,
+    /// Button opening the graph of the pages (graph extension).
+    Graph,
 }
 
 impl Frame {
-    pub const ALL: [Frame; 11] = [
+    pub const ALL: [Frame; 12] = [
         Frame::Brand, Frame::Project, Frame::Git, Frame::OrgBloom, Frame::Pages, Frame::Settings,
-        Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken, Frame::Quit,
+        Frame::Graph, Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken, Frame::Quit,
     ];
 
     /// Its name in `settings.json`.
@@ -46,6 +48,7 @@ impl Frame {
             Frame::Broken => "broken",
             Frame::Quit => "quit",
             Frame::OrgBloom => "org_bloom",
+            Frame::Graph => "graph",
         }
     }
 
@@ -61,7 +64,7 @@ impl Frame {
 
     /// The column it is in when none was chosen.
     fn default_right(self) -> bool {
-        matches!(self, Frame::Backlinks | Frame::Tags | Frame::Todos | Frame::Broken | Frame::Quit)
+        matches!(self, Frame::Graph | Frame::Backlinks | Frame::Tags | Frame::Todos | Frame::Broken | Frame::Quit)
     }
 }
 
@@ -88,7 +91,7 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             left: vec![Frame::Brand, Frame::Project, Frame::Git, Frame::OrgBloom, Frame::Pages, Frame::Settings],
-            right: vec![Frame::Quit, Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken],
+            right: vec![Frame::Quit, Frame::Graph, Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken],
         }
     }
 }
@@ -186,13 +189,13 @@ mod tests {
         assert_eq!(l.right.last(), Some(&Frame::Git));
         assert!(!l.left.contains(&Frame::Git));
         l.move_frame(Frame::Git, Move::Up, |_| false);
-        assert_eq!(&l.right[3..], &[Frame::Todos, Frame::Git, Frame::Broken]);
+        assert_eq!(&l.right[4..], &[Frame::Todos, Frame::Git, Frame::Broken]);
         l.move_frame(Frame::Git, Move::Down, |_| false);
         l.move_frame(Frame::Git, Move::Down, |_| false);
         assert_eq!(l.right.last(), Some(&Frame::Git));
         // Past a hidden frame: next to the frame after it
         l.move_frame(Frame::Git, Move::Up, |f| f == Frame::Broken);
-        assert_eq!(&l.right[3..], &[Frame::Git, Frame::Todos, Frame::Broken]);
+        assert_eq!(&l.right[4..], &[Frame::Git, Frame::Todos, Frame::Broken]);
         // Already at the top: stays
         l.move_frame(Frame::Quit, Move::Up, |_| false);
         assert_eq!(l.right[0], Frame::Quit);

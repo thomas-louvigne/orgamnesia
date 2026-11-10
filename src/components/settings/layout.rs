@@ -19,13 +19,14 @@ fn frame_label(frame: Frame) -> &'static str {
         Frame::Broken => "show_broken_links",
         Frame::Quit => "show_quit_button",
         Frame::OrgBloom => "show_org_bloom",
+        Frame::Graph => "show_graph",
     }
 }
 
 /// Whether the layout editor leaves `frame` out: the frame of an extension that
-/// is off (org-bloom).
+/// is off (org-bloom, graph).
 fn unlisted(p: &Prefs, frame: Frame) -> bool {
-    frame == Frame::OrgBloom && !p.org_bloom
+    (frame == Frame::OrgBloom && !p.org_bloom) || (frame == Frame::Graph && !p.graph)
 }
 
 /// Where the frames go around the editor: the two columns, each with its frames
@@ -53,7 +54,7 @@ pub fn LayoutEditor(draft: RwSignal<Prefs>) -> impl IntoView {
     };
     view! {
         <div class="setting-row">
-            <span class="setting-hint">{move || t("layout_hint", lang())}</span>
+            <span class="setting-hint">{move || t("layout_hint", lang()).replace("{key}", &ctx.shortcut("open_settings").unwrap_or_else(|| "—".into()))}</span>
         </div>
         <div class="layout-editor">
             {column(false)}

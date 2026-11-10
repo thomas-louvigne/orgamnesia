@@ -115,6 +115,10 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Package in the AUR for Arch Linux
 - [ ] Package in the Debian repositories
 - [ ] Vi keybindings
+- [ ] Second brain with AI: a =CLAUDE.md= template to put in a project, so an agent (Claude Code…) understands the pages, links, tags and TODOs
+- [ ] MCP server: search, read, backlinks, tags, TODOs and page creation from Claude Desktop, Claude Code or another client
+- [ ] Unlinked mentions: the pages naming the open page without a link, with a button to link them
+- [ ] Quick capture into an Inbox page, and a weekly review (pages changed, open TODOs)
 
 * License
 

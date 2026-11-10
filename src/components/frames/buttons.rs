@@ -1,4 +1,4 @@
-//! Small frames: the name of the app, the settings and quit buttons.
+//! Small frames: the name of the app, the settings, graph and quit buttons.
 
 use leptos::prelude::*;
 
@@ -31,6 +31,25 @@ pub fn SettingsButton() -> impl IntoView {
                 on:click=move |_| { ctx.close_panels(); ctx.ui.show_settings.set(true) }
             >
                 {move || t("settings_btn", ctx.lang.get())}
+            </button>
+        </div>
+    }
+}
+
+/// Button opening (or closing) the graph of the pages, graph extension.
+#[component]
+pub fn GraphButton() -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    view! {
+        <div class="frame bloom-frame">
+            <button
+                class="git-btn bloom-btn"
+                title=move || ctx.with_shortcut("graph_title", "graph")
+                aria-pressed=move || ctx.ui.show_graph.get().to_string()
+                on:click=move |_| crate::app::run_app_action(ctx, AppAction::Graph)
+            >
+                <span aria-hidden="true">"◎"</span>
+                {move || t("graph_button", ctx.lang.get())}
             </button>
         </div>
     }

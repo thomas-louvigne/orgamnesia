@@ -255,12 +255,19 @@ pub fn GraphPage() -> impl IntoView {
                 c.fill();
             }
             c.set_global_alpha(1.0);
+            // The pages linked to the page shown, or linking to it: their names stay while it moves
+            let mut near = vec![false; d.graph.pages.len()];
+            if let Some(me) = (0..near.len()).find(|&i| is_shown(i)) {
+                for &(a, b) in &d.graph.links {
+                    if a == me { near[b] = true } else if b == me { near[a] = true }
+                }
+            }
             // The names big enough to be read (6 px), the nearest ones; while the graph
-            // moves, only the hovered page's and the page shown's
+            // moves, only the hovered page's, the page shown's and its neighbours'
             let mut names: Vec<(usize, f64)> = at.iter().enumerate()
                 .filter_map(|(i, p)| {
                     let (x, y, s) = (*p)?;
-                    let pinned = hover == Some(i) || is_shown(i);
+                    let pinned = hover == Some(i) || is_shown(i) || near[i];
                     let font = if pinned { (10.0 * s).clamp(13.0, 15.0) } else { (10.0 * s).min(15.0) }.round();
                     let seen = x >= -100.0 && y >= -20.0 && x <= w + 100.0 && y <= h + 20.0;
                     (seen && (pinned || (!moving && font >= 6.0))).then_some((i, font))

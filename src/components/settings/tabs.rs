@@ -280,7 +280,7 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="git_sync_on_quit" hint="git_sync_on_quit_hint" sub=true disabled=|p| !p.git_ext />
             <hr class="setting-separator" />
             <Check draft get=|p| p.graph set=|p, v| p.graph = v
-                label="graph_enabled" hint="graph_hint" />
+                label="graph_enabled" hint="graph_hint" shortcut="graph" />
         </div>
     }
 }

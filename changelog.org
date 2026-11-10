@@ -4,6 +4,12 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.3.0
+- Graph (beta): an extension, off by default, offered on the first run and in Settings > Extensions. It draws the pages and their links in 3D in the main area (Ctrl+Shift+M, or C-c g with the Emacs keys). A click opens a page; dragging moves the graph, the right button turns around it, the wheel or the bar zooms, ▶ turns it on its own. Pages without links are in another colour.
+- Graph: while it turns or moves, the names of the page shown and of the pages linked to it, either way, stay written.
+- Graph: a Graph button, in the right column by default, opens or closes it. Shown only when the extension is on; it can be hidden or moved in Settings > Display.
+- Settings: the hints give the shortcuts of your profile (Classic, Emacs or yours), no longer the Classic ones.
+
 * 1.2.3
 - Themes: a Themes tab in the settings chooses the colours of the app: Automatic (light or dark as the system is, following it), Night, Day, Fjord (dark blue-grey, after Nord), Paper (warm light) or Dracula.
 - Your own themes: a theme is one CSS file in the themes folder of the settings. Duplicate copies a theme there to change it, Reload reads it again; the docs explain the colours to set.
