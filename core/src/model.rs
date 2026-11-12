@@ -81,6 +81,28 @@ pub struct UpdateInfo {
     pub can_install: bool,
 }
 
+/// Who brings the new versions of this copy, said by the package's build in
+/// `ORGAMNESIA_PACKAGE` (read by the backend and the frontend, built together).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Package {
+    /// No package manager: the app itself (installer, AppImage, .deb) or a manual install.
+    None,
+    /// The AUR (`packaging/arch-release`): the app tells about a new version, the AUR helper installs it.
+    Aur,
+    /// Flathub: it updates the app, which doesn't look for new versions.
+    Flatpak,
+}
+
+impl Package {
+    pub fn current() -> Package {
+        match option_env!("ORGAMNESIA_PACKAGE") {
+            Some("aur") => Package::Aur,
+            Some("flatpak") => Package::Flatpak,
+            _ => Package::None,
+        }
+    }
+}
+
 /// What changed in a version, as the changelogs say it.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct VersionNotes {

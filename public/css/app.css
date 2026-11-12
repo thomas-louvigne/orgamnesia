@@ -493,6 +493,13 @@ select.git-branch option { background: var(--bg2); color: var(--fg); font-weight
     max-width: 46ch; margin-top: 10px;
     color: var(--fg-dim); font-size: var(--fs-body); line-height: 1.55;
 }
+/* The new version found, on the empty editor: opens its window */
+.empty-update {
+    margin-bottom: 18px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px;
+    background: transparent; color: var(--fg-dim); font-size: var(--fs-meta); cursor: pointer;
+}
+.empty-update:hover, .empty-update:focus-visible { color: var(--fg); border-color: var(--fg-dim); }
+.update-command { margin: 8px 0 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-family: var(--font-mono); user-select: all; }
 .empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 24px; }
 .empty-actions button { display: inline-flex; align-items: center; gap: 10px; }
 

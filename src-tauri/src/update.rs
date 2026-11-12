@@ -24,8 +24,9 @@ pub fn notes_between(changelog: &serde_json::Value, current: &str, new: &str) ->
 
 /// The app can replace itself with the new version: an installer or a package
 /// the updater knows (Windows, macOS, AppImage, .deb). A program installed by
-/// another package manager (Arch's) is only told about the new version.
+/// another package manager (Arch's, Flathub) is only told about the new version.
 pub fn can_install() -> bool {
+    if orgamnesia_core::Package::current() != orgamnesia_core::Package::None { return false; }
     if cfg!(target_os = "linux") { tauri::utils::platform::bundle_type().is_some() } else { true }
 }
 

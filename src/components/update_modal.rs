@@ -2,6 +2,7 @@
 //! since the running one, then install it, later, or skip it.
 
 use leptos::{ev, prelude::*};
+use orgamnesia_core::Package;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::{
@@ -32,7 +33,15 @@ pub fn UpdateModal(info: UpdateInfo) -> impl IntoView {
         close();
     };
     let can_install = info.can_install;
+    let aur = Package::current() == Package::Aur;
     let install = move || {
+        if aur {
+            spawn_local(async move {
+                if crate::kill_ring::write_clipboard(update::AUR_COMMAND).await { ctx.notify_t("update_aur_copied", ""); }
+            });
+            close();
+            return;
+        }
         if !can_install {
             spawn_local(async move {
                 if let Err(e) = invoke::open_url(update::RELEASES_URL).await { ctx.error("open_url_failed", &e); }
@@ -86,9 +95,16 @@ pub fn UpdateModal(info: UpdateInfo) -> impl IntoView {
                             }
                         }).collect_view().into_any()
                     }}
-                    {(!can_install).then(|| view! {
-                        <p class="setting-hint">{move || t("update_manual", lang())}</p>
-                    })}
+                    {if aur {
+                        view! {
+                            <p class="setting-hint">{move || t("update_aur", lang())}</p>
+                            <pre class="update-command"><code>{update::AUR_COMMAND}</code></pre>
+                        }.into_any()
+                    } else {
+                        (!can_install).then(|| view! {
+                            <p class="setting-hint">{move || t("update_manual", lang())}</p>
+                        }).into_any()
+                    }}
                 </div>
                 <div class="modal-footer">
                     <button class="btn-secondary" prop:disabled=move || busy.get() on:click=move |_| skip()>
@@ -99,7 +115,7 @@ pub fn UpdateModal(info: UpdateInfo) -> impl IntoView {
                     </button>
                     <button class="btn-primary" prop:disabled=move || busy.get() on:click=move |_| install()>
                         {move || busy.get().then(|| view! { <span class="git-spinner" aria-hidden="true"></span> })}
-                        {move || t(if can_install { "update_install" } else { "update_download" }, lang())}
+                        {move || t(if aur { "update_aur_copy" } else if can_install { "update_install" } else { "update_download" }, lang())}
                     </button>
                 </div>
             </div>

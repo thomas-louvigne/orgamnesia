@@ -28,6 +28,14 @@ pub fn EmptyState() -> impl IntoView {
     view! {
         <div class="editor-empty">
             <img class="empty-logo" src="app-icon.svg" alt="" />
+            {move || ctx.ui.new_version.get().map(|info| {
+                let version = info.version.clone();
+                view! {
+                    <button class="empty-update" on:click=move |_| ctx.ui.update.set(Some(info.clone()))>
+                        {t("update_banner", lang())} " " <strong>{version}</strong>
+                    </button>
+                }
+            })}
             {move || match ctx.project.vault_path.get() {
                 None => {
                     let recent: Vec<String> = ctx.project.projects.get().into_iter().take(RECENT_PROJECTS).collect();

@@ -43,13 +43,19 @@ pub fn GeneralTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <Check draft get=|p| p.ask_format set=|p, v| p.ask_format = v
                 label="ask_format" sub=true disabled=|p| p.single_format />
             <hr class="setting-separator" />
-            <Check draft get=|p| p.check_updates set=|p, v| p.check_updates = v
-                label="check_updates" hint="check_updates_hint" />
-            <div class="setting-row setting-sub">
-                <button class="btn-secondary update-check-now" on:click=move |_| crate::update::check_now(ctx)>
-                    {move || t("update_check_now", lang())}
-                </button>
-            </div>
+            {if orgamnesia_core::Package::current() == orgamnesia_core::Package::Flatpak {
+                view! { <div class="setting-row"><span class="setting-hint">{move || t("update_flatpak", lang())}</span></div> }.into_any()
+            } else {
+                view! {
+                    <Check draft get=|p| p.check_updates set=|p, v| p.check_updates = v
+                        label="check_updates" hint="check_updates_hint" />
+                    <div class="setting-row setting-sub">
+                        <button class="btn-secondary update-check-now" on:click=move |_| crate::update::check_now(ctx)>
+                            {move || t("update_check_now", lang())}
+                        </button>
+                    </div>
+                }.into_any()
+            }}
             <hr class="setting-separator" />
             <div class="setting-row">
                 <label>{move || t("language", lang())}</label>

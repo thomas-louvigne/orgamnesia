@@ -15,6 +15,8 @@ fn failed(e: impl std::fmt::Display) -> AppError {
 /// this one is the latest. The update found is kept for `install_update`.
 #[tauri::command]
 pub async fn check_update(app: AppHandle, state: State<'_, AppState>) -> Cmd<Option<UpdateInfo>> {
+    // Flathub updates the app
+    if orgamnesia_core::Package::current() == orgamnesia_core::Package::Flatpak { return Ok(None); }
     let found = app.updater().map_err(failed)?.check().await.map_err(failed)?;
     let info = found.as_ref().map(|u| UpdateInfo {
         version: u.version.clone(),

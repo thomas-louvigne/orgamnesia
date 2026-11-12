@@ -178,6 +178,8 @@ pub struct Ui {
     pub show_git_identity: RwSignal<bool>,
     /// The new version offered, in its window.
     pub update: RwSignal<Option<UpdateInfo>>,
+    /// The new version found, even skipped or closed: told on the empty editor.
+    pub new_version: RwSignal<Option<UpdateInfo>>,
     /// The cheat sheet of the shortcuts (F1).
     pub show_shortcuts: RwSignal<bool>,
     /// The video played in the app: the address of the site's player, and the
@@ -275,6 +277,7 @@ impl AppCtx {
                 show_clone: RwSignal::new(false),
                 show_git_identity: RwSignal::new(false),
                 update: RwSignal::new(None),
+                new_version: RwSignal::new(None),
                 show_shortcuts: RwSignal::new(false),
                 video: RwSignal::new(None),
                 tag_add: RwSignal::new(false),

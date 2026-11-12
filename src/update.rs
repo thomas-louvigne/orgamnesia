@@ -2,12 +2,16 @@
 //! settings, and offered in a window with what changed, to install or not.
 
 use leptos::prelude::*;
+use orgamnesia_core::Package;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::{invoke, state::AppCtx};
 
 /// Where the versions are published, for the packages the app can't install itself.
 pub const RELEASES_URL: &str = "https://github.com/thomas-louvigne/orgamnesia/releases/latest";
+
+/// The command updating the AUR package, with an AUR helper.
+pub const AUR_COMMAND: &str = "yay -Syu orgamnesia";
 
 /// How long after the start the new version is looked for: the app is shown first.
 const AT_START_AFTER: std::time::Duration = std::time::Duration::from_secs(8);
@@ -16,9 +20,10 @@ const AT_START_AFTER: std::time::Duration = std::time::Duration::from_secs(8);
 /// the one the user skipped is not offered again. Says nothing otherwise (offline…).
 pub fn at_start(ctx: AppCtx) {
     set_timeout(move || {
-        if !ctx.pref_untracked(|p| p.check_updates) { return; }
+        if !ctx.pref_untracked(|p| p.check_updates) || Package::current() == Package::Flatpak { return; }
         spawn_local(async move {
             let Ok(Some(info)) = invoke::check_update().await else { return };
+            ctx.ui.new_version.set(Some(info.clone()));
             if ctx.pref_untracked(|p| p.skipped_update == info.version) { return; }
             ctx.ui.update.set(Some(info));
         });
@@ -32,6 +37,7 @@ pub fn check_now(ctx: AppCtx) {
         match invoke::check_update().await {
             Ok(Some(info)) => {
                 ctx.ui.status.set(None);
+                ctx.ui.new_version.set(Some(info.clone()));
                 ctx.ui.update.set(Some(info));
             }
             Ok(None) => ctx.notify_t("update_none", env!("CARGO_PKG_VERSION")),

@@ -33,6 +33,8 @@ build() {
   local triple=${CARCH^^}_UNKNOWN_LINUX_GNU
   export CARGO_TARGET_${triple}_RUSTFLAGS="$RUSTFLAGS"
   unset RUSTFLAGS
+  # The app tells about new versions with the AUR helper's command
+  export ORGAMNESIA_PACKAGE=aur
   # Builds the Leptos frontend with Trunk (beforeBuildCommand), then the
   # Tauri binary with the frontend embedded. No bundle: pacman packages it.
   cargo tauri build --no-bundle
