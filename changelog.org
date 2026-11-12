@@ -4,6 +4,12 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.5.0
+- New versions: on Arch Linux (AUR package), the new version window gives the command of your AUR helper to copy; the Flatpak app leaves its updates to Flathub and no longer looks for new versions.
+- New versions: a new version available is also told on the empty editor.
+- Shortcuts: the arrow keys are shown as arrows (←, →, ↑, ↓).
+- New description: a lightweight Obsidian, second brain and personal wiki, for Markdown and/or Emacs Org-mode notes.
+
 * 1.4.0
 - Commands: type > in quick open (Ctrl+K) to list every action of the app with its shortcut; Enter runs the one chosen.
 - Switch project from the keyboard: Ctrl+Alt+P (or C-x p p with the Emacs keys) opens the project menu; the arrows choose, Enter opens, Escape closes. When it opens, the rest of the window dims and the menu stands out.

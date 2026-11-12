@@ -4,6 +4,12 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.5.0
+- Nouvelles versions : sous Arch Linux (paquet AUR), la fenêtre de nouvelle version donne la commande de votre assistant AUR à copier ; l'application Flatpak laisse ses mises à jour à Flathub et ne cherche plus de nouvelles versions.
+- Nouvelles versions : une nouvelle version disponible est aussi signalée dans l'éditeur vide.
+- Raccourcis : les touches fléchées sont affichées en flèches (←, →, ↑, ↓).
+- Nouvelle description : un Obsidian léger, second cerveau et wiki personnel, pour des notes en Markdown et/ou en Org-mode d'Emacs.
+
 * 1.4.0
 - Commandes : tapez > dans l'ouverture rapide (Ctrl+K) pour lister toutes les actions de l'application avec leur raccourci ; Entrée lance celle choisie.
 - Changer de projet au clavier : Ctrl+Alt+P (ou C-x p p avec les raccourcis Emacs) ouvre le menu des projets ; les flèches choisissent, Entrée ouvre, Échap ferme. À l'ouverture, le reste de la fenêtre s'assombrit et le menu ressort.
