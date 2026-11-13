@@ -20,6 +20,9 @@ contribution.
 - *Your files, not ours.* =.org= and =.md= files in a folder you choose. No database,
   no account, no telemetry, no proprietary format. Emacs, Obsidian, git or your sync
   tool read them alongside.
+- *Sync with git, or anything else.* Your notes are a git repository if you want:
+  automatic commit, pull and push to sync them between your machines. Syncthing,
+  Nextcloud or Dropbox work too: a page changed elsewhere is reloaded.
 - *Org-mode or Markdown? Both.* They mix in a project, and =[​[Page]]= links work
   everywhere.
 - *A real wiki.* Links, backlinks, tags, completion. Rename a page: every link to it
@@ -68,6 +71,9 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 
 - *Editor*: highlighting, drawn tables, images and videos in the page, folding, TODO
   states, checkboxes, split view.
+- *Live preview* (optional): the markup (=*=, =/=, =**=, the brackets of links, the
+  stars of headlines) fades away as you type and comes back on the line of the
+  cursor. No split view, no toggling, and your files stay plain text.
 - *Links*: to a page, a headline or a target, with a preview on hover and the list of
   pages to create.
 - *Tags*: =#keywords= and =:tags:=, with combined search.

@@ -184,6 +184,17 @@ Can be turned off.
 Optional: only the last star of a headline shows, like Emacs'
 =org-hide-leading-stars=; the level reads as an indent.
 
+** Ligatures
+The editor's font draws =->= and ==>= as arrows, =!== as ≠… Each ligature keeps the
+width of its characters. On by default, they are turned off in Settings > Display, to
+see the page exactly as typed.
+
+** Live preview
+Optional (Settings > Display): the markup fades away, the stars and =#= of the
+headlines, =*bold*=, =/italic/=, =**bold**=, the brackets and target of the links. The
+text reads as rendered, and the markup comes back on the line of the cursor. It keeps
+its place: a =[[target][text]]= link leaves a blank before its text.
+
 ** Broken links
 A link that leads nowhere (a page that doesn't exist, a missing file or image) is
 drawn in red, with a ❌ in the margin of its line. On screen only: nothing is written

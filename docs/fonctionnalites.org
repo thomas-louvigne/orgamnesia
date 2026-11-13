@@ -191,6 +191,17 @@ ces espaces. Désactivable.
 En option, seule la dernière étoile d'un titre reste visible, comme
 =org-hide-leading-stars= d'Emacs : le niveau se lit comme un retrait.
 
+** Ligatures
+La police de l'éditeur dessine =->= et ==>= en flèches, =!== en ≠… Chaque ligature garde
+la largeur de ses caractères. Activées par défaut, elles se coupent dans Préférences >
+Affichage, pour voir la page exactement comme tapée.
+
+** Aperçu en direct
+En option (Préférences > Affichage), le balisage s'estompe : étoiles et =#= des titres,
+=*gras*=, =/italique/=, =**gras**=, crochets et cible des liens. Le texte se lit comme
+rendu, et le balisage réapparaît sur la ligne du curseur. Il garde sa place : un lien
+=[[cible][texte]]= laisse un blanc avant son texte.
+
 ** Liens cassés
 Un lien qui n'aboutit à rien (page inexistante, fichier ou image absents) est en
 rouge, et un ❌ est dessiné dans la marge de sa ligne. C'est un affichage seulement :

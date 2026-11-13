@@ -71,7 +71,7 @@ pub(super) fn inline_markup(chars: &[char], i: usize, d: &Draw) -> Option<(Strin
         let n = m.len();
         let inner: String = chars[i + n..i + len - n].iter().collect();
         let m: String = m.iter().collect();
-        let html = format!("<span class='{class}'>{m}{}{m}</span>", inline_html(&inner, d));
+        let html = format!("<span class='{class}'><span class='mk'>{m}</span>{}<span class='mk'>{m}</span></span>", inline_html(&inner, d));
         return Some((html, len));
     }
     None

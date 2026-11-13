@@ -543,6 +543,10 @@ kbd {
     font-variant-ligatures: none;
     font-feature-settings: "liga" 0, "calt" 0;
 }
+/* Ligatures on (the default): JetBrains Mono's keep the width of their characters, the
+   text stays on the textarea's columns. Not on headline stars: `***` would be redrawn */
+.editor-wrap.ligatures { font-variant-ligatures: normal; font-feature-settings: normal; }
+.editor-wrap.ligatures .h-stars { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 
 .hl-layer,
 .edit-layer {
@@ -798,6 +802,11 @@ kbd {
 /* org-hide-leading-stars: the stars before the last fade into the page, the level
    reads as an indent */
 .hide-stars .h-lead { opacity: 0.15; }
+/* Live preview: the markup (and the stars) fades away, except on the line of the caret.
+   Faded, not removed: it keeps its columns */
+.live :is(.mk, .h-stars) { opacity: 0.12; }
+.live .cur .mk { opacity: 1; }
+.live .cur .h-stars { opacity: 0.5; }
 /* TODO keywords (org-mode): no padding, the text must stay on the textarea's columns */
 .todo  { color: var(--red);   background: color-mix(in srgb, var(--red) 16%, transparent);   border-radius: 3px; }
 .done  { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); border-radius: 3px; }

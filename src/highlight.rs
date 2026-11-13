@@ -62,15 +62,17 @@ pub fn render_region(content: &str, start: usize, end: usize) -> String {
 /// `todo`: the TODO keywords drawn on headlines (`None` when they are off).
 /// With `broken`, telling the link targets that lead nowhere, those links are drawn
 /// as such and their lines get a mark in the margin.
+/// `current`: the line of the view wrapped in `<span class='cur'>`, where the
+/// markup (`mk`) stays visible in live preview.
 pub fn render_view(
     view: &crate::tables::View, tags: TagSyntax, todo: Option<TodoKeywords>, numbers: bool,
-    broken: Option<Broken>, format: Format,
+    broken: Option<Broken>, format: Format, current: Option<usize>,
 ) -> String {
     let d = Draw { todo, broken, ..Draw::new(format, tags) };
-    render_lines(view, numbers, &d)
+    render_lines(view, numbers, current, &d)
 }
 
-fn render_lines(view: &crate::tables::View, numbers: bool, d: &Draw) -> String {
+fn render_lines(view: &crate::tables::View, numbers: bool, current: Option<usize>, d: &Draw) -> String {
     let mut out = String::with_capacity(view.text.len() * 2);
     let lines: Vec<&str> = view.text.split('\n').collect();
     let heads = header_lines(&lines);
@@ -79,6 +81,14 @@ fn render_lines(view: &crate::tables::View, numbers: bool, d: &Draw) -> String {
     let mut page_line = 1;
     // Where the HTML of the line just drawn starts, to mark it if a link of it is broken
     let mut drawn: Option<usize> = None;
+    // Where the HTML of the current line starts, to wrap it once drawn (its `\n` left out)
+    let mut cur: Option<usize> = None;
+    let wrap_cur = |out: &mut String, from: Option<usize>| {
+        if let Some(from) = from {
+            out.insert_str(out.len() - 1, "</span>");
+            out.insert_str(from, "<span class='cur'>");
+        }
+    };
     let mark_broken = |out: &mut String, from: Option<usize>| {
         if let Some(from) = from && out[from..].contains("'link broken'") {
             out.insert_str(from, "<span class='broken-mark'></span>");
@@ -86,6 +96,8 @@ fn render_lines(view: &crate::tables::View, numbers: bool, d: &Draw) -> String {
     };
     for (n, line) in lines.iter().enumerate() {
         mark_broken(&mut out, drawn.take());
+        wrap_cur(&mut out, cur.take());
+        if current == Some(n) { cur = Some(out.len()); }
         let line = *line;
         // The lines below a collapsed table's first one are not lines of the page
         let fill = !line.is_empty() && line.chars().all(crate::tables::is_fill);
@@ -163,6 +175,7 @@ fn render_lines(view: &crate::tables::View, numbers: bool, d: &Draw) -> String {
         out.push('\n');
     }
     mark_broken(&mut out, drawn);
+    wrap_cur(&mut out, cur);
     out
 }
 
@@ -406,15 +419,15 @@ fn link_html(chars: &[char], f: &Found, d: &Draw) -> String {
                 .or_else(|| d.links().pipe.then(|| (f.start + 2..inner_end).find(|&j| chars[j] == '|').map(|j| (j, 1))).flatten());
             match split {
                 Some((j, n)) => (chars[f.start + 2..j].iter().collect::<String>(), format!(
-                    "[[<span class='link-t'>{}</span>{}<span class='link-d'>{}</span>]]",
+                    "<span class='mk'>[[<span class='link-t'>{}</span>{}</span><span class='link-d'>{}</span><span class='mk'>]]</span>",
                     text(f.start + 2, j), text(j, j + n), text(j + n, inner_end))),
                 None => (chars[f.start + 2..inner_end].iter().collect::<String>(),
-                    format!("[[<span class='link-t'>{}</span>]]", text(f.start + 2, inner_end))),
+                    format!("<span class='mk'>[[</span><span class='link-t'>{}</span><span class='mk'>]]</span>", text(f.start + 2, inner_end))),
             }
         }
         Kind::Markdown => {
             let close = (f.start + 1..f.end).find(|&j| chars[j] == ']' && chars.get(j + 1) == Some(&'(')).unwrap_or(f.start);
-            (String::new(), format!("[<span class='link-d'>{}</span>](<span class='link-t'>{}</span>)",
+            (String::new(), format!("<span class='mk'>[</span><span class='link-d'>{}</span><span class='mk'>](<span class='link-t'>{}</span>)</span>",
                 text(f.start + 1, close), text(close + 2, f.end - 1)))
         }
     };
@@ -436,7 +449,7 @@ fn try_em(chars: &[char], start: usize, delim: char, class: &str, d: &Draw) -> O
         if chars[i] == delim && !chars[i - 1].is_whitespace() && i > start + 1 {
             let inner: String = chars[start + 1..i].iter().collect();
             let html = format!(
-                "<span class='{class}'>{delim}{}{delim}</span>",
+                "<span class='{class}'><span class='mk'>{delim}</span>{}<span class='mk'>{delim}</span></span>",
                 inline_html(&inner, d)
             );
             return Some((html, i + 1 - start));
@@ -467,16 +480,16 @@ mod tests {
 
     fn md(text: &str) -> String {
         let v = crate::tables::View { text: text.to_string(), ..Default::default() };
-        render_view(&v, Hashtags::Off.into(), None, false, None, Format::Markdown)
+        render_view(&v, Hashtags::Off.into(), None, false, None, Format::Markdown, None)
     }
 
     #[test]
     fn markdown_is_highlighted() {
         let html = md("## Titre *it*\n**gras** et `co*de*` ~~barré~~\n> citation\n```\n# pas un titre\n```\n---");
         let lines: Vec<&str> = html.split('\n').collect();
-        assert!(lines[0].starts_with("<span class='h2'><span class='h-stars'><span class='h-lead'>#</span>#</span> Titre <span class='em-i'>*it*</span>"), "{}", lines[0]);
-        assert!(lines[1].contains("<span class='em-b'>**gras**</span>") && lines[1].contains("<span class='md-code'>`co*de*`</span>"));
-        assert!(lines[1].contains("<span class='em-s'>~~barré~~</span>"));
+        assert!(lines[0].starts_with("<span class='h2'><span class='h-stars'><span class='h-lead'>#</span>#</span> Titre <span class='em-i'><span class='mk'>*</span>it<span class='mk'>*</span></span>"), "{}", lines[0]);
+        assert!(lines[1].contains("<span class='em-b'><span class='mk'>**</span>gras<span class='mk'>**</span></span>") && lines[1].contains("<span class='md-code'>`co*de*`</span>"));
+        assert!(lines[1].contains("<span class='em-s'><span class='mk'>~~</span>barré<span class='mk'>~~</span></span>"));
         assert!(lines[2].starts_with("<span class='md-quote'>"));
         assert_eq!(lines[4], "<span class='md-code'># pas un titre</span>");
         assert_eq!(lines[6], "<span class='kw'>---</span>");
@@ -488,25 +501,34 @@ mod tests {
     }
 
     #[test]
+    fn current_line_is_wrapped() {
+        let v = crate::tables::View { text: "a\n*b*\nc".to_string(), ..Default::default() };
+        let html = render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org, Some(1));
+        assert_eq!(html.split('\n').collect::<Vec<_>>(), ["a", "<span class='cur'><span class='em-b'><span class='mk'>*</span>b<span class='mk'>*</span></span></span>", "c", ""]);
+        // The last line, without a newline of its own in the page
+        assert!(render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org, Some(2)).ends_with("<span class='cur'>c</span>\n"));
+    }
+
+    #[test]
     fn extended_links_are_drawn() {
         let html = md("[[Page|texte]] [lien](Ma%20page.md) [[Simple]]");
-        assert!(html.contains("<span class='link'>[[<span class='link-t'>Page</span>|<span class='link-d'>texte</span>]]</span>"), "{html}");
-        assert!(html.contains("<span class='link' data-t='Ma page.md'>[<span class='link-d'>lien</span>](<span class='link-t'>Ma%20page.md</span>)</span>"), "{html}");
-        assert!(html.contains("<span class='link'>[[<span class='link-t'>Simple</span>]]</span>"));
+        assert!(html.contains("<span class='link'><span class='mk'>[[<span class='link-t'>Page</span>|</span><span class='link-d'>texte</span><span class='mk'>]]</span></span>"), "{html}");
+        assert!(html.contains("<span class='link' data-t='Ma page.md'><span class='mk'>[</span><span class='link-d'>lien</span><span class='mk'>](<span class='link-t'>Ma%20page.md</span>)</span></span>"), "{html}");
+        assert!(html.contains("<span class='link'><span class='mk'>[[</span><span class='link-t'>Simple</span><span class='mk'>]]</span></span>"));
     }
 
     #[test]
     fn broken_links_are_marked_in_the_margin() {
         let page = "a [[Existe]]\nb [[Absente]] et [[Existe]]\n[[x]]";
         let v = crate::tables::View::build(page, None, 80, |_| 1, |_, _, _| None, true, false, &[]);
-        let html = render_view(&v, Hashtags::Off.into(), None, false, Some(Box::new(|t: &str| t != "Existe")), Format::Org);
+        let html = render_view(&v, Hashtags::Off.into(), None, false, Some(Box::new(|t: &str| t != "Existe")), Format::Org, None);
         let lines: Vec<&str> = html.split('\n').collect();
         assert!(!lines[0].contains("broken"));
         assert!(lines[1].starts_with("<span class='broken-mark'></span>b "));
-        assert!(lines[1].contains("<span class='link broken'>[[<span class='link-t'>Absente"));
+        assert!(lines[1].contains("<span class='link broken'><span class='mk'>[[</span><span class='link-t'>Absente"));
         assert!(lines[2].starts_with("<span class='broken-mark'>"));
         // Not marked when not asked
-        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org).contains("broken"));
+        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org, None).contains("broken"));
     }
 
     #[test]
@@ -556,7 +578,7 @@ mod tests {
     fn bold_rendered() {
         let html = inline_html("say *hello* now", &dr());
         assert!(html.contains("em-b"));
-        assert!(html.contains("*hello*"));
+        assert!(html.contains("<span class='mk'>*</span>hello<span class='mk'>*</span>"));
     }
 
     #[test]
@@ -590,10 +612,10 @@ mod tests {
     fn link_inside_emphasis_rendered() {
         for s in ["*[[test]]*", "/[[test]]/", "_voir [[a/b][c]]_", "/[[a/b]]/"] {
             let html = inline_html(s, &dr());
-            assert!(html.contains("<span class='link'>[[<span class='link-t'>"), "{s}: {html}");
+            assert!(html.contains("<span class='link'><span class='mk'>[["), "{s}: {html}");
         }
-        assert!(inline_html("/[[a/b]]/", &dr()).starts_with("<span class='em-i'>/"));
-        assert!(inline_html("*gras /et italique/*", &dr()).contains("<span class='em-i'>/et italique/</span>*</span>"));
+        assert!(inline_html("/[[a/b]]/", &dr()).starts_with("<span class='em-i'><span class='mk'>/"));
+        assert!(inline_html("*gras /et italique/*", &dr()).contains("<span class='em-i'><span class='mk'>/</span>et italique<span class='mk'>/</span></span><span class='mk'>*</span></span>"));
     }
 
     #[test]
@@ -613,11 +635,11 @@ mod tests {
     #[test]
     fn org_tags_in_text_drawn_as_links() {
         let v = crate::tables::View { text: "voir :ex: à 10:30:".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
-        let html = render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org);
+        let html = render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org, None);
         assert!(html.contains(":<span class='tag-t'>ex</span>:"));
         assert!(!html.contains("30</span>"));
         let off = TagSyntax { hashtags: Hashtags::Off, org: OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
-        assert!(!render_view(&v, off, None, false, None, Format::Org).contains("tag-t"));
+        assert!(!render_view(&v, off, None, false, None, Format::Org, None).contains("tag-t"));
     }
 
     #[test]
@@ -625,10 +647,10 @@ mod tests {
         // A collapsed table of 3 rows takes 4 lines of the view, numbered as its 3 lines
         let page = "a\n| x |\n|---|\n| y |\nb";
         let v = crate::tables::View::build(page, None, 80, |_| 4, |_, _, _| None, true, false, &[]);
-        let html = render_view(&v, Hashtags::Off.into(), None, true, None, Format::Org);
+        let html = render_view(&v, Hashtags::Off.into(), None, true, None, Format::Org, None);
         let nums: Vec<&str> = html.split("<span class='ln'>").skip(1).map(|s| &s[..s.find('<').unwrap()]).collect();
         assert_eq!(nums, vec!["1", "2", "5"]);
-        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org).contains("class='ln'"));
+        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org, None).contains("class='ln'"));
     }
 
     #[test]
@@ -641,18 +663,18 @@ mod tests {
     fn todo_keywords_on_headlines() {
         let v = crate::tables::View { text: "** TODO a :x:\n* DONE b\n* TODOS c".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
         let kw = Some(TodoKeywords::parse("TODO | DONE"));
-        let html = render_view(&v, Hashtags::Off.into(), kw, false, None, Format::Org);
+        let html = render_view(&v, Hashtags::Off.into(), kw, false, None, Format::Org, None);
         assert!(html.contains("<span class='h-stars'><span class='h-lead'>*</span>*</span> <span class='todo'>TODO</span> a <span class='tags'>"));
         assert!(html.contains("<span class='h1 h-done'><span class='h-stars'>*</span> <span class='done'>DONE</span> b"));
         assert!(!html.contains("TODOS</span>"));
         // Off: plain titles
-        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org).contains("class='todo'"));
+        assert!(!render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org, None).contains("class='todo'"));
     }
 
     #[test]
     fn table_header_bold_while_edited() {
         let v = crate::tables::View { text: "x\n| a | b |\n|---+---|\n| c | d |".into(), tables: vec![], width: 80, indents: vec![], folds: vec![] };
-        let html = render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org);
+        let html = render_view(&v, Hashtags::Off.into(), None, false, None, Format::Org, None);
         assert!(html.contains("<span class='tbl tbl-head'>| a | b |</span>"));
         assert!(!html.contains("tbl-head'>| c"));
     }
