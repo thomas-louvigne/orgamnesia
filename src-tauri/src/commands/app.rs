@@ -115,9 +115,12 @@ fn runnable(p: &std::path::Path) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if p.is_file() && std::fs::metadata(p).is_ok_and(|m| m.permissions().mode() & 0o111 != 0) { return true; }
+        p.is_file() && std::fs::metadata(p).is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
     }
-    false
+    #[cfg(not(unix))]
+    {
+        false
+    }
 }
 
 /// Of `paths`, those that are neither files nor folders on the disk (`~/`: the home
