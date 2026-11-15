@@ -4,6 +4,9 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.6.1
+- Windows: the build no longer fails on a code check.
+
 * 1.6.0
 - Journal: an extension, off by default (Settings > Extensions). Ctrl+Shift+J (or C-c j with the Emacs keys), or the quick open command, opens today's page, named by its date, and creates it the first time.
 - Back / forward arrows around the page title, as in a browser: ← goes back to the file opened before, → forward to the next one; each shows only when there is a file that way, and its tooltip gives the shortcut (Alt+← / Alt+→). Hidden in Settings > Display.
