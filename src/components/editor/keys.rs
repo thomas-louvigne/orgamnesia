@@ -175,11 +175,13 @@ fn view_keys(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) -> bool {
 
 /// Auto-pairing / electric wrapping: without a selection, ( [ { and " insert
 /// their closing character too; with a selection, electric mode wraps it in the
-/// typed pair. True when the key did so.
+/// typed pair, or in emphasis markers (`*gras*`) when the settings say so. True when the key did so.
 fn auto_pair(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) -> bool {
     let key = e.key();
     let (start, end) = get_pos(el);
-    let Some((open, close)) = edit::pair_of(&key) else { return false };
+    let emphasis = || (start != end && pane.ctx.pref_untracked(|p| p.electric_emphasis))
+        .then(|| edit::emphasis_pair(&key, pane.fmt())).flatten();
+    let Some((open, close)) = edit::pair_of(&key).or_else(emphasis) else { return false };
     if start != end {
         if !pane.ctx.pref_untracked(|p| p.electric_mode) { return false; }
         e.prevent_default();

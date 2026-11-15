@@ -112,6 +112,8 @@ pub struct Config {
     pub shortcut_tips: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
     pub electric_mode: Option<bool>,
+    /// With electric mode, typing an emphasis marker (`* / _`) around a selection wraps it.
+    pub electric_emphasis: Option<bool>,
     /// Save the active page on every change.
     pub autosave: Option<bool>,
     /// On quit, delete pages with no text: only spaces, tabs or `*`.
@@ -131,6 +133,8 @@ pub struct Config {
     pub show_brand: Option<bool>,
     /// Title of the page (its `#+TITLE:`, or its name) in large type above the editor.
     pub show_page_title: Option<bool>,
+    /// Back / forward arrows around the page title.
+    pub show_page_nav: Option<bool>,
     /// Quit button.
     pub show_quit_button: Option<bool>,
     /// Line numbers in the margin of the editor.
@@ -272,6 +276,7 @@ pub struct Prefs {
     pub restore_session: bool,
     pub show_brand: bool,
     pub show_page_title: bool,
+    pub show_page_nav: bool,
     pub show_quit_button: bool,
     pub show_line_numbers: bool,
     pub show_pages: bool,
@@ -335,6 +340,7 @@ pub struct Prefs {
     pub webkit_emoji_shortcuts: bool,
     pub shortcut_tips: bool,
     pub electric_mode: bool,
+    pub electric_emphasis: bool,
 }
 
 impl Default for Prefs {
@@ -366,6 +372,7 @@ impl Prefs {
             restore_session: s.restore_session.unwrap_or(true),
             show_brand: s.show_brand.unwrap_or(true),
             show_page_title: s.show_page_title.unwrap_or(true),
+            show_page_nav: s.show_page_nav.unwrap_or(true),
             show_quit_button: s.show_quit_button.unwrap_or(true),
             show_line_numbers: s.show_line_numbers.unwrap_or(false),
             show_pages: s.show_pages.unwrap_or(true),
@@ -425,6 +432,7 @@ impl Prefs {
             webkit_emoji_shortcuts: s.webkit_emoji_shortcuts.unwrap_or(true),
             shortcut_tips: s.shortcut_tips.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
+            electric_emphasis: s.electric_emphasis.unwrap_or(true),
         }
     }
 
@@ -462,6 +470,7 @@ impl Prefs {
             webkit_emoji_shortcuts: Some(self.webkit_emoji_shortcuts),
             shortcut_tips: Some(self.shortcut_tips),
             electric_mode: Some(self.electric_mode),
+            electric_emphasis: Some(self.electric_emphasis),
             autosave: Some(self.autosave),
             delete_empty_pages: Some(self.delete_empty),
             delete_title_only_pages: Some(self.delete_title_only),
@@ -471,6 +480,7 @@ impl Prefs {
             restore_session: Some(self.restore_session),
             show_brand: Some(self.show_brand),
             show_page_title: Some(self.show_page_title),
+            show_page_nav: Some(self.show_page_nav),
             theme: Some(self.theme.clone()),
             show_quit_button: Some(self.show_quit_button),
             show_line_numbers: Some(self.show_line_numbers),

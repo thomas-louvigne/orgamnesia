@@ -324,9 +324,10 @@ impl Images {
             self.pane.ctx.notify_t("video_macro_warning", "");
         }
         self.on_cross.set_value(cross);
+        let link = hit.is_none() && super::preview::over_link(&wrap, e.client_x() as f64, e.client_y() as f64);
         self.hovered.set_value(hit.map(|(b, ..)| b));
         if let Some(el) = self.pane.area.get_untracked() {
-            let cursor = if corner { "nwse-resize" } else if video { "pointer" } else { "" };
+            let cursor = if corner { "nwse-resize" } else if video || link { "pointer" } else { "" };
             let _ = web_sys::HtmlElement::style(&el).set_property("cursor", cursor);
         }
     }

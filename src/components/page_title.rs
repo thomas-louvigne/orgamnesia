@@ -73,6 +73,11 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
                 if !fixed { menu.set(Some((e.client_x(), e.client_y()))); }
             }
         >
+            // Back / forward in the pages visited, as in a browser: only when there is one
+            {move || (ctx.pref(|p| p.show_page_nav) && !ctx.work.history_back.with(Vec::is_empty)).then(|| view! {
+                <button class="page-nav" title=move || ctx.with_shortcut("shortcut_page_back", "page_back")
+                    on:click=move |_| actions::history_step(ctx, true)>"←"</button>
+            })}
             {move || if editing.get().is_some() {
                 let commit_blur = commit.clone();
                 let commit_key = commit.clone();
@@ -103,6 +108,10 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
                     </h1>
                 }.into_any()
             }}
+            {move || (ctx.pref(|p| p.show_page_nav) && !ctx.work.history_forward.with(Vec::is_empty)).then(|| view! {
+                <button class="page-nav" title=move || ctx.with_shortcut("shortcut_page_forward", "page_forward")
+                    on:click=move |_| actions::history_step(ctx, false)>"→"</button>
+            })}
             {move || menu.get().map(|(x, y)| {
                 let start_rename = start_rename.clone();
                 let start_title = start.clone();

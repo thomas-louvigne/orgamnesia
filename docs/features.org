@@ -208,7 +208,8 @@ Up and down arrows (or Ctrl+N / Ctrl+P) to choose, Enter or Tab to accept, Escap
 ** Pairs and electric mode
 - Typing =(=, =[=, ={= or ="= also inserts the closing character.
 - Electric mode (on by default): typing =( ) [ ] { } " '= on selected text wraps it in
-  the pair.
+  the pair. Option (on by default): also =* / _= for bold, italic and underline in
+  org-mode; =* _= in Markdown (italic, =*= twice for bold).
 
 ** Emphasis
 Bold, italic, underline and strikethrough by shortcut: on a selection, wraps it in
@@ -1005,7 +1006,9 @@ The explanations under a setting are in italics.
 - Appearance: page title, line numbers, headline stars hidden but the last, the text
   of links brought out (in bold, the target dimmed).
 - Images: show them, and the format of their size (org-mode or Logseq).
-- Frames around the editor: which are shown, in which column and in which order
+
+** Frames
+- The frames around the editor: which are shown, in which column and in which order
   (see [[#left-and-right-columns][Left and right columns]]).
 
 ** Themes

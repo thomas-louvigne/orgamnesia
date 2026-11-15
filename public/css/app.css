@@ -439,10 +439,18 @@ select.git-branch option { background: var(--bg2); color: var(--fg); font-weight
     .caret-ping, .caret-ping::after { animation-duration: .01s; animation-delay: .6s; }
 }
 /* Title of the page shown, in large type above the editor */
-.page-title { flex-shrink: 0; padding: 14px 24px 0; min-width: 0; }
+.page-title { flex-shrink: 0; padding: 14px 24px 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; }
+.page-title-text { flex: 0 1 auto; min-width: 0; }
+.page-title-input { flex: 1; min-width: 0; }
+/* Back / forward arrows around the title */
+.page-nav {
+    background: none; border: none; padding: 0 4px; border-radius: 4px; cursor: pointer;
+    color: var(--fg-dim); font-size: var(--fs-display); line-height: 1.25; flex-shrink: 0;
+}
+.page-nav:hover { color: var(--fg); background: var(--bg3); }
 /* Grey bar separating the title from the text, across the pane */
 .page-title::after {
-    content: ""; display: block; height: 1px; margin-top: 8px;
+    content: ""; display: block; flex-basis: 100%; height: 1px; margin-top: 8px;
     background: var(--border);
 }
 /* The page title: the one display voice of the app, in Literata */

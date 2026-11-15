@@ -4,6 +4,17 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.6.0
+- Journal: an extension, off by default (Settings > Extensions). Ctrl+Shift+J (or C-c j with the Emacs keys), or the quick open command, opens today's page, named by its date, and creates it the first time.
+- Back / forward arrows around the page title, as in a browser: ← goes back to the file opened before, → forward to the next one; each shows only when there is a file that way, and its tooltip gives the shortcut (Alt+← / Alt+→). Hidden in Settings > Display.
+- Electric mode: typing * / or _ on selected text makes it bold, italic or underlined in org-mode; in Markdown, * or _ makes it italic, * twice bold. Turned off in Settings > Editing.
+- Links: the mouse pointer becomes a hand over a link, a #tag or a :tag:.
+- Display: an option brings out the text of [[target][text]] links: the text in bold, the target dimmed and underlined. The colours are theme variables (--link-target, --link-text, --link-text-weight).
+- Settings: the frames around the editor have their own tab, Frames.
+- Git: the Pull button is greyed out when there is nothing to pull.
+- Tabs: with auto-save, the dot of unsaved changes no longer flickers on each keystroke.
+- Editor: the highlighting, caret and spelling marks stay lined up with the text after a split or a redraw.
+
 * 1.5.0
 - New versions: on Arch Linux (AUR package), the new version window gives the command of your AUR helper to copy; the Flatpak app leaves its updates to Flathub and no longer looks for new versions.
 - New versions: a new version available is also told on the empty editor.

@@ -215,7 +215,9 @@ Flèches haut et bas (ou Ctrl+N / Ctrl+P) pour choisir, Entrée ou Tab pour acce
 ** Paires et mode électrique
 - Taper =(=, =[=, ={= ou ="= insère aussi le caractère fermant.
 - Mode électrique (activé par défaut) : taper =( ) [ ] { } " '= sur un texte
-  sélectionné l'entoure de la paire.
+  sélectionné l'entoure de la paire. Option (activée par défaut) : aussi =* / _=
+  pour le gras, l'italique et le souligné en org-mode ; =* _= en Markdown (italique,
+  =*= deux fois pour le gras).
 
 ** Mise en forme
 Gras, italique, souligné et barré par raccourci : sur une sélection, l'entoure
@@ -1059,7 +1061,9 @@ qui restent telles quelles. « Appliquer » enregistre les changements sans ferm
 - Apparence : titre de la page, numéros de ligne, étoiles des titres masquées sauf
   la dernière, texte des liens mis en avant (en gras, la cible estompée).
 - Images : les afficher, et le format de leur taille (org-mode ou Logseq).
-- Cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans
+
+** Cadres
+- Les cadres autour de l'éditeur : lesquels sont affichés, dans quelle colonne et dans
   quel ordre (voir [[#colonnes-de-gauche-et-de-droite][Colonnes de gauche et de droite]]).
 
 ** Thèmes

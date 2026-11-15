@@ -274,6 +274,17 @@ pub fn pair_of(key: &str) -> Option<(&'static str, &'static str)> {
     }
 }
 
+/// The emphasis markers electric mode wraps a selection in: `* / _` in org-mode
+/// (bold, italic, underline), `* _` in Markdown (typing `*` twice gives bold).
+pub fn emphasis_pair(key: &str, format: orgamnesia_core::Format) -> Option<(&'static str, &'static str)> {
+    match (key, format) {
+        ("*", _) => Some(("*", "*")),
+        ("_", _) => Some(("_", "_")),
+        ("/", orgamnesia_core::Format::Org) => Some(("/", "/")),
+        _ => None,
+    }
+}
+
 /// Typing this character with no selection also inserts its closing one.
 pub fn auto_closes(key: &str) -> bool {
     matches!(key, "(" | "[" | "{" | "\"")
@@ -705,6 +716,10 @@ mod tests {
         assert_eq!(pair_of(")"), Some(("(", ")")));
         assert_eq!(pair_of("a"), None);
         assert!(auto_closes("[") && !auto_closes("'") && !auto_closes(")"));
+        use orgamnesia_core::Format::{Markdown, Org};
+        assert_eq!(emphasis_pair("/", Org), Some(("/", "/")));
+        assert_eq!(emphasis_pair("/", Markdown), None);
+        assert_eq!(emphasis_pair("_", Markdown), Some(("_", "_")));
     }
 
     #[test]

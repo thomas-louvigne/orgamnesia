@@ -145,6 +145,19 @@ impl Preview {
     }
 }
 
+/// Whether a link, #tag or :tag: (what Ctrl+Click follows) is drawn under the
+/// point `x`, `y` of the window in the editor `wrap`.
+pub fn over_link(wrap: &web_sys::Element, x: f64, y: f64) -> bool {
+    let Ok(found) = wrap.query_selector_all(".hl-layer .link, .hl-layer .tag-t") else { return false };
+    (0..found.length())
+        .filter_map(|i| found.item(i)?.dyn_into::<web_sys::Element>().ok())
+        .any(|el| {
+            let rects = el.get_client_rects();
+            (0..rects.length()).filter_map(|i| rects.item(i))
+                .any(|r| r.left() <= x && x <= r.right() && r.top() <= y && y <= r.bottom())
+        })
+}
+
 /// The target of the link drawn under the point `x`, `y` of the window in the
 /// editor `wrap`, with the box of the link; only links to pages or to a place in one.
 fn link_at(wrap: &web_sys::Element, x: f64, y: f64) -> Option<(String, web_sys::DomRect)> {

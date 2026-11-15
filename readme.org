@@ -130,6 +130,9 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Aliases (=#+ALIAS:=, Logseq's =alias::=): a page answering to several names
 - [ ] Bring notes back: a random page, orphan pages (no link at all), what was written a year ago
 - [ ] Page templates: a skeleton to choose when creating a page (character, quest, meeting…)
+- [ ] Terminal in the editor
+- [ ] Folders and subfolders in the notes
+- [ ] Footnotes
 
 * License
 

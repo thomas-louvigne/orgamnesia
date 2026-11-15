@@ -134,6 +134,9 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [ ] Alias (=#+ALIAS:=, =alias::= de Logseq) : une page qui répond à plusieurs noms
 - [ ] Faire remonter les notes : une page au hasard, les pages orphelines (sans aucun lien), ce qui était écrit il y a un an
 - [ ] Modèles de page : un squelette à choisir en créant une page (personnage, quête, réunion…)
+- [ ] Terminal dans l'éditeur
+- [ ] Dossiers et sous-dossiers dans les notes
+- [ ] Notes de bas de page
 
 * Licence
 
