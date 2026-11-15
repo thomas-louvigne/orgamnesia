@@ -77,6 +77,7 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
   remplacement dans tout le projet (Ctrl+Maj+F), historique des pages, changement de
   projet au clavier.
 - *Graphe* (bêta) : les pages et leurs liens en 3D.
+- *Journal* : une page par jour, nommée par sa date (=2026-11-15=). Un raccourci ouvre celle d'aujourd'hui, et la crée si elle n'existe pas encore.
 - *Cadres* : pages, liens entrants, tags, à faire, git, astuces… placés où vous voulez.
 - *Thèmes* : Nuit, Jour, Fjord, Papier, Dracula, ou le vôtre en un fichier CSS.
 - *Export* d'une page en PDF ou en HTML, *site statique* avec
@@ -123,13 +124,16 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 
 - [ ] Tester la version Windows
 - [ ] Tester sur macOS
-- [ ] Paquet dans l'AUR pour Arch Linux
 - [ ] Paquet dans les dépôts Debian
 - [ ] Raccourcis clavier vi
 - [ ] Second cerveau avec l'IA : un modèle de =CLAUDE.md= à poser dans un projet, pour qu'un agent (Claude Code…) comprenne les pages, les liens, les tags et les TODO
 - [ ] Serveur MCP : chercher, lire, rétroliens, tags, TODO et créer des pages depuis Claude Desktop, Claude Code ou un autre client
 - [ ] Mentions non liées : les pages qui citent la page ouverte sans lien, avec un bouton pour lier
 - [ ] Capture rapide dans une page Inbox, et une revue de la semaine (pages modifiées, TODO ouverts)
+- [ ] Agenda : les =SCHEDULED:= et =DEADLINE:= des pages, par date, dans un cadre
+- [ ] Alias (=#+ALIAS:=, =alias::= de Logseq) : une page qui répond à plusieurs noms
+- [ ] Faire remonter les notes : une page au hasard, les pages orphelines (sans aucun lien), ce qui était écrit il y a un an
+- [ ] Modèles de page : un squelette à choisir en créant une page (personnage, quête, réunion…)
 
 * Licence
 

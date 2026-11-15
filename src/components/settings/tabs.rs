@@ -289,6 +289,9 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <hr class="setting-separator" />
             <Check draft get=|p| p.graph set=|p, v| p.graph = v
                 label="graph_enabled" hint="graph_hint" shortcut="graph" />
+            <hr class="setting-separator" />
+            <Check draft get=|p| p.journal set=|p, v| p.journal = v
+                label="journal_enabled" hint="journal_hint" shortcut="journal" />
         </div>
     }
 }

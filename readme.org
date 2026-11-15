@@ -74,6 +74,7 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 - *Navigation*: quick open, every command with =>= in it, project-wide search and
   replace (Ctrl+Shift+F), page history, switching project from the keyboard.
 - *Graph* (beta): the pages and their links in 3D.
+- *Journal*: a page for each day, named by its date (=2026-11-15=). A shortcut opens today's page, and creates it if it doesn't exist yet.
 - *Frames*: pages, backlinks, tags, to do, git, tips… placed where you want.
 - *Themes*: Night, Day, Fjord, Paper, Dracula, or your own in one CSS file.
 - *Export* of a page as PDF or HTML, *static site* with
@@ -119,13 +120,16 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 
 - [ ] Test on Windows
 - [ ] Test on macOS
-- [ ] Package in the AUR for Arch Linux
 - [ ] Package in the Debian repositories
 - [ ] Vi keybindings
 - [ ] Second brain with AI: a =CLAUDE.md= template to put in a project, so an agent (Claude Code…) understands the pages, links, tags and TODOs
 - [ ] MCP server: search, read, backlinks, tags, TODOs and page creation from Claude Desktop, Claude Code or another client
 - [ ] Unlinked mentions: the pages naming the open page without a link, with a button to link them
 - [ ] Quick capture into an Inbox page, and a weekly review (pages changed, open TODOs)
+- [ ] Agenda: the =SCHEDULED:= and =DEADLINE:= of the pages, by date, in a frame
+- [ ] Aliases (=#+ALIAS:=, Logseq's =alias::=): a page answering to several names
+- [ ] Bring notes back: a random page, orphan pages (no link at all), what was written a year ago
+- [ ] Page templates: a skeleton to choose when creating a page (character, quest, meeting…)
 
 * License
 

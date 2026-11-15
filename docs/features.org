@@ -676,6 +676,7 @@ profile gets those of the actions it didn't know.
 | Export the page as PDF      | Ctrl+P           | Ctrl+C Ctrl+E L P         |
 | Export the page as HTML     | Ctrl+Shift+E     | Ctrl+C Ctrl+E H H         |
 | Graph of the pages (beta)   | Ctrl+Shift+M     | Ctrl+C G                  |
+| Page of the day (journal)   | Ctrl+Shift+J     | Ctrl+C J                  |
 
 *** Editor
 | Action                         | Classic             | Emacs                         |
@@ -852,6 +853,15 @@ in Settings > Spelling, which also tells how to install a dictionary when none i
   Your own words are kept in =dictionary.txt=, in the settings folder.
 - *Next misspelled word*: F7 in Classic, Ctrl+, in Emacs (as =flyspell-goto-next-error=).
 
+** Journal
+A page for each day, to write without wondering where it goes. Off by default:
+turn it on in Settings > Extensions.
+
+- *Page of the day*: Ctrl+Shift+J in Classic, Ctrl+C J in Emacs, or the "Page of the
+  day" command of quick open.
+- It is named by its date, =2026-11-15=, and created the first time in the format of
+  new pages; it is a page like the others (links, tags, backlinks).
+
 ** Graph (beta)
 The pages of the project and the links between them, drawn in 3D in the main area.
 Off by default: offered on the first run, or in Settings > Extensions. This
@@ -1009,6 +1019,7 @@ The explanations under a setting are in italics.
   pushed, commit and push by default, the commit message proposed, the automatic
   sync and the sync on quitting.
 - The graph of the pages (beta, see [[#graph-beta][Graph]]).
+- The journal, a page for each day (see [[#journal][Journal]]).
 
 ** Spelling
 - Underline the misspelled words.

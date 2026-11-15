@@ -101,6 +101,11 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
             ctx.close_panels();
             ctx.ui.show_graph.set(true);
         },
+        AppAction::Journal => if !ctx.pref_untracked(|p| p.journal) {
+            ctx.notify_t("journal_off", "");
+        } else {
+            actions::open_journal(ctx);
+        },
         // The menu lives in the project frame
         AppAction::SwitchProject => if !ctx.pref_untracked(|p| p.frame_shown(orgamnesia_core::Frame::Project)) {
             ctx.notify_t("project_frame_off", "");

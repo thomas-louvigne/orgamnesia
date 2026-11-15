@@ -707,6 +707,7 @@ connaissait pas.
 | Exporter la page en PDF     | Ctrl+P           | Ctrl+C Ctrl+E L P         |
 | Exporter la page en HTML    | Ctrl+Maj+E       | Ctrl+C Ctrl+E H H         |
 | Graphe des pages (bêta)     | Ctrl+Maj+M       | Ctrl+C G                  |
+| Page du jour (journal)      | Ctrl+Maj+J       | Ctrl+C J                  |
 
 *** Éditeur
 | Action                       | Classique          | Emacs                       |
@@ -899,6 +900,16 @@ dictionnaire quand aucun n'est trouvé.
   Vos mots sont gardés dans =dictionary.txt=, dans le dossier des réglages.
 - *Faute suivante* : F7 en Classique, Ctrl+, en Emacs (comme =flyspell-goto-next-error=).
 
+** Journal
+Une page par jour, pour noter sans se demander où ranger. Désactivé par défaut :
+à activer dans Préférences > Extensions.
+
+- *Page du jour* : Ctrl+Maj+J en Classique, Ctrl+C J en Emacs, ou la commande
+  « Page du jour » de l'ouverture rapide.
+- Elle est nommée par sa date, =2026-11-15=, et créée la première fois dans le
+  format des nouvelles pages ; c'est une page comme les autres (liens, tags,
+  rétroliens).
+
 ** Graphe (bêta)
 Les pages du projet et les liens entre elles, dessinés en 3D dans la zone principale.
 Désactivé par défaut : proposé au premier lancement, ou dans Préférences >
@@ -1062,6 +1073,7 @@ qui restent telles quelles. « Appliquer » enregistre les changements sans ferm
   marqueur des pages non poussées, commit et push par défaut, le message de commit
   proposé, la synchronisation automatique et celle en quittant.
 - Le graphe des pages (bêta, voir Graphe plus haut).
+- Le journal, une page par jour (voir Journal plus haut).
 
 ** Orthographe
 - Souligner les fautes d'orthographe.

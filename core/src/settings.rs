@@ -178,6 +178,8 @@ pub struct Config {
     pub graph_enabled: Option<bool>,
     /// Graph button (when the extension is on).
     pub show_graph: Option<bool>,
+    /// Journal extension: a shortcut opens the page of the day, named by its date.
+    pub journal_enabled: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
     pub git_ssh_key: Option<String>,
     /// Git extension: every so many minutes, commit the changes, pull and push
@@ -290,6 +292,7 @@ pub struct Prefs {
     pub git_ext: bool,
     pub graph: bool,
     pub show_graph: bool,
+    pub journal: bool,
     pub git_ssh_key: String,
     /// See `Settings::git_auto_sync_minutes`.
     pub git_auto_sync: u64,
@@ -382,6 +385,7 @@ impl Prefs {
             git_ext: s.git_status_enabled.unwrap_or(true),
             graph: s.graph_enabled.unwrap_or(false),
             show_graph: s.show_graph.unwrap_or(true),
+            journal: s.journal_enabled.unwrap_or(false),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
             git_auto_sync: s.git_auto_sync_minutes.unwrap_or(0),
             git_sync_on_quit: s.git_sync_on_quit.unwrap_or(false),
@@ -488,6 +492,7 @@ impl Prefs {
             git_status_enabled: Some(self.git_ext),
             graph_enabled: Some(self.graph),
             show_graph: Some(self.show_graph),
+            journal_enabled: Some(self.journal),
             git_ssh_key: some(&self.git_ssh_key),
             git_auto_sync_minutes: Some(self.git_auto_sync),
             git_sync_on_quit: Some(self.git_sync_on_quit),
