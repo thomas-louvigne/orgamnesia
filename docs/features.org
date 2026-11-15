@@ -927,6 +927,9 @@ The colours are CSS variables of =:root=:
 | =--accent=                | fills of buttons, selection, the status bar (white text on it) |
 | =--accent2=               | interactive text, focus, the selected item              |
 | =--link=                  | links in the page                                       |
+| =--link-target=           | with /Bring out the text of links/: a link's target and brackets (=--fg-dim=) |
+| =--link-text=             | with /Bring out the text of links/: a link's text (=--link=) |
+| =--link-text-weight=      | with /Bring out the text of links/: its weight (=bold=)  |
 | =--red= =--orange= =--yellow= =--green= =--cyan= =--purple= | headline levels, TODO states, tags, tables, errors, diffs |
 
 Add =color-scheme: light;= or =color-scheme: dark;= in =:root= so that the native
@@ -989,7 +992,8 @@ The explanations under a setting are in italics.
 - Trash: empty it, empty it automatically, maximum time and size.
 
 ** Display
-- Appearance: page title, line numbers, headline stars hidden but the last.
+- Appearance: page title, line numbers, headline stars hidden but the last, the text
+  of links brought out (in bold, the target dimmed).
 - Images: show them, and the format of their size (org-mode or Logseq).
 - Frames around the editor: which are shown, in which column and in which order
   (see [[#left-and-right-columns][Left and right columns]]).

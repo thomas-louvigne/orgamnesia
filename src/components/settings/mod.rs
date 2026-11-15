@@ -69,7 +69,7 @@ fn reset_tab(tab: Tab, p: &mut Prefs, d: Prefs) {
         Tab::Editing => take!(autosave, electric_mode, find_match_case, indent_headings, tab_folds, todo_enabled,
             todo_keywords, delete_empty, delete_title_only, trash_auto_empty, trash_keep_days, trash_max_bytes),
         Tab::Display => take!(show_page_title, show_line_numbers, show_images, image_size_format,
-            show_video_thumbnails, hide_leading_stars, layout, show_brand, show_project, show_git, show_pages,
+            show_video_thumbnails, hide_leading_stars, link_text_first, layout, show_brand, show_project, show_git, show_pages,
             show_backlinks, show_tags, show_broken_links, show_todos, show_org_bloom, show_graph, show_tips, show_quit_button,
             show_settings_button),
         Tab::Themes => take!(theme),

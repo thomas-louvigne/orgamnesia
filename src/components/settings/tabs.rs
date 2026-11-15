@@ -200,6 +200,8 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
             </div>
             <Check draft get=|p| p.hide_leading_stars set=|p, v| p.hide_leading_stars = v
                 label="hide_leading_stars" hint="hide_leading_stars_hint" />
+            <Check draft get=|p| p.link_text_first set=|p, v| p.link_text_first = v
+                label="link_text_first" hint="link_text_first_hint" />
             <div class="setting-section-title">
                 {move || t("display_frames", lang())}
             </div>

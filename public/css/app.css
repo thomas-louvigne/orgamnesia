@@ -52,6 +52,11 @@
     --fs-heading: 16px;   /* dialog titles */
     --fs-display: 28px;   /* the page title */
 
+    /* Links with "Bring out the text of links": a theme may set them in its :root */
+    --link-target:      var(--fg-dim);
+    --link-text:        var(--link);
+    --link-text-weight: bold;
+
     font-family: var(--font-ui);
     font-size: var(--fs-body);
     color: var(--fg);
@@ -819,6 +824,13 @@ kbd {
 /* A link leading nowhere (a page that doesn't exist, a missing file): in red, dashed,
    and a cross in the margin of its line, where the mark of a folded headline goes */
 .link.broken, .link.broken :is(.link-t, .link-d) { color: var(--red); text-decoration-style: dashed; }
+/* "Bring out the text of links": the target and brackets dimmed, the target underlined;
+   the text (or the target of a link without one, which is then its text) in bold */
+.link-text-first .link:not(.broken),
+.link-text-first .link:not(.broken) .link-t { color: var(--link-target); }
+.link-text-first .link:not(.broken) .link-d,
+.link-text-first .link:not(.broken, :has(.link-d)) .link-t { color: var(--link-text); font-weight: var(--link-text-weight); }
+.link-text-first .link:not(.broken) .link-d { text-decoration: none; }
 .broken-mark { position: absolute; margin-left: -20px; pointer-events: none; user-select: none; }
 .broken-mark::before { content: "❌"; font-size: 10px; }
 .editor-wrap.line-numbers .broken-mark { margin-left: calc(-0.9ch - 6px); }
