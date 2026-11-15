@@ -24,18 +24,32 @@
 <body>
 <script>
     // Sync textarea scroll → highlight layer scroll
+    function syncLayers(wrap) {
+        const t = wrap && wrap.querySelector('.edit-layer');
+        if (!t) return;
+        wrap.querySelectorAll('.hl-layer').forEach(function (hl) {
+            if (hl.scrollTop  !== t.scrollTop)  hl.scrollTop  = t.scrollTop;
+            if (hl.scrollLeft !== t.scrollLeft) hl.scrollLeft = t.scrollLeft;
+        });
+    }
     document.addEventListener('scroll', function (e) {
         const t = e.target;
-        if (t && t.classList && t.classList.contains('edit-layer')) {
-            const wrap = t.closest('.editor-wrap');
-            if (wrap) {
-                wrap.querySelectorAll('.hl-layer').forEach(function (hl) {
-                    hl.scrollTop  = t.scrollTop;
-                    hl.scrollLeft = t.scrollLeft;
-                });
-            }
-        }
+        if (t && t.classList && t.classList.contains('edit-layer')) syncLayers(t.closest('.editor-wrap'));
     }, true);
+    // A layer redrawn (typing) or an editor resized (split) can lose the textarea's
+    // scroll without any scroll event: sync again then
+    const resized = new ResizeObserver(function (entries) {
+        entries.forEach(function (e) { syncLayers(e.target.closest('.editor-wrap')); });
+    });
+    new MutationObserver(function (records) {
+        records.forEach(function (r) {
+            const wrap = r.target.closest && r.target.closest('.editor-wrap');
+            if (!wrap) return;
+            const t = wrap.querySelector('.edit-layer');
+            if (t) resized.observe(t);
+            syncLayers(wrap);
+        });
+    }).observe(document.body, { childList: true, subtree: true });
 </script>
 </body>
 </html>
