@@ -4,6 +4,10 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.6.2
+- Aperçu en direct (Réglages > Affichage, désactivé par défaut) : le balisage (*, /, **, crochets et cible des liens, étoiles des titres) s'estompe, et revient sur la ligne du curseur.
+- Ligatures : l'éditeur dessine -> et => en flèches, != en ≠… Activées par défaut, elles se coupent dans Réglages > Affichage.
+
 * 1.6.1
 - Windows : la compilation n'échoue plus sur une vérification du code.
 
@@ -17,10 +21,6 @@ versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org
 - Git : le bouton Pull est grisé quand il n'y a rien à récupérer.
 - Onglets : avec la sauvegarde automatique, le point des modifications non enregistrées ne clignote plus à chaque frappe.
 - Éditeur : la coloration, le curseur et les marques d'orthographe restent alignés sur le texte après un redécoupage en volets ou un redessin.
-
-* 1.5.1
-- Aperçu en direct (Réglages > Affichage, désactivé par défaut) : le balisage (*, /, **, crochets et cible des liens, étoiles des titres) s'estompe, et revient sur la ligne du curseur.
-- Ligatures : l'éditeur dessine -> et => en flèches, != en ≠… Activées par défaut, elles se coupent dans Réglages > Affichage.
 
 * 1.5.0
 - Nouvelles versions : sous Arch Linux (paquet AUR), la fenêtre de nouvelle version donne la commande de votre assistant AUR à copier ; l'application Flatpak laisse ses mises à jour à Flathub et ne cherche plus de nouvelles versions.

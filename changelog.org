@@ -4,6 +4,10 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.6.2
+- Live preview (Settings > Display, off by default): the markup (*, /, **, the brackets and target of the links, the stars of the headlines) fades away, and comes back on the line of the cursor.
+- Ligatures: the editor draws -> and => as arrows, != as ≠… On by default, they are turned off in Settings > Display.
+
 * 1.6.1
 - Windows: the build no longer fails on a code check.
 
@@ -17,10 +21,6 @@ The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 - Git: the Pull button is greyed out when there is nothing to pull.
 - Tabs: with auto-save, the dot of unsaved changes no longer flickers on each keystroke.
 - Editor: the highlighting, caret and spelling marks stay lined up with the text after a split or a redraw.
-
-* 1.5.1
-- Live preview (Settings > Display, off by default): the markup (*, /, **, the brackets and target of the links, the stars of the headlines) fades away, and comes back on the line of the cursor.
-- Ligatures: the editor draws -> and => as arrows, != as ≠… On by default, they are turned off in Settings > Display.
 
 * 1.5.0
 - New versions: on Arch Linux (AUR package), the new version window gives the command of your AUR helper to copy; the Flatpak app leaves its updates to Flathub and no longer looks for new versions.
