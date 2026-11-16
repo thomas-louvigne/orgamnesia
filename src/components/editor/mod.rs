@@ -250,11 +250,12 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     view! {
         <div
             node_ref=wrap_ref
-            class=move || format!("editor-wrap{}{}{}{}",
+            class=move || format!("editor-wrap{}{}{}{}{}",
                 if ctx.pref(|p| p.show_line_numbers) { " line-numbers" } else { "" },
                 if ctx.pref(|p| p.hide_leading_stars) { " hide-stars" } else { "" },
                 if ctx.pref(|p| p.live_preview) { " live" } else { "" },
-                if ctx.pref(|p| p.ligatures) { " ligatures" } else { "" })
+                if ctx.pref(|p| p.ligatures) { " ligatures" } else { "" },
+                if ctx.pref(|p| p.link_text_first) { " link-text-first" } else { "" })
             style=move || content.with(|c| format!("--ln-w: {}ch", number_digits(c)))
         >
             <div class="hl-layer" aria-hidden="true" inner_html=highlighted />

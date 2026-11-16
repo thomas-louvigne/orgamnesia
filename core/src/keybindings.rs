@@ -243,7 +243,7 @@ pub struct ActionDef<A: 'static> {
 pub enum AppAction {
     NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
-    GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml, Graph, SwitchProject,
+    GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml, Graph, SwitchProject, Journal,
 }
 
 /// Editor actions.
@@ -306,6 +306,7 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::ExportHtml, id: "export_html", label_key: "shortcut_export_html" },
     ActionDef { action: AppAction::Graph, id: "graph", label_key: "shortcut_graph" },
     ActionDef { action: AppAction::SwitchProject, id: "switch_project", label_key: "shortcut_switch_project" },
+    ActionDef { action: AppAction::Journal, id: "journal", label_key: "shortcut_journal" },
 ];
 
 /// Every editor action, whatever the profile: a profile simply leaves the ones
@@ -437,6 +438,7 @@ pub fn default_app() -> Bindings {
         ("export_html",      &["ctrl+shift+e"]),
         ("graph",            &["ctrl+shift+m"]),
         ("switch_project",   &["ctrl+alt+p"]),
+        ("journal",          &["ctrl+shift+j"]),
     ])
 }
 
@@ -554,6 +556,8 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("graph",            &["ctrl+c g"]),
             // project.el: `C-x p p` (project-switch-project)
             ("switch_project",   &["ctrl+x p p", "ctrl+alt+p"]),
+            // As org-journal's `C-c C-j`, without the second Ctrl
+            ("journal",          &["ctrl+c j"]),
         ]),
         _ => default_app(),
     }

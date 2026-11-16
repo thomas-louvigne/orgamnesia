@@ -32,6 +32,7 @@ fn TabItem(
     pane: Option<bool>,
 ) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
+    let config = crate::preferences::config_file(&tab_path).is_some();
     let path = StoredValue::new(tab_path);
     let index = move || path.with_value(|p| ctx.work.tab_index(p));
 
@@ -125,7 +126,8 @@ fn TabItem(
                 on:dblclick=|e: web_sys::MouseEvent| e.stop_propagation()
             />
             <span class="tab-name" style=hidden_while_editing>{name}</span>
-            {move || dirty.get().then(|| view! {
+            // With auto-save the dot would only flicker on each keystroke; config files are not auto-saved
+            {move || (dirty.get() && (config || !ctx.pref(|p| p.autosave))).then(|| view! {
                 <span
                     class="tab-dot"
                     style=hidden_while_editing

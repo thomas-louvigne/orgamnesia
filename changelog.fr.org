@@ -4,6 +4,20 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.6.1
+- Windows : la compilation n'échoue plus sur une vérification du code.
+
+* 1.6.0
+- Journal : une extension, désactivée par défaut (Réglages > Extensions). Ctrl+Maj+J (ou C-c j avec les raccourcis Emacs), ou la commande de l'ouverture rapide, ouvre la page du jour, nommée par sa date, et la crée la première fois.
+- Flèches précédent / suivant autour du titre de la page, comme dans un navigateur : ← revient au fichier ouvert avant, → va au suivant ; chacune n'apparaît que s'il y a un fichier de ce côté, et son infobulle donne le raccourci (Alt+← / Alt+→). Se masquent dans Réglages > Affichage.
+- Mode électrique : taper * / ou _ sur un texte sélectionné le met en gras, en italique ou le souligne en org-mode ; en Markdown, * ou _ le met en italique, * deux fois en gras. Se coupe dans Réglages > Édition.
+- Liens : le pointeur de la souris devient une main sur un lien, un #mot-clé ou un :tag:.
+- Affichage : une option met en avant le texte des liens [[cible][texte]] : le texte en gras, la cible estompée et soulignée. Les couleurs sont des variables de thème (--link-target, --link-text, --link-text-weight).
+- Réglages : les cadres autour de l'éditeur ont leur propre onglet, Cadres.
+- Git : le bouton Pull est grisé quand il n'y a rien à récupérer.
+- Onglets : avec la sauvegarde automatique, le point des modifications non enregistrées ne clignote plus à chaque frappe.
+- Éditeur : la coloration, le curseur et les marques d'orthographe restent alignés sur le texte après un redécoupage en volets ou un redessin.
+
 * 1.5.1
 - Aperçu en direct (Réglages > Affichage, désactivé par défaut) : le balisage (*, /, **, crochets et cible des liens, étoiles des titres) s'estompe, et revient sur la ligne du curseur.
 - Ligatures : l'éditeur dessine -> et => en flèches, != en ≠… Activées par défaut, elles se coupent dans Réglages > Affichage.

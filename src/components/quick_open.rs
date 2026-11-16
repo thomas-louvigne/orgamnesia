@@ -68,11 +68,12 @@ fn reveal(list: NodeRef<html::Div>, i: usize) {
 /// The application actions available here, whose name holds `q` (folded), each with its shortcut.
 fn commands(ctx: AppCtx, q: &str) -> Vec<QuickItem> {
     let lang = ctx.lang.get();
-    let (graph, git) = ctx.pref(|p| (p.graph, p.git_ext));
+    let (graph, git, journal) = ctx.pref(|p| (p.graph, p.git_ext, p.journal));
     let mut list: Vec<QuickItem> = APP_ACTIONS.iter()
         // Opening this very list is no command
         .filter(|a| a.action != AppAction::QuickOpen
             && (a.action != AppAction::Graph || graph)
+            && (a.action != AppAction::Journal || journal)
             && (!GIT_ACTIONS.contains(&a.action) || git))
         .map(|a| QuickItem::Command { action: a.action, label: t(a.label_key, lang).to_string(), keys: ctx.shortcut(a.id) })
         .filter(|item| q.is_empty() || fold(&item.display_name()).contains(q))

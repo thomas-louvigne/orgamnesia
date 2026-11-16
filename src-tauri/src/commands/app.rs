@@ -111,13 +111,16 @@ fn runnable(p: &std::path::Path) -> bool {
         "terminal", "tool", "workflow", "scpt", "fileloc", "inetloc", "pkg", "mpkg", "dmg",
     ];
     let ext = p.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
-    if ext.is_some_and(|e| LAUNCHERS.contains(&e.as_str())) { return true; }
+    let launcher = ext.is_some_and(|e| LAUNCHERS.contains(&e.as_str()));
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if p.is_file() && std::fs::metadata(p).is_ok_and(|m| m.permissions().mode() & 0o111 != 0) { return true; }
+        launcher || (p.is_file() && std::fs::metadata(p).is_ok_and(|m| m.permissions().mode() & 0o111 != 0))
     }
-    false
+    #[cfg(not(unix))]
+    {
+        launcher
+    }
 }
 
 /// Of `paths`, those that are neither files nor folders on the disk (`~/`: the home

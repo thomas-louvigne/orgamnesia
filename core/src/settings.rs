@@ -81,6 +81,9 @@ pub struct Config {
     pub live_preview: Option<bool>,
     /// The font's ligatures in the editor (`->` drawn as an arrow, `!=` as `≠`…).
     pub ligatures: Option<bool>,
+    /// A link's text in bold, its target dimmed and underlined (colours: the theme's
+    /// `--link-target`, `--link-text`, `--link-text-weight`).
+    pub link_text_first: Option<bool>,
     /// Tab on a headline folds / unfolds it (org-mode cycle).
     pub tab_folds: Option<bool>,
     /// TODO keywords on headlines (`* TODO Titre`), stepped through with a shortcut.
@@ -114,6 +117,8 @@ pub struct Config {
     pub shortcut_tips: Option<bool>,
     /// Electric mode: typing a bracket or quote around a selection wraps it.
     pub electric_mode: Option<bool>,
+    /// With electric mode, typing an emphasis marker (`* / _`) around a selection wraps it.
+    pub electric_emphasis: Option<bool>,
     /// Save the active page on every change.
     pub autosave: Option<bool>,
     /// On quit, delete pages with no text: only spaces, tabs or `*`.
@@ -133,6 +138,8 @@ pub struct Config {
     pub show_brand: Option<bool>,
     /// Title of the page (its `#+TITLE:`, or its name) in large type above the editor.
     pub show_page_title: Option<bool>,
+    /// Back / forward arrows around the page title.
+    pub show_page_nav: Option<bool>,
     /// Quit button.
     pub show_quit_button: Option<bool>,
     /// Line numbers in the margin of the editor.
@@ -180,6 +187,8 @@ pub struct Config {
     pub graph_enabled: Option<bool>,
     /// Graph button (when the extension is on).
     pub show_graph: Option<bool>,
+    /// Journal extension: a shortcut opens the page of the day, named by its date.
+    pub journal_enabled: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
     pub git_ssh_key: Option<String>,
     /// Git extension: every so many minutes, commit the changes, pull and push
@@ -272,6 +281,7 @@ pub struct Prefs {
     pub restore_session: bool,
     pub show_brand: bool,
     pub show_page_title: bool,
+    pub show_page_nav: bool,
     pub show_quit_button: bool,
     pub show_line_numbers: bool,
     pub show_pages: bool,
@@ -292,6 +302,7 @@ pub struct Prefs {
     pub git_ext: bool,
     pub graph: bool,
     pub show_graph: bool,
+    pub journal: bool,
     pub git_ssh_key: String,
     /// See `Settings::git_auto_sync_minutes`.
     pub git_auto_sync: u64,
@@ -319,6 +330,7 @@ pub struct Prefs {
     pub hide_leading_stars: bool,
     pub live_preview: bool,
     pub ligatures: bool,
+    pub link_text_first: bool,
     pub tab_folds: bool,
     pub todo_enabled: bool,
     pub todo_keywords: String,
@@ -335,6 +347,7 @@ pub struct Prefs {
     pub webkit_emoji_shortcuts: bool,
     pub shortcut_tips: bool,
     pub electric_mode: bool,
+    pub electric_emphasis: bool,
 }
 
 impl Default for Prefs {
@@ -366,6 +379,7 @@ impl Prefs {
             restore_session: s.restore_session.unwrap_or(true),
             show_brand: s.show_brand.unwrap_or(true),
             show_page_title: s.show_page_title.unwrap_or(true),
+            show_page_nav: s.show_page_nav.unwrap_or(true),
             show_quit_button: s.show_quit_button.unwrap_or(true),
             show_line_numbers: s.show_line_numbers.unwrap_or(false),
             show_pages: s.show_pages.unwrap_or(true),
@@ -385,6 +399,7 @@ impl Prefs {
             git_ext: s.git_status_enabled.unwrap_or(true),
             graph: s.graph_enabled.unwrap_or(false),
             show_graph: s.show_graph.unwrap_or(true),
+            journal: s.journal_enabled.unwrap_or(false),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
             git_auto_sync: s.git_auto_sync_minutes.unwrap_or(0),
             git_sync_on_quit: s.git_sync_on_quit.unwrap_or(false),
@@ -408,6 +423,7 @@ impl Prefs {
             hide_leading_stars: s.hide_leading_stars.unwrap_or(false),
             live_preview: s.live_preview.unwrap_or(false),
             ligatures: s.ligatures.unwrap_or(true),
+            link_text_first: s.link_text_first.unwrap_or(false),
             tab_folds: s.tab_folds.unwrap_or(true),
             todo_enabled: s.todo_enabled.unwrap_or(true),
             todo_keywords: s.todo_keywords.clone().filter(|k| !k.trim().is_empty())
@@ -425,6 +441,7 @@ impl Prefs {
             webkit_emoji_shortcuts: s.webkit_emoji_shortcuts.unwrap_or(true),
             shortcut_tips: s.shortcut_tips.unwrap_or(true),
             electric_mode: s.electric_mode.unwrap_or(true),
+            electric_emphasis: s.electric_emphasis.unwrap_or(true),
         }
     }
 
@@ -449,6 +466,7 @@ impl Prefs {
             hide_leading_stars: Some(self.hide_leading_stars),
             live_preview: Some(self.live_preview),
             ligatures: Some(self.ligatures),
+            link_text_first: Some(self.link_text_first),
             tab_folds: Some(self.tab_folds),
             todo_enabled: Some(self.todo_enabled),
             todo_keywords: Some(self.todo_keywords.clone()),
@@ -463,6 +481,7 @@ impl Prefs {
             webkit_emoji_shortcuts: Some(self.webkit_emoji_shortcuts),
             shortcut_tips: Some(self.shortcut_tips),
             electric_mode: Some(self.electric_mode),
+            electric_emphasis: Some(self.electric_emphasis),
             autosave: Some(self.autosave),
             delete_empty_pages: Some(self.delete_empty),
             delete_title_only_pages: Some(self.delete_title_only),
@@ -472,6 +491,7 @@ impl Prefs {
             restore_session: Some(self.restore_session),
             show_brand: Some(self.show_brand),
             show_page_title: Some(self.show_page_title),
+            show_page_nav: Some(self.show_page_nav),
             theme: Some(self.theme.clone()),
             show_quit_button: Some(self.show_quit_button),
             show_line_numbers: Some(self.show_line_numbers),
@@ -493,6 +513,7 @@ impl Prefs {
             git_status_enabled: Some(self.git_ext),
             graph_enabled: Some(self.graph),
             show_graph: Some(self.show_graph),
+            journal_enabled: Some(self.journal),
             git_ssh_key: some(&self.git_ssh_key),
             git_auto_sync_minutes: Some(self.git_auto_sync),
             git_sync_on_quit: Some(self.git_sync_on_quit),

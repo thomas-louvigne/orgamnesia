@@ -144,6 +144,8 @@ pub fn EditingTab(draft: RwSignal<Prefs>) -> impl IntoView {
         <div class="tab-content">
             <Check draft get=|p| p.autosave set=|p, v| p.autosave = v label="autosave" />
             <Check draft get=|p| p.electric_mode set=|p, v| p.electric_mode = v label="electric_mode" />
+            <Check draft get=|p| p.electric_emphasis set=|p, v| p.electric_emphasis = v
+                label="electric_emphasis" hint="electric_emphasis_hint" sub=true disabled=|p| !p.electric_mode />
             <Check draft get=|p| p.find_match_case set=|p, v| p.find_match_case = v label="find_match_case" />
             <Check draft get=|p| p.indent_headings set=|p, v| p.indent_headings = v
                 label="indent_headings" hint="indent_headings_hint" />
@@ -171,7 +173,7 @@ pub fn EditingTab(draft: RwSignal<Prefs>) -> impl IntoView {
     }
 }
 
-/// What the editor shows, and where the frames go around it.
+/// What the editor shows.
 #[component]
 pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
@@ -183,6 +185,8 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
             </div>
             <Check draft get=|p| p.show_page_title set=|p, v| p.show_page_title = v
                 label="show_page_title" hint="show_page_title_hint" />
+            <Check draft get=|p| p.show_page_nav set=|p, v| p.show_page_nav = v
+                label="show_page_nav" hint="show_page_nav_hint" sub=true disabled=|p| !p.show_page_title />
             <Check draft get=|p| p.show_line_numbers set=|p, v| p.show_line_numbers = v
                 label="show_line_numbers" />
             <Check draft get=|p| p.show_images set=|p, v| p.show_images = v
@@ -204,9 +208,17 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="live_preview" hint="live_preview_hint" />
             <Check draft get=|p| p.ligatures set=|p, v| p.ligatures = v
                 label="ligatures" hint="ligatures_hint" />
-            <div class="setting-section-title">
-                {move || t("display_frames", lang())}
-            </div>
+            <Check draft get=|p| p.link_text_first set=|p, v| p.link_text_first = v
+                label="link_text_first" hint="link_text_first_hint" />
+        </div>
+    }
+}
+
+/// Which frames go around the editor, in which column and order.
+#[component]
+pub fn FramesTab(draft: RwSignal<Prefs>) -> impl IntoView {
+    view! {
+        <div class="tab-content">
             <LayoutEditor draft />
         </div>
     }
@@ -291,6 +303,9 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <hr class="setting-separator" />
             <Check draft get=|p| p.graph set=|p, v| p.graph = v
                 label="graph_enabled" hint="graph_hint" shortcut="graph" />
+            <hr class="setting-separator" />
+            <Check draft get=|p| p.journal set=|p, v| p.journal = v
+                label="journal_enabled" hint="journal_hint" shortcut="journal" />
         </div>
     }
 }

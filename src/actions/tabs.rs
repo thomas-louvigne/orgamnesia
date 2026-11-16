@@ -46,6 +46,12 @@ pub fn open_page_named(ctx: AppCtx, name: &str, goto: Option<Goto>) {
     }
 }
 
+/// The page of the day (`2026-11-15`): opened, or created when it doesn't exist yet.
+pub fn open_journal(ctx: AppCtx) {
+    let now = js_sys::Date::new_0();
+    follow_link(ctx, format!("{:04}-{:02}-{:02}", now.get_full_year(), now.get_month() + 1, now.get_date()));
+}
+
 /// Where a link points outside the project's pages: a web page, or a file
 /// (`file:`, `./`, `../`, `/`, `~/`).
 #[derive(Debug, PartialEq)]

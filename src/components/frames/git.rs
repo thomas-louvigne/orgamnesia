@@ -35,7 +35,7 @@ fn GitButtons() -> impl IntoView {
         }
     };
     let button = move |op: GitOp, label: &'static str, id: &'static str, icon: &'static str,
-                       enabled: fn(&orgamnesia_core::GitStatus) -> bool,
+                       enabled: fn(&orgamnesia_core::GitStatus, &crate::state::Prefs) -> bool,
                        waiting: fn(&orgamnesia_core::GitStatus) -> u32, run: fn(AppCtx)| {
     // Commits waiting for this button (the ones to push): it stands out, with their count
     let waiting = move || if busy().is_some() { 0 } else { waiting(&git()) };
@@ -53,7 +53,7 @@ fn GitButtons() -> impl IntoView {
             data-shortcut=id
             title=tip
             aria-label=tip
-            prop:disabled=move || busy().is_some() || !enabled(&git())
+            prop:disabled=move || busy().is_some() || !ctx.pref(|p| enabled(&git(), p))
             aria-busy=move || (busy() == Some(op)).then_some("true")
             on:click=move |_| run(ctx)
         >
@@ -71,10 +71,11 @@ fn GitButtons() -> impl IntoView {
     }};
     view! {
         <div class="git-buttons">
-            {button(GitOp::Pull, "git_pull", "git_pull", "↓", |g| g.upstream, |_| 0, crate::git::pull)}
+            // Greyed with nothing to pull; when the remote is never fetched, that is unknown
+            {button(GitOp::Pull, "git_pull", "git_pull", "↓", |g, p| g.upstream && (g.behind > 0 || p.git_fetch == 0), |_| 0, crate::git::pull)}
             // Also with no change seen yet: unsaved pages are saved first
-            {button(GitOp::Commit, "git_commit", "git_commit", "●", |_| true, |_| 0, crate::git::open_commit)}
-            {button(GitOp::Push, "git_push", "git_push", "↑", |g| g.remote && (g.ahead > 0 || !g.upstream), |g| g.ahead, crate::git::push)}
+            {button(GitOp::Commit, "git_commit", "git_commit", "●", |_, _| true, |_| 0, crate::git::open_commit)}
+            {button(GitOp::Push, "git_push", "git_push", "↑", |g, _| g.remote && (g.ahead > 0 || !g.upstream), |g| g.ahead, crate::git::push)}
         </div>
     }
 }

@@ -219,7 +219,8 @@ Up and down arrows (or Ctrl+N / Ctrl+P) to choose, Enter or Tab to accept, Escap
 ** Pairs and electric mode
 - Typing =(=, =[=, ={= or ="= also inserts the closing character.
 - Electric mode (on by default): typing =( ) [ ] { } " '= on selected text wraps it in
-  the pair.
+  the pair. Option (on by default): also =* / _= for bold, italic and underline in
+  org-mode; =* _= in Markdown (italic, =*= twice for bold).
 
 ** Emphasis
 Bold, italic, underline and strikethrough by shortcut: on a selection, wraps it in
@@ -687,6 +688,7 @@ profile gets those of the actions it didn't know.
 | Export the page as PDF      | Ctrl+P           | Ctrl+C Ctrl+E L P         |
 | Export the page as HTML     | Ctrl+Shift+E     | Ctrl+C Ctrl+E H H         |
 | Graph of the pages (beta)   | Ctrl+Shift+M     | Ctrl+C G                  |
+| Page of the day (journal)   | Ctrl+Shift+J     | Ctrl+C J                  |
 
 *** Editor
 | Action                         | Classic             | Emacs                         |
@@ -863,6 +865,15 @@ in Settings > Spelling, which also tells how to install a dictionary when none i
   Your own words are kept in =dictionary.txt=, in the settings folder.
 - *Next misspelled word*: F7 in Classic, Ctrl+, in Emacs (as =flyspell-goto-next-error=).
 
+** Journal
+A page for each day, to write without wondering where it goes. Off by default:
+turn it on in Settings > Extensions.
+
+- *Page of the day*: Ctrl+Shift+J in Classic, Ctrl+C J in Emacs, or the "Page of the
+  day" command of quick open.
+- It is named by its date, =2026-11-15=, and created the first time in the format of
+  new pages; it is a page like the others (links, tags, backlinks).
+
 ** Graph (beta)
 The pages of the project and the links between them, drawn in 3D in the main area.
 Off by default: offered on the first run, or in Settings > Extensions. This
@@ -938,6 +949,9 @@ The colours are CSS variables of =:root=:
 | =--accent=                | fills of buttons, selection, the status bar (white text on it) |
 | =--accent2=               | interactive text, focus, the selected item              |
 | =--link=                  | links in the page                                       |
+| =--link-target=           | with /Bring out the text of links/: a link's target and brackets (=--fg-dim=) |
+| =--link-text=             | with /Bring out the text of links/: a link's text (=--link=) |
+| =--link-text-weight=      | with /Bring out the text of links/: its weight (=bold=)  |
 | =--red= =--orange= =--yellow= =--green= =--cyan= =--purple= | headline levels, TODO states, tags, tables, errors, diffs |
 
 Add =color-scheme: light;= or =color-scheme: dark;= in =:root= so that the native
@@ -1000,9 +1014,12 @@ The explanations under a setting are in italics.
 - Trash: empty it, empty it automatically, maximum time and size.
 
 ** Display
-- Appearance: page title, line numbers, headline stars hidden but the last.
+- Appearance: page title, line numbers, headline stars hidden but the last, the text
+  of links brought out (in bold, the target dimmed).
 - Images: show them, and the format of their size (org-mode or Logseq).
-- Frames around the editor: which are shown, in which column and in which order
+
+** Frames
+- The frames around the editor: which are shown, in which column and in which order
   (see [[#left-and-right-columns][Left and right columns]]).
 
 ** Themes
@@ -1016,6 +1033,7 @@ The explanations under a setting are in italics.
   pushed, commit and push by default, the commit message proposed, the automatic
   sync and the sync on quitting.
 - The graph of the pages (beta, see [[#graph-beta][Graph]]).
+- The journal, a page for each day (see [[#journal][Journal]]).
 
 ** Spelling
 - Underline the misspelled words.
