@@ -32,7 +32,7 @@ jobs:
       tag: ${{ steps.check.outputs.tag }}
       release: ${{ steps.check.outputs.release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - id: check
         env:
@@ -61,7 +61,7 @@ jobs:
     # The oldest supported runner: the packages then run on older distributions too
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: System libraries
         run: |
@@ -108,7 +108,7 @@ jobs:
     needs: [version, linux]
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # One app for Apple Silicon and Intel Macs
       - uses: dtolnay/rust-toolchain@stable
@@ -141,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build with makepkg
         env:
@@ -169,7 +169,7 @@ jobs:
     needs: [version, linux]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -202,7 +202,7 @@ jobs:
     needs: [version, linux, macos, windows]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: latest.json, from the signatures and the changelogs
         env:

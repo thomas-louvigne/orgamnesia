@@ -76,6 +76,11 @@ pub struct Config {
     /// Hide the stars of a headline but the last (`  * Titre`), like Emacs'
     /// org-hide-leading-stars: the level reads as an indent.
     pub hide_leading_stars: Option<bool>,
+    /// The markup (`*`, `/`, `[[target][`, `]]`, `**`, `#`…) fades away, except on
+    /// the line of the caret: the text reads as it is rendered.
+    pub live_preview: Option<bool>,
+    /// The font's ligatures in the editor (`->` drawn as an arrow, `!=` as `≠`…).
+    pub ligatures: Option<bool>,
     /// A link's text in bold, its target dimmed and underlined (colours: the theme's
     /// `--link-target`, `--link-text`, `--link-text-weight`).
     pub link_text_first: Option<bool>,
@@ -323,6 +328,8 @@ pub struct Prefs {
     pub find_match_case: bool,
     pub indent_headings: bool,
     pub hide_leading_stars: bool,
+    pub live_preview: bool,
+    pub ligatures: bool,
     pub link_text_first: bool,
     pub tab_folds: bool,
     pub todo_enabled: bool,
@@ -414,6 +421,8 @@ impl Prefs {
             find_match_case: s.find_match_case.unwrap_or(false),
             indent_headings: s.indent_headings.unwrap_or(true),
             hide_leading_stars: s.hide_leading_stars.unwrap_or(false),
+            live_preview: s.live_preview.unwrap_or(false),
+            ligatures: s.ligatures.unwrap_or(true),
             link_text_first: s.link_text_first.unwrap_or(false),
             tab_folds: s.tab_folds.unwrap_or(true),
             todo_enabled: s.todo_enabled.unwrap_or(true),
@@ -455,6 +464,8 @@ impl Prefs {
             find_match_case: Some(self.find_match_case),
             indent_headings: Some(self.indent_headings),
             hide_leading_stars: Some(self.hide_leading_stars),
+            live_preview: Some(self.live_preview),
+            ligatures: Some(self.ligatures),
             link_text_first: Some(self.link_text_first),
             tab_folds: Some(self.tab_folds),
             todo_enabled: Some(self.todo_enabled),

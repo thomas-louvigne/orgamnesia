@@ -212,9 +212,16 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         });
     };
 
+    // Live preview: the line of the caret, where the markup stays visible. A memo, so
+    // moving along the line doesn't draw the page again
+    let cur_line = Memo::new(move |_| {
+        if config || !ctx.pref(|p| p.live_preview) { return None; }
+        let pos = pane.focus_pos.get()?;
+        view.with(|v| Some(v.text.chars().take(v.view_pos(pos)).filter(|&c| c == '\n').count()))
+    });
     let highlighted = move || view.with(|v| match config {
         true => highlight::render_json(&v.text, ctx.pref(|p| p.show_line_numbers)),
-        false => highlight::render_view(v, ctx.tags(), pane.todo_keywords.get(), ctx.pref(|p| p.show_line_numbers), broken.check(), pane.fmt()),
+        false => highlight::render_view(v, ctx.tags(), pane.todo_keywords.get(), ctx.pref(|p| p.show_line_numbers), broken.check(), pane.fmt(), cur_line.get()),
     });
     // What is wrong (or the first thing odd) in a configuration file, marked where it is
     let problem_html = move || {
@@ -243,9 +250,11 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     view! {
         <div
             node_ref=wrap_ref
-            class=move || format!("editor-wrap{}{}{}",
+            class=move || format!("editor-wrap{}{}{}{}{}",
                 if ctx.pref(|p| p.show_line_numbers) { " line-numbers" } else { "" },
                 if ctx.pref(|p| p.hide_leading_stars) { " hide-stars" } else { "" },
+                if ctx.pref(|p| p.live_preview) { " live" } else { "" },
+                if ctx.pref(|p| p.ligatures) { " ligatures" } else { "" },
                 if ctx.pref(|p| p.link_text_first) { " link-text-first" } else { "" })
             style=move || content.with(|c| format!("--ln-w: {}ch", number_digits(c)))
         >

@@ -20,6 +20,9 @@ contribution.
 - *Vos fichiers, pas les nôtres.* Des =.org= et des =.md= dans le dossier de votre
   choix. Pas de base de données, pas de compte, pas de télémétrie, pas de format
   propriétaire. Emacs, Obsidian, git ou votre outil de synchro les lisent en même temps.
+- *Synchro par git, ou autre.* Vos notes sont un dépôt git si vous voulez : commit,
+  pull et push automatiques pour les synchroniser entre vos machines. Syncthing,
+  Nextcloud ou Dropbox marchent aussi : une page modifiée ailleurs est rechargée.
 - *Org-mode ou Markdown ? Les deux.* Ils se mélangent dans un projet, et les liens
   =[​[Page]]= marchent partout.
 - *Un vrai wiki.* Liens, liens entrants, tags, complétion. Renommez une page : tous
@@ -70,6 +73,9 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
 
 - *Éditeur* : coloration, tableaux dessinés, images et vidéos dans la page, pliage,
   états TODO, cases à cocher, deux volets.
+- *Aperçu en direct* (en option) : le balisage (=*=, =/=, =**=, crochets des liens,
+  étoiles des titres) s'estompe pendant la frappe et revient sur la ligne du curseur.
+  Pas de volet d'aperçu, rien à basculer, et vos fichiers restent du texte brut.
 - *Liens* : vers une page, un titre ou une cible, avec aperçu au survol et liste des
   pages à créer.
 - *Tags* : =#mots-clés= et =:tags:=, avec recherche combinée.
