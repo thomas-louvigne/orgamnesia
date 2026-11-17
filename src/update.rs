@@ -10,8 +10,9 @@ use crate::{invoke, state::AppCtx};
 /// Where the versions are published, for the packages the app can't install itself.
 pub const RELEASES_URL: &str = "https://github.com/thomas-louvigne/orgamnesia/releases/latest";
 
-/// The command updating the AUR package, with an AUR helper.
-pub const AUR_COMMAND: &str = "yay -Syu orgamnesia";
+/// The command updating the AUR package, with an AUR helper: the prebuilt one, which
+/// also replaces `orgamnesia` (compiled at each install).
+pub const AUR_COMMAND: &str = "yay -S orgamnesia-bin";
 
 /// How long after the start the new version is looked for: the app is shown first.
 const AT_START_AFTER: std::time::Duration = std::time::Duration::from_secs(8);

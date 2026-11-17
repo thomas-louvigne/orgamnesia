@@ -119,7 +119,7 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 * Coming next
 
 - [ ] Test on Windows
-- [ ] Test on macOS
+- [X] Test on macOS: works, according to a user
 - [ ] Package in the Debian repositories
 - [ ] Vi keybindings
 - [ ] Second brain with AI: a =CLAUDE.md= template to put in a project, so an agent (Claude Code…) understands the pages, links, tags and TODOs

@@ -42,3 +42,20 @@ makepkg --printsrcinfo > .SRCINFO
 
 Commit both here, then copy them, commit and push as above. A change to the
 packaging alone, same version, increments =pkgrel= instead.
+
+* The prebuilt package =orgamnesia-bin=
+
+=../arch-bin= holds =orgamnesia-bin=, the package the app suggests: it only
+unpacks the =.pkg.tar.zst= that the release workflow builds from this folder and
+attaches to the GitHub release (x86_64 only). The AUR rules want the =-bin= suffix
+for prebuilt packages. Its own AUR repository:
+=ssh://aur@aur.archlinux.org/orgamnesia-bin.git=, published as above.
+
+Each release, once the workflow has attached the =.pkg.tar.zst= (job /Arch Linux
+package/), from =../arch-bin= (=updpkgsums= is in =pacman-contrib=):
+
+#+BEGIN_SRC sh
+sed -i "s/^pkgver=.*/pkgver=X.Y.Z/; s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+updpkgsums
+makepkg --printsrcinfo > .SRCINFO
+#+END_SRC

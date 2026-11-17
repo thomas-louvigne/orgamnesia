@@ -123,7 +123,7 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 * À venir
 
 - [ ] Tester la version Windows
-- [ ] Tester sur macOS
+- [X] Tester sur macOS : fonctionne, d'après un utilisateur
 - [ ] Paquet dans les dépôts Debian
 - [ ] Raccourcis clavier vi
 - [ ] Second cerveau avec l'IA : un modèle de =CLAUDE.md= à poser dans un projet, pour qu'un agent (Claude Code…) comprenne les pages, les liens, les tags et les TODO
