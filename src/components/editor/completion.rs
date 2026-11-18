@@ -52,6 +52,42 @@ impl Kind {
     }
 }
 
+/// What is being typed at `caret` that names can complete: where the typed part
+/// starts, that part, and what it is.
+fn being_typed(chars: &[char], caret: usize, tags: orgamnesia_core::TagSyntax) -> Option<(usize, String, Kind)> {
+    links::link_prefix(chars, caret)
+        .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
+        .map(|(start, p)| (start, p, Kind::Link))
+        .or_else(|| tags::org_tag_prefix(chars, caret, tags.org).map(|(start, p)| (start, p, Kind::OrgTag)))
+        .or_else(|| tags::hashtag_prefix(chars, caret, tags.hashtags).map(|(hash, p)| (hash + 1, p, Kind::Hashtag)))
+}
+
+/// The change accepting a name makes: `insert` replaces the characters `from..to`,
+/// then the caret goes to `cursor`.
+#[derive(Debug, PartialEq)]
+struct Accepted { from: usize, to: usize, insert: String, cursor: usize }
+
+/// Accepting `name` for what was typed between `start` and `caret` in `chars`.
+/// In a link already closed (`[[jeu de r|ôle][texte]]`) the name replaces the
+/// whole target and the caret goes past `]]` (or before `][`, to the text shown);
+/// otherwise the closing characters of `kind` are added, or stepped over when
+/// already there.
+fn accepted(chars: &[char], start: usize, caret: usize, kind: Kind, name: &str) -> Accepted {
+    let target_end = caret + chars[caret..].iter().take_while(|&&ch| !matches!(ch, ']' | '[' | '\n')).count();
+    let closed = matches!(kind, Kind::Link | Kind::Place)
+        && matches!((chars.get(target_end), chars.get(target_end + 1)), (Some(']'), Some(']' | '[')));
+    let after_name = start + name.chars().count();
+    if closed {
+        let past = if chars.get(target_end + 1) == Some(&']') { 2 } else { 0 };
+        return Accepted { from: start, to: target_end, insert: name.to_string(), cursor: after_name + past };
+    }
+    let close = kind.close();
+    let n = close.chars().count();
+    let there = chars.iter().skip(caret).take(n).collect::<String>() == close;
+    let insert = if there { name.to_string() } else { format!("{name}{close}") };
+    Accepted { from: start, to: caret, insert, cursor: after_name + n }
+}
+
 /// Suggestions shown while a `#tag`, a `[[link` or a `:tag:` is being typed.
 #[derive(Clone, PartialEq)]
 struct Suggestions {
@@ -93,15 +129,7 @@ impl Completion {
         let ctx = self.pane.ctx;
         let (caret, end) = get_pos(el);
         let chars: Vec<char> = el.value().chars().collect();
-        let found = if caret != end { None } else {
-            links::link_prefix(&chars, caret)
-                .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
-                .map(|(start, p)| (start, p, Kind::Link))
-                .or_else(|| tags::org_tag_prefix(&chars, caret, ctx.tags_untracked().org)
-                    .map(|(start, p)| (start, p, Kind::OrgTag)))
-                .or_else(|| tags::hashtag_prefix(&chars, caret, ctx.tags_untracked().hashtags)
-                    .map(|(hash, p)| (hash + 1, p, Kind::Hashtag)))
-        };
+        let found = (caret == end).then(|| being_typed(&chars, caret, ctx.tags_untracked())).flatten();
         let Some((start, prefix, kind)) = found else { self.close(); return };
         if kind == Kind::Link && let Some((page, typed, at)) = links::place_prefix(&prefix) {
             self.complete_place(el, start + at, caret, page, typed);
@@ -157,23 +185,10 @@ impl Completion {
     fn accept(self, el: &Textarea, name: &str) {
         let Some(c) = self.shown.get_untracked() else { return };
         self.accepting.set_value(true);
-        // In a link already closed (`[[jeu de r|ôle][texte]]`), the name replaces
-        // the whole target, and the link keeps its end
         let chars: Vec<char> = el.value().chars().collect();
-        let target_end = c.caret + chars[c.caret..].iter().take_while(|&&ch| !matches!(ch, ']' | '[' | '\n')).count();
-        let closed = matches!(c.kind, Kind::Link | Kind::Place)
-            && matches!((chars.get(target_end), chars.get(target_end + 1)), (Some(']'), Some(']' | '[')));
-        let mut cursor = splice(el, c.start, if closed { target_end } else { c.caret }, name);
-        // Close the link / tag: step over the closing characters if already there, else add them
-        let close = c.kind.close();
-        if closed {
-            // Past `]]`; before `][`, to the text shown
-            cursor += if el.value().chars().nth(cursor + 1) == Some(']') { 2 } else { 0 };
-        } else if !close.is_empty() {
-            let n = close.chars().count();
-            let after: String = el.value().chars().skip(cursor).take(n).collect();
-            cursor = if after == close { cursor + n } else { splice(el, cursor, cursor, close) };
-        }
+        let edit = accepted(&chars, c.start, c.caret, c.kind, name);
+        splice(el, edit.from, edit.to, &edit.insert);
+        let cursor = edit.cursor;
         self.accepting.set_value(false);
         set_cursor(el, cursor);
         self.close();
@@ -239,5 +254,46 @@ impl Completion {
                 }).collect_view()}
             </ul>
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn accept(text: &str, start: usize, caret: usize, kind: Kind, name: &str) -> (String, usize) {
+        let mut chars: Vec<char> = text.chars().collect();
+        let a = accepted(&chars, start, caret, kind, name);
+        chars.splice(a.from..a.to, a.insert.chars());
+        (chars.into_iter().collect(), a.cursor)
+    }
+
+    #[test]
+    fn a_link_is_closed() {
+        assert_eq!(accept("voir [[jeu", 7, 10, Kind::Link, "Jeu de rôle"), ("voir [[Jeu de rôle]]".into(), 20));
+        // Its end already typed: stepped over
+        assert_eq!(accept("[[je]] x", 2, 4, Kind::Link, "Jeu"), ("[[Jeu]] x".into(), 7));
+    }
+
+    #[test]
+    fn a_closed_link_gets_its_whole_target_replaced() {
+        assert_eq!(accept("[[jeu de r][texte]]", 2, 5, Kind::Link, "Jeu de rôle"), ("[[Jeu de rôle][texte]]".into(), 13));
+        assert_eq!(accept("[[jeu de r]] x", 2, 5, Kind::Link, "Jeu"), ("[[Jeu]] x".into(), 7));
+    }
+
+    #[test]
+    fn tags() {
+        assert_eq!(accept("#pro", 1, 4, Kind::Hashtag, "projet"), ("#projet".into(), 7));
+        assert_eq!(accept("* T :pro", 5, 8, Kind::OrgTag, "projet"), ("* T :projet:".into(), 12));
+    }
+
+    #[test]
+    fn what_is_typed() {
+        let chars: Vec<char> = "voir [[je".chars().collect();
+        let tags = crate::state::Prefs::default().tags();
+        assert_eq!(being_typed(&chars, chars.len(), tags).map(|(s, p, _)| (s, p)), Some((7, "je".into())));
+        // One letter after `[[` is not enough
+        let chars: Vec<char> = "voir [[j".chars().collect();
+        assert!(being_typed(&chars, chars.len(), tags).is_none_or(|(_, _, k)| k != Kind::Link));
     }
 }
