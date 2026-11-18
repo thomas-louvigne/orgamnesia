@@ -189,6 +189,12 @@ pub struct Config {
     pub show_graph: Option<bool>,
     /// Journal extension: a shortcut opens the page of the day, named by its date.
     pub journal_enabled: Option<bool>,
+    /// Journal extension: the folder of the pages of the days, next to `pages/`
+    /// (`journals`; an existing `posts/` or `daily/` is taken instead).
+    pub journal_folder: Option<String>,
+    /// The `.excalidraw.svg` / `.excalidraw.png` drawings shown in the pages like
+    /// images (when the images are).
+    pub show_excalidraw: Option<bool>,
     /// Private SSH key used by git pull / push (empty: the system's SSH setup).
     pub git_ssh_key: Option<String>,
     /// Git extension: every so many minutes, commit the changes, pull and push
@@ -303,6 +309,9 @@ pub struct Prefs {
     pub graph: bool,
     pub show_graph: bool,
     pub journal: bool,
+    /// See `Config::journal_folder`.
+    pub journal_folder: String,
+    pub show_excalidraw: bool,
     pub git_ssh_key: String,
     /// See `Settings::git_auto_sync_minutes`.
     pub git_auto_sync: u64,
@@ -400,6 +409,8 @@ impl Prefs {
             graph: s.graph_enabled.unwrap_or(false),
             show_graph: s.show_graph.unwrap_or(true),
             journal: s.journal_enabled.unwrap_or(false),
+            journal_folder: s.journal_folder.clone().unwrap_or_else(|| "journals".to_string()),
+            show_excalidraw: s.show_excalidraw.unwrap_or(true),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
             git_auto_sync: s.git_auto_sync_minutes.unwrap_or(0),
             git_sync_on_quit: s.git_sync_on_quit.unwrap_or(false),
@@ -514,6 +525,8 @@ impl Prefs {
             graph_enabled: Some(self.graph),
             show_graph: Some(self.show_graph),
             journal_enabled: Some(self.journal),
+            journal_folder: Some(self.journal_folder.clone()),
+            show_excalidraw: Some(self.show_excalidraw),
             git_ssh_key: some(&self.git_ssh_key),
             git_auto_sync_minutes: Some(self.git_auto_sync),
             git_sync_on_quit: Some(self.git_sync_on_quit),

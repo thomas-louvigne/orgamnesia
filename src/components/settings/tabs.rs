@@ -202,6 +202,8 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
                     <option value="logseq">{move || t("image_size_logseq", lang())}</option>
                 </select>
             </div>
+            <Check draft get=|p| p.show_excalidraw set=|p, v| p.show_excalidraw = v
+                label="show_excalidraw" hint="show_excalidraw_hint" sub=true disabled=|p| !p.show_images />
             <Check draft get=|p| p.hide_leading_stars set=|p, v| p.hide_leading_stars = v
                 label="hide_leading_stars" hint="hide_leading_stars_hint" />
             <Check draft get=|p| p.live_preview set=|p, v| p.live_preview = v
@@ -306,6 +308,20 @@ pub fn ExtensionsTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <hr class="setting-separator" />
             <Check draft get=|p| p.journal set=|p, v| p.journal = v
                 label="journal_enabled" hint="journal_hint" shortcut="journal" />
+            <div class="setting-row setting-sub">
+                <label for="journal-folder">{move || t("journal_folder", lang())}</label>
+                <input
+                    id="journal-folder"
+                    type="text"
+                    class="setting-input"
+                    spellcheck="false"
+                    prop:disabled=move || !draft.with(|p| p.journal)
+                    placeholder="journals"
+                    prop:value=move || draft.with(|p| p.journal_folder.clone())
+                    on:input=move |e| draft.update(|p| p.journal_folder = event_target_value(&e))
+                />
+                <span class="setting-hint">{move || t("journal_folder_hint", lang())}</span>
+            </div>
         </div>
     }
 }

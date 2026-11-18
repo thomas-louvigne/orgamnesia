@@ -4,6 +4,11 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.7.0
+- Journal : les pages du jour sont créées dans un dossier journals/, à côté de pages/, et plus au milieu des autres pages. Son nom se change dans Réglages > Extensions ; un dossier posts/ ou daily/ déjà là est pris automatiquement. Les pages datées existantes ne bougent pas.
+- Excalidraw : un dessin exporté avec sa scène (.excalidraw.svg ou .excalidraw.png) s'affiche dans la page comme une image, et reste modifiable dans Excalidraw. Se désactive dans Réglages > Affichage, sous les images.
+- Documentation : un projet est l'équivalent d'un coffre Obsidian.
+
 * 1.6.2
 - Aperçu en direct (Réglages > Affichage, désactivé par défaut) : le balisage (*, /, **, crochets et cible des liens, étoiles des titres) s'estompe, et revient sur la ligne du curseur.
 - Ligatures : l'éditeur dessine -> et => en flèches, != en ≠… Activées par défaut, elles se coupent dans Réglages > Affichage.

@@ -157,6 +157,12 @@ fn card(name: &str) -> String {
     url
 }
 
+/// Whether the image `target` is an Excalidraw drawing (`.excalidraw.svg`, `.excalidraw.png`).
+pub fn is_excalidraw(target: &str) -> bool {
+    let t = target.to_ascii_lowercase();
+    t.ends_with(".excalidraw.svg") || t.ends_with(".excalidraw.png")
+}
+
 /// The video a link points to, on YouTube, Vimeo, Dailymotion, Twitch (a past
 /// broadcast or a clip) or a PeerTube instance.
 pub fn video(target: &str) -> Option<Video> {
@@ -399,6 +405,13 @@ pub fn resolve(page: &str, target: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn excalidraw_drawings() {
+        assert!(is_excalidraw("../assets/Schema.Excalidraw.SVG"));
+        assert!(is_excalidraw("file:a.excalidraw.png"));
+        assert!(!is_excalidraw("../assets/a.svg") && !is_excalidraw("excalidraw.svg"));
+    }
 
     #[test]
     fn youtube_links() {

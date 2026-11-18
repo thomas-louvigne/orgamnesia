@@ -29,6 +29,8 @@ pub struct Project {
     links: BacklinkIndex,
     /// Which files are pages, and which one a name leads to.
     formats: Formats,
+    /// The journal folder from the settings (see `files::journal_dir`).
+    journal: String,
     snapshot: files::Snapshot,
     /// The pages of the last project replacement, for its undo.
     last_replace: Vec<search::Replaced>,
@@ -39,7 +41,7 @@ pub struct Project {
 
 impl Project {
     /// Open the folder `path` (creating `pages/` and `assets/` if needed) and read its pages.
-    pub fn open(path: &str, tags: TagSyntax, formats: Formats) -> Result<Self, AppError> {
+    pub fn open(path: &str, tags: TagSyntax, formats: Formats, journal: &str) -> Result<Self, AppError> {
         files::ensure_structure(path)?;
         let path = &crate::slash(path);
         let mut project = Self {
@@ -48,11 +50,12 @@ impl Project {
             pages: HashMap::new(),
             links: BacklinkIndex::new(),
             formats,
+            journal: journal.to_string(),
             snapshot: files::Snapshot::new(),
             last_replace: Vec::new(),
             resolver: Default::default(),
         };
-        let files = files::list_pages(path, formats)?;
+        let files = files::list_pages(path, formats, journal)?;
         for f in &files {
             let content = std::fs::read_to_string(&f.path).unwrap_or_default();
             project.store(&f.path, content, tags);
@@ -66,6 +69,11 @@ impl Project {
     pub fn set_formats(&mut self, formats: Formats) {
         self.formats = formats;
         self.resolver.take();
+    }
+
+    /// The journal folder now in effect: its pages come at the next `refresh`.
+    pub fn set_journal(&mut self, journal: &str) {
+        self.journal = journal.to_string();
     }
 
     /// Finds the page a link names (names ignoring case with `ignore_case`); built
@@ -88,11 +96,14 @@ impl Project {
     }
 
     /// Ok when `path` is a page of the project: a `.org` or `.md` file (of a format
-    /// read) right in its pages folder. Every path received from the interface goes through here.
+    /// read) right in its pages folder or its journal folder. Every path received
+    /// from the interface goes through here.
     pub fn check_page(&self, path: &str) -> Result<(), AppError> {
         let p = Path::new(path);
         let folder = p.parent().and_then(|d| std::fs::canonicalize(d).ok());
-        if self.formats.accepts_path(path) && folder.as_deref() == Some(self.pages_dir.as_path()) {
+        let journal = std::fs::canonicalize(files::journal_dir(&self.path, &self.journal)).ok();
+        let in_folder = folder.is_some() && (folder.as_deref() == Some(self.pages_dir.as_path()) || folder == journal);
+        if self.formats.accepts_path(path) && in_folder {
             Ok(())
         } else {
             Err(AppError::NotAPage(path.to_string()))
@@ -120,7 +131,7 @@ impl Project {
             Some((stem, f)) if self.formats.accepts(f) => (valid_name(stem)?, f),
             _ => (name, format.filter(|f| self.formats.accepts(*f)).unwrap_or(self.formats.default)),
         };
-        let path = files::page_path(&self.path, &name, format);
+        let path = files::page_path(&self.path, &name, format, &self.journal)?;
         if path.exists() {
             return Err(AppError::PageExists(name));
         }
@@ -156,8 +167,9 @@ impl Project {
         let millis = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
         let file = orgamnesia_core::assets::asset_name(name, millis);
         std::fs::copy(src, dir.join(&file))?;
-        // The pages are in `pages/` (Logseq), or right in the project's folder
-        let up = std::fs::canonicalize(&self.path)? != self.pages_dir;
+        // The page is in `pages/` or `journals/` (Logseq), or right in the project's folder
+        let folder = Path::new(page).parent().map(std::fs::canonicalize).transpose()?;
+        let up = folder != Some(std::fs::canonicalize(&self.path)?);
         Ok(format!("{}assets/{file}", if up { "../" } else { "./" }))
     }
 
@@ -180,7 +192,7 @@ impl Project {
         let (Some(name), true, Some(format)) = (name, in_trash, format) else {
             return Err(AppError::NotAPage(trashed.to_string()));
         };
-        let path = files::page_path(&self.path, name, format);
+        let path = files::page_path(&self.path, name, format, &self.journal)?;
         if path.exists() {
             return Err(AppError::PageExists(name.to_string()));
         }
@@ -247,7 +259,7 @@ impl Project {
         self.check_page(old_path)?;
         let new_name = valid_name(new_name)?;
         let ext = Format::of_page(old_path).ext();
-        let new_path = self.pages_dir.join(format!("{new_name}.{ext}"));
+        let new_path = Path::new(old_path).with_file_name(format!("{new_name}.{ext}"));
         let old_name = files::page_name(old_path);
         if new_name != old_name && taken(&new_path, &old_name, &new_name) {
             return Err(AppError::PageExists(new_name));
@@ -257,8 +269,7 @@ impl Project {
         let resolver = Resolver::new(&files, prefs.case_insensitive_links, self.formats.default);
         let leads_here = |target: &str| resolver.resolve(target).is_some_and(|f| f.path == old_path);
         let by_name = leads_here(&old_name);
-        // Keep the folder as the interface knows it (not the canonical one)
-        let new_path = Path::new(old_path).with_file_name(format!("{new_name}.{ext}"));
+        // In the page's folder, as the interface knows it (not the canonical one)
         std::fs::rename(old_path, &new_path)?;
         let new_path = crate::slash(&new_path);
         let tags = prefs.tags();
@@ -286,7 +297,7 @@ impl Project {
     /// Pick up the pages created, modified or deleted outside the app since the
     /// last look. `None` when nothing changed.
     pub fn refresh(&mut self, tags: TagSyntax) -> Result<Option<VaultChanges>, AppError> {
-        let files = files::list_pages(&self.path, self.formats)?;
+        let files = files::list_pages(&self.path, self.formats, &self.journal)?;
         let now = files::snapshot(&files);
         let (changed, removed) = files::diff(&self.snapshot, &now);
         if changed.is_empty() && removed.is_empty() {
@@ -482,7 +493,7 @@ mod tests {
         for (name, content) in pages {
             std::fs::write(dir.join("pages").join(format!("{name}.org")), content).unwrap();
         }
-        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), Formats::default()).unwrap();
+        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), Formats::default(), "journals").unwrap();
         (dir, p)
     }
 
@@ -630,7 +641,7 @@ mod tests {
         for (file, content) in files {
             std::fs::write(dir.join("pages").join(file), content).unwrap();
         }
-        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), formats).unwrap();
+        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), formats, "journals").unwrap();
         (dir, p)
     }
 

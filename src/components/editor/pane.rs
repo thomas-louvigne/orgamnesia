@@ -269,6 +269,7 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
         let columns = text_columns(w.max(0), digits);
         let show_images = ctx.pref(|p| p.show_images);
         let show_videos = ctx.pref(|p| p.show_video_thumbnails);
+        let excalidraw = ctx.pref(|p| p.show_excalidraw);
         let _format = crate::motion::FormatGuard::set(pane.fmt());
         let draw = crate::highlight::Draw::new(pane.fmt(), ctx.tags());
         tables::View::build(&content, pane.focus_pos.get(), columns, |raw| {
@@ -280,6 +281,7 @@ pub fn drawn_view(pane: Pane, page_path: String, sizes: RwSignal<ImageSizes>) ->
         }, |image, attr, before| {
             let video = images::video(&image.target);
             if !(if video.is_some() { show_videos } else { show_images }) { return None; }
+            if !excalidraw && images::is_excalidraw(&image.target) { return None; }
             let src = match &video {
                 Some(v) => v.thumbnail(),
                 None => image_src(&page_path, &image.target),

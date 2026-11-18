@@ -32,6 +32,8 @@ keybindings.
 
 ** Project
 A project is a folder of =.org= or =.md= pages (see [[#markdown][Markdown]]) linked to each other.
+It is the equivalent of an Obsidian *vault*: a folder of notes you open, and switch
+between from the projects menu.
 
 - If the folder has a =pages/= subfolder, the pages are there; otherwise, if the
   folder already holds =.org= or =.md= files, it is used as is. An empty folder gets
@@ -492,6 +494,17 @@ As in org-mode, a keyword after the stars of a headline gives its state.
   adds one at each resize, the last one counts.
 - Can be turned off: the links then stay text.
 
+** Excalidraw drawings
+An [[https://excalidraw.com][Excalidraw]] drawing exported as SVG with the scene embedded
+("Embed scene" when exporting, or the =.excalidraw.svg= file of Obsidian's Excalidraw
+plugin) is an image like any other: kept in =assets/= and linked alone on its line
+(=[[../assets/diagram.excalidraw.svg]]=), it is drawn in the page. Orgamnesia does
+not edit it: open the file again in Excalidraw (dropped on excalidraw.com, or in
+Obsidian or VS Code) to change it, it stays editable. The same goes for an
+=.excalidraw.png=. Settings > Display, "Also the Excalidraw drawings" (under the
+images, on by default): off, the link of a drawing stays text, the other images are
+still shown.
+
 ** Videos
 A video is linked like any web page, with a plain org-mode link, which every tool
 reads (Emacs, Logseq, GitHub…):
@@ -872,7 +885,14 @@ turn it on in Settings > Extensions.
 - *Page of the day*: Ctrl+Shift+J in Classic, Ctrl+C J in Emacs, or the "Page of the
   day" command of quick open.
 - It is named by its date, =2026-11-15=, and created the first time in the format of
-  new pages; it is a page like the others (links, tags, backlinks).
+  new pages; it is a page like the others (links, tags, backlinks), and
+  =[[2026-11-15]]= leads to it.
+- *Folder of the days*: pages named by a date are created in =journals/=, next to
+  =pages/= (as Logseq does), and read with the other pages. The name is changed in
+  Settings > Extensions. When that folder doesn't exist but the project has a
+  =posts/= or =daily/= folder (org-roam), that one is taken. In a folder without
+  =pages/=, the days stay with the other pages. Dated pages already in =pages/=
+  stay there: nothing is moved.
 
 ** Graph (beta)
 The pages of the project and the links between them, drawn in 3D in the main area.

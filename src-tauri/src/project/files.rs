@@ -15,6 +15,32 @@ pub fn pages_dir(vault_path: &str) -> PathBuf {
     if pages.is_dir() { pages } else { PathBuf::from(vault_path) }
 }
 
+/// The journal folder named in the settings: a plain folder name, else `journals`.
+pub fn journal_name(setting: &str) -> &str {
+    let s = setting.trim();
+    let plain = !s.is_empty() && !s.starts_with('.') && !s.contains(['/', '\\', ':']);
+    if plain { s } else { "journals" }
+}
+
+/// Folder of the pages of the journal: the folder `name` when it exists, else an
+/// existing `journals/` (Logseq), `posts/` or `daily/` (org-roam), else `name`;
+/// the pages folder itself for a plain folder of pages (no `pages/`).
+pub fn journal_dir(vault_path: &str, name: &str) -> PathBuf {
+    let base = Path::new(vault_path);
+    let name = journal_name(name);
+    if let Some(dir) = [name, "journals", "posts", "daily"].iter().map(|n| base.join(n)).find(|d| d.is_dir()) {
+        return dir;
+    }
+    if base.join("pages").is_dir() { base.join(name) } else { pages_dir(vault_path) }
+}
+
+/// Whether the page `name` is a day of the journal: `2026-11-18`.
+pub fn is_journal_day(name: &str) -> bool {
+    let b = name.as_bytes();
+    b.len() == 10 && b[4] == b'-' && b[7] == b'-'
+        && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+}
+
 /// Whether the file `path` is a page of either format (`.org`, `.md`).
 fn is_page_file(path: &Path) -> bool {
     page_format(path).is_some()
@@ -34,14 +60,17 @@ fn has_org_files(dir: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// List the pages of the vault (see `pages_dir`): its `.org` and `.md` files,
-/// those `formats` accepts, sorted by name.
-pub fn list_pages(vault_path: &str, formats: Formats) -> Result<Vec<FileEntry>, AppError> {
+/// List the pages of the vault (see `pages_dir`, and `journal_dir` for the journal
+/// folder `journal`): its `.org` and `.md` files, those `formats` accepts, sorted by name.
+pub fn list_pages(vault_path: &str, formats: Formats, journal: &str) -> Result<Vec<FileEntry>, AppError> {
     let pages = pages_dir(vault_path);
     if !pages.exists() {
         return Err(AppError::VaultNotFound(vault_path.to_string()));
     }
+    let days = journal_dir(vault_path, journal);
+    let days = (days.is_dir() && days != pages).then(|| std::fs::read_dir(days).ok()).flatten();
     let mut files: Vec<FileEntry> = std::fs::read_dir(&pages)?
+        .chain(days.into_iter().flatten())
         .filter_map(|entry| entry.ok())
         .filter(|e| page_format(&e.path()).is_some_and(|f| formats.accepts(f)))
         .map(|e| {
@@ -123,9 +152,12 @@ pub fn page_name(path: &str) -> String {
         .to_string()
 }
 
-/// Full path for a new page of `format` in the vault.
-pub fn page_path(vault_path: &str, name: &str, format: Format) -> PathBuf {
-    pages_dir(vault_path).join(format!("{name}.{}", format.ext()))
+/// Full path for a new page of `format` in the vault: a day (see `is_journal_day`)
+/// goes in the journal folder `journal`, created if needed.
+pub fn page_path(vault_path: &str, name: &str, format: Format, journal: &str) -> std::io::Result<PathBuf> {
+    let dir = if is_journal_day(name) { journal_dir(vault_path, journal) } else { pages_dir(vault_path) };
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir.join(format!("{name}.{}", format.ext())))
 }
 
 /// True when a page holds no text: only spaces, tabs, line breaks, `*` or `#`.
@@ -170,11 +202,11 @@ pub fn to_trash(vault_path: &str, path: &str) -> std::io::Result<PathBuf> {
 /// Move to the trash the pages of the vault that are blank (see `is_blank`)
 /// and/or hold only their title heading, depending on the flags. Returns their
 /// paths before.
-pub fn delete_blank_pages(vault_path: &str, formats: Formats, empty: bool, title_only: bool) -> Vec<String> {
+pub fn delete_blank_pages(vault_path: &str, formats: Formats, journal: &str, empty: bool, title_only: bool) -> Vec<String> {
     if !empty && !title_only {
         return vec![];
     }
-    let Ok(files) = list_pages(vault_path, formats) else { return vec![] };
+    let Ok(files) = list_pages(vault_path, formats, journal) else { return vec![] };
     files.into_iter()
         .filter(|f| {
             let Ok(content) = std::fs::read_to_string(&f.path) else { return false };
@@ -221,8 +253,34 @@ mod tests {
         for name in ["Note.org", ".#Note.org", "._Note.md", ".Note.org.123.tmp"] {
             std::fs::write(dir.join(name), "").unwrap();
         }
-        let names: Vec<String> = list_pages(dir.to_str().unwrap(), Formats::default()).unwrap().into_iter().map(|f| f.name).collect();
+        let names: Vec<String> = list_pages(dir.to_str().unwrap(), Formats::default(), "journals").unwrap().into_iter().map(|f| f.name).collect();
         assert_eq!(names, ["Note"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn journal_folder() {
+        assert!(is_journal_day("2026-11-18"));
+        assert!(!is_journal_day("2026-11-1x") && !is_journal_day("Note") && !is_journal_day("2026_11_18"));
+        assert_eq!(journal_name("../x"), "journals");
+        assert_eq!(journal_name(" notes "), "notes");
+        let dir = std::env::temp_dir().join(format!("orgamnesia-journal-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("pages")).unwrap();
+        let vp = dir.to_str().unwrap();
+        // None yet: the one of the settings, created with the first day
+        assert_eq!(journal_dir(vp, "notes"), dir.join("notes"));
+        let day = page_path(vp, "2026-11-18", Format::Org, "notes").unwrap();
+        assert_eq!(day, dir.join("notes/2026-11-18.org"));
+        assert_eq!(page_path(vp, "Note", Format::Org, "notes").unwrap(), dir.join("pages/Note.org"));
+        std::fs::write(&day, "* 2026-11-18\n").unwrap();
+        std::fs::write(dir.join("pages/Note.org"), "* Note\n").unwrap();
+        let names: Vec<String> = list_pages(vp, Formats::default(), "notes").unwrap().into_iter().map(|f| f.name).collect();
+        assert_eq!(names, ["2026-11-18", "Note"]);
+        // An existing `daily/` is taken when the folder of the settings is missing
+        std::fs::remove_dir_all(dir.join("notes")).unwrap();
+        std::fs::create_dir_all(dir.join("daily")).unwrap();
+        assert_eq!(journal_dir(vp, "journals"), dir.join("daily"));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -272,10 +330,10 @@ mod tests {
             std::fs::write(dir.join(format!("{name}.org")), content).unwrap();
         }
         let vp = dir.to_str().unwrap();
-        assert_eq!(delete_blank_pages(vp, Formats::default(), false, false).len(), 0);
-        assert_eq!(delete_blank_pages(vp, Formats::default(), true, false).len(), 2);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", false, false).len(), 0);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", true, false).len(), 2);
         assert!(!dir.join("vide.org").exists() && !dir.join("espaces.org").exists() && dir.join("titre.org").exists());
-        assert_eq!(delete_blank_pages(vp, Formats::default(), false, true).len(), 1);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", false, true).len(), 1);
         assert!(!dir.join("titre.org").exists() && dir.join("texte.org").exists());
         // In the trash, not gone for good
         assert_eq!(std::fs::read_dir(dir.join(".trash")).unwrap().flatten().filter(|e| e.file_name() != ".gitignore").count(), 3);

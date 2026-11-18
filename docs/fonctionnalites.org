@@ -32,6 +32,8 @@ raccourcis Emacs et l'interface en anglais.
 
 ** Projet
 Un projet est un dossier de pages =.org= ou =.md= (voir [[#markdown][Markdown]]) liées entre elles.
+C'est l'équivalent d'un *coffre* (/vault/) d'Obsidian : un dossier de notes qu'on ouvre,
+et entre lesquels on bascule par le menu des projets.
 
 - Si le dossier contient un sous-dossier =pages/=, les pages y sont ; sinon, si le
   dossier contient déjà des fichiers =.org= ou =.md=, il est utilisé tel quel. Un dossier
@@ -517,6 +519,17 @@ Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
   le dernier compte.
 - Désactivable : les liens restent alors du texte.
 
+** Dessins Excalidraw
+Un dessin [[https://excalidraw.com][Excalidraw]] exporté en SVG avec la scène intégrée
+(« Intégrer la scène » à l'export, ou le fichier =.excalidraw.svg= du plugin Excalidraw
+d'Obsidian) est une image comme une autre : rangé dans =assets/= et lié seul sur sa
+ligne (=[[../assets/schema.excalidraw.svg]]=), il est dessiné dans la page.
+Orgamnesia ne l'édite pas : rouvrez le fichier dans Excalidraw (glissé sur
+excalidraw.com, ou dans Obsidian ou VS Code) pour le modifier, il reste modifiable.
+Même chose pour un =.excalidraw.png=. Préférences > Affichage, « Aussi les dessins
+Excalidraw » (sous l'affichage des images, coché par défaut) : décoché, le lien d'un
+dessin reste du texte, les autres images restent affichées.
+
 ** Vidéos
 Une vidéo se lie comme n'importe quelle page web, avec un lien org-mode classique,
 que tous les outils lisent (Emacs, Logseq, GitHub…) :
@@ -921,7 +934,13 @@ Une page par jour, pour noter sans se demander où ranger. Désactivé par défa
   « Page du jour » de l'ouverture rapide.
 - Elle est nommée par sa date, =2026-11-15=, et créée la première fois dans le
   format des nouvelles pages ; c'est une page comme les autres (liens, tags,
-  rétroliens).
+  rétroliens), et =[[2026-11-15]]= y mène.
+- *Dossier des jours* : les pages nommées par une date sont créées dans
+  =journals/=, à côté de =pages/= (comme Logseq), et lues avec les autres pages.
+  Le nom se change dans Préférences > Extensions. Si ce dossier n'existe pas mais
+  que le projet a un dossier =posts/= ou =daily/= (org-roam), c'est lui qui est
+  pris. Dans un dossier sans =pages/=, les jours restent avec les autres pages.
+  Les pages datées déjà dans =pages/= y restent : rien n'est déplacé.
 
 ** Graphe (bêta)
 Les pages du projet et les liens entre elles, dessinés en 3D dans la zone principale.
