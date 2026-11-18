@@ -18,7 +18,7 @@ const POPUP_WIDTH: f64 = 260.0;
 const ITEM_HEIGHT: f64 = 26.0;
 
 /// What is being completed.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Kind {
     /// A page name in `[[link`: accepting also closes the link with `]]`.
     Link,
@@ -29,13 +29,20 @@ enum Kind {
     /// A headline of a page in `[[Page::*Titre` or `[[*Titre`: accepting also
     /// closes the link with `]]`.
     Place,
+    /// A headline of a page in `[[Page#Titre` (when that syntax is read): the
+    /// same, written without the `*`.
+    HashPlace,
+    /// The file of a page in a Markdown link `[texte](Pa`, written `%`-encoded:
+    /// accepting also closes the link with `)`.
+    MdLink,
 }
 
 impl Kind {
     /// What closes the name once accepted.
     fn close(self) -> &'static str {
         match self {
-            Kind::Link | Kind::Place => "]]",
+            Kind::Link | Kind::Place | Kind::HashPlace => "]]",
+            Kind::MdLink => ")",
             Kind::OrgTag => ":",
             Kind::Hashtag => "",
         }
@@ -48,18 +55,32 @@ impl Kind {
             Kind::Hashtag => "#",
             Kind::OrgTag => ":",
             Kind::Place => "::",
+            Kind::HashPlace => "#",
+            Kind::MdLink => "](",
         }
     }
 }
 
 /// What is being typed at `caret` that names can complete: where the typed part
 /// starts, that part, and what it is.
-fn being_typed(chars: &[char], caret: usize, tags: orgamnesia_core::TagSyntax) -> Option<(usize, String, Kind)> {
+fn being_typed(chars: &[char], caret: usize, tags: orgamnesia_core::TagSyntax, format: orgamnesia_core::Format) -> Option<(usize, String, Kind)> {
     links::link_prefix(chars, caret)
         .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
         .map(|(start, p)| (start, p, Kind::Link))
+        .or_else(|| tags.links(format).markdown.then(|| md_link_prefix(chars, caret)).flatten()
+            .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
+            .map(|(start, p)| (start, p, Kind::MdLink)))
         .or_else(|| tags::org_tag_prefix(chars, caret, tags.org).map(|(start, p)| (start, p, Kind::OrgTag)))
         .or_else(|| tags::hashtag_prefix(chars, caret, tags.hashtags).map(|(hash, p)| (hash + 1, p, Kind::Hashtag)))
+}
+
+/// The target of a Markdown link being typed at `caret` (`[texte](Pa`): where it
+/// starts, and what is typed of it; not an address, nor a place (`#titre`).
+fn md_link_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
+    let start = caret - chars[..caret].iter().rev().take_while(|&&c| !matches!(c, '(' | ')' | '[' | ']' | '\n')).count();
+    if start < 2 || chars[start - 1] != '(' || chars[start - 2] != ']' { return None; }
+    let typed: String = chars[start..caret].iter().collect();
+    (!typed.contains("://") && !typed.contains('#') && !typed.starts_with('<')).then_some((start, typed))
 }
 
 /// The change accepting a name makes: `insert` replaces the characters `from..to`,
@@ -73,8 +94,19 @@ struct Accepted { from: usize, to: usize, insert: String, cursor: usize }
 /// otherwise the closing characters of `kind` are added, or stepped over when
 /// already there.
 fn accepted(chars: &[char], start: usize, caret: usize, kind: Kind, name: &str) -> Accepted {
+    if kind == Kind::MdLink {
+        // The file name, `Ma%20page.md`; a target already closed is replaced whole
+        let name = orgamnesia_core::links::percent_encode(name);
+        let target_end = caret + chars[caret..].iter().take_while(|&&ch| !matches!(ch, ')' | '\n')).count();
+        let after_name = start + name.chars().count();
+        return if chars.get(target_end) == Some(&')') {
+            Accepted { from: start, to: target_end, insert: name, cursor: after_name + 1 }
+        } else {
+            Accepted { from: start, to: caret, insert: format!("{name})"), cursor: after_name + 1 }
+        };
+    }
     let target_end = caret + chars[caret..].iter().take_while(|&&ch| !matches!(ch, ']' | '[' | '\n')).count();
-    let closed = matches!(kind, Kind::Link | Kind::Place)
+    let closed = matches!(kind, Kind::Link | Kind::Place | Kind::HashPlace)
         && matches!((chars.get(target_end), chars.get(target_end + 1)), (Some(']'), Some(']' | '[')));
     let after_name = start + name.chars().count();
     if closed {
@@ -129,13 +161,27 @@ impl Completion {
         let ctx = self.pane.ctx;
         let (caret, end) = get_pos(el);
         let chars: Vec<char> = el.value().chars().collect();
-        let found = (caret == end).then(|| being_typed(&chars, caret, ctx.tags_untracked())).flatten();
+        let tags = ctx.tags_untracked();
+        let found = (caret == end).then(|| being_typed(&chars, caret, tags, self.pane.fmt())).flatten();
         let Some((start, prefix, kind)) = found else { self.close(); return };
         if kind == Kind::Link && let Some((page, typed, at)) = links::place_prefix(&prefix) {
-            self.complete_place(el, start + at, caret, page, typed);
+            self.complete_place(el, start + at, caret, page, typed, Kind::Place);
+            return;
+        }
+        if kind == Kind::Link && tags.links(self.pane.fmt()).hash && let Some((page, typed)) = prefix.split_once('#').filter(|(page, _)| !page.trim().is_empty()) {
+            let at = page.chars().count() + 1;
+            self.complete_place(el, start + at, caret, page.trim().to_string(), typed.to_string(), Kind::HashPlace);
             return;
         }
         let items = match kind {
+            Kind::MdLink => {
+                // The files of the pages, with their extension (`Ma page.md`)
+                let names: Vec<String> = ctx.project.files.with_untracked(|fs| {
+                    fs.iter().map(|f| orgamnesia_core::pages::file_name(&f.path).to_string()).collect()
+                });
+                let typed = orgamnesia_core::links::percent_decode(&prefix);
+                links::complete_page(&names, &typed, None, MAX_SUGGESTIONS)
+            }
             Kind::OrgTag => {
                 let names: Vec<String> = ctx.project.tags.get_untracked().into_iter().map(|t| t.name).collect();
                 links::complete_page(&names, &prefix, None, MAX_SUGGESTIONS)
@@ -151,7 +197,7 @@ impl Completion {
 
     /// Suggest the headlines of `page` (this one when empty) for the place typed
     /// after `[[page::`, which starts at `start`. The page may have to be read first.
-    fn complete_place(self, el: &Textarea, start: usize, caret: usize, page: String, typed: String) {
+    fn complete_place(self, el: &Textarea, start: usize, caret: usize, page: String, typed: String, kind: Kind) {
         let el = el.clone();
         spawn_local(async move {
             let Some((text, keywords, format)) = self.pane.named_page_text(&page).await else { self.close(); return };
@@ -164,9 +210,10 @@ impl Completion {
             };
             // The caret moved while the page was read: this is not the question any more
             if self.shown.try_get_untracked().is_none() || get_pos(&el) != (caret, caret) { return; }
-            let items = titles.into_iter().map(|t| format!("*{t}")).collect();
+            let star = if kind == Kind::Place { "*" } else { "" };
+            let items = titles.into_iter().map(|t| format!("{star}{t}")).collect();
             let chars: Vec<char> = el.value().chars().collect();
-            self.show(&el, &chars, start, caret, Kind::Place, items);
+            self.show(&el, &chars, start, caret, kind, items);
         });
     }
 
@@ -287,13 +334,38 @@ mod tests {
         assert_eq!(accept("* T :pro", 5, 8, Kind::OrgTag, "projet"), ("* T :projet:".into(), 12));
     }
 
+    fn typed(text: &str, tags: orgamnesia_core::TagSyntax, format: orgamnesia_core::Format) -> Option<(usize, String, Kind)> {
+        let chars: Vec<char> = text.chars().collect();
+        being_typed(&chars, chars.len(), tags, format)
+    }
+
     #[test]
     fn what_is_typed() {
-        let chars: Vec<char> = "voir [[je".chars().collect();
+        use orgamnesia_core::Format::{Markdown, Org};
         let tags = crate::state::Prefs::default().tags();
-        assert_eq!(being_typed(&chars, chars.len(), tags).map(|(s, p, _)| (s, p)), Some((7, "je".into())));
+        assert_eq!(typed("voir [[je", tags, Org), Some((7, "je".into(), Kind::Link)));
         // One letter after `[[` is not enough
-        let chars: Vec<char> = "voir [[j".chars().collect();
-        assert!(being_typed(&chars, chars.len(), tags).is_none_or(|(_, _, k)| k != Kind::Link));
+        assert!(typed("voir [[j", tags, Org).is_none_or(|(_, _, k)| k != Kind::Link));
+        // A Markdown link, when that syntax is read in the page's format
+        assert_eq!(typed("voir [texte](Ma pa", tags, Markdown), Some((13, "Ma pa".into(), Kind::MdLink)));
+        let mut no_md = tags;
+        no_md.md_links.markdown = false;
+        assert!(typed("voir [texte](Ma pa", no_md, Markdown).is_none_or(|(_, _, k)| k != Kind::MdLink));
+        // Not an address, a place, or a link already passed
+        for text in ["[t](https://ex", "[t](Page.md#ti", "[t](Pa) suite", "f(xy"] {
+            assert!(typed(text, tags, Markdown).is_none_or(|(_, _, k)| k != Kind::MdLink), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_markdown_link_is_encoded_and_closed() {
+        assert_eq!(accept("[t](Ma pa", 4, 9, Kind::MdLink, "Ma page.md"), ("[t](Ma%20page.md)".into(), 17));
+        // Already closed: its whole target replaced, the caret past `)`
+        assert_eq!(accept("[t](Ma pa.md) x", 4, 9, Kind::MdLink, "Ma page.md"), ("[t](Ma%20page.md) x".into(), 17));
+    }
+
+    #[test]
+    fn a_hash_place_closes_the_link() {
+        assert_eq!(accept("[[Page#Ti", 7, 9, Kind::HashPlace, "Titre"), ("[[Page#Titre]]".into(), 14));
     }
 }

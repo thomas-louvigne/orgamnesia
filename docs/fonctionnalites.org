@@ -218,6 +218,11 @@ Pendant la frappe, une liste propose :
 - les noms de pages après =[[= (accepter ferme le lien avec =]]=) ;
 - les titres d'une page après =[[Page::= ou =[[Page::*=, et ceux de la page
   ouverte après =[[*= (voir [[#liens-vers-un-titre-ou-une-cible][Liens vers un titre ou une cible]]) ;
+- les titres d'une page après =[[Page#=, quand cette syntaxe de liens est lue
+  (accepter ferme le lien avec =]]=) ;
+- les fichiers des pages dans un lien Markdown, après =[texte](=, quand cette syntaxe
+  est lue : accepter écrit le nom du fichier encodé (=Ma%20page.md=) et ferme le lien
+  avec =)= ;
 - les noms de pages après =#= ;
 - les tags existants dans les tags d'un titre (=* Titre :pro=), dans =#+FILETAGS:= ou
   après =:= dans le texte (accepter ajoute le =:= final).

@@ -211,6 +211,11 @@ While typing, a list offers:
 - page names after =[[= (accepting closes the link with =]]=);
 - the headlines of a page after =[[Page::= or =[[Page::*=, and those of the open
   page after =[[*= (see [[#links-to-a-headline-or-a-target][Links to a headline or a target]]);
+- the headlines of a page after =[[Page#=, when that link syntax is read (accepting
+  closes the link with =]]=);
+- the files of the pages in a Markdown link, after =[text](=, when that syntax is
+  read: accepting writes the encoded file name (=My%20page.md=) and closes the link
+  with =)=;
 - page names after =#=;
 - existing tags in the tags of a headline (=* Title :pro=), in =#+FILETAGS:= or after
   =:= in the text (accepting adds the closing =:=).

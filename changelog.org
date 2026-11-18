@@ -7,6 +7,8 @@ The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 * 1.7.0
 - Journal: the pages of the days are created in a journals/ folder, next to pages/, instead of among the other pages. Its name is changed in Settings > Extensions; a posts/ or daily/ folder already there is taken automatically. Existing dated pages don't move.
 - Excalidraw: a drawing exported with its scene (.excalidraw.svg or .excalidraw.png) is shown in the page like an image, and stays editable in Excalidraw. Turned off in Settings > Display, under the images.
+- Completion in Markdown links: after [text]( the files of the pages are offered, written encoded (My%20page.md), and the link is closed with ). After [[Page# the headlines of the page are offered. When those link syntaxes are read (Settings > Links).
+- Accepting a completion is a single edit: one Ctrl+Z undoes it.
 - Documentation: a project is the equivalent of an Obsidian vault.
 
 * 1.6.2
