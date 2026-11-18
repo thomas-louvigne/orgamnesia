@@ -1,6 +1,6 @@
 [package]
 name = "orgamnesia-ui"
-version = "1.6.2"
+version = "1.7.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 

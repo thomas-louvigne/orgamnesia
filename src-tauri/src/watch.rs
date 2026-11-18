@@ -86,8 +86,11 @@ mod tests {
         let _w = start(&dir, move |events| { let _ = tx.send(touched(events.iter().map(|e| e.path.as_path()))); }).unwrap();
         // In a folder of the project too
         std::fs::write(dir.join("journals/2026-11-18.org"), "* x\n").unwrap();
-        let seen = rx.recv_timeout(Duration::from_secs(5)).expect("a change event");
-        assert!(seen.0);
+        // The folder's own change may come in a batch of its own first
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let page_seen = std::iter::from_fn(|| rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())).ok())
+            .any(|(pages, _)| pages);
+        assert!(page_seen);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
