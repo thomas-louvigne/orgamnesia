@@ -28,6 +28,13 @@ fn clean_bindings(mut b: Bindings) -> Bindings {
     b
 }
 
+/// `base`, or `base 2`, `base 3`… : the first name no profile of `profiles` has.
+fn free_name(base: &str, profiles: &[Profile]) -> String {
+    (1..).map(|n| if n == 1 { base.to_string() } else { format!("{base} {n}") })
+        .find(|name| !profiles.iter().any(|p| &p.name == name))
+        .expect("names never run out")
+}
+
 /// Create a custom profile from the given bindings and make it the active one.
 /// Named "Custom", then "Custom 2", "Custom 3"… when the name is taken.
 fn add_profile(
@@ -38,15 +45,7 @@ fn add_profile(
     app: Bindings,
     editor: Bindings,
 ) {
-    let base = t("profile_custom", lang);
-    let name = profiles.with_untracked(|ps| {
-        let mut n = 1;
-        loop {
-            let candidate = if n == 1 { base.to_string() } else { format!("{base} {n}") };
-            if !ps.iter().any(|p| p.name == candidate) { break candidate; }
-            n += 1;
-        }
-    });
+    let name = profiles.with_untracked(|ps| free_name(t("profile_custom", lang), ps));
     let id = format!("custom-{}", js_sys::Date::now() as u64);
     profiles.update(|ps| ps.push(Profile {
         id: id.clone(), name, editor_preset: base_preset, app, editor,
@@ -576,5 +575,30 @@ fn KeybindingSlot(
                 on:click=clear
             >"×"</button>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn profile(name: &str) -> Profile {
+        Profile { id: name.into(), name: name.into(), editor_preset: "classic".into(), app: Bindings::new(), editor: Bindings::new() }
+    }
+
+    #[test]
+    fn new_profiles_get_a_free_name() {
+        assert_eq!(free_name("Perso", &[]), "Perso");
+        assert_eq!(free_name("Perso", &[profile("Perso"), profile("Perso 2"), profile("Autre")]), "Perso 3");
+    }
+
+    #[test]
+    fn empty_bindings_are_dropped() {
+        let mut b = Bindings::new();
+        b.insert("save".into(), vec![String::new(), "ctrl+s".into()]);
+        b.insert("none".into(), vec![String::new()]);
+        let b = clean_bindings(b);
+        assert_eq!(b.len(), 1);
+        assert_eq!(b["save"], ["ctrl+s"]);
     }
 }
