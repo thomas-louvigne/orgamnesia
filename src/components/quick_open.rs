@@ -7,7 +7,7 @@ use crate::{
     actions,
     i18n::t,
     keybindings::{AppAction, APP_ACTIONS, GIT_ACTIONS},
-    state::{AppCtx, FileEntry, Goto},
+    state::{AppCtx, FileEntry, Goto, Tab},
 };
 
 #[derive(Clone, Debug)]
@@ -82,6 +82,35 @@ fn commands(ctx: AppCtx, q: &str) -> Vec<QuickItem> {
     list
 }
 
+/// What the quick open lists for `query`: the open `tabs` (`active` marked), the
+/// other `files`, then the `tags` (when the tags frame is shown) and the page to
+/// create; case and accents ignored ("regle" finds "Règle").
+fn page_items(query: &str, tabs: &[Tab], active: Option<usize>, files: &[FileEntry], tags: Option<&[String]>) -> Vec<QuickItem> {
+    let q = fold(query);
+    let matches = |name: &str| q.is_empty() || fold(name).contains(&q);
+    let mut list: Vec<QuickItem> = tabs.iter().enumerate()
+        .filter(|(_, tab)| matches(&tab.name))
+        .map(|(i, tab)| QuickItem::Tab { idx: i, name: tab.name.clone(), is_active: Some(i) == active })
+        .collect();
+    list.extend(files.iter()
+        .filter(|file| matches(&file.name) && !tabs.iter().any(|t| t.path == file.path))
+        .map(|file| QuickItem::File(file.clone())));
+    if !q.is_empty() {
+        list.sort_by_cached_key(|item| search_order(&item.display_name(), &q));
+    }
+    // `:pro` or `#pro` find the tag too
+    let tag_q = q.trim_start_matches([':', '#']).trim_end_matches(':');
+    if let Some(names) = tags.filter(|_| !tag_q.is_empty()) {
+        let exact = names.iter().find(|n| fold(n) == tag_q).cloned();
+        let found = crate::links::complete_page(names, tag_q, None, 8);
+        list.extend(exact.into_iter().chain(found).map(QuickItem::Tag));
+    }
+    if !q.is_empty() {
+        list.push(QuickItem::Create { name: query.to_string() });
+    }
+    list
+}
+
 #[component]
 pub fn QuickOpenModal() -> impl IntoView {
     let ctx      = expect_context::<AppCtx>();
@@ -96,49 +125,10 @@ pub fn QuickOpenModal() -> impl IntoView {
 
     let items = move || -> Vec<QuickItem> {
         if let Some(rest) = query.get().strip_prefix('>') { return commands(ctx, &fold(rest.trim())); }
-        let q     = fold(&query.get());
-        let tabs  = ctx.work.tabs.get();
-        let active = ctx.work.active_tab.get();
-        // Case and accents ignored: "regle" finds "Règle"
-        let matches = |name: &str| q.is_empty() || fold(name).contains(&q);
-        let mut list = Vec::new();
-
-        for (i, tab) in tabs.iter().enumerate() {
-            if matches(&tab.name) {
-                list.push(QuickItem::Tab {
-                    idx: i,
-                    name: tab.name.clone(),
-                    is_active: Some(i) == active,
-                });
-            }
-        }
-
-        ctx.project.files.with(|files| {
-            for file in files {
-                let open = tabs.iter().any(|t| t.path == file.path);
-                if !open && matches(&file.name) {
-                    list.push(QuickItem::File(file.clone()));
-                }
-            }
-        });
-        if !q.is_empty() {
-            list.sort_by_cached_key(|item| search_order(&item.display_name(), &q));
-        }
-
-        // The tags, when typing something and the tags frame is shown (`:pro` or `#pro` work too)
-        let tag_q = q.trim_start_matches([':', '#']).trim_end_matches(':');
-        if !tag_q.is_empty() && ctx.pref(|p| p.show_tags) {
-            let names: Vec<String> = ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect());
-            let exact = names.iter().find(|n| fold(n) == tag_q).cloned();
-            let found = crate::links::complete_page(&names, tag_q, None, 8);
-            list.extend(exact.into_iter().chain(found).map(QuickItem::Tag));
-        }
-
-        if !q.is_empty() {
-            list.push(QuickItem::Create { name: query.get() });
-        }
-
-        list
+        let tabs = ctx.work.tabs.get();
+        let tags = ctx.pref(|p| p.show_tags)
+            .then(|| ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect::<Vec<_>>()));
+        ctx.project.files.with(|files| page_items(&query.get(), &tabs, ctx.work.active_tab.get(), files, tags.as_deref()))
     };
 
     let on_keydown = move |e: web_sys::KeyboardEvent| {
@@ -230,5 +220,41 @@ pub fn QuickOpenModal() -> impl IntoView {
                 }}
             </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file(name: &str) -> FileEntry {
+        FileEntry { name: name.into(), path: format!("/p/{name}.org") }
+    }
+
+    fn names(items: &[QuickItem]) -> Vec<String> {
+        items.iter().map(QuickItem::display_name).collect()
+    }
+
+    #[test]
+    fn empty_query_lists_tabs_then_other_pages() {
+        let tabs = [Tab::new(&file("B"), String::new(), false)];
+        let items = page_items("", &tabs, Some(0), &[file("A"), file("B")], Some(&["tag".into()]));
+        assert_eq!(names(&items), ["B", "A"]);
+        assert!(matches!(items[0], QuickItem::Tab { idx: 0, is_active: true, .. }));
+    }
+
+    #[test]
+    fn query_filters_sorts_and_offers_creation() {
+        let files = [file("Mes règles"), file("Règle"), file("Autre")];
+        assert_eq!(names(&page_items("regle", &[], None, &files, None)), ["Règle", "Mes règles", "regle"]);
+    }
+
+    #[test]
+    fn tags_when_shown() {
+        let tags = ["projet".to_string(), "perso".to_string()];
+        let found = names(&page_items(":projet:", &[], None, &[], Some(&tags)));
+        assert_eq!(found.first().map(String::as_str), Some(":projet:"));
+        assert_eq!(found.last().map(String::as_str), Some(":projet:"));
+        assert!(names(&page_items("projet", &[], None, &[], None)).iter().all(|n| !n.starts_with(':')));
     }
 }
