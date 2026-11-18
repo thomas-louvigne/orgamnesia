@@ -125,6 +125,12 @@ fn resolve_step(c: &mut ChordState, kb: &Keybindings, event: &web_sys::KeyboardE
     }
     // A bare modifier is just the start of a combination
     let Some(token) = capture_from_event(event, is_emacs(kb)) else { return Resolution::None };
+    chord_step(c, kb, token, ts)
+}
+
+/// One key (`token`, as `capture_from_event` writes it) pressed at `ts` (ms),
+/// against the bindings and the chord begun in `c`.
+fn chord_step(c: &mut ChordState, kb: &Keybindings, token: String, ts: f64) -> Resolution {
     if !c.pending.is_empty() && ts - c.at > CHORD_TIMEOUT_MS {
         c.pending.clear();
     }
@@ -328,4 +334,75 @@ pub fn listen_tips(ctx: crate::state::AppCtx) {
     let Some(window) = web_sys::window() else { return };
     let _ = window.add_event_listener_with_callback_and_bool("click", on_click.as_ref().unchecked_ref(), true);
     on_click.forget(); // as long as the app
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn kb() -> Keybindings {
+        let mut kb = Keybindings::default();
+        kb.app.clear();
+        kb.editor.clear();
+        kb.app.insert("save".into(), vec!["ctrl+x ctrl+s".into()]);
+        kb.app.insert("other".into(), vec!["ctrl+x o".into()]);
+        kb.editor.insert("undo".into(), vec!["ctrl+z".into(), String::new()]);
+        kb
+    }
+
+    fn press(c: &mut ChordState, kb: &Keybindings, keys: &[(&str, f64)]) -> Vec<Resolution> {
+        keys.iter().map(|(k, ts)| chord_step(c, kb, k.to_string(), *ts)).collect()
+    }
+
+    #[test]
+    fn single_keys_and_chords() {
+        let (kb, mut c) = (kb(), ChordState::default());
+        assert_eq!(press(&mut c, &kb, &[("ctrl+z", 0.0)]), [Resolution::Action(Scope::Editor, "undo".into())]);
+        assert_eq!(press(&mut c, &kb, &[("a", 0.0)]), [Resolution::None]);
+        assert_eq!(press(&mut c, &kb, &[("ctrl+x", 0.0), ("ctrl+s", 10.0)]),
+            [Resolution::Pending("Ctrl+X".into()), Resolution::Action(Scope::App, "save".into())]);
+    }
+
+    #[test]
+    fn ctrl_held_through_a_chord() {
+        let (kb, mut c) = (kb(), ChordState::default());
+        assert_eq!(press(&mut c, &kb, &[("ctrl+x", 0.0), ("ctrl+o", 10.0)])[1], Resolution::Action(Scope::App, "other".into()));
+    }
+
+    #[test]
+    fn chords_abort() {
+        let (kb, mut c) = (kb(), ChordState::default());
+        // Escape, a key bound to nothing, or a key coming too late
+        assert_eq!(press(&mut c, &kb, &[("ctrl+x", 0.0), ("Escape", 1.0)])[1], Resolution::Aborted);
+        assert_eq!(press(&mut c, &kb, &[("ctrl+x", 0.0), ("q", 1.0)])[1], Resolution::Aborted);
+        assert_eq!(press(&mut c, &kb, &[("ctrl+x", 0.0), ("ctrl+s", CHORD_TIMEOUT_MS + 1.0)])[1], Resolution::None);
+        assert!(c.pending.is_empty());
+    }
+
+    #[test]
+    fn labels() {
+        assert_eq!(display("ctrl+shift+k"), "Ctrl+Shift+K");
+        assert_eq!(display("ctrl+x ctrl+s"), "Ctrl+X Ctrl+S");
+        assert_eq!(display("alt+ArrowUp"), "Alt+↑");
+        assert_eq!(display(""), "—");
+        assert_eq!(preset_label_key("emacs"), "preset_emacs");
+        assert_eq!(preset_label_key("anything"), "preset_classic");
+    }
+
+    #[test]
+    fn keys_from_physical_codes() {
+        assert_eq!(key_from_code("KeyA").as_deref(), Some("a"));
+        assert_eq!(key_from_code("Digit7").as_deref(), Some("7"));
+        assert_eq!(key_from_code("BracketLeft").as_deref(), Some("["));
+        assert_eq!(key_from_code("F5"), None);
+    }
+
+    #[test]
+    fn first_shortcut_skips_empty_bindings() {
+        let mut kb = kb();
+        kb.editor.insert("undo".into(), vec![String::new(), "ctrl+z".into()]);
+        assert_eq!(first_shortcut(&kb, "undo").as_deref(), Some("Ctrl+Z"));
+        assert_eq!(first_shortcut(&kb, "save").as_deref(), Some("Ctrl+X Ctrl+S"));
+        assert_eq!(first_shortcut(&kb, "nope"), None);
+    }
 }
