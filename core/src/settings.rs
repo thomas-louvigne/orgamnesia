@@ -626,6 +626,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn each_frame_has_its_own_setting() {
+        for frame in crate::layout::Frame::ALL {
+            let mut p = Prefs::default();
+            *p.frame_setting(frame) = false;
+            assert!(!p.frame_on(frame) && !p.frame_shown(frame), "{frame:?}");
+            *p.frame_setting(frame) = true;
+            assert!(p.frame_on(frame), "{frame:?}");
+            // The others are untouched by it
+            let other = Prefs::default();
+            for f in crate::layout::Frame::ALL.into_iter().filter(|f| *f != frame) {
+                assert_eq!(p.frame_on(f), other.frame_on(f), "{frame:?} changed {f:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn frames_of_features_turned_off_are_hidden() {
+        use crate::layout::Frame;
+        let mut p = Prefs::default();
+        for f in [Frame::Git, Frame::Todos, Frame::OrgBloom, Frame::Graph] { *p.frame_setting(f) = true; }
+        (p.git_ext, p.todo_enabled, p.org_bloom, p.graph) = (false, false, false, false);
+        for f in [Frame::Git, Frame::Todos, Frame::OrgBloom, Frame::Graph] {
+            assert!(p.frame_on(f) && !p.frame_shown(f), "{f:?}");
+            assert!(!p.column(false).contains(&f) && !p.column(true).contains(&f));
+        }
+    }
+
+    #[test]
     fn missing_values_take_their_default() {
         let p = Settings::default().prefs();
         assert!(p.autosave && p.git_ext && !p.org_bloom && !p.delete_empty && p.restore_session);

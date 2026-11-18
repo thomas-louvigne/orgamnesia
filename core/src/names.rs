@@ -62,6 +62,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn accents_fold_one_char_for_one() {
+        let s = "ÀÇĎÉĜĤÎĴĶŁÑÖŘŠŤÜŴŸŽœ";
+        let folded: String = s.chars().map(fold_char).collect();
+        assert_eq!(folded, "acdeghijklnorstuwyzœ");
+        assert_eq!(folded.chars().count(), s.chars().count());
+    }
+
+    #[test]
     fn found_pages_sort_by_start_then_length_then_name() {
         let mut names = ["Ma quête", "Quête très longue", "quêtes", "Quete", "Autre quête", "Quêtez"];
         names.sort_by_key(|n| search_order(n, "quete"));

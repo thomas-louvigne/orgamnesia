@@ -150,6 +150,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn ids_and_headlines() {
+        for f in Format::ALL { assert_eq!(Format::from_id(f.id()), Some(f)); }
+        assert_eq!(Format::from_id("txt"), None);
+        assert_eq!(Format::of_page("/p/Note"), Format::Org);
+        assert_eq!(Format::of_page("/p/Note.md"), Format::Markdown);
+        assert_eq!(Format::Org.heading_level_of("** Titre"), Some(2));
+        assert_eq!(Format::Org.heading_level_of("**gras**"), None);
+        assert_eq!(Format::Markdown.heading_level_of("#"), Some(1));
+        assert_eq!(Format::Org.heading_level_of("# commentaire"), None);
+        assert_eq!(Format::Markdown.title_line("Note"), "# Note\n");
+    }
+
+    #[test]
+    fn titles_and_page_tags_per_format() {
+        let md = Format::Markdown.set_title("texte\n", "Titre");
+        assert_eq!(Format::Markdown.title(&md).as_deref(), Some("Titre"));
+        let org = Format::Org.set_title("texte\n", "Titre");
+        assert_eq!(Format::Org.title(&org).as_deref(), Some("Titre"));
+        let md = Format::Markdown.add_page_tag(&md, "projet").expect("added");
+        assert_eq!(Format::Markdown.front_tags(&md), ["projet"]);
+        assert!(Format::Markdown.add_page_tag(&md, "projet").is_none());
+        assert!(Format::Org.front_tags("#+FILETAGS: :projet:\n").is_empty());
+        assert!(Format::Org.add_page_tag("* T\n", "projet").is_some_and(|t| t.contains("projet")));
+    }
+
+    #[test]
     fn formats_of_files() {
         assert_eq!(Format::of_path("/a/b/Note.md"), Some(Format::Markdown));
         assert_eq!(Format::of_path("C:\\x\\Note.ORG"), Some(Format::Org));
