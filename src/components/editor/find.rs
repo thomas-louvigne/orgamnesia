@@ -13,6 +13,23 @@ use crate::{
     keybindings::{EditorAction, Resolution, Scope},
 };
 
+/// The first of the `matches` starting at or after `at`, else the first one (the search wraps).
+fn first_from(matches: &[(usize, usize)], at: usize) -> Option<usize> {
+    matches.iter().position(|&(a, _)| a >= at).or((!matches.is_empty()).then_some(0))
+}
+
+/// The match after (`forward`) or before `current` among `n`, wrapping around;
+/// the first or last one when none is selected.
+fn next_match(current: Option<usize>, n: usize, forward: bool) -> Option<usize> {
+    if n == 0 { return None; }
+    Some(match current {
+        Some(i) if forward => (i + 1) % n,
+        Some(i) => (i + n - 1) % n,
+        None if forward => 0,
+        None => n - 1,
+    })
+}
+
 /// The find bar of an editor pane. Whether it is open is the pane's `find`.
 #[derive(Clone, Copy)]
 pub struct Find {
@@ -81,8 +98,7 @@ impl Find {
     /// The first match at or after the anchor.
     fn show_from_anchor(self) {
         let at = self.anchor.get_value();
-        let n = self.matches.with_untracked(|m| m.iter().position(|&(a, _)| a >= at).or((!m.is_empty()).then_some(0)));
-        match n {
+        match self.matches.with_untracked(|m| first_from(m, at)) {
             Some(i) => self.show_match(i),
             None => self.current.set(None),
         }
@@ -90,14 +106,7 @@ impl Find {
 
     fn step(self, forward: bool) {
         let n = self.matches.with_untracked(|m| m.len());
-        if n == 0 { return; }
-        let i = match self.current.get_untracked() {
-            Some(i) if forward => (i + 1) % n,
-            Some(i) => (i + n - 1) % n,
-            None if forward => 0,
-            None => n - 1,
-        };
-        self.show_match(i);
+        if let Some(i) = next_match(self.current.get_untracked(), n, forward) { self.show_match(i); }
     }
 
     /// Open the bar (with the replace row), looking for the selected text if any.
@@ -265,5 +274,28 @@ impl Find {
                 </div>
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_search_starts_from_the_caret_and_wraps() {
+        let m = [(2, 4), (10, 12)];
+        assert_eq!(first_from(&m, 0), Some(0));
+        assert_eq!(first_from(&m, 5), Some(1));
+        assert_eq!(first_from(&m, 11), Some(0));
+        assert_eq!(first_from(&[], 0), None);
+    }
+
+    #[test]
+    fn stepping_wraps_around() {
+        assert_eq!(next_match(Some(1), 2, true), Some(0));
+        assert_eq!(next_match(Some(0), 2, false), Some(1));
+        assert_eq!(next_match(None, 3, true), Some(0));
+        assert_eq!(next_match(None, 3, false), Some(2));
+        assert_eq!(next_match(None, 0, true), None);
     }
 }
