@@ -50,7 +50,8 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
     // What acts on the pages of a project has nothing to act on in the "preference" one
     let project_only = matches!(action, AppAction::NewPage | AppAction::ProjectSearch | AppAction::ProjectReplace
         | AppAction::AddTag | AppAction::GitCommit | AppAction::GitPull | AppAction::GitPush | AppAction::GitHistory
-        | AppAction::ExportPdf | AppAction::ExportHtml | AppAction::Graph);
+        | AppAction::ExportPdf | AppAction::ExportHtml | AppAction::Graph | AppAction::RenamePage
+        | AppAction::TodosPanel | AppAction::TagsPanel | AppAction::BacklinksPanel | AppAction::BrokenPanel);
     if project_only && ctx.project.preference.get_untracked() {
         ctx.notify_t("pref_unavailable", "");
         return;
@@ -101,6 +102,20 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
             ctx.close_panels();
             ctx.ui.show_graph.set(true);
         },
+        // The title of the page opens its field to rename it
+        AppAction::RenamePage => if ctx.work.active_tab_data().is_none() {
+            ctx.notify_t("export_no_page", "");
+        } else if !ctx.pref_untracked(|p| p.show_page_title) {
+            ctx.notify_t("rename_no_title", "");
+        } else {
+            ctx.ui.rename_request.update(|n| *n += 1);
+        },
+        // The frames shown around the editor take the focus (the terminal shows them as panels)
+        AppAction::TodosPanel => crate::a11y::focus_frame(ctx, orgamnesia_core::Frame::Todos),
+        AppAction::TagsPanel => crate::a11y::focus_frame(ctx, orgamnesia_core::Frame::Tags),
+        AppAction::BacklinksPanel => crate::a11y::focus_frame(ctx, orgamnesia_core::Frame::Backlinks),
+        AppAction::BrokenPanel => crate::a11y::focus_frame(ctx, orgamnesia_core::Frame::Broken),
+        AppAction::PagesPanel => crate::a11y::focus_frame(ctx, orgamnesia_core::Frame::Pages),
         AppAction::Journal => if !ctx.pref_untracked(|p| p.journal) {
             ctx.notify_t("journal_off", "");
         } else {

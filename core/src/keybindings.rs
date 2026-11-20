@@ -40,7 +40,7 @@ pub struct Keybindings {
 /// default language, as the settings window names it).
 pub const DEFAULT_PROFILE_NAME: &str = "Personnalisé";
 
-/// `keybindings/<name>.json`: a profile of the user's own, named after its file.
+/// `keybindings/<name>.yaml`: a profile of the user's own, named after its file.
 /// Which profile is active is a setting (`keybinding_profile`); the built-in
 /// profiles are in the code.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -244,6 +244,11 @@ pub enum AppAction {
     NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
     GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml, Graph, SwitchProject, Journal,
+    /// Rename the page; the TODO headlines, the tags, the pages linking here, the
+    /// pages not created yet (the window's frames, the terminal's panels).
+    RenamePage, TodosPanel, TagsPanel, BacklinksPanel, BrokenPanel,
+    /// The list of the pages (its frame).
+    PagesPanel,
 }
 
 /// Editor actions.
@@ -307,6 +312,12 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::Graph, id: "graph", label_key: "shortcut_graph" },
     ActionDef { action: AppAction::SwitchProject, id: "switch_project", label_key: "shortcut_switch_project" },
     ActionDef { action: AppAction::Journal, id: "journal", label_key: "shortcut_journal" },
+    ActionDef { action: AppAction::RenamePage, id: "rename_page", label_key: "shortcut_rename_page" },
+    ActionDef { action: AppAction::TodosPanel, id: "panel_todos", label_key: "shortcut_panel_todos" },
+    ActionDef { action: AppAction::TagsPanel, id: "panel_tags", label_key: "shortcut_panel_tags" },
+    ActionDef { action: AppAction::BacklinksPanel, id: "panel_backlinks", label_key: "shortcut_panel_backlinks" },
+    ActionDef { action: AppAction::BrokenPanel, id: "panel_broken", label_key: "shortcut_panel_broken" },
+    ActionDef { action: AppAction::PagesPanel, id: "panel_pages", label_key: "shortcut_panel_pages" },
 ];
 
 /// Every editor action, whatever the profile: a profile simply leaves the ones
@@ -439,6 +450,13 @@ pub fn default_app() -> Bindings {
         ("graph",            &["ctrl+shift+m"]),
         ("switch_project",   &["ctrl+alt+p"]),
         ("journal",          &["ctrl+shift+j"]),
+        // Function keys free in both profiles (and in terminals)
+        ("rename_page",      &["F2"]),
+        ("panel_todos",      &["F4"]),
+        ("panel_tags",       &["F5"]),
+        ("panel_backlinks",  &["F8"]),
+        ("panel_broken",     &["F9"]),
+        ("panel_pages",      &["F10"]),
     ])
 }
 
@@ -558,6 +576,12 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("switch_project",   &["ctrl+x p p", "ctrl+alt+p"]),
             // As org-journal's `C-c C-j`, without the second Ctrl
             ("journal",          &["ctrl+c j"]),
+            ("rename_page",      &["F2"]),
+            ("panel_todos",      &["F4"]),
+            ("panel_tags",       &["F5"]),
+            ("panel_backlinks",  &["F8"]),
+            ("panel_broken",     &["F9"]),
+            ("panel_pages",      &["F10"]),
         ]),
         _ => default_app(),
     }

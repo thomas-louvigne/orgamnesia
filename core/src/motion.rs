@@ -1,4 +1,8 @@
-use orgamnesia_core::Format;
+use crate::Format;
+
+/// What the editor's view indents a line under a headline with (`tables::INDENT`
+/// of the interface): no space of the text, counted as indentation.
+pub const INDENT: char = '\u{a0}';
 
 thread_local! {
     /// The format of the page being edited or drawn. Set by `FormatGuard`.
@@ -31,7 +35,7 @@ impl Drop for FormatGuard {
     }
 }
 
-use orgamnesia_core::org::{line_end, line_start};
+use crate::org::{line_end, line_start};
 
 /// Level of the headline `line` in the page's format; `line` may go on past its `\n`.
 pub fn headline_level(line: &[char]) -> Option<usize> {
@@ -318,8 +322,8 @@ pub fn up_heading(chars: &[char], pos: usize) -> usize {
 struct Elem { begin: usize, end: usize, contents_end: usize, parent: Option<usize> }
 
 /// Indentation of the line at `ls` (the view's indent counts too).
-pub(crate) fn indent_of(chars: &[char], ls: usize) -> usize {
-    chars[ls..].iter().take_while(|&&c| matches!(c, ' ' | '\t' | crate::tables::INDENT)).count()
+pub fn indent_of(chars: &[char], ls: usize) -> usize {
+    chars[ls..].iter().take_while(|&&c| matches!(c, ' ' | '\t' | INDENT)).count()
 }
 
 fn is_blank(chars: &[char], ls: usize) -> bool {
@@ -328,7 +332,7 @@ fn is_blank(chars: &[char], ls: usize) -> bool {
 
 /// Where the contents of the list item at `ls` begin (after its bullet and
 /// checkbox), if the line is one: `-`, `+`, `*` (indented), `1.`, `1)`.
-pub(crate) fn item_contents(chars: &[char], ls: usize) -> Option<usize> {
+pub fn item_contents(chars: &[char], ls: usize) -> Option<usize> {
     let ind = indent_of(chars, ls);
     let mut i = ls + ind;
     let le = line_end(chars, ls);
@@ -360,7 +364,7 @@ fn is_table_line(chars: &[char], ls: usize) -> bool {
 }
 
 /// `:NAME:` alone on its line: a drawer opens.
-pub(crate) fn is_drawer_start(chars: &[char], ls: usize) -> bool {
+pub fn is_drawer_start(chars: &[char], ls: usize) -> bool {
     let t: String = chars[ls + indent_of(chars, ls)..line_end(chars, ls)].iter().collect();
     let t = t.trim_end();
     t.len() > 2 && t.starts_with(':') && t.ends_with(':') && !t.eq_ignore_ascii_case(":end:")

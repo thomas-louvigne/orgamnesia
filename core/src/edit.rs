@@ -4,12 +4,12 @@
 
 use crate::keybindings::EditorAction;
 use crate::{motion, tags};
-use orgamnesia_core::{hashtags::hashtag_at, links::link_at, Hashtags, TagSyntax};
+use crate::{hashtags::hashtag_at, links::link_at, Hashtags, TagSyntax};
 
 /// Lines moved by the page-up / page-down actions.
 pub const PAGE_LINES: i32 = 20;
 
-use orgamnesia_core::org::line_bounds;
+use crate::org::line_bounds;
 
 /// A move of lines one line up or down: the char range `a..b` becomes `text`,
 /// and the selection is now `sel`.
@@ -276,11 +276,11 @@ pub fn pair_of(key: &str) -> Option<(&'static str, &'static str)> {
 
 /// The emphasis markers electric mode wraps a selection in: `* / _` in org-mode
 /// (bold, italic, underline), `* _` in Markdown (typing `*` twice gives bold).
-pub fn emphasis_pair(key: &str, format: orgamnesia_core::Format) -> Option<(&'static str, &'static str)> {
+pub fn emphasis_pair(key: &str, format: crate::Format) -> Option<(&'static str, &'static str)> {
     match (key, format) {
         ("*", _) => Some(("*", "*")),
         ("_", _) => Some(("_", "_")),
-        ("/", orgamnesia_core::Format::Org) => Some(("/", "/")),
+        ("/", crate::Format::Org) => Some(("/", "/")),
         _ => None,
     }
 }
@@ -349,10 +349,10 @@ pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
 /// `#tag` or an org-mode `:tag:` (per `tags`); with the extended links, also
 /// `[[target|text]]`, `[[Page#Titre]]` and `[text](Page.md)`, as read in a page of `format`.
-pub fn linked_page_at(chars: &[char], pos: usize, tags: TagSyntax, format: orgamnesia_core::Format) -> Option<String> {
+pub fn linked_page_at(chars: &[char], pos: usize, tags: TagSyntax, format: crate::Format) -> Option<String> {
     let syntax = tags.links(format);
-    let extended = (syntax != orgamnesia_core::links::LinkSyntax::NONE).then(|| {
-        orgamnesia_core::links::scan(chars, syntax).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
+    let extended = (syntax != crate::links::LinkSyntax::NONE).then(|| {
+        crate::links::scan(chars, syntax).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
     }).flatten();
     extended.or_else(|| wiki_link_at(chars, pos, tags.hashtags))
         .or_else(|| tags.org.links.then(|| tags::org_tag_at(chars, pos, tags.org)).flatten())
@@ -673,7 +673,7 @@ mod tests {
         let t = c("* a\n** b\ntexte");
         assert_eq!(new_heading(&t, 14), (14, 14, "\n** ".to_string()));
         assert_eq!(new_heading(&c("rien"), 4), (4, 4, "\n* ".to_string()));
-        let _md = motion::FormatGuard::set(orgamnesia_core::Format::Markdown);
+        let _md = motion::FormatGuard::set(crate::Format::Markdown);
         assert_eq!(new_heading(&c("# A\n## B\ntexte"), 14), (14, 14, "\n## ".to_string()));
         drop(_md);
         // On a list item: a new item
@@ -716,7 +716,7 @@ mod tests {
         assert_eq!(pair_of(")"), Some(("(", ")")));
         assert_eq!(pair_of("a"), None);
         assert!(auto_closes("[") && !auto_closes("'") && !auto_closes(")"));
-        use orgamnesia_core::Format::{Markdown, Org};
+        use crate::Format::{Markdown, Org};
         assert_eq!(emphasis_pair("/", Org), Some(("/", "/")));
         assert_eq!(emphasis_pair("/", Markdown), None);
         assert_eq!(emphasis_pair("_", Markdown), Some(("_", "_")));
@@ -748,25 +748,25 @@ mod tests {
     #[test]
     fn extended_links_under_the_cursor() {
         let t = c("[[Page|texte]] [[P#Titre]] [lien](Ma%20page.md)");
-        let ext = TagSyntax { org_links: orgamnesia_core::links::LinkSyntax::ALL, ..Hashtags::Off.into() };
-        assert_eq!(linked_page_at(&t, 9, ext, orgamnesia_core::Format::Org).as_deref(), Some("Page"));
-        assert_eq!(linked_page_at(&t, 17, ext, orgamnesia_core::Format::Org).as_deref(), Some("P::*Titre"));
-        assert_eq!(linked_page_at(&t, 30, ext, orgamnesia_core::Format::Org).as_deref(), Some("Ma page.md"));
-        assert_eq!(linked_page_at(&t, 9, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("Page|texte"));
-        assert_eq!(linked_page_at(&t, 30, Hashtags::Off.into(), orgamnesia_core::Format::Org), None);
+        let ext = TagSyntax { org_links: crate::links::LinkSyntax::ALL, ..Hashtags::Off.into() };
+        assert_eq!(linked_page_at(&t, 9, ext, crate::Format::Org).as_deref(), Some("Page"));
+        assert_eq!(linked_page_at(&t, 17, ext, crate::Format::Org).as_deref(), Some("P::*Titre"));
+        assert_eq!(linked_page_at(&t, 30, ext, crate::Format::Org).as_deref(), Some("Ma page.md"));
+        assert_eq!(linked_page_at(&t, 9, Hashtags::Off.into(), crate::Format::Org).as_deref(), Some("Page|texte"));
+        assert_eq!(linked_page_at(&t, 30, Hashtags::Off.into(), crate::Format::Org), None);
     }
 
     #[test]
     fn links_under_the_cursor() {
         let t = c("voir [[Ma page]] et [[cible][texte]] #tag fin");
-        assert_eq!(linked_page_at(&t, 8, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("Ma page"));
-        assert_eq!(linked_page_at(&t, 30, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("cible"));
-        assert_eq!(linked_page_at(&t, 39, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("tag"));
-        assert_eq!(linked_page_at(&t, 39, Hashtags::Off.into(), orgamnesia_core::Format::Org), None);
-        assert_eq!(linked_page_at(&t, 1, Hashtags::Dashes.into(), orgamnesia_core::Format::Org), None);
-        assert_eq!(linked_page_at(&c("* Titre :projet:"), 11, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("projet"));
-        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("exemple"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: orgamnesia_core::OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
-        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off, orgamnesia_core::Format::Org), None);
+        assert_eq!(linked_page_at(&t, 8, Hashtags::Dashes.into(), crate::Format::Org).as_deref(), Some("Ma page"));
+        assert_eq!(linked_page_at(&t, 30, Hashtags::Dashes.into(), crate::Format::Org).as_deref(), Some("cible"));
+        assert_eq!(linked_page_at(&t, 39, Hashtags::Dashes.into(), crate::Format::Org).as_deref(), Some("tag"));
+        assert_eq!(linked_page_at(&t, 39, Hashtags::Off.into(), crate::Format::Org), None);
+        assert_eq!(linked_page_at(&t, 1, Hashtags::Dashes.into(), crate::Format::Org), None);
+        assert_eq!(linked_page_at(&c("* Titre :projet:"), 11, Hashtags::Off.into(), crate::Format::Org).as_deref(), Some("projet"));
+        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into(), crate::Format::Org).as_deref(), Some("exemple"));
+        let off = TagSyntax { hashtags: Hashtags::Off, org: crate::OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
+        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off, crate::Format::Org), None);
     }
 }

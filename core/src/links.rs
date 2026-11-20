@@ -21,7 +21,7 @@ pub fn split(target: &str) -> (&str, Option<&str>) {
 
 /// Which of the links not of org-mode are read: `[[Page|texte]]` (`pipe`),
 /// `[[Page#Titre]]` (`hash`), `[texte](Page.md)` (`markdown`). In
-/// `settings.json`: `{"pipe": true, "hash": false, "markdown": true}`, a key
+/// `settings.yaml`: `{pipe: true, hash: false, markdown: true}`, a key
 /// left out being off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]

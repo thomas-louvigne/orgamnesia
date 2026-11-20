@@ -36,7 +36,7 @@ impl Frame {
         Frame::Graph, Frame::Backlinks, Frame::Tags, Frame::Todos, Frame::Broken, Frame::Quit, Frame::Tips,
     ];
 
-    /// Its name in `settings.json`.
+    /// Its name in `settings.yaml`.
     pub fn id(self) -> &'static str {
         match self {
             Frame::Brand => "brand",

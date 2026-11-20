@@ -4,6 +4,15 @@ use orgamnesia_lib::{AppState, commands};
 
 fn main() {
     if orgamnesia_lib::git::answer_askpass() { return; }
+    // `--nox [folder]`: the terminal interface (beta), without a window
+    let mut args = std::env::args().skip(1);
+    if args.next().as_deref() == Some("--nox") {
+        if let Err(e) = orgamnesia_lib::tui::run(args.next()) {
+            eprintln!("orgamnesia: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -33,6 +42,8 @@ fn main() {
             commands::config::config_versions,
             commands::config::restore_config,
             commands::config::config_problems,
+            commands::config::json_leftovers,
+            commands::config::answer_json,
             commands::projects::open_vault,
             commands::projects::remove_project,
             commands::projects::existing_folders,

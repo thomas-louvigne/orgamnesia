@@ -1,4 +1,4 @@
-//! The settings: `Config` as stored in `settings.json`, `Settings` with what the
+//! The settings: `Config` as stored in `settings.yaml`, `Settings` with what the
 //! app keeps for itself (`state.json`), `Prefs` as used.
 
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ pub const DEFAULT_TODO_KEYWORDS: &str = "TODO DOING HANGUP | DONE";
 /// interface exchange them.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Settings {
-    /// What the user sets (`settings.json`).
+    /// What the user sets (`settings.yaml`).
     #[serde(flatten)]
     pub config: Config,
     /// The rest is kept by the app (`state.json`). The open project.
@@ -26,16 +26,25 @@ pub struct Settings {
     /// Folders of `.org` files whose user didn't want an `assets/` folder made.
     #[serde(default)]
     pub assets_declined: Vec<String>,
-    /// The app runs for the first time (no `settings.json` yet): the interface
+    /// The user wants to keep the JSON settings files of older versions (now YAML):
+    /// their deletion is not offered again.
+    #[serde(default)]
+    pub keep_json: bool,
+    /// The widths of the columns of the terminal interface (in characters), as dragged.
+    #[serde(default)]
+    pub tui_left_width: Option<u16>,
+    #[serde(default)]
+    pub tui_right_width: Option<u16>,
+    /// The app runs for the first time (no `settings.yaml` yet): the interface
     /// asks the format of the pages and the shortcuts. Not saved.
     #[serde(default)]
     pub first_run: bool,
 }
 
-/// The keys of `Settings` kept in `state.json`, not in `settings.json`.
-pub const STATE_KEYS: [&str; 4] = ["vault_path", "projects", "session", "assets_declined"];
+/// The keys of `Settings` kept in `state.json`, not in `settings.yaml`.
+pub const STATE_KEYS: [&str; 7] = ["vault_path", "projects", "session", "assets_declined", "keep_json", "tui_left_width", "tui_right_width"];
 
-/// `settings.json`, what the user sets. A missing value (older file, or never
+/// `settings.yaml`, what the user sets. A missing value (older file, or never
 /// set) means the default: see `Prefs`, the only place defaults are decided.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Config {
@@ -220,7 +229,7 @@ pub struct Config {
     /// The new version the user chose to skip: not offered again at start.
     pub skipped_update: Option<String>,
     /// The keybinding profile in effect: a built-in one (`classic`, `emacs`) or
-    /// the name of one of the user's (`keybindings/<name>.json`). Kept apart from
+    /// the name of one of the user's (`keybindings/<name>.yaml`). Kept apart from
     /// `Prefs`: the keybindings are saved on their own.
     pub keybinding_profile: Option<String>,
 }
@@ -543,7 +552,7 @@ impl Prefs {
             // Saved with the keybindings
             keybinding_profile: None,
         };
-        Settings { config, vault_path: some(&self.vault), projects, session: None, assets_declined: vec![], first_run: false }
+        Settings { config, vault_path: some(&self.vault), projects, session: None, assets_declined: vec![], keep_json: false, tui_left_width: None, tui_right_width: None, first_run: false }
     }
 
     /// How `#tags` and `:tags:` are read.

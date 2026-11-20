@@ -63,7 +63,7 @@ pub fn PagesFrame() -> impl IntoView {
     };
 
     view! {
-        <nav class="frame frame-grow pages-frame" aria-label=move || t("pages", ctx.lang.get())>
+        <nav class="frame frame-grow pages-frame" data-frame="pages" aria-label=move || t("pages", ctx.lang.get())>
             <div class="sidebar-header">
                 <span class="sidebar-title">{move || t("pages", ctx.lang.get())}</span>
                 // The configuration files can't be created, renamed nor deleted

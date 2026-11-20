@@ -205,6 +205,15 @@ pub async fn answer_assets(path: &str, create: bool) -> Result<(), String> {
     call("answer_assets", serde_json::json!({ "path": path, "create": create })).await
 }
 
+/// The JSON settings files of older versions, converted to YAML, no longer needed.
+pub async fn json_leftovers() -> Result<Vec<String>, String> {
+    call("json_leftovers", serde_json::json!({})).await
+}
+
+pub async fn answer_json(remove: bool) -> Result<(), String> {
+    call("answer_json", serde_json::json!({ "remove": remove })).await
+}
+
 pub async fn remove_project(path: &str) -> Result<Vec<String>, String> {
     call("remove_project", serde_json::json!({ "path": path })).await
 }

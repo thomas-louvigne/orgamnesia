@@ -40,15 +40,7 @@ fn without_ext(file: &str) -> &str {
     orgamnesia_core::format::split_ext(file).map_or(file, |(stem, _)| stem)
 }
 
-/// The message `template` with its fields filled: `{date}` (2025-10-29),
-/// `{time}` (14:05), `{count}` (number of files) and `{files}` (their names).
-pub fn fill_template(template: &str, changes: &[GitChange], date: &str, time: &str) -> String {
-    let files: Vec<&str> = changes.iter().map(|c| {
-        without_ext(c.path.strip_prefix("pages/").unwrap_or(&c.path))
-    }).collect();
-    template.replace("{date}", date).replace("{time}", time)
-        .replace("{count}", &changes.len().to_string()).replace("{files}", &files.join(", "))
-}
+pub use orgamnesia_core::model::fill_template;
 
 /// The commit message proposed for `changes`: from the template of the
 /// settings, or the summary and the list of the files.

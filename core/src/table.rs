@@ -2,8 +2,7 @@
 //! as org-mode does. In a Markdown page, its rules are written as Markdown's
 //! (`|-----|:---:|`), keeping the colons that align the columns.
 
-use super::{is_number, is_table_line};
-use orgamnesia_core::org::{line_end, line_start};
+use crate::org::{line_end, line_start};
 
 /// Where Tab / Shift+Tab takes the caret in a table.
 #[derive(Debug, PartialEq)]
@@ -31,7 +30,7 @@ impl Row {
     fn read(chars: &[char], start: usize, end: usize) -> Self {
         let line = &chars[start..end];
         let text: String = line.iter().collect();
-        let rule = super::is_rule(&text);
+        let rule = is_rule(&text);
         let pipes: Vec<usize> = (start..end).filter(|&i| chars[i] == '|').collect();
         let closed = line.iter().rev().find(|c| !c.is_whitespace()) == Some(&'|');
         let opens = pipes[..if closed { pipes.len() - 1 } else { pipes.len() }].to_vec();
@@ -75,7 +74,7 @@ fn align(rows: &[Row], indent: &str) -> (Vec<String>, Vec<Vec<usize>>) {
     let mut starts = Vec::new();
     for r in rows {
         if r.rule {
-            if crate::motion::format() == orgamnesia_core::Format::Markdown {
+            if crate::motion::format() == crate::Format::Markdown {
                 // Markdown: `|-----|:---:|`
                 let cells: Vec<String> = widths.iter().enumerate().map(|(c, &w)| {
                     let (left, right) = r.colons.get(c).copied().unwrap_or_default();
@@ -179,6 +178,33 @@ pub fn move_cell(chars: &[char], pos: usize, forward: bool) -> Option<CellMove> 
     })
 }
 
+/// Whether a line is a table line (`| a | b |`, `|---+---|`).
+pub fn is_table_line(line: &[char]) -> bool {
+    line.iter().find(|c| !c.is_whitespace()) == Some(&'|')
+}
+
+/// Whether a table line is a rule: `|---+---|` (or `|-` being typed), or
+/// Markdown's `|---|:---:|` / `| --- | --- |`, its cells only dashes with maybe a
+/// colon at either end.
+pub fn is_rule(line: &str) -> bool {
+    let t = line.trim();
+    if t.starts_with("|-") { return true; }
+    let Some(inner) = t.strip_prefix('|') else { return false };
+    let inner = inner.strip_suffix('|').unwrap_or(inner);
+    !inner.trim().is_empty() && inner.split('|').all(|c| {
+        let c = c.trim();
+        let c = c.strip_prefix(':').unwrap_or(c);
+        let c = c.strip_suffix(':').unwrap_or(c);
+        !c.is_empty() && c.chars().all(|x| x == '-')
+    })
+}
+
+/// Whether a cell holds a number (org-mode right-aligns the columns of numbers).
+pub fn is_number(cell: &str) -> bool {
+    cell.chars().any(|c| c.is_ascii_digit())
+        && cell.chars().all(|c| c.is_ascii_digit() || ".,%+-eE ".contains(c))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,7 +244,7 @@ mod tests {
 
     #[test]
     fn markdown_tables() {
-        let _md = crate::motion::FormatGuard::set(orgamnesia_core::Format::Markdown);
+        let _md = crate::motion::FormatGuard::set(crate::Format::Markdown);
         let t: Vec<char> = "| Nom | Âge |\n| :-- | --: |\n| Léa | 7 |".chars().collect();
         let Some(CellMove::Edit { text, .. }) = move_cell(&t, 2, true) else { panic!() };
         assert_eq!(text, "| Nom | Âge |\n|:----|----:|\n| Léa |   7 |");

@@ -7,7 +7,7 @@
 //! hidden line (see `tables::View`, which hides them). Headlines are those of the
 //! page's format: `* Titre` in org-mode, `# Titre` in Markdown.
 
-use orgamnesia_core::{org::{line_end, line_start}, Format};
+use crate::{org::{line_end, line_start}, Format};
 
 /// Level of the headline starting at `ls` (its stars, or `#` in Markdown), if the line is one.
 fn level(chars: &[char], f: Format, ls: usize) -> Option<usize> {
@@ -281,7 +281,7 @@ pub fn move_subtree(chars: &[char], f: Format, ls: usize, up: bool) -> Option<Sw
 #[cfg(test)]
 mod tests {
     use super::*;
-    use orgamnesia_core::Format;
+    use crate::Format;
 
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
 

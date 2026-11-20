@@ -182,6 +182,8 @@ pub struct Ui {
     pub new_version: RwSignal<Option<UpdateInfo>>,
     /// The cheat sheet of the shortcuts (F1).
     pub show_shortcuts: RwSignal<bool>,
+    /// Asked to rename the active page (its title's field opens): counts the times.
+    pub rename_request: RwSignal<u32>,
     /// The video played in the app: the address of the site's player, and the
     /// link to it (to open it in the browser).
     pub video: RwSignal<Option<(String, String)>>,
@@ -279,6 +281,7 @@ impl AppCtx {
                 update: RwSignal::new(None),
                 new_version: RwSignal::new(None),
                 show_shortcuts: RwSignal::new(false),
+                rename_request: RwSignal::new(0),
                 video: RwSignal::new(None),
                 tag_add: RwSignal::new(false),
                 disk_conflicts: RwSignal::new(vec![]),

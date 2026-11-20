@@ -26,6 +26,7 @@ keybindings.
 - [[#themes][Themes]]
 - [[#settings][Settings]]
 - [[#settings-as-text][Settings as text]]
+- [[#terminal-beta][Terminal (beta)]]
 - [[#files][Files]]
 
 * Projects and pages
@@ -656,7 +657,7 @@ actions) is shown and prevents saving.
 
 The built-in profiles are in the application and can't be changed: changing one
 of their shortcuts copies them into a custom profile, which takes effect. Each
-custom profile is a file of its own, named after it (=keybindings/Personnalisé.json=
+custom profile is a file of its own, named after it (=keybindings/Personnalisé.yaml=
 by default), which can be edited as text (see [[#settings-as-text][Settings as text]]).
 
 On Linux, WebKitGTK opens its emoji picker on Ctrl+., Ctrl+; and Ctrl+M. The
@@ -707,6 +708,12 @@ profile gets those of the actions it didn't know.
 | Export the page as HTML     | Ctrl+Shift+E     | Ctrl+C Ctrl+E H H         |
 | Graph of the pages (beta)   | Ctrl+Shift+M     | Ctrl+C G                  |
 | Page of the day (journal)   | Ctrl+Shift+J     | Ctrl+C J                  |
+| Rename the page             | F2               | F2                        |
+| To do (TODO headlines)      | F4               | F4                        |
+| Tags                        | F5               | F5                        |
+| Pages linking here          | F8               | F8                        |
+| Pages not created yet       | F9               | F9                        |
+| The list of the pages       | F10              | F10                       |
 
 *** Editor
 | Action                         | Classic             | Emacs                         |
@@ -1076,17 +1083,18 @@ filters the actions by name or shortcut. "Recall the shortcut of a button clicke
 project. This project is always in the projects menu; "← <project>", above the
 file, goes back to the project left, its tabs and panes as they were.
 
-- *Its pages*: =settings.json= (the settings, and =keybinding_profile=, the
+- *Its pages*: =settings.yaml= (the settings, and =keybinding_profile=, the
   shortcuts profile in effect: =classic=, =emacs= or the name of a custom one),
-  then a =keybindings/<name>.json= file per custom profile (its base preset, the
+  then a =keybindings/<name>.yaml= file per custom profile (its base preset, the
   shortcuts of the application and of the editor). From the Shortcuts tab, the
   link opens the file of the profile in effect.
-- *JSON highlighting*: keys, strings, numbers, =true= / =false= / =null=. Tab and
+- *YAML highlighting*: keys, strings, numbers, =true= / =false= / =null=, comments
+  (=#=, kept as long as the app does not rewrite the file). Tab and
   Shift+Tab indent and unindent by two spaces (the selected lines when there is a
   selection).
 - *Checked as you type*: the bar above the file says "Valid file", or what is wrong
   and where ("Line 3, column 5: …"), underlined in the text; a click on the message
-  puts the cursor there. Refused: invalid JSON, a value of the wrong type, an
+  puts the cursor there. Refused: invalid YAML, a value of the wrong type, an
   unknown key (a typo), a profile that doesn't exist, a shortcut given to two
   actions, a file named after a built-in profile. An unknown action is only a
   warning. A missing option takes its default value (an action missing from a
@@ -1100,10 +1108,59 @@ file, goes back to the project left, its tabs and panes as they were.
   correct it or to go back to the last valid version. The same dialog shows on
   start for a file found invalid.
 
+* Terminal (beta)
+=orgamnesia --nox [folder]= opens the project (else the last one opened) in the
+terminal, without a window. The settings and shortcuts are the window's (the same
+files), and editing is done by the same code: moving, region, kill and yank, folding,
+tables, TODO states, emphasis, dates, links, find and replace, git, projects, split
+screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
+
+- The pages on the left (type to filter them), =Enter= opens the page in the editor,
+  =Esc= saves it and goes back to the list.
+- Quick open (=quick_open=): a box to find a page, as in the window.
+- Mouse: a click puts the cursor or picks a page, =Ctrl+click= follows a link, the
+  border of the list can be dragged.
+- Each window's title is the page's =#+TITLE:= (=title:= in Markdown).
+- Shortcuts of the profiles, to change in Settings > Shortcuts like the others: =F2=
+  renames the page (the links follow), =F4= the TODO headlines, =F5= the tags, =F8= the
+  pages linking here, =F9= the pages not created yet, shown as panels; =Enter= or a click
+  opens the page at the line. In the window, the same shortcuts open the title's field
+  to rename the page, and give the focus to the frame.
+- The frames are in columns on each side of the page, as the settings lay them out
+  for the window (Settings > Frames): project, git, pages, backlinks, tags, TODO,
+  pages not created (not the window's buttons). The right column shows on a wide
+  enough terminal; both columns are resized with the mouse, their widths kept.
+  =F10= goes to the list of the pages.
+- Completion as in the window: =[[= pages, =[[Page::*= headlines, =#tags=, =:tags:=,
+  Markdown links (↑↓, Tab or Enter, Esc); Tab completes the tag and link lines too.
+- The session (pages and split screen) comes back on start, the git state is at the
+  bottom right, the live preview and the link text first follow the settings.
+- What is copied goes to the system's clipboard too (OSC 52: kitty, foot, WezTerm…).
+
+** Shortcuts the terminal can't do
+| Shortcut (Emacs profile)                  | Action                       | Why                                                                                                        |
+|-------------------------------------------+------------------------------+------------------------------------------------------------------------------------------------------------|
+| =C-c C-e l p=                             | export as PDF                | the export needs the window's HTML renderer and printing; a terminal has neither                           |
+| =C-c C-e h h=                             | export as HTML               | same (the converter depends on the window's image code)                                                    |
+| =Ctrl+Shift+S=, =Ctrl+Shift+H=            | project search / replace     | kitty keeps =Ctrl+Shift+…= for itself (copy and paste, tabs…): the app never gets these keys               |
+| =Ctrl+Tab=, =Ctrl+Shift+Tab=              | next / previous tab          | same, they are kitty's tabs                                                                                |
+| =Ctrl+,=, =Ctrl+/=, =Ctrl+Enter=          | settings, undo, open link    | only terminals with kitty's keyboard protocol (kitty, foot, WezTerm, Ghostty…) tell them apart; elsewhere they come as other keys |
+
+Give these actions another key too in the profile (=C-x p g=, =C-x p r=, =C-x ←=,
+=C-c C-o=…): it works in both. What the terminal does differently: =Ctrl+,= opens
+=settings.yaml= in the editor (it counts at the next start), the graph is a list of
+links, a commit takes all the files, the history lists the commits without their changes.
+
+The configuration files are YAML, which takes comments (=#=): =settings.yaml= has,
+after each setting that does nothing in the terminal, the reason (“# TUI version: …”), and
+each keybinding profile starts with these explanations. The =settings.json= and
+=keybindings/*.json= of older versions are converted once, and left as they are for an
+older version of the app.
+
 * Files
 - Pages stay plain =.org= or =.md= files, readable and editable with Emacs,
   Obsidian or any other editor.
-- Settings: =~/.config/com.orgamnesia.app/=: =settings.json= (the settings),
+- Settings: =~/.config/com.orgamnesia.app/=: =settings.yaml= (the settings),
   =keybindings/= (the custom shortcut profiles), =themes/= (the user's themes), =state.json= (what the app keeps
   for itself: the open project, the projects, the pages open on quit),
   =history/= (the previous valid versions of the configuration files) and

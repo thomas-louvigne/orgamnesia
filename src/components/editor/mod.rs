@@ -220,7 +220,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
         view.with(|v| Some(v.text.chars().take(v.view_pos(pos)).filter(|&c| c == '\n').count()))
     });
     let highlighted = move || view.with(|v| match config {
-        true => highlight::render_json(&v.text, ctx.pref(|p| p.show_line_numbers)),
+        true => highlight::render_yaml(&v.text, ctx.pref(|p| p.show_line_numbers)),
         false => highlight::render_view(v, ctx.tags(), pane.todo_keywords.get(), ctx.pref(|p| p.show_line_numbers), broken.check(), pane.fmt(), cur_line.get()),
     });
     // What is wrong (or the first thing odd) in a configuration file, marked where it is

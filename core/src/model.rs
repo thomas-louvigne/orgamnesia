@@ -204,3 +204,15 @@ pub struct VaultChanges {
     /// Paths of the pages deleted.
     pub removed: Vec<String>,
 }
+
+/// The commit message `template` with its fields filled: `{date}` (2025-10-29),
+/// `{time}` (14:05), `{count}` (number of files) and `{files}` (their names, the
+/// pages without `pages/` nor their extension).
+pub fn fill_template(template: &str, changes: &[GitChange], date: &str, time: &str) -> String {
+    let files: Vec<&str> = changes.iter().map(|c| {
+        let file = c.path.strip_prefix("pages/").unwrap_or(&c.path);
+        crate::format::split_ext(file).map_or(file, |(stem, _)| stem)
+    }).collect();
+    template.replace("{date}", date).replace("{time}", time)
+        .replace("{count}", &changes.len().to_string()).replace("{files}", &files.join(", "))
+}

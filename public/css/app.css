@@ -1724,12 +1724,12 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .config-history-empty { padding: 6px 12px; color: var(--fg-dim); }
 
 /* The JSON of the configuration files */
-.json-key   { color: var(--accent2); }
-.json-str   { color: var(--green); }
-.json-num   { color: var(--orange); }
-.json-lit   { color: var(--cyan); }
-.json-punct { color: var(--fg-dim); }
-.json-bad   { color: var(--red); }
+.cfg-key     { color: var(--accent2); }
+.cfg-str     { color: var(--green); }
+.cfg-num     { color: var(--orange); }
+.cfg-lit     { color: var(--cyan); }
+.cfg-punct   { color: var(--fg-dim); }
+.cfg-comment { color: var(--fg-dim); font-style: italic; }
 
 /* What is wrong in the file (red), or odd (yellow), where it is */
 .problem-layer { background: transparent; color: transparent; z-index: 0; }

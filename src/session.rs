@@ -33,6 +33,22 @@ pub async fn load_startup(ctx: AppCtx, owner: Owner) {
     }
     track_session(ctx, &owner);
     owner.with(|| crate::preferences::watch(ctx));
+    offer_json_removal(ctx).await;
+}
+
+/// The settings are YAML since 1.8.0: once converted, the JSON files of the
+/// older versions are of no use; their deletion is offered (once, if kept).
+async fn offer_json_removal(ctx: AppCtx) {
+    let Ok(files) = invoke::json_leftovers().await else { return };
+    if files.is_empty() { return; }
+    let lang = ctx.lang.get_untracked();
+    let message = format!("{}\n\n{}", crate::i18n::t("json_leftovers", lang), files.join("\n"));
+    let answer = |remove: bool| move || {
+        spawn_local(async move {
+            if let Err(e) = invoke::answer_json(remove).await { ctx.error("error", &e); }
+        });
+    };
+    ctx.ask_choice(message, "json_keep", answer(false), "json_remove", answer(true));
 }
 
 /// Open again the tabs and panes of `session`; pages deleted since are left out.

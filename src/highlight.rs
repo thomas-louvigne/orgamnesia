@@ -5,9 +5,9 @@
 use crate::html::{escape, push_escaped};
 use orgamnesia_core::{links::{Found, Kind}, Format, TagSyntax, TodoKeywords};
 
-mod json;
+mod yaml;
 mod markdown;
-pub use json::render_json;
+pub use yaml::render_yaml;
 use markdown::{markdown_code_lines, markdown_line};
 
 /// Whether a link target leads nowhere.

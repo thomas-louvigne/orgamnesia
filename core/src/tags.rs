@@ -1,9 +1,9 @@
 //! Org-mode tags and `#tags` as the editor handles them: the tag under the caret
 //! or being typed, and a file tag added to a page.
 
-use orgamnesia_core::hashtags::{filetags_value_start, tag_ranges};
-use orgamnesia_core::org::{line_end, line_start};
-use orgamnesia_core::{Hashtags, OrgTags};
+use crate::hashtags::{filetags_value_start, tag_ranges};
+use crate::org::{line_end, line_start};
+use crate::{Hashtags, OrgTags};
 
 /// The `#tag` being typed when the caret is at `caret`: returns the index of the
 /// `#` and the part of the tag already typed (possibly empty, right after `#`).
