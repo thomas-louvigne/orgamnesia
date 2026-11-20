@@ -14,7 +14,6 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 use crate::{actions, components::editor::loaded_image_url, html::escape, images, invoke, links, state::{AppCtx, FileEntry, Tab}};
 use convert::page_html;
-pub(crate) use convert::is_rule_line;
 use orgamnesia_core::{links as place, Format, TodoKeywords};
 
 mod convert;

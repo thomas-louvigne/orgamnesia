@@ -7,7 +7,7 @@ use orgamnesia_core::complete::{accepted, being_typed, complete_page, place_pref
 use orgamnesia_core::links::headlines;
 use orgamnesia_core::pages::file_name;
 
-use super::App;
+use super::{App, Mode};
 
 /// Names shown at most.
 const MAX: usize = 8;
@@ -35,7 +35,10 @@ impl App {
 
     /// What is typed at the cursor of the page edited: the names completing it, or none.
     pub(super) fn refresh_suggest(&mut self) {
-        self.suggest = self.suggestions();
+        match self.suggestions() {
+            Some(s) => self.mode = Mode::Suggest(s),
+            None => if matches!(self.mode, Mode::Suggest(_)) { self.mode = Mode::Normal; },
+        }
     }
 
     fn suggestions(&self) -> Option<Suggest> {
@@ -77,7 +80,8 @@ impl App {
 
     /// The name chosen put in place of what was typed of it (the link closed).
     pub(super) fn accept_suggest(&mut self) {
-        let (Some(s), Some(e)) = (self.suggest.take(), &mut self.editor) else { return };
+        if !matches!(self.mode, Mode::Suggest(_)) { return; }
+        let (Mode::Suggest(s), Some(e)) = (self.normal(), &mut self.editor) else { return };
         let chars: Vec<char> = e.text().chars().collect();
         let edit = accepted(&chars, s.start, s.caret, s.kind, &s.items[s.selected]);
         e.put(edit.from, edit.to, &edit.insert);
@@ -88,7 +92,7 @@ impl App {
     /// (`names`), the same Tab again giving the one after.
     pub(super) fn complete_prompt(&mut self, names: impl FnOnce(&App) -> Vec<String>) {
         let names = names(self);
-        let Some(p) = &mut self.prompt else { return };
+        let Mode::Prompt(p) = &mut self.mode else { return };
         if p.choices.is_empty() {
             p.choices = complete_page(&names, &p.input, None, MAX);
             // What is typed is a name already: the others after it

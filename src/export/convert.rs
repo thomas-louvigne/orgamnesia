@@ -5,7 +5,6 @@ use crate::{html::escape, images, links};
 use orgamnesia_core::{links as place, names::fold, Format, TodoKeywords};
 
 mod markdown;
-pub(crate) use markdown::is_rule_line;
 
 /// The HTML of the page `text` called `name`. `image` gives the URL an image
 /// link target is shown from.

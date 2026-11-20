@@ -10,6 +10,7 @@ pub mod folding;
 pub mod format;
 pub mod frontmatter;
 pub mod hashtags;
+pub mod highlight;
 pub mod keybindings;
 pub mod layout;
 pub mod links;

@@ -60,16 +60,7 @@ pub(super) fn is_structure(line: &str) -> bool {
 }
 
 /// A Markdown rule: `---`, `***`, `___` (spaces between allowed).
-pub(crate) fn is_rule_line(t: &str) -> bool {
-    let mut marks = t.chars().filter(|c| !c.is_whitespace());
-    let Some(first @ ('-' | '*' | '_')) = marks.next() else { return false };
-    let mut n = 1;
-    for c in marks {
-        if c != first { return false; }
-        n += 1;
-    }
-    n >= 3
-}
+pub(crate) use orgamnesia_core::highlight::is_rule_line;
 
 /// A line holding only a Markdown image: its target.
 fn image_line(t: &str) -> Option<String> {

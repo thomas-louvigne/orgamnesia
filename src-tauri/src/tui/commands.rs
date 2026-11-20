@@ -6,7 +6,7 @@
 use orgamnesia_core::keybindings::{APP_ACTIONS, EDITOR_ACTIONS};
 use orgamnesia_core::{edit::Stamp, Format, Frame, ReplaceSkip, SearchOptions};
 
-use super::{keys, App, Editor};
+use super::{keys, App, Editor, Mode};
 use crate::project::Project;
 
 /// A value asked at the bottom of the screen, and what it is for.
@@ -143,12 +143,13 @@ const NOT_HERE: &[&str] = &["export_pdf", "export_html", "spell_next"];
 
 impl App {
     fn ask(&mut self, label: &str, input: &str, then: Then) {
-        self.prompt = Some(Prompt { label: label.to_string(), input: input.to_string(), then, choices: vec![], choice: 0 });
+        self.mode = Mode::Prompt(Prompt { label: label.to_string(), input: input.to_string(), then, choices: vec![], choice: 0 });
     }
 
     /// The value typed in the prompt given (Enter).
     pub(super) fn submit(&mut self) {
-        let Some(Prompt { input, then, .. }) = self.prompt.take() else { return };
+        if !matches!(self.mode, Mode::Prompt(_)) { return; }
+        let Mode::Prompt(Prompt { input, then, .. }) = self.normal() else { return };
         let input = input.trim().to_string();
         match then {
             Then::LinkTarget { a, b, text } if !input.is_empty() => self.ask("Description: ", &text, Then::LinkText { a, b, target: input }),
@@ -165,7 +166,7 @@ impl App {
             Then::ReplaceFrom if !input.is_empty() => self.ask(&format!("Replace “{input}” with: "), "", Then::ReplaceTo(input)),
             Then::ReplaceTo(from) => {
                 let found = self.editor.as_mut().is_some_and(|e| e.start_replace(&from));
-                if found { self.replacing = Some((from, input)); } else { self.status = format!("“{from}” not found"); }
+                if found { self.mode = Mode::Replace(from, input); } else { self.status = format!("“{from}” not found"); }
             }
             Then::AddTag if !input.is_empty() => self.add_tag(&input),
             Then::ProjectSearch if !input.is_empty() => self.project_search(&input),
@@ -235,7 +236,7 @@ impl App {
             "panel_backlinks" => self.panel(Frame::Backlinks),
             "panel_broken" => self.panel(Frame::Broken),
             // The list of the pages: the editor left for it (saved)
-            "panel_pages" => if self.close() { self.frame_focus = None; },
+            "panel_pages" => if self.close() { self.mode = Mode::Normal; },
             "rename_page" => self.ask_rename(),
             "switch_project" => {
                 let paths = self.projects.clone();
@@ -279,7 +280,7 @@ impl App {
                              ("Tab", "next link (pages)"), ("Mouse", "click a page or a place; drag the border")] {
             lines.push(format!("  {what:<28} {keys}"));
         }
-        self.popup = Some(Popup::text(format!("Shortcuts: {}", self.kb.active_profile), lines));
+        self.mode = Mode::Popup(Popup::text(format!("Shortcuts: {}", self.kb.active_profile), lines));
     }
 
     /// What a frame of the window lists (the TODO headlines, the tags, the pages
@@ -331,7 +332,7 @@ impl App {
             return;
         }
         let (title, items) = self.frame_items(frame);
-        self.popup = Some(Popup::pick(title, items));
+        self.mode = Mode::Popup(Popup::pick(title, items));
     }
 
     /// The headlines and pages holding the tag `tag`.
@@ -340,7 +341,7 @@ impl App {
             let place = h.heading.map(|t| format!(" › {t}")).unwrap_or_default();
             (format!("{}{place}", h.page), Target::Page(h.path, h.line))
         }).collect();
-        self.popup = Some(Popup::pick(format!("Tag {tag}"), items));
+        self.mode = Mode::Popup(Popup::pick(format!("Tag {tag}"), items));
     }
 
     /// The first line of the page `path` naming `name` (a link to it), else its first line.
@@ -352,7 +353,7 @@ impl App {
 
     /// The line chosen in the popup opened: a page at its line, or the headlines of a tag.
     pub(super) fn open_target(&mut self) {
-        if let Some(target) = self.popup.as_ref().and_then(|p| p.targets.get(p.selected).cloned()) { self.open(target); }
+        if let Some(target) = self.popup().and_then(|p| p.targets.get(p.selected).cloned()) { self.open(target); }
     }
 
     /// Open what a line of a list leads to: a page at its line, the headlines of a tag.
@@ -363,9 +364,8 @@ impl App {
             Target::Tag(tag) => return self.tag_panel(&tag),
             Target::None => return,
         };
-        self.popup = None;
+        self.mode = Mode::Normal;
         self.hits = None;
-        self.frame_focus = None;
         self.edit(&path);
         if let Some(e) = &mut self.editor && e.path == path { e.goto_line(line); }
     }
@@ -523,7 +523,7 @@ impl App {
             }).collect(),
             Err(e) => vec![e.to_string()],
         };
-        self.popup = Some(Popup::text(format!("History: {}", crate::project::files::page_name(&path)), lines));
+        self.mode = Mode::Popup(Popup::text(format!("History: {}", crate::project::files::page_name(&path)), lines));
     }
 
     /// The links of the page in view and the pages linking to it (the graph, as text).
@@ -534,7 +534,7 @@ impl App {
         lines.push(String::new());
         lines.push("Pages linking here".into());
         lines.extend(self.project.backlinks(&path, self.prefs.case_insensitive_links).into_iter().map(|p| format!("  ← {}", crate::project::files::page_name(&p))));
-        self.popup = Some(Popup::text(format!("Links: {}", crate::project::files::page_name(&path)), lines));
+        self.mode = Mode::Popup(Popup::text(format!("Links: {}", crate::project::files::page_name(&path)), lines));
     }
 
     fn switch_project(&mut self, path: &str) {

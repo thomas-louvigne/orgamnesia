@@ -89,7 +89,7 @@ pub fn to_html(raw: &str, width: usize, d: &highlight::Draw) -> String {
 mod tests {
     use super::*;
 
-    fn org() -> highlight::Draw {
+    fn org() -> highlight::Draw<'static> {
         highlight::Draw::new(orgamnesia_core::Format::Org, orgamnesia_core::Hashtags::Off.into())
     }
 

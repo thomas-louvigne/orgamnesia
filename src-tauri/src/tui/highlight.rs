@@ -1,9 +1,10 @@
-//! A page drawn in colour in the terminal, as the editor of the window draws it
-//! (`src/highlight.rs` and `.h1`… in `app.css`): headlines by level, TODO
-//! keywords, tags, links (those leading nowhere in red), emphasis, tables,
-//! Markdown code blocks and front matter.
+//! A page drawn in colour in the terminal: its lines cut into pieces by
+//! `orgamnesia_core::highlight`, as the window's editor cuts them, each piece
+//! given the colours of its class in the window's stylesheet (`.h1`, `.link-t`,
+//! `.em-b`… in `app.css`).
 
-use orgamnesia_core::{hashtags, links, Format, TagSyntax, TodoKeywords};
+use orgamnesia_core::highlight::{self as hl, Node};
+use orgamnesia_core::{links, Format, TagSyntax, TodoKeywords};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
@@ -32,61 +33,21 @@ pub struct Draw<'a> {
     pub text_first: bool,
 }
 
-/// Where the markup of a link is (its brackets, and its target when it has a
-/// text), and its text: `[[target][text]]`, `[[target]]`, `[text](target)`.
-fn link_parts(chars: &[char], a: usize, b: usize) -> (Vec<(usize, usize)>, (usize, usize)) {
-    let find = |pat: [char; 2], from: usize| (from..b.saturating_sub(1)).find(|&i| chars[i] == pat[0] && chars[i + 1] == pat[1]);
-    if chars.get(a + 1) == Some(&'[') && b >= a + 4 {
-        return match find([']', '['], a + 2) {
-            Some(k) => (vec![(a, k + 2), (b - 2, b)], (k + 2, b - 2)),
-            None => (vec![(a, a + 2), (b - 2, b)], (a + 2, b - 2)),
-        };
-    }
-    match find([']', '('], a + 1) {
-        Some(k) => (vec![(a, a + 1), (k, b)], (a + 1, k)),
-        None => (vec![], (a, b)),
-    }
-}
-
 /// The colour of the markup faded away (live preview).
 const FADED: Color = Color::Indexed(238);
 
 const DIM: Style = Style::new().fg(Color::DarkGray);
-const CODE: Style = Style::new().fg(Color::Green);
 
-/// The style of a headline of `level` (`.h1` … `.h6`).
-fn heading(level: usize) -> Style {
-    match level {
-        1 => Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
-        2 => Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD),
-        3 => Style::new().fg(Color::Yellow),
-        4 => Style::new().fg(Color::Cyan),
-        5 => Style::new().fg(Color::Green),
-        _ => Style::new().fg(Color::Indexed(208)),
-    }
-}
-
-/// The style of each line that is code (`CODE`) or front matter (`DIM`) in
-/// Markdown, drawn as it is, no link in it.
-fn verbatim_lines(lines: &[&str], format: Format) -> Vec<Option<Style>> {
-    let mut out = vec![None; lines.len()];
-    if format != Format::Markdown { return out; }
-    let (mut fence, mut front) = (false, lines.first() == Some(&"---"));
-    for (n, line) in lines.iter().enumerate() {
-        let t = line.trim_start();
-        let rule = t.starts_with("```") || t.starts_with("~~~");
-        out[n] = if front { Some(DIM) } else if fence || rule { Some(CODE) } else { None };
-        if front && n > 0 && *line == "---" { front = false; }
-        if rule && !front { fence = !fence; }
-    }
-    out
+/// The lines of a Markdown page drawn as they are (code blocks, front matter), with their class.
+fn verbatim(lines: &[&str], text: &str, format: Format) -> std::collections::HashMap<usize, &'static str> {
+    if format == Format::Markdown { hl::code_lines(lines, text) } else { Default::default() }
 }
 
 /// The links of the page `text`, in order.
 pub fn links(text: &str, d: &Draw) -> Vec<Link> {
     let lines: Vec<&str> = text.split('\n').collect();
-    let verbatim = verbatim_lines(&lines, d.format);
-    lines.iter().enumerate().filter(|(n, _)| verbatim[*n].is_none()).flat_map(|(n, line)| {
+    let code = verbatim(&lines, text, d.format);
+    lines.iter().enumerate().filter(|(n, _)| !code.contains_key(n)).flat_map(|(n, line)| {
         let chars: Vec<char> = line.chars().collect();
         links::scan(&chars, d.tags.links(d.format)).into_iter()
             .map(move |f| Link { line: n, start: f.start, end: f.end, target: f.target })
@@ -107,43 +68,102 @@ pub struct Found {
 /// matches of a search marked.
 pub fn render(text: &str, d: &Draw, selected: Option<&Link>, found: &Found) -> Vec<Line<'static>> {
     let lines: Vec<&str> = text.split('\n').collect();
-    let verbatim = verbatim_lines(&lines, d.format);
-    let all_links = links(text, d);
+    let code = verbatim(&lines, text, d.format);
+    let heads = hl::table_heads(&lines);
+    let cut = hl::Draw { format: d.format, tags: d.tags, todo: d.todo.cloned(), broken: Some(Box::new(|t: &str| (d.broken)(t))) };
     let mut start = 0;
     lines.iter().enumerate().map(|(n, line)| {
         let chars: Vec<char> = line.chars().collect();
-        let mut st = vec![Style::new(); chars.len()];
-        // The markup of the line: what the live preview fades away
-        let mut markup = vec![false; chars.len()];
-        if let Some(s) = verbatim[n] {
-            st.fill(s);
-        } else {
-            let inline_from = style_line(&chars, &mut st, d);
-            if let Some(stars) = d.format.heading_level(&chars) { markup[..stars.min(chars.len())].fill(true); }
-            let line_links: Vec<&Link> = all_links.iter().filter(|l| l.line == n).collect();
-            emphasis(&chars, &mut st, &mut markup, inline_from, &line_links, d.format);
-            for l in line_links {
-                let (a, b) = (l.start, l.end.min(chars.len()));
-                let color = if (d.broken)(&l.target) { Color::Red } else { Color::Cyan };
-                let chosen = |s: Style| if selected == Some(l) { s.add_modifier(Modifier::REVERSED) } else { s };
-                let (marks, (ta, tb)) = link_parts(&chars, a, b);
-                for (x, y) in marks { markup[x..y].fill(true); }
-                if d.text_first {
-                    // The text in bold, the rest (brackets, target) dimmed and underlined
-                    st[a..b].fill(chosen(Style::new().fg(Color::DarkGray).add_modifier(Modifier::UNDERLINED)));
-                    st[ta..tb].fill(chosen(Style::new().fg(color).add_modifier(Modifier::BOLD)));
-                } else {
-                    st[a..b].fill(chosen(Style::new().fg(color).add_modifier(Modifier::UNDERLINED)));
-                }
-            }
-            if d.live.is_some_and(|cur| cur != n) {
-                for (s, _) in st.iter_mut().zip(&markup).filter(|(_, m)| **m) { *s = s.fg(FADED); }
-            }
+        let mut paint = Paint { d, st: vec![Style::new(); chars.len()], markup: vec![false; chars.len()], at: 0 };
+        match code.get(&n) {
+            Some(class) => paint.nodes(&[Node::Span { class: class.to_string(), data: None, children: vec![Node::Text(line.to_string())] }], &mut vec![], false),
+            None if heads.contains(&n) => paint.nodes(&[Node::Span { class: "tbl tbl-head".into(), data: None, children: vec![Node::Text(line.to_string())] }], &mut vec![], false),
+            None => paint.nodes(&hl::line(line, &cut), &mut vec![], false),
+        }
+        let Paint { mut st, markup, .. } = paint;
+        if let Some(l) = selected.filter(|l| l.line == n) {
+            for s in &mut st[l.start.min(chars.len())..l.end.min(chars.len())] { *s = s.add_modifier(Modifier::REVERSED); }
+        }
+        // Live preview: the markup faded away out of the line of the cursor
+        if d.live.is_some_and(|cur| cur != n) {
+            for (s, _) in st.iter_mut().zip(&markup).filter(|(_, m)| **m) { *s = s.fg(FADED); }
         }
         mark_found(&mut st, start, found);
         start += chars.len() + 1;
         to_line(&chars, &st)
     }).collect()
+}
+
+/// The pieces of a line painted: the style of each char, and whether it is markup.
+struct Paint<'a, 'b> {
+    d: &'a Draw<'b>,
+    st: Vec<Style>,
+    markup: Vec<bool>,
+    at: usize,
+}
+
+impl Paint<'_, '_> {
+    /// `nodes` within the spans of the classes `classes` (outer first); `text`:
+    /// within a link that has a text (`[[target][text]]`).
+    fn nodes(&mut self, nodes: &[Node], classes: &mut Vec<String>, text: bool) {
+        for node in nodes {
+            match node {
+                Node::Text(t) => {
+                    let style = classes.iter().fold(Style::new(), |s, c| self.style(s, c, text));
+                    let markup = classes.iter().any(|c| c == "mk" || c == "h-stars");
+                    for _ in t.chars() {
+                        if self.at < self.st.len() { (self.st[self.at], self.markup[self.at]) = (style, markup); }
+                        self.at += 1;
+                    }
+                }
+                Node::Span { class, children, .. } => {
+                    let has_text = text || (class.starts_with("link") && children.iter().any(|c| matches!(c, Node::Span { class, .. } if class == "link-d")));
+                    let n = classes.len();
+                    classes.extend(class.split(' ').map(str::to_string));
+                    self.nodes(children, classes, has_text);
+                    classes.truncate(n);
+                }
+            }
+        }
+    }
+
+    /// `s` with the colours of the class `class` (`app.css`).
+    fn style(&self, s: Style, class: &str, link_text: bool) -> Style {
+        let first = self.d.text_first;
+        match class {
+            "h1" => s.fg(Color::Red).add_modifier(Modifier::BOLD),
+            "h2" => s.fg(Color::Blue).add_modifier(Modifier::BOLD),
+            "h3" => s.fg(Color::Yellow),
+            "h4" => s.fg(Color::Cyan),
+            "h5" => s.fg(Color::Green),
+            "h6" => s.fg(Color::Indexed(208)),
+            "h-done" => s.fg(Color::DarkGray),
+            "h-stars" => s.add_modifier(Modifier::DIM),
+            // org-hide-leading-stars: the level reads as an indent
+            "h-lead" if self.d.hide_stars => s.fg(Color::Indexed(237)),
+            "todo" => s.fg(Color::Red).add_modifier(Modifier::BOLD | Modifier::REVERSED),
+            "done" => s.fg(Color::Green).add_modifier(Modifier::BOLD | Modifier::REVERSED),
+            "tags" => s.fg(Color::Magenta),
+            "tag-t" => s.add_modifier(Modifier::UNDERLINED),
+            "kw" => s.fg(Color::DarkGray),
+            "tbl" => s.fg(Color::Cyan),
+            "tbl-head" => s.add_modifier(Modifier::BOLD),
+            "em-b" => s.add_modifier(Modifier::BOLD),
+            "em-i" => s.fg(Color::Green).add_modifier(Modifier::ITALIC),
+            "em-u" => s.fg(Color::Blue).add_modifier(Modifier::UNDERLINED),
+            "em-s" => s.add_modifier(Modifier::CROSSED_OUT),
+            "md-code" => s.fg(Color::Green),
+            "md-quote" => s.fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+            // A link: its text first (link_text_first) dims the rest of it
+            "link" => s.fg(if first { Color::DarkGray } else { Color::Cyan }),
+            "broken" => s.fg(Color::Red),
+            "link-t" if first && !link_text => s.fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            "link-t" => s.add_modifier(Modifier::UNDERLINED),
+            "link-d" if first => s.fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            "link-d" => s.add_modifier(Modifier::UNDERLINED),
+            _ => s,
+        }
+    }
 }
 
 /// The region, then the matches of a line starting at `start` of the text, by their range in it.
@@ -184,91 +204,6 @@ pub fn render_yaml(text: &str, found: &Found) -> Vec<Line<'static>> {
     }).collect()
 }
 
-/// Styles of the whole line (headline, table, keyword, quote); returns where its
-/// inline markup starts.
-fn style_line(chars: &[char], st: &mut [Style], d: &Draw) -> usize {
-    let indent = chars.iter().take_while(|c| c.is_whitespace()).count();
-    let rest: String = chars[indent..].iter().collect();
-    if let Some(stars) = d.format.heading_level(chars) {
-        let s = heading(stars);
-        st.fill(s);
-        st[..stars.min(chars.len())].fill(s.add_modifier(Modifier::DIM));
-        // org-hide-leading-stars: the level reads as an indent
-        if d.hide_stars { st[..stars.saturating_sub(1).min(chars.len())].fill(Style::new().fg(Color::Indexed(237))); }
-        let mut from = (stars + 1).min(chars.len());
-        if let Some(k) = d.todo.and_then(|t| t.keyword(chars, d.format)) {
-            if k.done { st[k.end..].fill(DIM); }
-            let color = if k.done { Color::Green } else { Color::Red };
-            st[k.start..k.end].fill(Style::new().fg(color).add_modifier(Modifier::BOLD | Modifier::REVERSED));
-            from = k.end;
-        }
-        if let Some((a, b)) = hashtags::headline_tags_range(chars, d.tags.org) {
-            st[a..b].fill(Style::new().fg(Color::Magenta));
-        }
-        return from;
-    }
-    if rest.starts_with('|') {
-        st.fill(Style::new().fg(Color::Cyan));
-        return chars.len();
-    }
-    if d.format == Format::Org && rest.starts_with("#+") {
-        let colon = chars.iter().position(|&c| c == ':').map_or(chars.len(), |p| p + 1);
-        st[..colon].fill(DIM);
-        if let Some(v) = hashtags::filetags_value_start(chars) { st[v..].fill(Style::new().fg(Color::Magenta)); }
-        return colon;
-    }
-    if d.format == Format::Org && (rest == "#" || rest.starts_with("# ")) {
-        st.fill(DIM);
-        return chars.len();
-    }
-    if d.format == Format::Markdown && rest.starts_with('>') {
-        st.fill(DIM.add_modifier(Modifier::ITALIC));
-    }
-    0
-}
-
-/// Bold, italic, underlined, struck and code spans from `from`, outside the links.
-fn emphasis(chars: &[char], st: &mut [Style], markup: &mut [bool], from: usize, links: &[&Link], format: Format) {
-    let marks: &[(&str, Style)] = if format == Format::Markdown {
-        &[("**", Style::new().add_modifier(Modifier::BOLD)), ("__", Style::new().add_modifier(Modifier::BOLD)),
-          ("~~", Style::new().add_modifier(Modifier::CROSSED_OUT)), ("`", CODE),
-          ("*", Style::new().fg(Color::Green).add_modifier(Modifier::ITALIC)), ("_", Style::new().fg(Color::Green).add_modifier(Modifier::ITALIC))]
-    } else {
-        &[("*", Style::new().add_modifier(Modifier::BOLD)), ("/", Style::new().fg(Color::Green).add_modifier(Modifier::ITALIC)),
-          ("_", Style::new().fg(Color::Blue).add_modifier(Modifier::UNDERLINED)), ("+", Style::new().add_modifier(Modifier::CROSSED_OUT)),
-          ("=", CODE), ("~", CODE)]
-    };
-    let in_link = |i: usize| links.iter().find(|l| (l.start..l.end).contains(&i)).map(|l| l.end);
-    let mut i = from;
-    while i < chars.len() {
-        if let Some(end) = in_link(i) { i = end; continue; }
-        let opens = i == 0 || chars[i - 1].is_whitespace() || "-('\"{[".contains(chars[i - 1]);
-        let found = opens.then(|| marks.iter().find_map(|(m, s)| close(chars, i, m).map(|end| (m.chars().count(), end, *s)))).flatten();
-        match found {
-            Some((n, end, s)) if (i..end).all(|j| in_link(j).is_none()) => {
-                st[i..end].fill(s);
-                st[i..i + n].fill(DIM);
-                st[end - n..end].fill(DIM);
-                markup[i..i + n].fill(true);
-                markup[end - n..end].fill(true);
-                i = end;
-            }
-            _ => i += 1,
-        }
-    }
-}
-
-/// End (past the closing mark) of the span opened by `mark` at `at`, if closed on the line.
-fn close(chars: &[char], at: usize, mark: &str) -> Option<usize> {
-    let m: Vec<char> = mark.chars().collect();
-    let n = m.len();
-    let is = |i: usize| chars.get(i..i + n) == Some(&m[..]);
-    if !is(at) || chars.get(at + n).is_none_or(|c| c.is_whitespace()) { return None; }
-    (at + n + 1..=chars.len().saturating_sub(n)).find(|&j| {
-        is(j) && !chars[j - 1].is_whitespace() && chars.get(j + n).is_none_or(|c| !c.is_alphanumeric())
-    }).map(|j| j + n)
-}
-
 /// The chars of a line with their styles, as spans of the same style.
 fn to_line(chars: &[char], st: &[Style]) -> Line<'static> {
     let mut spans: Vec<Span> = vec![];
@@ -290,8 +225,9 @@ mod tests {
         (p.tags(), p.todo().unwrap_or_else(|| TodoKeywords::parse("TODO | DONE")))
     }
 
+    /// The style of the first piece of `line` holding `text`.
     fn styled(line: &Line, text: &str) -> Style {
-        line.spans.iter().find(|s| s.content == text).map(|s| s.style).unwrap_or_else(|| panic!("{text} not in {line:?}"))
+        line.spans.iter().find(|s| s.content.contains(text)).map(|s| s.style).unwrap_or_else(|| panic!("{text} not in {line:?}"))
     }
 
     #[test]
@@ -304,13 +240,14 @@ mod tests {
         assert_eq!(styled(&lines[0], "TODO").fg, Some(Color::Red));
         assert_eq!(styled(&lines[0], " Titre").fg, Some(Color::Red));
         assert!(styled(&lines[1], "gras").add_modifier.contains(Modifier::BOLD));
-        assert_eq!(styled(&lines[1], "[[Page]]").fg, Some(Color::Cyan));
-        assert_eq!(styled(&lines[1], "[[Nulle]]").fg, Some(Color::Red));
+        assert_eq!(styled(&lines[1], "Page").fg, Some(Color::Cyan));
+        assert!(styled(&lines[1], "Page").add_modifier.contains(Modifier::UNDERLINED));
+        assert_eq!(styled(&lines[1], "Nulle").fg, Some(Color::Red));
         assert_eq!(styled(&lines[2], "| a | b |").fg, Some(Color::Cyan));
         let found = links(text, &d);
         assert_eq!(found.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), ["Page", "Nulle"]);
         let sel = render(text, &d, Some(&found[0]), &Found::default());
-        assert!(styled(&sel[1], "[[Page]]").add_modifier.contains(Modifier::REVERSED));
+        assert!(styled(&sel[1], "Page").add_modifier.contains(Modifier::REVERSED));
     }
 
     #[test]
@@ -322,7 +259,7 @@ mod tests {
         assert_eq!(styled(&lines[0], " Titre").fg, Some(Color::Blue));
         assert_eq!(styled(&lines[2], "**pas gras** [[X]]").fg, Some(Color::Green));
         assert!(links(text, &d).is_empty());
-        assert_eq!(styled(&lines[4], "code").fg, Some(Color::Green));
+        assert_eq!(styled(&lines[4], "`code`").fg, Some(Color::Green));
         assert!(styled(&lines[4], "gras").add_modifier.contains(Modifier::BOLD));
     }
 
@@ -355,12 +292,12 @@ mod tests {
         // Faded away out of the line of the cursor
         assert_eq!(styled(&lines[0], "**").fg, Some(FADED));
         assert_eq!(styled(&lines[2], "[[").fg, Some(FADED));
-        // On it, the markup as it is; the text of a link in bold, its target dimmed
-        assert_eq!(styled(&lines[1], "*").fg, Some(Color::DarkGray));
+        // On it, the markup as it is (in the colours of what it marks)
+        assert!(styled(&lines[1], "*gras*").add_modifier.contains(Modifier::BOLD));
+        // The text of a link in bold, its target dimmed
         assert!(styled(&lines[1], "texte").add_modifier.contains(Modifier::BOLD));
-        assert_eq!(styled(&lines[1], "[[Page][").fg, Some(Color::DarkGray));
+        assert_eq!(styled(&lines[1], "Page").fg, Some(Color::DarkGray));
         // A link without text: its target is its text
         assert!(styled(&lines[2], "Autre").add_modifier.contains(Modifier::BOLD));
-        assert_eq!(link_parts(&"[t](P.md)".chars().collect::<Vec<_>>(), 0, 9), (vec![(0, 1), (2, 9)], (1, 2)));
     }
 }
