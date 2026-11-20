@@ -305,7 +305,7 @@ impl App {
 
     /// Back to the list of the pages, the pages edited saved; the screen stays
     /// split, the page chosen then opened in the active window. False when not saved.
-    fn to_list(&mut self) -> bool {
+    fn back_to_list(&mut self) -> bool {
         if !self.save() || !self.save_other() { return false; }
         self.editor = None;
         true

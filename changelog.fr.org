@@ -4,6 +4,9 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.8.1
+- Vérifications du code corrigées (le build les refusait) ; rien ne change à l'usage.
+
 * 1.8.0
 - Version terminal (bêta) : orgamnesia --nox [dossier] ouvre le projet dans le terminal, sans fenêtre. La liste des pages se filtre en tapant, les pages s'éditent sur place, colorées comme dans la fenêtre, avec les mêmes raccourcis (profils classique, Emacs ou personnalisé) et le même code d'édition : zone, couper/coller, repli, tableaux, états TODO, mise en forme, dates, liens, recherche et remplacement, ouverture rapide, écran découpé, git, projets. F1 liste les raccourcis ; F2 renomme la page ; F4, F5, F8 et F9 ouvrent les titres TODO, les tags, les rétroliens et les pages pas encore créées (de nouveaux raccourcis, modifiables, qui dans la fenêtre ouvrent le renommage du titre et donnent le focus aux cadres). Les cadres de la fenêtre (pages, rétroliens, tags, TODO, pages non créées, projet, git) sont en colonnes de chaque côté, disposés comme dans la fenêtre, et F10 va dans la liste des pages. Les noms se complètent comme dans la fenêtre (liens, titres, tags). La session revient au lancement, l'état git s'affiche en bas. La souris place le curseur, Ctrl+clic suit un lien, la colonne des pages se redimensionne. Ce qui n'y marche pas encore est dit dans la documentation et dans les fichiers de réglages.
 - Les réglages passent en YAML (settings.yaml, keybindings/*.yaml), qui accepte les commentaires. Au premier lancement, les fichiers JSON des versions précédentes sont convertis ; quand la conversion a gardé les mêmes réglages, l'application propose de supprimer les anciens fichiers (ils restent dans l'historique des réglages).

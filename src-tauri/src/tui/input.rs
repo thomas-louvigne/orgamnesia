@@ -184,7 +184,7 @@ impl App {
         let Some(e) = &mut self.editor else { return false };
         let act = |e: &mut Editor, id: &str| { e.action(id, page, None); };
         match key.code {
-            KeyCode::Esc => { self.to_list(); }
+            KeyCode::Esc => { self.back_to_list(); }
             KeyCode::Char('c') if ctrl => return true,
             KeyCode::Char('j') if ctrl => self.journal(),
             KeyCode::Char(c) if !ctrl && !key.modifiers.contains(KeyModifiers::ALT) => e.type_char(c),
@@ -374,7 +374,7 @@ impl App {
         let a = self.list_area;
         // Inside its borders
         if column <= a.x || column + 1 >= a.x + a.width || row <= a.y || row + 1 >= a.y + a.height { return; }
-        if !self.to_list() { return; }
+        if !self.back_to_list() { return; }
         let i = self.list.offset() + (row - a.y - 1) as usize;
         if i < self.shown().len() && self.list.selected() != Some(i) {
             self.list.select(Some(i));

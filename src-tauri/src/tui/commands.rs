@@ -270,7 +270,7 @@ impl App {
             "panel_backlinks" => self.panel(Frame::Backlinks),
             "panel_broken" => self.panel(Frame::Broken),
             // The list of the pages: the editor left for it (saved)
-            "panel_pages" => if self.to_list() { self.mode = Mode::Normal; },
+            "panel_pages" => if self.back_to_list() { self.mode = Mode::Normal; },
             "rename_page" => self.ask_rename(),
             "switch_project" => {
                 let paths = self.projects.clone();
@@ -326,7 +326,7 @@ impl App {
                 let Some(keywords) = self.prefs.todo() else { return ("To do".into(), vec![]) };
                 let mut hits = self.project.todos(&keywords);
                 // Those to do first, by page
-                hits.sort_by(|a, b| (a.done, a.page.to_lowercase(), a.line).cmp(&(b.done, b.page.to_lowercase(), b.line)));
+                hits.sort_by_key(|a| (a.done, a.page.to_lowercase(), a.line));
                 ("To do".into(), hits.into_iter().map(|h| {
                     (format!("{} {} {}  — {}", if h.done { "✓" } else { "·" }, h.keyword, h.title, h.page), Target::Page(h.path, h.line))
                 }).collect())

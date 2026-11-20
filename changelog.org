@@ -4,6 +4,9 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.8.1
+- Code checks fixed (the build failed them); nothing changes in use.
+
 * 1.8.0
 - Terminal version (beta): orgamnesia --nox [folder] opens the project in the terminal, without a window. The list of pages filters as you type, pages are edited right there, highlighted as in the window, with the same shortcuts (classic, Emacs or custom profiles) and the same editing code: region, kill and yank, folding, tables, TODO states, emphasis, dates, links, find and replace, quick open, split screen, git, projects. F1 lists the shortcuts; F2 renames the page; F4, F5, F8 and F9 open the TODO headlines, the tags, the backlinks and the pages not created yet (new shortcuts, to change at will, which in the window open the title's renaming and give the focus to the frames). The window's frames (pages, backlinks, tags, TODO, pages not created, project, git) are in columns on each side, laid out as in the window, and F10 goes to the list of the pages. Names complete as in the window (links, headlines, tags). The session comes back on start, the git state shows at the bottom. The mouse places the cursor, Ctrl+click follows a link, the pages column can be resized. What doesn't work there yet is said in the documentation and in the settings files.
 - The settings are now YAML (settings.yaml, keybindings/*.yaml), which takes comments. On the first start, the JSON files of older versions are converted; when the conversion kept the same settings, the app offers to delete the old files (they stay in the settings history).
