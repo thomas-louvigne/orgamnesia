@@ -17,7 +17,7 @@ impl App {
             Mode::Normal => false,
             Mode::Popup(_) => { self.popup_key(key); true }
             Mode::Prompt(_) => { self.prompt_key(key); true }
-            Mode::Quick(_) => { self.quick_key(key); true }
+            Mode::Quick(_) => return self.quick_key(key),
             Mode::Replace(..) => { self.replace_key(key); true }
             Mode::Frame(_) => self.frame_key(key),
             Mode::Suggest(_) => self.suggest_key(key),
@@ -38,22 +38,7 @@ impl App {
                 Resolution::Action(id) => {
                     // The chord shown while it was typed is done
                     if self.status.ends_with(" …") { self.status.clear(); }
-                    if id == "find" || id == "find_previous" {
-                        // Among the pages, a search in the page chosen
-                        if self.editor.is_none() && let Some(p) = self.selected() { self.edit(&p.path); }
-                        if let Some(e) = &mut self.editor { e.find(id == "find"); }
-                        return false;
-                    }
-                    // Any other shortcut ends the search (`keyboard_quit` cancels it), then does its work
-                    if let Some(e) = &mut self.editor && e.search.is_some() {
-                        e.end_search(id != "keyboard_quit");
-                        if id == "keyboard_quit" { return false; }
-                    }
-                    if let Some(quit) = self.action(&id) { return quit; }
-                    if self.command(&id).is_some() { return false; }
-                    let page = self.height as usize;
-                    let todo = self.prefs.todo();
-                    if let Some(e) = &mut self.editor && e.action(&id, page, todo.as_ref()) { return false; }
+                    if let Some(quit) = self.run_action(&id) { return quit; }
                 }
                 Resolution::None => {}
             }
@@ -69,6 +54,28 @@ impl App {
             }
         }
         if self.editor.is_some() { self.edit_key(key) } else { self.list_key(key) }
+    }
+
+    /// Do the shortcut `id` (a key or the quick open's `>`): `None` when nothing
+    /// does it here, else whether to quit.
+    pub(super) fn run_action(&mut self, id: &str) -> Option<bool> {
+        if id == "find" || id == "find_previous" {
+            // Among the pages, a search in the page chosen
+            if self.editor.is_none() && let Some(p) = self.selected() { self.edit(&p.path); }
+            if let Some(e) = &mut self.editor { e.find(id == "find"); }
+            return Some(false);
+        }
+        // Any other shortcut ends the search (`keyboard_quit` cancels it), then does its work
+        if let Some(e) = &mut self.editor && e.search.is_some() {
+            e.end_search(id != "keyboard_quit");
+            if id == "keyboard_quit" { return Some(false); }
+        }
+        if let Some(quit) = self.action(id) { return Some(quit); }
+        if self.command(id).is_some() { return Some(false); }
+        let page = self.height as usize;
+        let todo = self.prefs.todo();
+        if let Some(e) = &mut self.editor && e.action(id, page, todo.as_ref()) { return Some(false); }
+        None
     }
 
     /// A key on text or a list over the page: moving, opening the line chosen;
@@ -177,7 +184,7 @@ impl App {
         let Some(e) = &mut self.editor else { return false };
         let act = |e: &mut Editor, id: &str| { e.action(id, page, None); };
         match key.code {
-            KeyCode::Esc => { self.close(); }
+            KeyCode::Esc => { self.to_list(); }
             KeyCode::Char('c') if ctrl => return true,
             KeyCode::Char('j') if ctrl => self.journal(),
             KeyCode::Char(c) if !ctrl && !key.modifiers.contains(KeyModifiers::ALT) => e.type_char(c),
@@ -265,10 +272,10 @@ impl App {
 
     /// A key in the quick open: typing, moving among the pages found, Enter
     /// opening the one chosen (made when it is to create).
-    pub(super) fn quick_key(&mut self, key: KeyEvent) {
+    pub(super) fn quick_key(&mut self, key: KeyEvent) -> bool {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let plain = !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
-        let Mode::Quick(q) = &mut self.mode else { return };
+        let Mode::Quick(q) = &mut self.mode else { return false };
         match key.code {
             _ if cancel(&key) => self.mode = Mode::Normal,
             KeyCode::Down | KeyCode::Tab => q.selected += 1,
@@ -278,17 +285,19 @@ impl App {
             KeyCode::Backspace => { q.query.pop(); q.selected = 0; }
             KeyCode::Char(c) if plain || key.modifiers == KeyModifiers::SHIFT => { q.query.push(c); q.selected = 0; }
             KeyCode::Enter => {
-                let items = commands::quick_items(&q.query, &self.tabs, &self.project.files());
-                let chosen = items.into_iter().nth(q.selected);
+                let (query, selected) = (q.query.clone(), q.selected);
+                let chosen = self.quick_list(&query).into_iter().nth(selected);
                 self.mode = Mode::Normal;
                 match chosen {
                     Some(commands::QuickItem::Page { path, .. }) => { self.hits = None; self.edit(&path); }
                     Some(commands::QuickItem::Create(name)) => self.open_or_create(name),
+                    Some(commands::QuickItem::Command { id, .. }) => return self.run_action(&id).unwrap_or(false),
                     None => {}
                 }
             }
             _ => {}
         }
+        false
     }
 
     /// The border between the pages and the page, dragged with the left button.
@@ -365,7 +374,7 @@ impl App {
         let a = self.list_area;
         // Inside its borders
         if column <= a.x || column + 1 >= a.x + a.width || row <= a.y || row + 1 >= a.y + a.height { return; }
-        if !self.close() { return; }
+        if !self.to_list() { return; }
         let i = self.list.offset() + (row - a.y - 1) as usize;
         if i < self.shown().len() && self.list.selected() != Some(i) {
             self.list.select(Some(i));
@@ -400,6 +409,7 @@ impl App {
     pub(super) fn click_page(&mut self, column: u16, row: u16) -> bool {
         let inside = |a: Rect| column > a.x && column + 1 < a.x + a.width && row > a.y && row + 1 < a.y + a.height;
         if self.other.is_some() && inside(self.other_area) {
+            self.edit_previewed();
             self.swap();
             std::mem::swap(&mut self.page_area, &mut self.other_area);
         }

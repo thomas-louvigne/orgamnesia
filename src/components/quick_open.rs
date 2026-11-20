@@ -82,6 +82,14 @@ fn commands(ctx: AppCtx, q: &str) -> Vec<QuickItem> {
     list
 }
 
+/// The `pages` found, then the `commands`, the page to create last.
+fn with_commands(mut pages: Vec<QuickItem>, commands: Vec<QuickItem>) -> Vec<QuickItem> {
+    let create = matches!(pages.last(), Some(QuickItem::Create { .. })).then(|| pages.pop()).flatten();
+    pages.extend(commands);
+    pages.extend(create);
+    pages
+}
+
 /// What the quick open lists for `query`: the open `tabs` (`active` marked), the
 /// other `files`, then the `tags` (when the tags frame is shown) and the page to
 /// create; case and accents ignored ("regle" finds "Règle").
@@ -128,7 +136,11 @@ pub fn QuickOpenModal() -> impl IntoView {
         let tabs = ctx.work.tabs.get();
         let tags = ctx.pref(|p| p.show_tags)
             .then(|| ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect::<Vec<_>>()));
-        ctx.project.files.with(|files| page_items(&query.get(), &tabs, ctx.work.active_tab.get(), files, tags.as_deref()))
+        let q = query.get();
+        let pages = ctx.project.files.with(|files| page_items(&q, &tabs, ctx.work.active_tab.get(), files, tags.as_deref()));
+        // The commands whose name holds what is typed too, before the page to create
+        let q = fold(q.trim());
+        if q.is_empty() { pages } else { with_commands(pages, commands(ctx, &q)) }
     };
 
     let on_keydown = move |e: web_sys::KeyboardEvent| {
@@ -190,6 +202,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                             <div class="quick-open-list" node_ref=list_ref>
                                 {list.into_iter().enumerate().map(|(i, item)| {
                                     let name   = item.display_name();
+                                    let command = matches!(item, QuickItem::Command { .. });
                                     let lang   = ctx.lang.get();
                                     let (icon, cls, hint): (&str, &str, Option<String>) = match &item {
                                         QuickItem::Tab { is_active: true,  .. } => ("●", "qo-tab",    None),
@@ -201,7 +214,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                                     };
                                     view! {
                                         <div
-                                            class=move || if selected.get().min(last) == i { "quick-open-item selected" } else { "quick-open-item" }
+                                            class=move || format!("quick-open-item{}{}", if command { " qo-command" } else { "" }, if selected.get().min(last) == i { " selected" } else { "" })
                                             on:click=move |_| do_open(ctx, item.clone())
                                             // Only a mouse that moves: the list scrolling under a still one is not a choice
                                             on:mousemove=move |e: web_sys::MouseEvent| {
@@ -247,6 +260,13 @@ mod tests {
     fn query_filters_sorts_and_offers_creation() {
         let files = [file("Mes règles"), file("Règle"), file("Autre")];
         assert_eq!(names(&page_items("regle", &[], None, &files, None)), ["Règle", "Mes règles", "regle"]);
+    }
+
+    #[test]
+    fn commands_after_the_pages_before_the_page_to_create() {
+        let command = QuickItem::Command { action: AppAction::Save, label: "Save".into(), keys: None };
+        let items = with_commands(page_items("sa", &[], None, &[file("Salade")], None), vec![command]);
+        assert_eq!(names(&items), ["Salade", "Save", "sa"]);
     }
 
     #[test]

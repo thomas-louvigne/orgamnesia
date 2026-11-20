@@ -1551,6 +1551,7 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .qo-tag    { color: var(--purple); font-weight: bold; }
 .qo-create { color: var(--green); font-size: 15px; font-weight: bold; }
 .qo-cmd    { color: var(--accent); font-weight: bold; }
+.quick-open-item.qo-command .qo-name { color: var(--accent); }
 
 .qo-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

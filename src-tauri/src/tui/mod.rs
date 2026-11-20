@@ -303,6 +303,19 @@ impl App {
         true
     }
 
+    /// Back to the list of the pages, the pages edited saved; the screen stays
+    /// split, the page chosen then opened in the active window. False when not saved.
+    fn to_list(&mut self) -> bool {
+        if !self.save() || !self.save_other() { return false; }
+        self.editor = None;
+        true
+    }
+
+    /// The previewed page edited first, so that the window left keeps it.
+    fn edit_previewed(&mut self) {
+        if self.editor.is_none() && let Some(p) = self.selected() { self.edit(&p.path); }
+    }
+
     /// Write the page of the other window, if it is another page and changed.
     fn save_other(&mut self) -> bool {
         let same = matches!((&self.editor, &self.other), (Some(a), Some(b)) if a.path == b.path);

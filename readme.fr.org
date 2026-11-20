@@ -145,6 +145,7 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [ ] Terminal dans l'éditeur
 - [ ] Dossiers et sous-dossiers dans les notes
 - [ ] Notes de bas de page
+- [ ] Outils git de diff et de fusion : voir les changements d'une page, résoudre un historique divergé ou un conflit sans terminal
 
 * Licence
 

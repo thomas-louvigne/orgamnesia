@@ -1271,8 +1271,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("shortcut_undo_edit",     Lang::En) => "Undo",
         ("shortcut_undo_edit",     Lang::Fr) => "Annuler",
         // Quick open
-        ("quick_open_ph",    Lang::En) => "Go to page…   (> for the commands)",
-        ("quick_open_ph",    Lang::Fr) => "Aller à la page…   (> pour les commandes)",
+        ("quick_open_ph",    Lang::En) => "Go to a page or a command…   (> for the commands only)",
+        ("quick_open_ph",    Lang::Fr) => "Aller à une page ou une commande…   (> pour les commandes seules)",
         ("quick_open_no_command", Lang::En) => "No command found.",
         ("quick_open_no_command", Lang::Fr) => "Aucune commande trouvée.",
         ("quick_open_empty", Lang::En) => "No pages found.",

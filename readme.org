@@ -141,6 +141,7 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Terminal in the editor
 - [ ] Folders and subfolders in the notes
 - [ ] Footnotes
+- [ ] Git diff & merge tools: see the changes of a page, resolve a diverged history or a conflict without a terminal
 
 * License
 

@@ -67,6 +67,8 @@ pub struct Quick {
 pub enum QuickItem {
     Page { name: String, path: String, open: bool },
     Create(String),
+    /// A shortcut of the window (`>` typed first), with its keys.
+    Command { id: String, keys: String },
 }
 
 /// What the quick open lists for `query`: the pages open first, then the
@@ -88,6 +90,38 @@ pub fn quick_items(query: &str, tabs: &[String], files: &[orgamnesia_core::FileE
     list.extend(others.into_iter().map(|f| QuickItem::Page { name: f.name.clone(), path: f.path.clone(), open: false }));
     if !q.is_empty() && !files.iter().any(|f| fold(&f.name) == q) { list.push(QuickItem::Create(query.trim().to_string())); }
     list
+}
+
+impl App {
+    /// What the quick open lists for `query`: after `>`, the shortcuts of the
+    /// window the terminal does (as the window lists them); else the pages, then
+    /// the shortcuts whose name holds it, the page to create last.
+    pub(super) fn quick_list(&self, query: &str) -> Vec<QuickItem> {
+        if let Some(rest) = query.strip_prefix('>') { return self.quick_commands(rest); }
+        let mut list = quick_items(query, &self.tabs, &self.project.files());
+        if query.trim().is_empty() { return list; }
+        let create = matches!(list.last(), Some(QuickItem::Create(_))).then(|| list.pop()).flatten();
+        list.extend(self.quick_commands(query));
+        list.extend(create);
+        list
+    }
+
+    fn quick_commands(&self, typed: &str) -> Vec<QuickItem> {
+        use orgamnesia_core::names::{fold, search_order};
+        let q = fold(typed.trim());
+        let mut list: Vec<(String, QuickItem)> = APP_ACTIONS.iter()
+            // Opening this very list is no command
+            .filter(|a| a.id != "quick_open" && !NOT_HERE.contains(&a.id))
+            .map(|a| (a.id.replace('_', " "), a.id))
+            .filter(|(name, _)| q.is_empty() || fold(name).contains(&q))
+            .map(|(name, id)| {
+                let keys = self.kb.app.get(id).map(|b| b.iter().filter(|b| !b.is_empty()).map(|b| keys::display(b)).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+                (name, QuickItem::Command { id: id.to_string(), keys })
+            })
+            .collect();
+        if !q.is_empty() { list.sort_by_cached_key(|(name, _)| search_order(name, &q)); }
+        list.into_iter().map(|(_, i)| i).collect()
+    }
 }
 
 /// Text shown over the page (the shortcuts, the history of the page…); with
@@ -236,7 +270,7 @@ impl App {
             "panel_backlinks" => self.panel(Frame::Backlinks),
             "panel_broken" => self.panel(Frame::Broken),
             // The list of the pages: the editor left for it (saved)
-            "panel_pages" => if self.close() { self.mode = Mode::Normal; },
+            "panel_pages" => if self.to_list() { self.mode = Mode::Normal; },
             "rename_page" => self.ask_rename(),
             "switch_project" => {
                 let paths = self.projects.clone();
@@ -253,7 +287,7 @@ impl App {
                 self.single();
             },
             "single_window" => if self.save_other() { self.single(); },
-            "other_window" | "next_region" | "prev_region" => if self.other.is_some() { self.swap() } else { self.other_window() },
+            "other_window" | "next_region" | "prev_region" => if self.other.is_some() { self.edit_previewed(); self.swap() } else { self.other_window() },
             _ if NOT_HERE.contains(&id) => self.status = "only in the window, not in the terminal yet".into(),
             _ => return None,
         }
@@ -622,7 +656,7 @@ mod tests {
     fn quick_open_lists_as_the_window() {
         let file = |n: &str| orgamnesia_core::FileEntry { name: n.into(), path: format!("/p/{n}.org") };
         let files = [file("Ma quête"), file("Quête"), file("Règle"), file("Autre")];
-        let names = |items: Vec<QuickItem>| items.into_iter().map(|i| match i { QuickItem::Page { name, open, .. } => format!("{name}{}", if open { "*" } else { "" }), QuickItem::Create(n) => format!("+{n}") }).collect::<Vec<_>>();
+        let names = |items: Vec<QuickItem>| items.into_iter().map(|i| match i { QuickItem::Page { name, open, .. } => format!("{name}{}", if open { "*" } else { "" }), QuickItem::Create(n) => format!("+{n}"), QuickItem::Command { id, .. } => format!(">{id}") }).collect::<Vec<_>>();
         assert_eq!(names(quick_items("quete", &[], &files)), ["Quête", "Ma quête"]);
         assert_eq!(names(quick_items("regle", &[], &files)), ["Règle"]);
         // A name no page has: the page to create

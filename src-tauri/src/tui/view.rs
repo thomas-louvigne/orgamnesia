@@ -3,9 +3,9 @@
 
 use orgamnesia_core::FileEntry;
 use ratatui::layout::{Constraint, Layout, Position, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Clear, List, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Paragraph, Wrap};
 
 use super::*;
 
@@ -71,9 +71,9 @@ impl App {
                 let chosen = self.link.and_then(|i| highlight::links(&text, &d).into_iter().nth(i));
                 let name = title_of(&path, &text);
                 f.render_widget(Paragraph::new(highlight::render(&text, &d, chosen.as_ref(), &Default::default())).wrap(Wrap { trim: false })
-                    .scroll((self.scroll, 0)).block(Block::bordered().title(format!(" {name} "))), right);
+                    .scroll((self.scroll, 0)).block(Block::bordered().title(format!(" {name} "))), active);
             }
-            _ => f.render_widget(Block::bordered(), right),
+            _ => f.render_widget(Block::bordered(), active),
         }
         if let (Some(s), Some(e)) = (self.suggest(), &self.editor) {
             let a = self.page_area;
@@ -107,19 +107,22 @@ impl App {
             f.render_widget(Paragraph::new(empty).scroll((p.scroll, 0))
                 .block(Block::bordered().title(format!(" {} — {keys} ", p.title))), right);
         }
-        if let Mode::Quick(q) = &mut self.mode {
-            let items = commands::quick_items(&q.query, &self.tabs, &self.project.files());
+        if let Mode::Quick(q) = &self.mode {
+            let items = self.quick_list(&q.query.clone());
+            let Mode::Quick(q) = &mut self.mode else { return };
             q.selected = q.selected.min(items.len().saturating_sub(1));
             let [_, area, _] = Layout::vertical([Constraint::Percentage(15), Constraint::Percentage(70), Constraint::Fill(1)]).areas(main);
             let [_, area, _] = Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(60), Constraint::Fill(1)]).areas(area);
             f.render_widget(Clear, area);
             let [input, rest] = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
-            f.render_widget(Paragraph::new(q.query.as_str()).block(Block::bordered().title(" Open a page ")), input);
+            f.render_widget(Paragraph::new(q.query.as_str()).block(Block::bordered().title(" Page or command (> commands only) ")), input);
             f.set_cursor_position(Position::new(input.x + 1 + q.query.chars().count() as u16, input.y + 1));
-            let lines: Vec<String> = items.iter().map(|i| match i {
-                commands::QuickItem::Page { name, open: true, .. } => format!("● {name}"),
-                commands::QuickItem::Page { name, .. } => format!("  {name}"),
-                commands::QuickItem::Create(name) => format!("+ create “{name}”"),
+            // The commands in the accent colour, apart from the pages
+            let lines: Vec<ListItem> = items.iter().map(|i| match i {
+                commands::QuickItem::Page { name, open: true, .. } => ListItem::new(format!("● {name}")),
+                commands::QuickItem::Page { name, .. } => ListItem::new(format!("  {name}")),
+                commands::QuickItem::Create(name) => ListItem::new(format!("+ create “{name}”")).style(Style::new().fg(Color::Green)),
+                commands::QuickItem::Command { id, keys } => ListItem::new(format!("› {:<28} {keys}", id.replace('_', " "))).style(Style::new().fg(Color::Cyan)),
             }).collect();
             let mut state = ListState::default().with_selected(Some(q.selected));
             f.render_stateful_widget(List::new(lines).block(Block::bordered().title(" ↑↓ Enter · Esc "))

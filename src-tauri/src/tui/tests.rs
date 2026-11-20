@@ -105,6 +105,16 @@ use ratatui::style::Modifier;
         assert_eq!(app.other.as_ref().unwrap().path, alpha);
         assert_eq!(std::fs::read_to_string(&alpha).unwrap(), "![[Beta]] alpha");
 
+        // Esc: back to the pages, the screen still split; the page chosen in this half
+        press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+        assert!(app.editor.is_none() && app.other.is_some() && app.split_dir.is_some());
+        press(&mut app, KeyCode::Up, KeyModifiers::NONE);
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert!(app.editor.as_ref().unwrap().path.ends_with("Beta.org"));
+        assert_eq!(app.other.as_ref().unwrap().path, alpha);
+        assert_eq!(app.active_slot, 1);
+
         // C-SPC starts a region, C-g lets go of it
         press(&mut app, KeyCode::Char(' '), ctrl);
         press(&mut app, KeyCode::Char('f'), ctrl);
@@ -120,6 +130,20 @@ use ratatui::style::Modifier;
         assert!(app.other.is_none() && app.split_dir.is_none());
         assert_eq!(app.editor.as_ref().unwrap().path, alpha);
         assert_eq!(std::fs::read_to_string(dir.join("pages/Beta.org")).unwrap(), "zbeta");
+
+        // The quick open's `>`: the commands, Enter doing the one chosen
+        app.mode = Mode::Quick(commands::Quick::default());
+        for c in ">split vert".chars() { press(&mut app, KeyCode::Char(c), KeyModifiers::NONE); }
+        assert!(matches!(app.quick_list(">split vert").first(), Some(commands::QuickItem::Command { id, .. }) if id == "split_vertical"));
+        assert!(app.quick_list(">export").is_empty(), "window-only commands left out");
+        // Without `>`: the pages, then the commands, the page to create last
+        let found = app.quick_list("split vert");
+        assert!(matches!(found.first(), Some(commands::QuickItem::Command { id, .. }) if id == "split_vertical"));
+        assert!(matches!(found.last(), Some(commands::QuickItem::Create(_))));
+        assert!(matches!(app.quick_list("bet").first(), Some(commands::QuickItem::Page { .. })));
+        assert!(app.quick_list(">bet").iter().all(|i| matches!(i, commands::QuickItem::Command { .. })));
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert!(app.other.is_some() && matches!(app.mode, Mode::Normal));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
