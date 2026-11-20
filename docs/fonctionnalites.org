@@ -745,7 +745,7 @@ connaissait pas.
 | Tags                        | F5               | F5                        |
 | Pages qui pointent ici      | F8               | F8                        |
 | Pages pas encore créées     | F9               | F9                        |
-| La liste des pages          | F10              | F10                       |
+| La liste des pages          | F10              | F3                        |
 
 *** Éditeur
 | Action                       | Classique          | Emacs                       |
@@ -1168,8 +1168,24 @@ volets tels qu'ils étaient.
   trouvé invalide.
 
 * Terminal (bêta)
-=orgamnesia --nox [dossier]= ouvre le projet (sinon le dernier ouvert) dans le terminal,
-sans fenêtre. Les réglages et les raccourcis sont ceux de la fenêtre (mêmes fichiers),
+#+begin_quote
+*Bêta.* L'interface terminal est jeune et bien moins utilisée que la fenêtre :
+attendez-vous à des aspérités, à des manques (l'export, voir plus bas) et à des
+changements d'une version à l'autre. Gardez vos notes sous git ou sauvegardées, et
+signalez ce qui ne va pas.
+#+end_quote
+
+[[file:images/tui.png]]
+
+=orgamnesia -nw [dossier]= (comme Emacs ; =--tui= et =-t= marchent aussi) ouvre le
+projet (sinon le dernier ouvert) dans le terminal, sans fenêtre :
+
+#+begin_src sh
+orgamnesia -nw              # le dernier projet ouvert
+orgamnesia --tui ~/notes    # ce dossier
+#+end_src
+
+Les réglages et les raccourcis sont ceux de la fenêtre (mêmes fichiers),
 et l'édition est faite par le même code : déplacements, zone, couper/coller, repli,
 tableaux, états TODO, mise en forme, dates, liens, recherche et remplacement, git,
 projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profil.
@@ -1178,7 +1194,9 @@ projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profi
   l'éditeur, =Échap= l'enregistre et revient à la liste.
 - Ouverture rapide (=quick_open=) : une boîte de recherche des pages, comme dans la fenêtre.
 - Souris : un clic place le curseur ou choisit une page, =Ctrl+clic= suit un lien, la
-  bordure de la liste se déplace.
+  bordure de la liste se déplace. Un clic droit dans la page propose gras, italique,
+  souligné et barré pour la zone (=C-SPC=), et citation pour ses lignes ou la ligne
+  cliquée, écrits comme le veut le format de la page (org-mode ou Markdown).
 - Le titre de chaque fenêtre est le =#+TITLE:= de la page (=title:= en Markdown).
 - Raccourcis des profils, modifiables dans Réglages > Raccourcis comme les autres :
   =F2= renomme la page (les liens suivent), =F4= les titres TODO, =F5= les tags, =F8=
@@ -1189,7 +1207,7 @@ projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profi
   les mettent pour la fenêtre (Réglages > Cadres) : projet, git, pages, rétroliens,
   tags, TODO, pages non créées (pas les boutons de la fenêtre). La colonne de droite
   s'affiche dans un terminal assez large ; les deux se redimensionnent à la souris,
-  leur largeur est gardée. =F10= va dans la liste des pages.
+  leur largeur est gardée. =F10= (=F3= dans le profil Emacs) va dans la liste des pages.
 - Complétion comme dans la fenêtre : pages après =[[=, titres après =[[Page::*=,
   =#tags=, =:tags:=, liens Markdown (↑↓, Tab ou Entrée, Échap) ; Tab complète aussi
   les lignes de saisie d'un tag et d'un lien.

@@ -121,7 +121,7 @@ pub fn check(file: &File, text: &str, profiles: &[String]) -> Result<Checked, Pr
     }
 }
 
-/// The settings that do nothing in the terminal interface (`orgamnesia --nox`),
+/// The settings that do nothing in the terminal interface (`orgamnesia -nw`),
 /// and why; written as comments above them in `settings.yaml`.
 pub const TUI_UNSUPPORTED: &[(&str, &str)] = &[
     ("org_bloom_path", NOT_YET), ("org_bloom_enabled", NOT_YET), ("org_bloom_zip", NOT_YET), ("org_bloom_no_external_deps", NOT_YET),
@@ -172,14 +172,14 @@ pub const SECTIONS: &[(&str, &[&str])] = &[
 const SETTINGS_NOTE: &str = "\
 # Orgamnesia settings. Comments (#) are kept as long as the app does not rewrite
 # this file (it does when the settings window changes a setting).
-# TUI version (orgamnesia --nox): the settings followed by “# TUI version: …” do
+# TUI version (orgamnesia -nw): the settings followed by “# TUI version: …” do
 # nothing there, for the reason given.
 ";
 
 /// What the app writes at the top of a keybinding profile: the shortcuts the
 /// terminal interface can't do, and why.
 pub const PROFILE_NOTE: &str = "\
-# TUI version (orgamnesia --nox): these shortcuts work in the window only.
+# TUI version (orgamnesia -nw): these shortcuts work in the window only.
 # - export_pdf, export_html: the export needs the window's renderer (HTML, printing).
 # - Ctrl+Shift+…, Ctrl+Tab, Ctrl+Shift+Tab: some terminals keep them (kitty: its tabs,
 #   copy and paste…), the app never gets them; give these actions another key too.

@@ -4,14 +4,33 @@ use orgamnesia_lib::{AppState, commands};
 
 fn main() {
     if orgamnesia_lib::git::answer_askpass() { return; }
-    // `--nox [folder]`: the terminal interface (beta), without a window
     let mut args = std::env::args().skip(1);
-    if args.next().as_deref() == Some("--nox") {
-        if let Err(e) = orgamnesia_lib::tui::run(args.next()) {
-            eprintln!("orgamnesia: {e}");
-            std::process::exit(1);
+    match args.next().as_deref() {
+        Some("-h" | "--help") => {
+            println!("Orgamnesia {}: a personal wiki in org-mode or Markdown
+
+Usage:
+  orgamnesia                   open the window
+  orgamnesia -nw [folder]      open the project in the terminal (beta), else the last one
+                               (also --tui, -t)
+  orgamnesia -h, --help        show this help
+  orgamnesia -V, --version     show the version", env!("CARGO_PKG_VERSION"));
+            return;
         }
-        return;
+        Some("-V" | "--version") => {
+            println!("orgamnesia {}", env!("CARGO_PKG_VERSION"));
+            return;
+        }
+        // `-nw` (as Emacs), `--tui` or `-t` `[folder]`: the terminal interface (beta), without a window;
+        // `--nox`, its name in 1.8, still works
+        Some("-nw" | "--tui" | "-t" | "--nox") => {
+            if let Err(e) = orgamnesia_lib::tui::run(args.next()) {
+                eprintln!("orgamnesia: {e}");
+                std::process::exit(1);
+            }
+            return;
+        }
+        _ => {}
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

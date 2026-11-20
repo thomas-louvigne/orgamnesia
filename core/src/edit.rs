@@ -334,16 +334,64 @@ pub fn nth_line_start(chars: &[char], n: usize) -> usize {
 /// when it already is (markers just around it, or at its ends). Without a selection,
 /// the two markers are inserted with the caret between them (or removed if the caret
 /// is between two). Returns the range to replace, its new text and the new selection.
-pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -> (usize, usize, String, usize, usize) {
+pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, open: &str, close: &str) -> (usize, usize, String, usize, usize) {
+    let (o, c): (Vec<char>, Vec<char>) = (open.chars().collect(), close.chars().collect());
+    let (n, m) = (o.len(), c.len());
     let inner: String = chars[start..end].iter().collect();
-    if start > 0 && chars[start - 1] == marker && chars.get(end) == Some(&marker) {
-        return (start - 1, end + 1, inner, start - 1, end - 1);
+    if start >= n && chars[start - n..start] == o[..] && chars.get(end..end + m) == Some(&c[..]) {
+        return (start - n, end + m, inner, start - n, end - n);
     }
-    if end - start >= 2 && chars[start] == marker && chars[end - 1] == marker {
-        let inside: String = chars[start + 1..end - 1].iter().collect();
-        return (start, end, inside, start, end - 2);
+    if end - start >= n + m && chars[start..start + n] == o[..] && chars[end - m..end] == c[..] {
+        let inside: String = chars[start + n..end - m].iter().collect();
+        return (start, end, inside, start, end - n - m);
     }
-    (start, end, format!("{marker}{inner}{marker}"), start + 1, end + 1)
+    (start, end, format!("{open}{inner}{close}"), start + n, end + n)
+}
+
+/// The markers of the emphasis `action` in a page of `format`: org-mode's `*` `/` `_` `+`,
+/// Markdown's `**` `*` `~~` (underline, not in Markdown, as the HTML `<u>` Obsidian reads).
+pub fn emphasis_marks(action: EditorAction, format: crate::Format) -> Option<(&'static str, &'static str)> {
+    use EditorAction::*;
+    let md = format == crate::Format::Markdown;
+    Some(match action {
+        Bold => if md { ("**", "**") } else { ("*", "*") },
+        Italic => if md { ("*", "*") } else { ("/", "/") },
+        Underline => if md { ("<u>", "</u>") } else { ("_", "_") },
+        Strikethrough => if md { ("~~", "~~") } else { ("+", "+") },
+        _ => return None,
+    })
+}
+
+/// The lines of `start..end` made a quote (org-mode's `#+begin_quote` block, Markdown's `> `),
+/// or no longer one when they are. Returns the range to replace, its new text and the new selection.
+pub fn toggle_quote(chars: &[char], start: usize, end: usize, format: crate::Format) -> (usize, usize, String, usize, usize) {
+    // A selection ending at the start of a line leaves that line out
+    let last = if end > start && chars[end - 1] == '\n' { end - 1 } else { end };
+    let (a, b) = (line_bounds(chars, start).0, line_bounds(chars, last).1);
+    let text: String = chars[a..b].iter().collect();
+    let with = if format == crate::Format::Markdown {
+        if text.lines().all(|l| l.trim_start().starts_with('>')) {
+            text.lines().map(|l| { let l = l.trim_start().trim_start_matches('>'); l.strip_prefix(' ').unwrap_or(l) })
+                .collect::<Vec<_>>().join("\n")
+        } else {
+            text.lines().map(|l| format!("> {l}")).collect::<Vec<_>>().join("\n")
+        }
+    } else {
+        let line = |s: usize, e: usize| chars[s..e].iter().collect::<String>().trim().to_lowercase();
+        // Already in a block: its two lines go away
+        if a > 0 && b < chars.len() {
+            let before = line_bounds(chars, a - 1);
+            let after = line_bounds(chars, b + 1);
+            if line(before.0, before.1) == "#+begin_quote" && line(after.0, after.1) == "#+end_quote" {
+                return (before.0, after.1, text, before.0, before.0 + (b - a));
+            }
+        }
+        let with = format!("#+begin_quote\n{text}\n#+end_quote");
+        let len = with.chars().count();
+        return (a, b, with, a + 14, a + len - 12);
+    };
+    let len = with.chars().count();
+    (a, b, with, a, a + len)
 }
 
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
@@ -735,14 +783,35 @@ mod tests {
     #[test]
     fn emphasis_toggles() {
         let t = c("un mot ici");
-        assert_eq!(toggle_emphasis(&t, 3, 6, '*'), (3, 6, "*mot*".into(), 4, 7));
+        assert_eq!(toggle_emphasis(&t, 3, 6, "*", "*"), (3, 6, "*mot*".into(), 4, 7));
         let t = c("un *mot* ici");
-        assert_eq!(toggle_emphasis(&t, 4, 7, '*'), (3, 8, "mot".into(), 3, 6));
-        assert_eq!(toggle_emphasis(&t, 3, 8, '*'), (3, 8, "mot".into(), 3, 6));
-        assert_eq!(toggle_emphasis(&t, 4, 7, '_'), (4, 7, "_mot_".into(), 5, 8));
+        assert_eq!(toggle_emphasis(&t, 4, 7, "*", "*"), (3, 8, "mot".into(), 3, 6));
+        assert_eq!(toggle_emphasis(&t, 3, 8, "*", "*"), (3, 8, "mot".into(), 3, 6));
+        assert_eq!(toggle_emphasis(&t, 4, 7, "_", "_"), (4, 7, "_mot_".into(), 5, 8));
         // No selection: a pair of markers, the caret inside; again, they go away
-        assert_eq!(toggle_emphasis(&c("ab"), 1, 1, '+'), (1, 1, "++".into(), 2, 2));
-        assert_eq!(toggle_emphasis(&c("a++b"), 2, 2, '+'), (1, 3, String::new(), 1, 1));
+        assert_eq!(toggle_emphasis(&c("ab"), 1, 1, "+", "+"), (1, 1, "++".into(), 2, 2));
+        assert_eq!(toggle_emphasis(&c("a++b"), 2, 2, "+", "+"), (1, 3, String::new(), 1, 1));
+        // Markers of several chars, not the same at both ends
+        assert_eq!(toggle_emphasis(&c("un mot"), 3, 6, "<u>", "</u>"), (3, 6, "<u>mot</u>".into(), 6, 9));
+        assert_eq!(toggle_emphasis(&c("un <u>mot</u>"), 6, 9, "<u>", "</u>"), (3, 13, "mot".into(), 3, 6));
+        assert_eq!(toggle_emphasis(&c("un **mot**"), 3, 10, "**", "**"), (3, 10, "mot".into(), 3, 6));
+        assert_eq!(emphasis_marks(EditorAction::Bold, crate::Format::Markdown), Some(("**", "**")));
+        assert_eq!(emphasis_marks(EditorAction::Strikethrough, crate::Format::Org), Some(("+", "+")));
+    }
+
+    #[test]
+    fn quote_toggles() {
+        use crate::Format::{Markdown, Org};
+        let t = c("avant\nun\ndeux\napres");
+        let (a, b, with, s, e) = toggle_quote(&t, 7, 10, Org);
+        assert_eq!((a, b, with.as_str()), (6, 13, "#+begin_quote\nun\ndeux\n#+end_quote"));
+        assert_eq!(with.chars().skip(s - a).take(e - s).collect::<String>(), "un\ndeux");
+        // Again, inside the block: back as it was
+        let q = c("avant\n#+begin_quote\nun\ndeux\n#+end_quote\napres");
+        assert_eq!(toggle_quote(&q, 20, 25, Org), (6, 39, "un\ndeux".into(), 6, 13));
+        assert_eq!(toggle_quote(&t, 7, 14, Markdown), (6, 13, "> un\n> deux".into(), 6, 17));
+        assert_eq!(toggle_quote(&c("> un\n>deux"), 0, 0, Markdown), (0, 4, "un".into(), 0, 2));
+        assert_eq!(toggle_quote(&c("> un\n>deux"), 0, 10, Markdown), (0, 10, "un\ndeux".into(), 0, 7));
     }
 
     #[test]

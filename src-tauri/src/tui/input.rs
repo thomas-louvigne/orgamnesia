@@ -316,6 +316,7 @@ impl App {
                 // Ctrl+click on a link follows it, as in the window
                 if self.click_page(m.column, m.row) && m.modifiers.contains(KeyModifiers::CONTROL) { self.follow_at_cursor(); }
             }
+            MouseEventKind::Down(MouseButton::Right) => self.format_menu(m.column, m.row),
             MouseEventKind::Drag(MouseButton::Left) if self.dragging == Some(false) => self.split = Some(m.column + 1),
             MouseEventKind::Drag(MouseButton::Left) if self.dragging == Some(true) => self.right_split = Some(self.total.saturating_sub(m.column)),
             MouseEventKind::ScrollDown => self.wheel(m.column, m.row, 3),
@@ -354,6 +355,21 @@ impl App {
             self.open(target);
         }
         true
+    }
+
+    /// A right click in the page: the region kept (else the cursor there), and the
+    /// menu of what to make of it: bold, italic, underline, strikethrough, quote.
+    pub(super) fn format_menu(&mut self, column: u16, row: u16) {
+        if !matches!(self.mode, Mode::Normal) { return; }
+        let region = self.editor.as_ref().is_some_and(|e| e.region().is_some_and(|(a, b)| a < b));
+        if !region && !self.click_page(column, row) { return; }
+        let item = |label: &str, id| (format!(" {label}"), commands::Target::Action(id));
+        let mut items = vec![];
+        if region {
+            items.extend([item("Bold", "bold"), item("Italic", "italic"), item("Underline", "underline"), item("Strikethrough", "strikethrough")]);
+        }
+        items.push(item("Quote", "quote"));
+        self.mode = Mode::Popup(commands::Popup::pick("Format".into(), items));
     }
 
     /// A click on a line of a popup list: that line opened.

@@ -152,7 +152,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     let mouse_focus = StoredValue::new(false);
     let images = Images::new(pane, wrap_ref, tab.path.clone(), mouse_focus);
     let preview = Preview::new(pane, wrap_ref);
-    goto_target(pane, tab.clone(), second);
+    goto_target(pane, find, insert, tab.clone(), second);
     let checked = config.clone().map(|f| preferences::checked(ctx, content, f));
     let config = config.is_some();
     if !config { spell::watch(pane); }
@@ -343,7 +343,7 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
 }
 
 /// The editor's right-click menu at `x`, `y`: the suggestions for a misspelled `word`,
-/// clipboard, undo, and adding an image.
+/// clipboard, emphasis and quote, undo, and adding an image.
 #[allow(clippy::too_many_arguments)]
 fn context_menu(
     pane: Pane, find: Find, insert: Insert, images: Images, menu: RwSignal<Option<(i32, i32)>>,
@@ -378,6 +378,12 @@ fn context_menu(
             {item("shortcut_copy", Some("copy"), selected, action(EditorAction::Copy))}
             {item("shortcut_paste", Some("paste"), true, action(EditorAction::Paste))}
             <div class="ctx-menu-sep" role="separator" />
+            {item("shortcut_bold", Some("bold"), selected, action(EditorAction::Bold))}
+            {item("shortcut_italic", Some("italic"), selected, action(EditorAction::Italic))}
+            {item("shortcut_underline", Some("underline"), selected, action(EditorAction::Underline))}
+            {item("shortcut_strikethrough", Some("strikethrough"), selected, action(EditorAction::Strikethrough))}
+            {item("shortcut_quote", Some("quote"), true, action(EditorAction::Quote))}
+            <div class="ctx-menu-sep" role="separator" />
             {item("shortcut_undo_edit", Some("undo"), true, action(EditorAction::Undo))}
             {item("shortcut_redo", Some("redo"), true, action(EditorAction::Redo))}
             {item("shortcut_select_all", Some("select_all"), true, action(EditorAction::SelectAll))}
@@ -407,8 +413,9 @@ fn menu_item(label: impl IntoView + 'static, enabled: bool, menu: RwSignal<Optio
 }
 
 /// Jump to a link (from the "pages not created" list), a line (from a tag search)
-/// or the place a link names, asked for this page, in the focused pane.
-fn goto_target(pane: Pane, tab: Tab, second: bool) {
+/// or the place a link names, asked for this page, in the focused pane; or an
+/// editing action to do there.
+fn goto_target(pane: Pane, find: Find, insert: Insert, tab: Tab, second: bool) {
     let ctx = pane.ctx;
     Effect::new(move |_| {
         let Some((path, goto)) = ctx.work.goto.get() else { return };
@@ -436,6 +443,12 @@ fn goto_target(pane: Pane, tab: Tab, second: bool) {
             }
             Goto::Focus => {
                 pane.focus();
+                None
+            }
+            // The textarea kept its selection while the command list had the focus
+            Goto::Action(action) => {
+                pane.focus();
+                if let Some(el) = pane.area.get_untracked() { keys::run_action(pane, find, insert, &el, action); }
                 None
             }
         };

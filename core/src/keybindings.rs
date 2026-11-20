@@ -265,9 +265,24 @@ pub enum EditorAction {
     BackToIndentation, PreviousHeading, NextHeading, BackwardHeading, ForwardHeading, UpHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell, GlobalCycle,
     InsertLink, InsertDate, InsertInactiveDate,
-    Bold, Italic, Underline, Strikethrough, TodoNext, TodoPrev,
+    Bold, Italic, Underline, Strikethrough, Quote, TodoNext, TodoPrev,
     PromoteSubtree, DemoteSubtree, MoveLineUp, MoveLineDown, SpellNext,
 }
+
+/// The editor actions the command list (`>`) offers too, in the window and the
+/// terminal: those worth a name. Not the moves, nor what only makes sense chained
+/// at the keyboard (mark, zap, yank-pop), nor the clipboard (the right-click menu has it).
+pub const PALETTE_EDITOR_ACTIONS: &[EditorAction] = {
+    use EditorAction::*;
+    &[
+        InsertLink, InsertDate, InsertInactiveDate,
+        Bold, Italic, Underline, Strikethrough, Quote,
+        NewHeading, TodoNext, TodoPrev, PromoteSubtree, DemoteSubtree, GlobalCycle, MoveLineUp, MoveLineDown,
+        Find, Replace, OpenLink, SpellNext,
+        UpcaseWord, DowncaseWord, CapitalizeWord, UpcaseRegion, DowncaseRegion, FillParagraph,
+        Undo, Redo, SelectAll, DeleteHorizontalSpace, JustOneSpace, DeleteIndentation,
+    ]
+};
 
 impl AppAction {
     pub fn from_id(id: &str) -> Option<Self> {
@@ -391,6 +406,7 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Italic, id: "italic",              label_key: "shortcut_italic" },
     ActionDef { action: EditorAction::Underline, id: "underline",           label_key: "shortcut_underline" },
     ActionDef { action: EditorAction::Strikethrough, id: "strikethrough",       label_key: "shortcut_strikethrough" },
+    ActionDef { action: EditorAction::Quote, id: "quote",               label_key: "shortcut_quote" },
     ActionDef { action: EditorAction::TodoNext, id: "todo_next",           label_key: "shortcut_todo_next" },
     ActionDef { action: EditorAction::TodoPrev, id: "todo_prev",           label_key: "shortcut_todo_prev" },
     ActionDef { action: EditorAction::PromoteSubtree, id: "promote_subtree", label_key: "shortcut_promote_subtree" },
@@ -581,7 +597,7 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("panel_tags",       &["F5"]),
             ("panel_backlinks",  &["F8"]),
             ("panel_broken",     &["F9"]),
-            ("panel_pages",      &["F10"]),
+            ("panel_pages",      &["F3"]),
         ]),
         _ => default_app(),
     }

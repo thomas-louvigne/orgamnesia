@@ -136,6 +136,9 @@ use ratatui::style::Modifier;
         for c in ">split vert".chars() { press(&mut app, KeyCode::Char(c), KeyModifiers::NONE); }
         assert!(matches!(app.quick_list(">split vert").first(), Some(commands::QuickItem::Command { id, .. }) if id == "split_vertical"));
         assert!(app.quick_list(">export").is_empty(), "window-only commands left out");
+        // The editing ones too, on a page edited; not the moves
+        assert!(matches!(app.quick_list(">bold").first(), Some(commands::QuickItem::Command { id, .. }) if id == "bold"));
+        assert!(app.quick_list(">forward char").is_empty());
         // Without `>`: the pages, then the commands, the page to create last
         let found = app.quick_list("split vert");
         assert!(matches!(found.first(), Some(commands::QuickItem::Command { id, .. }) if id == "split_vertical"));

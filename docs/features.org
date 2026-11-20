@@ -713,7 +713,7 @@ profile gets those of the actions it didn't know.
 | Tags                        | F5               | F5                        |
 | Pages linking here          | F8               | F8                        |
 | Pages not created yet       | F9               | F9                        |
-| The list of the pages       | F10              | F10                       |
+| The list of the pages       | F10              | F3                        |
 
 *** Editor
 | Action                         | Classic             | Emacs                         |
@@ -1109,8 +1109,23 @@ file, goes back to the project left, its tabs and panes as they were.
   start for a file found invalid.
 
 * Terminal (beta)
-=orgamnesia --nox [folder]= opens the project (else the last one opened) in the
-terminal, without a window. The settings and shortcuts are the window's (the same
+#+begin_quote
+*Beta.* The terminal interface is young and much less used than the window: expect
+rough edges, missing pieces (export, see below) and changes from one version to the
+next. Keep your notes under git or backed up, and report what goes wrong.
+#+end_quote
+
+[[file:images/tui.png]]
+
+=orgamnesia -nw [folder]= (as Emacs; =--tui= and =-t= work too) opens the project
+(else the last one opened) in the terminal, without a window:
+
+#+begin_src sh
+orgamnesia -nw              # the last project opened
+orgamnesia --tui ~/notes    # this folder
+#+end_src
+
+The settings and shortcuts are the window's (the same
 files), and editing is done by the same code: moving, region, kill and yank, folding,
 tables, TODO states, emphasis, dates, links, find and replace, git, projects, split
 screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
@@ -1119,7 +1134,9 @@ screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
   =Esc= saves it and goes back to the list.
 - Quick open (=quick_open=): a box to find a page, as in the window.
 - Mouse: a click puts the cursor or picks a page, =Ctrl+click= follows a link, the
-  border of the list can be dragged.
+  border of the list can be dragged. A right click in the page offers bold, italic,
+  underline and strikethrough for the region (=C-SPC=), and quote for its lines or
+  the line clicked, written as the page's format wants them (org-mode or Markdown).
 - Each window's title is the page's =#+TITLE:= (=title:= in Markdown).
 - Shortcuts of the profiles, to change in Settings > Shortcuts like the others: =F2=
   renames the page (the links follow), =F4= the TODO headlines, =F5= the tags, =F8= the
@@ -1130,7 +1147,7 @@ screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
   for the window (Settings > Frames): project, git, pages, backlinks, tags, TODO,
   pages not created (not the window's buttons). The right column shows on a wide
   enough terminal; both columns are resized with the mouse, their widths kept.
-  =F10= goes to the list of the pages.
+  =F10= (=F3= in the Emacs profile) goes to the list of the pages.
 - Completion as in the window: =[[= pages, =[[Page::*= headlines, =#tags=, =:tags:=,
   Markdown links (↑↓, Tab or Enter, Esc); Tab completes the tag and link lines too.
 - The session (pages and split screen) comes back on start, the git state is at the

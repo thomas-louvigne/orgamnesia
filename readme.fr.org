@@ -41,7 +41,7 @@ contribution.
 | Système                       | Fichier        | Installation                                     |
 |-------------------------------+----------------+--------------------------------------------------|
 | Debian, Ubuntu, Mint…         | =.deb=         | =sudo apt install ./Orgamnesia_*.deb=            |
-| Arch Linux                    | =.pkg.tar.zst= | =sudo pacman -U orgamnesia-*.pkg.tar.zst=        |
+| Arch Linux                    | AUR            | =yay -S orgamnesia-bin=                          |
 | Tout Linux                    | =.AppImage=    | =chmod +x Orgamnesia_*.AppImage=, puis le lancer |
 | macOS 11+ (expérimental)      | =.dmg=         | glisser Orgamnesia dans Applications             |
 | Windows 10, 11 (expérimental) | =-setup.exe=   | double-cliquer, puis « Suivant »                 |
@@ -103,7 +103,11 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
 
 Le détail, avec tous les raccourcis : [[file:docs/fonctionnalites.org][docs/fonctionnalites.org]].
 
-*Terminal (bêta)* : =orgamnesia --nox [dossier]= ouvre le projet (sinon le dernier) dans le terminal, sans fenêtre. On tape pour filtrer les pages, =Entrée= modifie la page sur place, colorée comme dans la fenêtre ; =Échap= l'enregistre et revient aux pages. Les raccourcis sont ceux de votre profil, ceux d'édition faits par le même code que dans la fenêtre (déplacements, zone, couper/coller, repli, tableaux, états TODO, emphase, dates, liens, recherche et remplacement, git, projets) ; =F1= les liste. La souris place le curseur, choisit une page et déplace la bordure des pages. L'écran se découpe comme dans Emacs (=C-x 2=, =C-x 3=). Pas encore dans le terminal : l'export (HTML, PDF).
+*Terminal (bêta)* : =orgamnesia -nw [dossier]= (ou =--tui=, =-t=) ouvre le projet (sinon le dernier) dans le terminal, sans fenêtre. *C'est encore une bêta* : moins utilisée que la fenêtre, avec des aspérités et des changements à venir ; gardez vos notes sous git ou sauvegardées.
+
+[[file:docs/images/tui.png]]
+
+ On tape pour filtrer les pages, =Entrée= modifie la page sur place, colorée comme dans la fenêtre ; =Échap= l'enregistre et revient aux pages. Les raccourcis sont ceux de votre profil, ceux d'édition faits par le même code que dans la fenêtre (déplacements, zone, couper/coller, repli, tableaux, états TODO, emphase, dates, liens, recherche et remplacement, git, projets) ; =F1= les liste. La souris place le curseur, choisit une page et déplace la bordure des pages. L'écran se découpe comme dans Emacs (=C-x 2=, =C-x 3=). Pas encore dans le terminal : l'export (HTML, PDF).
 
 * Vos données
 

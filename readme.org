@@ -41,7 +41,7 @@ contribution.
 | System                        | File           | Install                                       |
 |-------------------------------+----------------+-----------------------------------------------|
 | Debian, Ubuntu, Mint…         | =.deb=         | =sudo apt install ./Orgamnesia_*.deb=         |
-| Arch Linux                    | =.pkg.tar.zst= | =sudo pacman -U orgamnesia-*.pkg.tar.zst=     |
+| Arch Linux                    | AUR            | =yay -S orgamnesia-bin=                       |
 | Any Linux                     | =.AppImage=    | =chmod +x Orgamnesia_*.AppImage=, then run it |
 | macOS 11+ (experimental)      | =.dmg=         | drag Orgamnesia to Applications               |
 | Windows 10, 11 (experimental) | =-setup.exe=   | double-click, then "Next"                     |
@@ -99,7 +99,11 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 
 Every detail, with all the shortcuts: [[file:docs/features.org][docs/features.org]].
 
-*Terminal (beta)*: =orgamnesia --nox [folder]= opens the project (else the last one) in the terminal, without a window. Type to filter the pages, =Enter= edits the page right there, drawn in colour as in the window; =Esc= saves it and goes back to the pages. The shortcuts are those of your keybinding profile, the editing ones done by the same code as the window's (moving, region, kill ring, folding, tables, TODO states, emphasis, dates, links, search and replace, git, projects); =F1= lists them. The mouse moves the cursor, picks a page and drags the border of the pages. The screen splits as in Emacs (=C-x 2=, =C-x 3=). Not in the terminal yet: export (HTML, PDF).
+*Terminal (beta)*: =orgamnesia -nw [folder]= (or =--tui=, =-t=) opens the project (else the last one) in the terminal, without a window. *It is still a beta*: less used than the window, with rough edges and changes to come; keep your notes under git or backed up.
+
+[[file:docs/images/tui.png]]
+
+ Type to filter the pages, =Enter= edits the page right there, drawn in colour as in the window; =Esc= saves it and goes back to the pages. The shortcuts are those of your keybinding profile, the editing ones done by the same code as the window's (moving, region, kill ring, folding, tables, TODO states, emphasis, dates, links, search and replace, git, projects); =F1= lists them. The mouse moves the cursor, picks a page and drags the border of the pages. The screen splits as in Emacs (=C-x 2=, =C-x 3=). Not in the terminal yet: export (HTML, PDF).
 
 * Your data
 

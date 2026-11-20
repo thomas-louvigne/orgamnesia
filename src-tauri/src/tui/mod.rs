@@ -1,4 +1,4 @@
-//! The terminal interface (beta), started by `orgamnesia --nox [folder]`: the
+//! The terminal interface (beta), started by `orgamnesia -nw [folder]` (or `--tui`, `-t`): the
 //! pages of the project, filtered as one types, drawn in colour beside the
 //! list and edited there; their links followed; the shortcuts those of the
 //! window (the keybinding profile in effect).
@@ -49,7 +49,7 @@ pub fn run(folder: Option<String>) -> Result<(), String> {
     let kb = config.keybindings(settings.config.keybinding_profile.as_deref());
     let prefs = settings.prefs();
     let path = folder.map(|f| crate::expand_home(&f)).or(settings.vault_path.clone())
-        .ok_or("no project: give its folder, `orgamnesia --nox ~/notes`")?;
+        .ok_or("no project: give its folder, `orgamnesia -nw ~/notes`")?;
     let project = Project::open(&path, prefs.tags(), prefs.formats(), &prefs.journal_folder).map_err(|e| e.to_string())?;
     prune_trash(&project, &prefs);
     let mut app = App::new(project, prefs, kb);

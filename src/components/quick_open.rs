@@ -6,7 +6,7 @@ use orgamnesia_core::names::{fold, search_order};
 use crate::{
     actions,
     i18n::t,
-    keybindings::{AppAction, APP_ACTIONS, GIT_ACTIONS},
+    keybindings::{AppAction, EditorAction, APP_ACTIONS, EDITOR_ACTIONS, GIT_ACTIONS, PALETTE_EDITOR_ACTIONS},
     state::{AppCtx, FileEntry, Goto, Tab},
 };
 
@@ -19,12 +19,14 @@ enum QuickItem {
     Create { name: String },
     /// An application action (`>` typed first), with its shortcut if it has one.
     Command { action: AppAction, label: String, keys: Option<String> },
+    /// An editing action on the page open, the same way.
+    Edit { action: EditorAction, label: String, keys: Option<String> },
 }
 
 impl QuickItem {
     fn display_name(&self) -> String {
         match self {
-            Self::Tab { name, .. } | Self::Create { name } | Self::Command { label: name, .. } => name.clone(),
+            Self::Tab { name, .. } | Self::Create { name } | Self::Command { label: name, .. } | Self::Edit { label: name, .. } => name.clone(),
             Self::File(f) => f.name.clone(),
             Self::Tag(tag) => format!(":{tag}:"),
         }
@@ -45,6 +47,9 @@ fn do_open(ctx: AppCtx, item: QuickItem) {
         QuickItem::Tag(tag) => ctx.show_tag(tag),
         QuickItem::Create { name } => actions::create_and_open_page(ctx, name),
         QuickItem::Command { action, .. } => crate::app::run_app_action(ctx, action),
+        QuickItem::Edit { action, .. } => if let Some(tab) = ctx.work.active_tab_data() {
+            ctx.work.goto.set(Some((tab.path, Goto::Action(action))));
+        },
     }
 }
 
@@ -76,6 +81,10 @@ fn commands(ctx: AppCtx, q: &str) -> Vec<QuickItem> {
             && (a.action != AppAction::Journal || journal)
             && (!GIT_ACTIONS.contains(&a.action) || git))
         .map(|a| QuickItem::Command { action: a.action, label: t(a.label_key, lang).to_string(), keys: ctx.shortcut(a.id) })
+        // The editing ones only with a page open
+        .chain(EDITOR_ACTIONS.iter()
+            .filter(|a| PALETTE_EDITOR_ACTIONS.contains(&a.action) && ctx.work.active_tab_data().is_some())
+            .map(|a| QuickItem::Edit { action: a.action, label: t(a.label_key, lang).to_string(), keys: ctx.shortcut(a.id) }))
         .filter(|item| q.is_empty() || fold(&item.display_name()).contains(q))
         .collect();
     if !q.is_empty() { list.sort_by_cached_key(|item| search_order(&item.display_name(), q)); }
@@ -202,7 +211,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                             <div class="quick-open-list" node_ref=list_ref>
                                 {list.into_iter().enumerate().map(|(i, item)| {
                                     let name   = item.display_name();
-                                    let command = matches!(item, QuickItem::Command { .. });
+                                    let command = matches!(item, QuickItem::Command { .. } | QuickItem::Edit { .. });
                                     let lang   = ctx.lang.get();
                                     let (icon, cls, hint): (&str, &str, Option<String>) = match &item {
                                         QuickItem::Tab { is_active: true,  .. } => ("●", "qo-tab",    None),
@@ -210,7 +219,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                                         QuickItem::File(_)                      => ("▫", "qo-file",   None),
                                         QuickItem::Tag(_)                       => ("#", "qo-tag",    Some(t("quick_open_tag", lang).to_string())),
                                         QuickItem::Create { .. }                => ("+", "qo-create", Some(t("quick_open_new", lang).to_string())),
-                                        QuickItem::Command { keys, .. }         => ("›", "qo-cmd",    keys.clone()),
+                                        QuickItem::Command { keys, .. } | QuickItem::Edit { keys, .. } => ("›", "qo-cmd", keys.clone()),
                                     };
                                     view! {
                                         <div

@@ -375,10 +375,12 @@ impl Editor {
                 let end = a + with.chars().count();
                 self.replace(a, b, &with, end, Change::Other);
             }
-            Bold | Italic | Underline | Strikethrough => {
-                let marker = match action { Bold => '*', Italic => '/', Underline => '_', _ => '+' };
+            Bold | Italic | Underline | Strikethrough | Quote => {
                 let (s, e) = self.region().unwrap_or((c, c));
-                let (a, b, with, sel_start, sel_end) = edit::toggle_emphasis(&self.text, s, e, marker);
+                let (a, b, with, sel_start, sel_end) = match edit::emphasis_marks(action, self.format()) {
+                    Some((open, close)) => edit::toggle_emphasis(&self.text, s, e, open, close),
+                    None => edit::toggle_quote(&self.text, s, e, self.format()),
+                };
                 let had_region = s < e;
                 self.replace(a, b, &with, sel_end, Change::Other);
                 if had_region { self.mark = Some(sel_start); }

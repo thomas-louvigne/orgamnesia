@@ -43,6 +43,14 @@ impl Doc<'_> {
         if chars[i] == '`' && let Some(end) = (i + 1..chars.len()).find(|&j| chars[j] == '`') {
             return Some((format!("<code>{}</code>", escape(&chars[i + 1..end].iter().collect::<String>())), end + 1));
         }
+        // Underline, not in Markdown: the HTML `<u>` (what the editor writes)
+        if chars[i..].starts_with(&['<', 'u', '>']) {
+            let close = ['<', '/', 'u', '>'];
+            if let Some(end) = (i + 3..chars.len()).find(|&j| chars[j..].starts_with(&close)) {
+                let inner: String = chars[i + 3..end].iter().collect();
+                return Some((format!("<u>{}</u>", self.inline(&inner)), end + 4));
+            }
+        }
         if let Some((tag, n, end)) = emphasis(chars, i) {
             let inner: String = chars[i + n..end].iter().collect();
             return Some((format!("<{tag}>{}</{tag}>", self.inline(&inner)), end + n));

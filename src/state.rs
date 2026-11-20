@@ -17,6 +17,8 @@ pub enum Goto {
     Place(String),
     /// Where it already is: only the keyboard goes to the editor.
     Focus,
+    /// Where it already is, then this editing action (from the command list).
+    Action(crate::keybindings::EditorAction),
 }
 
 /// What the project search pop-in shows; kept while it is closed.

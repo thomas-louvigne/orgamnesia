@@ -3,7 +3,7 @@
 //! window over the page (shortcuts, history, links), and the actions of the
 //! window's shortcuts done with the project (search, replace, git, projects).
 
-use orgamnesia_core::keybindings::{APP_ACTIONS, EDITOR_ACTIONS};
+use orgamnesia_core::keybindings::{APP_ACTIONS, EDITOR_ACTIONS, PALETTE_EDITOR_ACTIONS};
 use orgamnesia_core::{edit::Stamp, Format, Frame, ReplaceSkip, SearchOptions};
 
 use super::{keys, App, Editor, Mode};
@@ -109,13 +109,18 @@ impl App {
     fn quick_commands(&self, typed: &str) -> Vec<QuickItem> {
         use orgamnesia_core::names::{fold, search_order};
         let q = fold(typed.trim());
+        // The editing ones only on a page edited
+        let editing = EDITOR_ACTIONS.iter().filter(|a| self.editor.is_some() && PALETTE_EDITOR_ACTIONS.contains(&a.action)).map(|a| a.id);
         let mut list: Vec<(String, QuickItem)> = APP_ACTIONS.iter()
             // Opening this very list is no command
             .filter(|a| a.id != "quick_open" && !NOT_HERE.contains(&a.id))
-            .map(|a| (a.id.replace('_', " "), a.id))
+            .map(|a| a.id)
+            .chain(editing)
+            .map(|id| (id.replace('_', " "), id))
             .filter(|(name, _)| q.is_empty() || fold(name).contains(&q))
             .map(|(name, id)| {
-                let keys = self.kb.app.get(id).map(|b| b.iter().filter(|b| !b.is_empty()).map(|b| keys::display(b)).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+                let bound = self.kb.app.get(id).or_else(|| self.kb.editor.get(id));
+                let keys = bound.map(|b| b.iter().filter(|b| !b.is_empty()).map(|b| keys::display(b)).collect::<Vec<_>>().join(", ")).unwrap_or_default();
                 (name, QuickItem::Command { id: id.to_string(), keys })
             })
             .collect();
@@ -144,6 +149,8 @@ pub enum Target {
     Mention(String, String),
     /// The headlines and pages of a tag.
     Tag(String),
+    /// An editing action on the page (the right-click menu).
+    Action(&'static str),
     /// Nothing (a title, a blank line).
     None,
 }
@@ -396,6 +403,11 @@ impl App {
             Target::Page(path, line) => (path, line),
             Target::Mention(path, name) => { let line = self.line_naming(&path, &name); (path, line) }
             Target::Tag(tag) => return self.tag_panel(&tag),
+            Target::Action(id) => {
+                self.mode = Mode::Normal;
+                self.run_action(id);
+                return;
+            }
             Target::None => return,
         };
         self.mode = Mode::Normal;

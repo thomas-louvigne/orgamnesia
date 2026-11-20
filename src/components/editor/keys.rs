@@ -455,15 +455,12 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
         EditorAction::Undo => { pane.undo(false); }
         EditorAction::Redo => { pane.undo(true); }
 
-        // ── Org emphasis: *bold*, /italic/, _underline_, +strikethrough+ ──────
-        EditorAction::Bold | EditorAction::Italic | EditorAction::Underline | EditorAction::Strikethrough => {
-            let marker = match action {
-                EditorAction::Bold => '*',
-                EditorAction::Italic => '/',
-                EditorAction::Underline => '_',
-                _ => '+',
+        // ── Emphasis (*bold* in org-mode, **bold** in Markdown…) and quotes ───
+        EditorAction::Bold | EditorAction::Italic | EditorAction::Underline | EditorAction::Strikethrough | EditorAction::Quote => {
+            let (a, b, with, sel_start, sel_end) = match edit::emphasis_marks(action, pane.fmt()) {
+                Some((open, close)) => edit::toggle_emphasis(&chars, start, end, open, close),
+                None => edit::toggle_quote(&chars, start, end, pane.fmt()),
             };
-            let (a, b, with, sel_start, sel_end) = edit::toggle_emphasis(&chars, start, end, marker);
             splice(el, a, b, &with);
             set_selection(el, sel_start, sel_end);
             pane.commit(el);
