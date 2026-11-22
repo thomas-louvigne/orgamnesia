@@ -23,6 +23,7 @@ pub mod search;
 pub mod settings;
 pub mod spell;
 pub mod table;
+pub mod tips;
 pub mod tags;
 pub mod todo;
 

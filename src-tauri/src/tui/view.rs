@@ -14,7 +14,8 @@ impl App {
         let [main, help] = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(f.area());
         self.total = main.width;
         // The columns of frames as the window's layout puts them, the page between them
-        let (left_frames, right_frames) = (tui_frames(self.prefs.column(false)), tui_frames(self.prefs.column(true)));
+        // Zen mode: no column, only the page
+        let (left_frames, right_frames) = if self.zen { (vec![], vec![]) } else { (tui_frames(self.prefs.column(false)), tui_frames(self.prefs.column(true))) };
         self.right_column = !right_frames.is_empty() && main.width >= 100;
         let right_width = if self.right_column { self.right_split.unwrap_or((main.width / 5).clamp(24, 40)).clamp(16, main.width / 3) } else { 0 };
         self.right_x = main.width - right_width;
@@ -24,7 +25,11 @@ impl App {
         self.list_area = Rect::default();
         for (frames, col) in [(&left_frames, left_col), (&right_frames, right_col)] {
             if col.width == 0 { continue; }
-            let heights: Vec<Constraint> = frames.iter().map(|f| if f.grows() { Constraint::Fill(1) } else { Constraint::Length(3) }).collect();
+            let heights: Vec<Constraint> = frames.iter().map(|f| match f {
+                _ if f.grows() => Constraint::Fill(1),
+                orgamnesia_core::Frame::Tips => Constraint::Length(6),
+                _ => Constraint::Length(3),
+            }).collect();
             for (frame, area) in frames.iter().zip(Layout::vertical(heights).split(col).iter()) {
                 self.frame_areas.push((*frame, *area));
                 self.draw_frame(f, *frame, *area);
@@ -156,6 +161,14 @@ impl App {
             f.render_widget(Line::from(line).style(Style::new().add_modifier(Modifier::BOLD)), help);
             return;
         }
+        // Zen mode: only the way out (and a message, when there is one)
+        if self.zen {
+            let keys = self.shortcut("zen_mode").unwrap_or_else(|| "> zen mode".into());
+            let hint = format!("{keys}: leave zen mode");
+            let line = if self.status.is_empty() { hint } else { format!("{}  │  {hint}", self.status) };
+            f.render_widget(Line::from(line).style(Style::new().add_modifier(Modifier::DIM)), help);
+            return;
+        }
         let help_line = &self.help[self.editor.is_some() as usize];
         let line = if self.status.is_empty() { help_line.clone() } else { format!("{}  │  {help_line}", self.status) };
         // The git state at the right end: branch, files to commit, commits to push and to pull
@@ -190,6 +203,12 @@ impl App {
             Frame::Project => {
                 let name = crate::project::files::page_name(&self.project.path);
                 f.render_widget(Paragraph::new(format!(" {name}")).block(Block::bordered().title(frame_title(frame, " Project ".into()))), area);
+            }
+            // One tip, wrapped; a click shows the next one
+            Frame::Tips => {
+                let tips = orgamnesia_core::tips::available(&self.prefs, true, false, |id| self.shortcut(id));
+                let text = if tips.is_empty() { String::new() } else { tips[self.tip % tips.len()].clone() };
+                f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }).block(Block::bordered().title(frame_title(frame, " Did you know? ".into()))), area);
             }
             Frame::Git => {
                 let line = self.git.as_ref().map(git_line).unwrap_or_else(|| " not under git".into());
@@ -247,10 +266,10 @@ pub(super) fn frame_title(frame: orgamnesia_core::Frame, title: String) -> Line<
 }
 
 /// The frames of a column the terminal draws: the lists and the lines of the
-/// window, not its buttons (brand, settings, quit, graph, org-bloom, tips).
+/// window and its tips, not its buttons (brand, settings, quit, graph, org-bloom).
 pub(super) fn tui_frames(frames: Vec<orgamnesia_core::Frame>) -> Vec<orgamnesia_core::Frame> {
     use orgamnesia_core::Frame;
-    frames.into_iter().filter(|f| matches!(f, Frame::Project | Frame::Git | Frame::Pages | Frame::Backlinks | Frame::Tags | Frame::Todos | Frame::Broken)).collect()
+    frames.into_iter().filter(|f| matches!(f, Frame::Project | Frame::Git | Frame::Pages | Frame::Backlinks | Frame::Tags | Frame::Todos | Frame::Broken | Frame::Tips)).collect()
 }
 
 /// What the title of a window shows of the page `path`: the title written in

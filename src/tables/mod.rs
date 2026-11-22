@@ -22,7 +22,7 @@
 mod html;
 mod view;
 
-pub use orgamnesia_core::table::{is_rule, is_table_line, move_cell, CellMove};
+pub use orgamnesia_core::table::{is_rule, is_table_line, move_cell, next_row, CellMove};
 use orgamnesia_core::table::is_number;
 pub use html::to_html;
 pub use view::{Shown, View};

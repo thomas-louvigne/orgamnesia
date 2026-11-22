@@ -172,6 +172,12 @@ pub async fn print_window(window: tauri::WebviewWindow) -> Cmd<()> {
     window.print().map_err(|e| AppError::CannotRun { program: "print".into(), error: e.to_string() })
 }
 
+/// The window in full screen (zen mode) or back.
+#[tauri::command]
+pub fn set_fullscreen(window: tauri::WebviewWindow, on: bool) -> Cmd<()> {
+    window.set_fullscreen(on).map_err(|e| AppError::CannotRun { program: "fullscreen".into(), error: e.to_string() })
+}
+
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);

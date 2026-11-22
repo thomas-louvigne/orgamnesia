@@ -84,6 +84,8 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
   projet au clavier.
 - *Graphe* (bêta) : les pages et leurs liens en 3D.
 - *Journal* : une page par jour, nommée par sa date (=2026-11-15=). Un raccourci ouvre celle d'aujourd'hui, et la crée si elle n'existe pas encore.
+- *Page au hasard* : un raccourci (ou les commandes =>=) ouvre une page tirée au hasard, pour faire remonter de vieilles notes.
+- *Mode zen* : =F11= ne laisse que la page, en plein écran ; =F11= à nouveau ramène tout.
 - *Cadres* : pages, liens entrants, tags, à faire, git, astuces… placés où vous voulez.
 - *Thèmes* : Nuit, Jour, Fjord, Papier, Dracula, ou le vôtre en un fichier CSS.
 - *Export* d'une page en PDF ou en HTML, *site statique* avec
@@ -138,18 +140,21 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [X] Tester sur macOS : fonctionne, d'après un utilisateur
 - [ ] Paquet dans les dépôts Debian
 - [ ] Raccourcis clavier vi
-- [ ] Second cerveau avec l'IA : un modèle de =CLAUDE.md= à poser dans un projet, pour qu'un agent (Claude Code…) comprenne les pages, les liens, les tags et les TODO
+- [X] Second cerveau avec l'IA : un modèle de =CLAUDE.md= ([[file:docs/CLAUDE.template.md][docs/CLAUDE.template.md]]) à poser dans un projet, pour qu'un agent (Claude Code…) comprenne les pages, les liens, les tags et les TODO
 - [ ] Serveur MCP : chercher, lire, rétroliens, tags, TODO et créer des pages depuis Claude Desktop, Claude Code ou un autre client
 - [ ] Mentions non liées : les pages qui citent la page ouverte sans lien, avec un bouton pour lier
 - [ ] Capture rapide dans une page Inbox, et une revue de la semaine (pages modifiées, TODO ouverts)
 - [ ] Agenda : les =SCHEDULED:= et =DEADLINE:= des pages, par date, dans un cadre
 - [ ] Alias (=#+ALIAS:=, =alias::= de Logseq) : une page qui répond à plusieurs noms
-- [ ] Faire remonter les notes : une page au hasard, les pages orphelines (sans aucun lien), ce qui était écrit il y a un an
+- [X] Page au hasard
+- [ ] Faire remonter les notes : les pages orphelines (sans aucun lien), ce qui était écrit il y a un an
 - [ ] Modèles de page : un squelette à choisir en créant une page (personnage, quête, réunion…)
 - [ ] Terminal dans l'éditeur
 - [ ] Dossiers et sous-dossiers dans les notes
 - [ ] Notes de bas de page
 - [ ] Outils git de diff et de fusion : voir les changements d'une page, résoudre un historique divergé ou un conflit sans terminal
+- [X] Mode zen : seulement le texte, sans cadres ni barres
+- [ ] Curseurs multiples
 
 * Licence
 

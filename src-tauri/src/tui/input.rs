@@ -188,10 +188,12 @@ impl App {
             KeyCode::Char('c') if ctrl => return true,
             KeyCode::Char('j') if ctrl => self.journal(),
             KeyCode::Char(c) if !ctrl && !key.modifiers.contains(KeyModifiers::ALT) => e.type_char(c),
-            KeyCode::Enter => e.insert("\n"),
+            KeyCode::Enter => e.enter(),
             KeyCode::Tab => e.insert("\t"),
             KeyCode::Backspace => e.backspace(),
             KeyCode::Delete => e.delete(),
+            KeyCode::Left if ctrl => act(e, "backward_word"),
+            KeyCode::Right if ctrl => act(e, "forward_word"),
             KeyCode::Left => act(e, "backward_char"),
             KeyCode::Right => act(e, "forward_char"),
             KeyCode::Up => act(e, "previous_line"),
@@ -339,6 +341,7 @@ impl App {
         let Some((frame, a)) = self.frame_areas.iter().find(|(_, a)| inside(a)).copied() else { return false };
         // The pages have their own clicks; the lines of the project and git nothing
         if frame == Frame::Pages { return false; }
+        if frame == Frame::Tips { self.tip += 1; return true; }
         if !matches!(frame, Frame::Todos | Frame::Tags | Frame::Backlinks | Frame::Broken) { return true; }
         self.focus_frame(frame);
         let (_, items) = self.frame_items(frame);

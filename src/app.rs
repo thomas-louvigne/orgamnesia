@@ -121,6 +121,21 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
         } else {
             actions::open_journal(ctx);
         },
+        AppAction::ZenMode => {
+            let on = !ctx.ui.zen.get_untracked();
+            ctx.ui.zen.set(on);
+            spawn_local(async move {
+                if let Err(err) = invoke::set_fullscreen(on).await { ctx.error("error", &err); }
+            });
+        }
+        AppAction::RandomPage => {
+            let shown = ctx.work.active_tab_data().map(|t| t.path);
+            let page = ctx.project.files.with_untracked(|fs| orgamnesia_core::pages::random_page(fs, shown.as_deref(), js_sys::Math::random()).cloned());
+            match page {
+                Some(file) => actions::open_file(ctx, file, None),
+                None => ctx.notify_t("random_no_page", ""),
+            }
+        }
         // The menu lives in the project frame
         AppAction::SwitchProject => if !ctx.pref_untracked(|p| p.frame_shown(orgamnesia_core::Frame::Project)) {
             ctx.notify_t("project_frame_off", "");
@@ -286,7 +301,7 @@ pub fn App() -> impl IntoView {
     let has_column = move |r: bool| if r { right.get() } else { left.get() };
 
     view! {
-        <div class=move || if ctx.ui.drag.get().is_some() { "app resizing" } else { "app" }>
+        <div class=move || format!("app{}{}", if ctx.ui.drag.get().is_some() { " resizing" } else { "" }, if ctx.ui.zen.get() { " zen" } else { "" })>
             <div
                 class="app-main"
                 style=move || format!(
@@ -324,6 +339,10 @@ pub fn App() -> impl IntoView {
                     <Column right=true />
                 })}
             </div>
+            // The way out of zen mode, discreet
+            {move || ctx.ui.zen.get().then(|| view! {
+                <div class="zen-hint">{move || t("zen_hint", ctx.lang.get()).replace("{key}", &ctx.shortcut("zen_mode").unwrap_or_default())}</div>
+            })}
             {move || ctx.ui.show_quick_open.get().then(|| view! { <QuickOpenModal /> })}
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <dialogs::ConfirmDialog /> })}
             {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <dialogs::DiskConflictDialog /> })}

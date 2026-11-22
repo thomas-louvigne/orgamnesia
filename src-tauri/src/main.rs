@@ -120,6 +120,7 @@ Usage:
             commands::theme::create_theme,
             commands::theme::open_themes_folder,
             commands::app::print_window,
+            commands::app::set_fullscreen,
             commands::app::save_html,
             commands::app::quit_app,
             commands::clipboard::read_clipboard,

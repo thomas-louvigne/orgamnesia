@@ -1770,3 +1770,15 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 /* Markdown: code (inline and fenced blocks), quotes */
 .md-code  { color: var(--green); }
 .md-quote { color: var(--fg-dim); font-style: italic; }
+
+/* Zen mode: only the page, full screen; a discreet hint to leave it */
+.zen .side-column, .zen .resizer, .zen .workspace-topbar, .zen .pane-tabs { display: none; }
+.zen-hint {
+    position: fixed;
+    right: 12px;
+    bottom: 8px;
+    font-size: var(--fs-meta);
+    color: var(--fg-dim);
+    opacity: .6;
+    pointer-events: none;
+}

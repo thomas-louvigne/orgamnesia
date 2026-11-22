@@ -194,6 +194,17 @@ impl Editor {
         self.goal = None;
     }
 
+    /// Enter: in a cell of a table, to the cell below (org-mode's `org-table-next-row`);
+    /// elsewhere, a new line.
+    pub fn enter(&mut self) {
+        let _format = FormatGuard::set(self.format());
+        match table::next_row(&self.text, self.cursor) {
+            Some(table::CellMove::Caret(p)) => self.cursor = p,
+            Some(table::CellMove::Edit { from, to, text, caret }) => self.replace(from, to, &text, caret, Change::Other),
+            None => self.insert("\n"),
+        }
+    }
+
     pub fn insert(&mut self, s: &str) {
         let kind = if s.chars().all(|c| !c.is_whitespace()) { Change::Typing } else { Change::Other };
         // A new line at the end of a folded headline comes after its hidden text

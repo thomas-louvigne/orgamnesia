@@ -300,12 +300,51 @@ use ratatui::style::Modifier;
         assert_eq!(app.suggest().unwrap().items, ["*Rues", "*Histoire"]);
         press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
         assert!(app.editor.as_ref().unwrap().text().ends_with("[[Lugny::*Rues]]"));
+        // #lu: the pages; :pro the org-mode tags
+        typed(&mut app, " #lu");
+        assert_eq!(app.suggest().unwrap().items, ["Lugny", "Lunes"]);
+        press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+        typed(&mut app, " :pro");
+        assert_eq!(app.suggest().unwrap().items, ["projet"]);
+        press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+        // A headline's tags
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        typed(&mut app, "* Titre :pro");
+        assert_eq!(app.suggest().map(|s| s.items.clone()), Some(vec!["projet".to_string()]));
+        press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+        // Ctrl+Left: word by word, as Alt+B
+        let at = app.editor.as_ref().unwrap().cursor;
+        press(&mut app, KeyCode::Left, KeyModifiers::CONTROL);
+        assert_eq!(app.editor.as_ref().unwrap().cursor, at - 3);
+        press(&mut app, KeyCode::Right, KeyModifiers::CONTROL);
+        assert_eq!(app.editor.as_ref().unwrap().cursor, at);
         // The tag line: Tab completes with the tags of the project
         app.command("add_tag");
         app.prompt_mut().unwrap().input = "pro".into();
         press(&mut app, KeyCode::Tab, KeyModifiers::NONE);
         assert_eq!(app.prompt().unwrap().input, "projet");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn typing_after_a_space_adds_nothing() {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-tui-space-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("pages")).unwrap();
+        std::fs::write(dir.join("pages/Alpha.org"), "* Alpha :projet:\n").unwrap();
+        std::fs::write(dir.join("pages/Lugny.org"), "x").unwrap();
+        let prefs = settings::Settings::default().prefs();
+        let project = Project::open(&crate::slash(&dir), prefs.tags(), prefs.formats(), &prefs.journal_folder).unwrap();
+        let mut app = App::new(project, prefs, Keybindings::with_profiles(None, vec![]));
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        press(&mut app, KeyCode::End, KeyModifiers::CONTROL);
+        for s in ["\nun mot", "\n* Titre :pro", "\nvoir :pro et", "\n#lu x", "\nl'arbre", "\nx :a b", "\n* T :p:q r"] {
+            for c in s.chars() {
+                if c == '\n' { press(&mut app, KeyCode::Enter, KeyModifiers::NONE); } else { press(&mut app, KeyCode::Char(c), KeyModifiers::NONE); }
+            }
+            if app.suggest().is_some() { press(&mut app, KeyCode::Esc, KeyModifiers::NONE); }
+        }
+        let text = app.editor.as_ref().unwrap().text();
+        assert_eq!(text, "* Alpha :projet:\n\nun mot\n* Titre :pro\nvoir :pro et\n#lu x\nl'arbre\nx :a b\n* T :p:q r");        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
@@ -345,5 +384,53 @@ fn one_thing_has_the_keys_at_a_time() {
     assert!(matches!(app.mode, Mode::Quick(_)));
     press(&mut app, KeyCode::Char('g'), KeyModifiers::CONTROL);
     assert!(matches!(app.mode, Mode::Normal));
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn random_page_and_zen_mode() {
+    let dir = std::env::temp_dir().join(format!("orgamnesia-tui-random-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("pages")).unwrap();
+    for name in ["One.org", "Two.org"] { std::fs::write(dir.join("pages").join(name), "x").unwrap(); }
+    let prefs = settings::Settings::default().prefs();
+    let project = Project::open(&crate::slash(&dir), prefs.tags(), prefs.formats(), &prefs.journal_folder).unwrap();
+    let mut app = App::new(project, prefs, Keybindings::with_profiles(None, vec![]));
+    // Ctrl+Alt+R: the other page each time, never the one edited
+    press(&mut app, KeyCode::Char('r'), KeyModifiers::CONTROL | KeyModifiers::ALT);
+    let first = app.editor.as_ref().unwrap().path.clone();
+    press(&mut app, KeyCode::Char('r'), KeyModifiers::CONTROL | KeyModifiers::ALT);
+    assert_ne!(app.editor.as_ref().unwrap().path, first);
+    // What the screen shows: the tips in their frame, none of it in zen mode, only the way out
+    let screen = |app: &mut App| {
+        let mut term = ratatui::Terminal::new(ratatui::backend::TestBackend::new(140, 40)).unwrap();
+        term.draw(|f| app.draw(f)).unwrap();
+        term.backend().buffer().content().iter().map(|c| c.symbol()).collect::<String>()
+    };
+    assert!(screen(&mut app).contains("Did you know?"));
+    // F11 in and out of zen mode
+    press(&mut app, KeyCode::F(11), KeyModifiers::NONE);
+    assert!(app.zen);
+    let zen = screen(&mut app);
+    assert!(!zen.contains("Did you know?") && zen.contains("F11: leave zen mode"), "{zen}");
+    press(&mut app, KeyCode::F(11), KeyModifiers::NONE);
+    assert!(!app.zen);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn tab_and_enter_move_in_a_table() {
+    let dir = std::env::temp_dir().join(format!("orgamnesia-tui-table-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("pages")).unwrap();
+    std::fs::write(dir.join("pages/T.org"), "| a | b |\n| c | d |").unwrap();
+    let prefs = settings::Settings::default().prefs();
+    let project = Project::open(&crate::slash(&dir), prefs.tags(), prefs.formats(), &prefs.journal_folder).unwrap();
+    let mut app = App::new(project, prefs, Keybindings::with_profiles(None, vec![]));
+    press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+    app.editor.as_mut().unwrap().cursor = 2;
+    // Tab: from "a" to "b"; Enter: from "b" to "d"
+    press(&mut app, KeyCode::Tab, KeyModifiers::NONE);
+    assert_eq!(app.editor.as_ref().unwrap().cursor, 6);
+    press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+    assert_eq!(app.editor.as_ref().unwrap().cursor, 16);
     std::fs::remove_dir_all(&dir).unwrap();
 }

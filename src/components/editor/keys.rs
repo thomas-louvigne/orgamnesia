@@ -148,6 +148,25 @@ fn view_keys(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) -> bool {
             return true;
         }
     }
+    // Enter in a cell of a table: to the cell below (org-mode's `org-table-next-row`)
+    if key == "Enter" && unmodified(e) && !e.shift_key() {
+        let (start, end) = get_pos(el);
+        let chars: Vec<char> = el.value().chars().collect();
+        let to = (start == end).then(|| tables::next_row(&chars, start)).flatten();
+        if let Some(to) = to {
+            e.prevent_default();
+            match to {
+                tables::CellMove::Caret(p) => set_cursor(el, p),
+                tables::CellMove::Edit { from, to, text, caret } => {
+                    splice(el, from, to, &text);
+                    set_cursor(el, caret);
+                    pane.commit(el);
+                }
+            }
+            pane.track_caret(el);
+            return true;
+        }
+    }
     // Enter at the end of a folded headline: the new line comes after the hidden text
     if key == "Enter" && unmodified(e) && !e.shift_key() {
         let (start, end) = get_pos(el);

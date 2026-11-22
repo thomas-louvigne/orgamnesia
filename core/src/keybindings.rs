@@ -244,6 +244,10 @@ pub enum AppAction {
     NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
     GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml, Graph, SwitchProject, Journal,
+    /// Open a page of the project picked at random (not the one shown).
+    RandomPage,
+    /// Only the page, full screen: no columns, tabs nor bars.
+    ZenMode,
     /// Rename the page; the TODO headlines, the tags, the pages linking here, the
     /// pages not created yet (the window's frames, the terminal's panels).
     RenamePage, TodosPanel, TagsPanel, BacklinksPanel, BrokenPanel,
@@ -327,6 +331,8 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::Graph, id: "graph", label_key: "shortcut_graph" },
     ActionDef { action: AppAction::SwitchProject, id: "switch_project", label_key: "shortcut_switch_project" },
     ActionDef { action: AppAction::Journal, id: "journal", label_key: "shortcut_journal" },
+    ActionDef { action: AppAction::RandomPage, id: "random_page", label_key: "shortcut_random_page" },
+    ActionDef { action: AppAction::ZenMode, id: "zen_mode", label_key: "shortcut_zen_mode" },
     ActionDef { action: AppAction::RenamePage, id: "rename_page", label_key: "shortcut_rename_page" },
     ActionDef { action: AppAction::TodosPanel, id: "panel_todos", label_key: "shortcut_panel_todos" },
     ActionDef { action: AppAction::TagsPanel, id: "panel_tags", label_key: "shortcut_panel_tags" },
@@ -466,6 +472,8 @@ pub fn default_app() -> Bindings {
         ("graph",            &["ctrl+shift+m"]),
         ("switch_project",   &["ctrl+alt+p"]),
         ("journal",          &["ctrl+shift+j"]),
+        ("random_page",      &["ctrl+alt+r"]),
+        ("zen_mode",         &["F11", "ctrl+alt+z"]),
         // Function keys free in both profiles (and in terminals)
         ("rename_page",      &["F2"]),
         ("panel_todos",      &["F4"]),
@@ -592,6 +600,8 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("switch_project",   &["ctrl+x p p", "ctrl+alt+p"]),
             // As org-journal's `C-c C-j`, without the second Ctrl
             ("journal",          &["ctrl+c j"]),
+            ("random_page",      &["ctrl+c r"]),
+            ("zen_mode",         &["F11", "ctrl+c z"]),
             ("rename_page",      &["F2"]),
             ("panel_todos",      &["F4"]),
             ("panel_tags",       &["F5"]),

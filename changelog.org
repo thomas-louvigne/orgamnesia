@@ -4,6 +4,14 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.8.2
+- Zen mode: F11 (or Ctrl+Alt+Z, C-c z in Emacs) leaves only the page, full screen, without columns, tabs nor bars; a discreet line says how to leave it. In the terminal too.
+- Random page: Ctrl+Alt+R (C-c r in Emacs), or the command of quick open, opens a page picked at random.
+- Tables: Enter in a cell goes to the cell below, as org-mode does; with no row below, a new row is added. Tab and Enter no longer put the cursor a few characters too far left in a table under a headline.
+- "Did you know?" in the terminal too, with new tips: random page, zen mode, the terminal version.
+- Right click in the page: bold, italic, underline, strikethrough and quote. The editing commands are in quick open after =>=. The terminal version also opens with -nw, --tui or -t, and Ctrl+←/→ move by word there.
+- A CLAUDE.md template (docs/CLAUDE.template.md) to put in a notes folder, so that an AI agent understands the pages, links, tags and TODOs.
+
 * 1.8.1
 - Code checks fixed (the build failed them); nothing changes in use.
 

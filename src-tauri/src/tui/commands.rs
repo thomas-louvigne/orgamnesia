@@ -272,6 +272,8 @@ impl App {
             "git_push" => self.git(|p, prefs| crate::git::push(p, &prefs.git_ssh_key)),
             "git_history" => self.history(),
             "graph" => self.links_popup(),
+            "random_page" => self.random_page(),
+            "zen_mode" => self.zen = !self.zen,
             "panel_todos" => self.panel(Frame::Todos),
             "panel_tags" => self.panel(Frame::Tags),
             "panel_backlinks" => self.panel(Frame::Backlinks),

@@ -183,6 +183,10 @@ struct App {
     back: Vec<String>,
     forward: Vec<String>,
     status: String,
+    /// Zen mode: no column, only the page and the way out.
+    zen: bool,
+    /// The tip of the "Did you know?" frame (one more at each click on it).
+    tip: usize,
     /// Where the page is drawn, to put the cursor where it is clicked; where
     /// the other window is.
     page_area: Rect,
@@ -217,7 +221,7 @@ impl App {
         let mut app = Self {
             project, prefs, help: [help(&kb, false), help(&kb, true)], kb, chord: keys::Chord::default(),
             filter: String::new(), list: ListState::default(), editor: None, link: None,
-            scroll: 0, height: 0, width: 0, split: None, total: 0, dragging: None, right_split: None, right_x: 0, list_area: Rect::default(), back: vec![], forward: vec![], status: String::new(),
+            scroll: 0, height: 0, width: 0, split: None, total: 0, dragging: None, right_split: None, right_x: 0, list_area: Rect::default(), back: vec![], forward: vec![], status: String::new(), zen: false, tip: clock_nanos() as usize,
             page_area: Rect::default(), other_area: Rect::default(), other: None, split_dir: None, active_slot: 0, tabs: vec![], hits: None,
             projects: vec![], config_dir: None, git: None, last_session: None,
             mode: Mode::Normal, frame_state: Default::default(), frame_areas: vec![], right_column: true,
@@ -604,6 +608,22 @@ impl App {
         self.open_or_create(today);
     }
 
+    /// The first shortcut of the action `id`, as the terminal shows it.
+    fn shortcut(&self, id: &str) -> Option<String> {
+        self.kb.app.get(id).and_then(|b| b.iter().find(|b| !b.is_empty())).map(|b| keys::display(b))
+    }
+
+    /// Edit a page picked at random, other than the one edited.
+    fn random_page(&mut self) {
+        let r = clock_nanos() as f64 / 1e9;
+        let files = self.project.files();
+        let shown = self.editor.as_ref().map(|e| e.path.as_str());
+        match orgamnesia_core::pages::random_page(&files, shown, r).map(|f| f.path.clone()) {
+            Some(path) => self.edit(&path),
+            None => self.status = "no page in this project yet".into(),
+        }
+    }
+
     /// Edit the page `name`, made first when there is none.
     fn open_or_create(&mut self, name: String) {
         if name.is_empty() { self.status = "type the name of the new page first".into(); return; }
@@ -623,4 +643,9 @@ impl App {
         self.edit(&page.path);
     }
 
+}
+
+/// shortcut: the clock's nanoseconds as the dice, enough to pick a page or a tip.
+fn clock_nanos() -> u32 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos())
 }

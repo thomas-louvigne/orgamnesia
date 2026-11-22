@@ -476,6 +476,10 @@ As in org-mode, a keyword after the stars of a headline gives its state.
   it turns back into text to be edited.
 - Tab and Shift+Tab move to the next or previous cell and align the table again, as
   org-mode does. Tab after the last cell adds a row.
+- Enter in a cell goes to the cell below, in the same column, and aligns the table
+  (org-mode's =org-table-next-row=). With no row below, or a separator line, a new
+  row is put under the current one. At the very start or end of the line, Enter
+  makes a plain new line.
 - =|-= then Tab draws the separator line; the rows above the first separator are the
   header.
 
@@ -573,6 +577,12 @@ With no page open: a button to go to a page and the essential shortcuts.
 At the bottom of the window: messages (page saved, error, keys of a shortcut being
 typed…). After a deletion, it offers "Undo". =×= closes it.
 
+** Zen mode
+Only the page, full screen: no columns, tabs nor bars, to write without anything
+around. =F11= (or =Ctrl+Alt+Z= in Classic, =Ctrl+C Z= in Emacs), or the "Zen mode"
+command of quick open, goes in and out; a discreet line at the bottom right says how
+to leave it. In the terminal, the columns and the help line go away the same way.
+
 * Export as PDF and HTML
 A single page is exported from the right-click menu of its tab or of the list of
 pages ("Export as PDF…", "Export as HTML…") or with a shortcut, for the active
@@ -623,7 +633,8 @@ you know?".
 - *Graph*: a button opening or closing the [[#graph-beta][graph]]; shown only when
   the extension is on.
 - *Did you know?*: a tip on a feature, with its shortcut in your profile (Classic,
-  Emacs or yours); › shows the next one.
+  Emacs or yours); › shows the next one. The terminal has it too, in a column (a
+  click shows the next one).
 
 [[file:images/tips.png]]
 
@@ -648,6 +659,9 @@ you know?".
 [[file:images/settings-trash.png]]
 
 * Keyboard shortcuts
+
+Orgamnesia is *keyboard first*: every action is reachable from the keyboard,
+through its shortcut or the =>= commands of quick open.
 
 ** Profiles
 Two built-in profiles, *Classic* and *Emacs*, apply to the whole application.
@@ -708,6 +722,8 @@ profile gets those of the actions it didn't know.
 | Export the page as HTML     | Ctrl+Shift+E     | Ctrl+C Ctrl+E H H         |
 | Graph of the pages (beta)   | Ctrl+Shift+M     | Ctrl+C G                  |
 | Page of the day (journal)   | Ctrl+Shift+J     | Ctrl+C J                  |
+| Random page                 | Ctrl+Alt+R       | Ctrl+C R                  |
+| Zen mode                    | F11, Ctrl+Alt+Z  | F11, Ctrl+C Z             |
 | Rename the page             | F2               | F2                        |
 | To do (TODO headlines)      | F4               | F4                        |
 | Tags                        | F5               | F5                        |
@@ -1145,7 +1161,7 @@ screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
   to rename the page, and give the focus to the frame.
 - The frames are in columns on each side of the page, as the settings lay them out
   for the window (Settings > Frames): project, git, pages, backlinks, tags, TODO,
-  pages not created (not the window's buttons). The right column shows on a wide
+  pages not created, "Did you know?" (not the window's buttons). The right column shows on a wide
   enough terminal; both columns are resized with the mouse, their widths kept.
   =F10= (=F3= in the Emacs profile) goes to the list of the pages.
 - Completion as in the window: =[[= pages, =[[Page::*= headlines, =#tags=, =:tags:=,

@@ -383,6 +383,10 @@ pub async fn print_window() -> Result<(), String> {
     call("print_window", serde_json::json!({})).await
 }
 
+pub async fn set_fullscreen(on: bool) -> Result<(), String> {
+    call("set_fullscreen", serde_json::json!({ "on": on })).await
+}
+
 /// The save dialog for a page exported as HTML, then the file `html` written
 /// there: its path, `None` when the dialog was cancelled.
 pub async fn save_html(name: &str, html: &str) -> Result<Option<String>, String> {

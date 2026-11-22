@@ -499,6 +499,11 @@ Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
   n'est pas dedans ; il redevient du texte pour l'éditer.
 - Tab et Maj+Tab passent à la cellule suivante ou précédente et réalignent le
   tableau, comme org-mode. Tab après la dernière cellule ajoute une ligne.
+- Entrée dans une cellule descend à la cellule du dessous, dans la même colonne, et
+  réaligne le tableau (=org-table-next-row= d'org-mode). Sans ligne en dessous, ou
+  devant une ligne de séparation, une nouvelle ligne est ajoutée sous la ligne
+  courante. Tout au début ou à la fin de la ligne, Entrée fait un simple retour à
+  la ligne.
 - =|-= puis Tab trace la ligne de séparation ; les lignes au-dessus de la première
   séparation sont l'en-tête.
 
@@ -600,6 +605,13 @@ Sans page ouverte : un bouton pour aller à une page et les raccourcis essentiel
 En bas de la fenêtre : messages (page enregistrée, erreur, combinaison en cours…).
 Après une suppression, elle propose « Annuler ». =×= la ferme.
 
+** Mode zen
+Seulement la page, en plein écran : ni colonnes, ni onglets, ni barres, pour écrire
+sans rien autour. =F11= (ou =Ctrl+Alt+Z= en Classique, =Ctrl+C Z= en Emacs), ou la
+commande « Mode zen » de l'ouverture rapide, y entre et en sort ; une ligne discrète
+en bas à droite rappelle comment en sortir. Dans le terminal, les colonnes et la
+ligne d'aide disparaissent de la même façon.
+
 * Export en PDF et en HTML
 Une page seule s'exporte depuis le menu du clic droit de son onglet ou de la liste
 des pages (« Exporter en PDF… », « Exporter en HTML… »), ou par raccourci, pour la
@@ -653,7 +665,8 @@ liens entrants, tags, à faire, pages non créées, « Le saviez-vous ? ».
 - *Graphe* : un bouton qui ouvre ou ferme le graphe (voir Graphe, dans Extensions) ; affiché
   seulement quand l'extension est activée.
 - *Le saviez-vous ?* : une astuce sur une fonctionnalité, avec son raccourci dans
-  votre profil (Classique, Emacs ou le vôtre) ; › affiche la suivante.
+  votre profil (Classique, Emacs ou le vôtre) ; › affiche la suivante. Le terminal
+  l'a aussi, dans une colonne (un clic affiche la suivante).
 
 [[file:images/tips.png]]
 
@@ -678,6 +691,10 @@ liens entrants, tags, à faire, pages non créées, « Le saviez-vous ? ».
 [[file:images/settings-trash.png]]
 
 * Raccourcis clavier
+
+Orgamnesia est pensé *keyboard first* (le clavier d'abord) : chaque action est
+accessible au clavier, par son raccourci ou par les commandes =>= de l'ouverture
+rapide.
 
 ** Profils
 Deux profils intégrés, *Classique* et *Emacs*, s'appliquent à toute l'application.
@@ -740,6 +757,8 @@ connaissait pas.
 | Exporter la page en HTML    | Ctrl+Maj+E       | Ctrl+C Ctrl+E H H         |
 | Graphe des pages (bêta)     | Ctrl+Maj+M       | Ctrl+C G                  |
 | Page du jour (journal)      | Ctrl+Maj+J       | Ctrl+C J                  |
+| Page au hasard              | Ctrl+Alt+R       | Ctrl+C R                  |
+| Mode zen                    | F11, Ctrl+Alt+Z  | F11, Ctrl+C Z             |
 | Renommer la page            | F2               | F2                        |
 | À faire (titres TODO)       | F4               | F4                        |
 | Tags                        | F5               | F5                        |
@@ -1205,7 +1224,7 @@ projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profi
   champ de renommage du titre, et donnent le focus au cadre.
 - Les cadres sont en colonnes de chaque côté de la page, disposés comme les réglages
   les mettent pour la fenêtre (Réglages > Cadres) : projet, git, pages, rétroliens,
-  tags, TODO, pages non créées (pas les boutons de la fenêtre). La colonne de droite
+  tags, TODO, pages non créées, « Le saviez-vous ? » (pas les boutons de la fenêtre). La colonne de droite
   s'affiche dans un terminal assez large ; les deux se redimensionnent à la souris,
   leur largeur est gardée. =F10= (=F3= dans le profil Emacs) va dans la liste des pages.
 - Complétion comme dans la fenêtre : pages après =[[=, titres après =[[Page::*=,
