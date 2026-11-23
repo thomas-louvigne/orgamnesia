@@ -7,118 +7,14 @@ use super::{
     dom::{caret_coords, get_pos, set_cursor, splice, Textarea},
     pane::Pane,
 };
-use crate::{links, tags};
+use crate::links;
+use orgamnesia_core::complete::{accepted, being_typed, Kind};
 use orgamnesia_core::links::headlines;
 use wasm_bindgen_futures::spawn_local;
 
 const MAX_SUGGESTIONS: usize = 8;
-/// Characters to type after `[[` before pages are suggested.
-const LINK_MIN_CHARS: usize = 2;
 const POPUP_WIDTH: f64 = 260.0;
 const ITEM_HEIGHT: f64 = 26.0;
-
-/// What is being completed.
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum Kind {
-    /// A page name in `[[link`: accepting also closes the link with `]]`.
-    Link,
-    /// A page name after `#`.
-    Hashtag,
-    /// An org-mode tag (`* Title :tag`, `#+FILETAGS:`): accepting adds the closing `:`.
-    OrgTag,
-    /// A headline of a page in `[[Page::*Titre` or `[[*Titre`: accepting also
-    /// closes the link with `]]`.
-    Place,
-    /// A headline of a page in `[[Page#Titre` (when that syntax is read): the
-    /// same, written without the `*`.
-    HashPlace,
-    /// The file of a page in a Markdown link `[texte](Pa`, written `%`-encoded:
-    /// accepting also closes the link with `)`.
-    MdLink,
-}
-
-impl Kind {
-    /// What closes the name once accepted.
-    fn close(self) -> &'static str {
-        match self {
-            Kind::Link | Kind::Place | Kind::HashPlace => "]]",
-            Kind::MdLink => ")",
-            Kind::OrgTag => ":",
-            Kind::Hashtag => "",
-        }
-    }
-
-    /// What the popup shows before each name.
-    fn sigil(self) -> &'static str {
-        match self {
-            Kind::Link => "[[",
-            Kind::Hashtag => "#",
-            Kind::OrgTag => ":",
-            Kind::Place => "::",
-            Kind::HashPlace => "#",
-            Kind::MdLink => "](",
-        }
-    }
-}
-
-/// What is being typed at `caret` that names can complete: where the typed part
-/// starts, that part, and what it is.
-fn being_typed(chars: &[char], caret: usize, tags: orgamnesia_core::TagSyntax, format: orgamnesia_core::Format) -> Option<(usize, String, Kind)> {
-    links::link_prefix(chars, caret)
-        .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
-        .map(|(start, p)| (start, p, Kind::Link))
-        .or_else(|| tags.links(format).markdown.then(|| md_link_prefix(chars, caret)).flatten()
-            .filter(|(_, p)| p.trim().chars().count() >= LINK_MIN_CHARS)
-            .map(|(start, p)| (start, p, Kind::MdLink)))
-        .or_else(|| tags::org_tag_prefix(chars, caret, tags.org).map(|(start, p)| (start, p, Kind::OrgTag)))
-        .or_else(|| tags::hashtag_prefix(chars, caret, tags.hashtags).map(|(hash, p)| (hash + 1, p, Kind::Hashtag)))
-}
-
-/// The target of a Markdown link being typed at `caret` (`[texte](Pa`): where it
-/// starts, and what is typed of it; not an address, nor a place (`#titre`).
-fn md_link_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
-    let start = caret - chars[..caret].iter().rev().take_while(|&&c| !matches!(c, '(' | ')' | '[' | ']' | '\n')).count();
-    if start < 2 || chars[start - 1] != '(' || chars[start - 2] != ']' { return None; }
-    let typed: String = chars[start..caret].iter().collect();
-    (!typed.contains("://") && !typed.contains('#') && !typed.starts_with('<')).then_some((start, typed))
-}
-
-/// The change accepting a name makes: `insert` replaces the characters `from..to`,
-/// then the caret goes to `cursor`.
-#[derive(Debug, PartialEq)]
-struct Accepted { from: usize, to: usize, insert: String, cursor: usize }
-
-/// Accepting `name` for what was typed between `start` and `caret` in `chars`.
-/// In a link already closed (`[[jeu de r|ôle][texte]]`) the name replaces the
-/// whole target and the caret goes past `]]` (or before `][`, to the text shown);
-/// otherwise the closing characters of `kind` are added, or stepped over when
-/// already there.
-fn accepted(chars: &[char], start: usize, caret: usize, kind: Kind, name: &str) -> Accepted {
-    if kind == Kind::MdLink {
-        // The file name, `Ma%20page.md`; a target already closed is replaced whole
-        let name = orgamnesia_core::links::percent_encode(name);
-        let target_end = caret + chars[caret..].iter().take_while(|&&ch| !matches!(ch, ')' | '\n')).count();
-        let after_name = start + name.chars().count();
-        return if chars.get(target_end) == Some(&')') {
-            Accepted { from: start, to: target_end, insert: name, cursor: after_name + 1 }
-        } else {
-            Accepted { from: start, to: caret, insert: format!("{name})"), cursor: after_name + 1 }
-        };
-    }
-    let target_end = caret + chars[caret..].iter().take_while(|&&ch| !matches!(ch, ']' | '[' | '\n')).count();
-    let closed = matches!(kind, Kind::Link | Kind::Place | Kind::HashPlace)
-        && matches!((chars.get(target_end), chars.get(target_end + 1)), (Some(']'), Some(']' | '[')));
-    let after_name = start + name.chars().count();
-    if closed {
-        let past = if chars.get(target_end + 1) == Some(&']') { 2 } else { 0 };
-        return Accepted { from: start, to: target_end, insert: name.to_string(), cursor: after_name + past };
-    }
-    let close = kind.close();
-    let n = close.chars().count();
-    let there = chars.iter().skip(caret).take(n).collect::<String>() == close;
-    let insert = if there { name.to_string() } else { format!("{name}{close}") };
-    Accepted { from: start, to: caret, insert, cursor: after_name + n }
-}
 
 /// Suggestions shown while a `#tag`, a `[[link` or a `:tag:` is being typed.
 #[derive(Clone, PartialEq)]

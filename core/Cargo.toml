@@ -1,6 +1,6 @@
 [package]
 name = "orgamnesia-core"
-version = "1.7.0"
+version = "1.8.2"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Types and rules shared by the Orgamnesia backend (Tauri) and interface (WebAssembly)"
@@ -9,3 +9,4 @@ description = "Types and rules shared by the Orgamnesia backend (Tauri) and inte
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 regex = "1.12"
+serde_yaml_ng = "0.10.0"

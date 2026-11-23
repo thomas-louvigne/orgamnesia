@@ -1,5 +1,5 @@
-//! The "preference" project: the configuration files (`settings.json`,
-//! `keybindings.json`) edited as text in the editor. It takes the place of the
+//! The "preference" project: the configuration files (`settings.yaml`,
+//! `keybindings/<profile>.yaml`) edited as text in the editor. It takes the place of the
 //! open project, which waits aside, its tabs and panes as they were, to be come
 //! back to.
 
@@ -25,7 +25,7 @@ pub fn on_windows() -> bool {
 }
 
 /// The settings as the app uses them on this system: org-bloom off on Windows,
-/// whatever `settings.json` says.
+/// whatever `settings.yaml` says.
 pub fn prefs_of(settings: &Settings) -> Prefs {
     let mut prefs = settings.prefs();
     prefs.org_bloom &= !on_windows();
@@ -49,7 +49,7 @@ pub struct Aside {
 
 /// The configuration file at `path`, when it is one (a page of the "preference" project).
 pub fn config_file(path: &str) -> Option<File> {
-    path.ends_with(".json").then(|| File::from_path(path)).flatten()
+    path.ends_with(".yaml").then(|| File::from_path(path)).flatten()
 }
 
 /// The names of the user's own keybinding profiles: the profile files of the project.
@@ -397,8 +397,8 @@ mod tests {
 
     #[test]
     fn config_pages() {
-        assert_eq!(config_file("/home/me/.config/x/settings.json"), Some(File::Settings));
-        assert_eq!(config_file("/home/me/.config/x/keybindings/mine.json"), Some(File::Profile("mine".into())));
+        assert_eq!(config_file("/home/me/.config/x/settings.yaml"), Some(File::Settings));
+        assert_eq!(config_file("/home/me/.config/x/keybindings/mine.yaml"), Some(File::Profile("mine".into())));
         assert_eq!(config_file("/notes/pages/settings.org"), None);
     }
 }

@@ -17,6 +17,8 @@ pub enum Goto {
     Place(String),
     /// Where it already is: only the keyboard goes to the editor.
     Focus,
+    /// Where it already is, then this editing action (from the command list).
+    Action(crate::keybindings::EditorAction),
 }
 
 /// What the project search pop-in shows; kept while it is closed.
@@ -166,6 +168,8 @@ pub struct Ui {
     pub show_commit: RwSignal<bool>,
     /// The graph of the pages (graph extension).
     pub show_graph: RwSignal<bool>,
+    /// Zen mode: only the page, full screen.
+    pub zen: RwSignal<bool>,
     /// The history window of this page (git extension).
     pub git_history: RwSignal<Option<FileEntry>>,
     /// The window adding a remote to the project's repository.
@@ -182,6 +186,8 @@ pub struct Ui {
     pub new_version: RwSignal<Option<UpdateInfo>>,
     /// The cheat sheet of the shortcuts (F1).
     pub show_shortcuts: RwSignal<bool>,
+    /// Asked to rename the active page (its title's field opens): counts the times.
+    pub rename_request: RwSignal<u32>,
     /// The video played in the app: the address of the site's player, and the
     /// link to it (to open it in the browser).
     pub video: RwSignal<Option<(String, String)>>,
@@ -271,6 +277,7 @@ impl AppCtx {
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
                 show_graph: RwSignal::new(false),
+                zen: RwSignal::new(false),
                 git_history: RwSignal::new(None),
                 show_git_remote: RwSignal::new(false),
                 show_git_branch: RwSignal::new(false),
@@ -279,6 +286,7 @@ impl AppCtx {
                 update: RwSignal::new(None),
                 new_version: RwSignal::new(None),
                 show_shortcuts: RwSignal::new(false),
+                rename_request: RwSignal::new(0),
                 video: RwSignal::new(None),
                 tag_add: RwSignal::new(false),
                 disk_conflicts: RwSignal::new(vec![]),

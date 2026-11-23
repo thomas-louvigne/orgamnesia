@@ -69,9 +69,29 @@ impl<'a> Resolver<'a> {
     }
 }
 
+/// A page of `files` picked with `r` (in `[0, 1)`), never the one at `shown`
+/// while there is another; `None` without any page.
+pub fn random_page<'f>(files: &'f [FileEntry], shown: Option<&str>, r: f64) -> Option<&'f FileEntry> {
+    let others: Vec<&FileEntry> = files.iter().filter(|f| Some(f.path.as_str()) != shown).collect();
+    let pool: Vec<&FileEntry> = if others.is_empty() { files.iter().collect() } else { others };
+    let i = ((r.clamp(0.0, 1.0) * pool.len() as f64) as usize).min(pool.len().checked_sub(1)?);
+    Some(pool[i])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn random_page_skips_the_page_shown() {
+        let files = vec![entry("/p/A.org"), entry("/p/B.org")];
+        for r in [0.0, 0.5, 0.999, 1.0] {
+            assert_eq!(random_page(&files, Some("/p/A.org"), r).unwrap().path, "/p/B.org");
+        }
+        assert_eq!(random_page(&files, None, 0.0).unwrap().path, "/p/A.org");
+        assert_eq!(random_page(&files[..1], Some("/p/A.org"), 0.3).unwrap().path, "/p/A.org");
+        assert!(random_page(&[], None, 0.3).is_none());
+    }
 
     fn entry(path: &str) -> FileEntry {
         let name = file_name(path).rsplit_once('.').unwrap().0.to_string();

@@ -1,5 +1,5 @@
 //! The keybinding profiles of the user's own, each in its file named after it
-//! (`keybindings/<name>.json`); the built-in profiles are in the code, and the
+//! (`keybindings/<name>.yaml`); the built-in profiles are in the code, and the
 //! profile in effect is a setting (`keybinding_profile`). The shortcuts
 //! themselves (actions, presets) are defined in `orgamnesia_core::keybindings`;
 //! the backend only stores them.
@@ -23,6 +23,7 @@ const OLD_FILE: &str = "keybindings.json";
 /// the shortcuts, or the profile chosen), profiles named by an id with their
 /// name in them. Returns then the name of the profile chosen, now a setting.
 pub fn load(dir: &Path, config: &mut ConfigState) -> Option<String> {
+    config_files::convert_legacy(dir);
     let migrated = migrate(dir);
     for file in config_files::profiles_on_disk(dir) {
         let text = std::fs::read_to_string(config_files::path(dir, &file)).ok();
@@ -37,9 +38,9 @@ fn migrate(dir: &Path) -> Option<String> {
     let named: Vec<(File, String, Profile)> = config_files::profiles_on_disk(dir).into_iter().filter_map(|file| {
         let File::Profile(id) = &file else { return None };
         let text = std::fs::read_to_string(config_files::path(dir, &file)).ok()?;
-        let map = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&text).ok()?;
+        let map = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&text).ok()?;
         let name = map.get("name")?.as_str()?.to_string();
-        let p = serde_json::from_str::<ProfileFile>(&text).ok()?;
+        let p = serde_yaml_ng::from_str::<ProfileFile>(&text).ok()?;
         let profile = Profile { id: id.clone(), name, editor_preset: p.editor_preset, app: p.app, editor: p.editor };
         Some((file, text, profile))
     }).collect();
@@ -105,7 +106,7 @@ mod tests {
         let mut config = ConfigState::default();
         assert_eq!(load(&dir, &mut config).as_deref(), Some("Mine"));
         assert!(config.problems().is_empty(), "{:?}", config.problems());
-        assert!(!dir.join(OLD_FILE).exists() && dir.join("keybindings/Mine.json").exists());
+        assert!(!dir.join(OLD_FILE).exists() && dir.join("keybindings/Mine.yaml").exists());
         assert_eq!(config.keybindings(Some("Mine")).app_binds("save"), &["ctrl+j".to_string()]);
         // Nothing left to bring up to date
         assert_eq!(load(&dir, &mut ConfigState::default()), None);

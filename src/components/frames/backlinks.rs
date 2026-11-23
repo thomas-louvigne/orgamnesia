@@ -42,7 +42,7 @@ pub fn BacklinksFrame() -> impl IntoView {
     let open_backlink = move |name: String| open_page(ctx, name, None);
 
     view! {
-        <div class="frame frame-grow panel-section">
+        <div class="frame frame-grow panel-section" data-frame="backlinks">
             <div class="panel-header">{move || t("backlinks", ctx.lang.get())}</div>
             <div class="panel-body">
                 {move || {

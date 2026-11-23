@@ -38,27 +38,39 @@ struct State {
     session: Option<Session>,
     #[serde(default)]
     assets_declined: Vec<String>,
+    #[serde(default)]
+    keep_json: bool,
+    #[serde(default)]
+    tui_left_width: Option<u16>,
+    #[serde(default)]
+    tui_right_width: Option<u16>,
 }
 
-/// The settings (`settings.json`) and what the app keeps for itself
+/// The settings (`settings.yaml`) and what the app keeps for itself
 /// (`state.json`), as the app starts; `config` learns what the configuration
 /// files hold (the keybinding profiles too). Files of older versions are
-/// brought up to date, kept as they were as versions: a `settings.json` holding
+/// brought up to date, kept as they were as versions: settings holding
 /// what `state.json` now does is split; the keybinding profile chosen, once in
 /// `keybindings.json`, is now a setting.
 pub fn load(config_dir: &Path, config: &mut ConfigState) -> Settings {
+    // The JSON files of older versions as YAML first: the steps below read YAML
+    let converted = !config_files::path(config_dir, &File::Settings).exists() && config_dir.join(File::Settings.legacy_name()).exists();
+    config_files::convert_legacy(config_dir);
     let text = std::fs::read_to_string(config_files::path(config_dir, &File::Settings)).ok();
-    let mut settings: Settings = text.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default();
+    let mut settings: Settings = text.as_deref().and_then(|s| serde_yaml_ng::from_str::<Option<Settings>>(s).ok()).flatten().unwrap_or_default();
     // Nothing set yet: the interface asks what matters first
     settings.first_run = text.is_none();
     // The text read as the one in effect, and whether to write it again up to date
-    let (mut in_effect, mut rewrite) = (text.clone(), false);
+    // (a file converted gets the comments the app writes)
+    let (mut in_effect, mut rewrite) = (text.clone(), converted);
     match std::fs::read_to_string(config_dir.join(STATE_FILE)).ok().and_then(|s| serde_json::from_str::<State>(&s).ok()) {
         Some(state) => {
             settings.vault_path = state.vault_path;
             settings.projects = state.projects;
             settings.session = state.session;
             settings.assets_declined = state.assets_declined;
+            settings.keep_json = state.keep_json;
+            (settings.tui_left_width, settings.tui_right_width) = (state.tui_left_width, state.tui_right_width);
         }
         None => {
             if let Some(rest) = text.as_deref().and_then(without_state) && save_state(config_dir, &settings).is_ok() {
@@ -80,16 +92,16 @@ pub fn load(config_dir: &Path, config: &mut ConfigState) -> Settings {
     settings
 }
 
-/// `text`, a `settings.json` written before `state.json` existed, without what
+/// `text`, settings written before `state.json` existed, without what
 /// `state.json` now holds; `None` when it holds none of it.
 fn without_state(text: &str) -> Option<String> {
-    let mut map = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(text).ok()?;
+    let mut map = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(text).ok()?;
     let before = map.len();
     for k in STATE_KEYS { map.remove(k); }
-    (map.len() < before).then(|| serde_json::to_string_pretty(&map).unwrap_or_default())
+    (map.len() < before).then(|| serde_yaml_ng::to_string(&map).unwrap_or_default())
 }
 
-/// The text of `settings.json` for `settings`.
+/// The text of `settings.yaml` for `settings`.
 pub fn config_text(settings: &Settings) -> String {
     to_text(&Content::Settings(settings.config.clone()))
 }
@@ -101,6 +113,9 @@ pub fn save_state(config_dir: &Path, settings: &Settings) -> Result<(), AppError
         projects: settings.projects.clone(),
         session: settings.session.clone(),
         assets_declined: settings.assets_declined.clone(),
+        keep_json: settings.keep_json,
+        tui_left_width: settings.tui_left_width,
+        tui_right_width: settings.tui_right_width,
     };
     std::fs::create_dir_all(config_dir)?;
     crate::write_atomic(config_dir.join(STATE_FILE), serde_json::to_string_pretty(&state)?)?;
@@ -161,12 +176,64 @@ mod tests {
         assert!(!s.first_run);
         assert_eq!((s.vault_path.as_deref(), s.config.autosave), (Some("/x"), Some(false)));
         assert!(config.problems().is_empty());
-        let text = std::fs::read_to_string(dir.join("settings.json")).unwrap();
-        assert!(!text.contains("projects") && text.contains(r#""autosave": false"#));
+        let text = std::fs::read_to_string(dir.join("settings.yaml")).unwrap();
+        assert!(!text.contains("projects") && text.contains("autosave: false"), "{text}");
+        assert!(text.starts_with("# Orgamnesia"));
+        // The JSON file stays, for an older version of the app
+        assert!(dir.join("settings.json").exists());
         assert_eq!(config_files::versions(&dir, &File::Settings).len(), 1);
         // Read again: the same, from both files
         let again = load(&dir, &mut ConfigState::default());
         assert_eq!(again, Settings { session: None, ..s });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_update_from_1_7_converts_the_json_files() {
+        // The configuration folder as version 1.7.0 left it
+        let dir = std::env::temp_dir().join(format!("orgamnesia-settings-update-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("keybindings")).unwrap();
+        std::fs::create_dir_all(dir.join("history")).unwrap();
+        std::fs::write(dir.join("settings.json"), r#"{
+  "language": "fr",
+  "autosave": true,
+  "org_links": {"pipe": true, "hash": false, "markdown": true},
+  "frames_left": ["pages", "tags"],
+  "trash_keep_days": 30,
+  "git_commit_template": "Notes du {date}",
+  "keybinding_profile": "Personnalisé"
+}"#).unwrap();
+        std::fs::write(dir.join("state.json"), r#"{"vault_path": "/notes", "projects": ["/notes"]}"#).unwrap();
+        std::fs::write(dir.join("keybindings/Personnalisé.json"), r#"{"editor_preset": "emacs", "app": {"quick_open": ["ctrl+x b", "alt+k"]}, "editor": {"find": ["ctrl+s"]}}"#).unwrap();
+        std::fs::write(dir.join("history/settings-1.json"), r#"{"autosave": false}"#).unwrap();
+        let json = std::fs::read_to_string(dir.join("settings.json")).unwrap();
+
+        let mut config = ConfigState::default();
+        let s = load(&dir, &mut config);
+        assert!(config.problems().is_empty(), "{:?}", config.problems());
+        assert!(!s.first_run);
+        // The same settings, read from the YAML written
+        let c = &s.config;
+        assert_eq!((c.language.as_deref(), c.autosave, c.trash_keep_days), (Some("fr"), Some(true), Some(30)));
+        assert_eq!(c.org_links.map(|l| (l.pipe, l.hash, l.markdown)), Some((true, false, true)));
+        assert_eq!(c.frames_left.as_deref(), Some(&["pages".to_string(), "tags".to_string()][..]));
+        assert_eq!(c.git_commit_template.as_deref(), Some("Notes du {date}"));
+        assert_eq!((s.vault_path.as_deref(), s.projects.len()), (Some("/notes"), 1));
+        let yaml = std::fs::read_to_string(dir.join("settings.yaml")).unwrap();
+        assert!(yaml.starts_with("# Orgamnesia") && yaml.contains("# TUI version: no images"), "{yaml}");
+        // The profile, YAML too, in effect
+        assert!(dir.join("keybindings/Personnalisé.yaml").exists());
+        let kb = config.keybindings(c.keybinding_profile.as_deref());
+        assert_eq!(kb.active_profile, "Personnalisé");
+        assert_eq!(kb.app_binds("quick_open"), &["ctrl+x b".to_string(), "alt+k".to_string()]);
+        // The versions kept by 1.7.0 still listed and read
+        assert_eq!(config_files::version(&dir, &File::Settings, 1).unwrap(), r#"{"autosave": false}"#);
+        // The JSON files left as they were (for 1.7.0), and the conversion done once
+        assert_eq!(std::fs::read_to_string(dir.join("settings.json")).unwrap(), json);
+        let again = load(&dir, &mut ConfigState::default());
+        assert_eq!(again.config, s.config);
+        assert_eq!(std::fs::read_to_string(dir.join("settings.yaml")).unwrap(), yaml);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

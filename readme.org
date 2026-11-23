@@ -41,7 +41,7 @@ contribution.
 | System                        | File           | Install                                       |
 |-------------------------------+----------------+-----------------------------------------------|
 | Debian, Ubuntu, Mint…         | =.deb=         | =sudo apt install ./Orgamnesia_*.deb=         |
-| Arch Linux                    | =.pkg.tar.zst= | =sudo pacman -U orgamnesia-*.pkg.tar.zst=     |
+| Arch Linux                    | AUR            | =yay -S orgamnesia-bin=                       |
 | Any Linux                     | =.AppImage=    | =chmod +x Orgamnesia_*.AppImage=, then run it |
 | macOS 11+ (experimental)      | =.dmg=         | drag Orgamnesia to Applications               |
 | Windows 10, 11 (experimental) | =-setup.exe=   | double-click, then "Next"                     |
@@ -81,6 +81,8 @@ From the sources, =main= on Arch, macOS and Windows particulars:
   replace (Ctrl+Shift+F), page history, switching project from the keyboard.
 - *Graph* (beta): the pages and their links in 3D.
 - *Journal*: a page for each day, named by its date (=2026-11-15=). A shortcut opens today's page, and creates it if it doesn't exist yet.
+- *Random page*: a shortcut (or the =>= commands) opens a page picked at random, to bring old notes back.
+- *Zen mode*: =F11= leaves only the page, full screen; =F11= again brings everything back.
 - *Frames*: pages, backlinks, tags, to do, git, tips… placed where you want.
 - *Themes*: Night, Day, Fjord, Paper, Dracula, or your own in one CSS file.
 - *Export* of a page as PDF or HTML, *static site* with
@@ -88,7 +90,7 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 - *Spelling*: misspelled words underlined, suggestions on right click, your own
   dictionary (Hunspell).
 - *Safety net*: autosave, trash with undo, pages changed elsewhere reloaded.
-- *Settings as text*: JSON opened in the editor, checked as you type, applied at once,
+- *Settings as text*: YAML (with comments) opened in the editor, checked as you type, applied at once,
   with a history.
 - *Interface* in French and English, signed *updates* from inside the app.
 
@@ -99,13 +101,19 @@ From the sources, =main= on Arch, macOS and Windows particulars:
 
 Every detail, with all the shortcuts: [[file:docs/features.org][docs/features.org]].
 
+*Terminal (beta)*: =orgamnesia -nw [folder]= (or =--tui=, =-t=) opens the project (else the last one) in the terminal, without a window. *It is still a beta*: less used than the window, with rough edges and changes to come; keep your notes under git or backed up.
+
+[[file:docs/images/tui.png]]
+
+ Type to filter the pages, =Enter= edits the page right there, drawn in colour as in the window; =Esc= saves it and goes back to the pages. The shortcuts are those of your keybinding profile, the editing ones done by the same code as the window's (moving, region, kill ring, folding, tables, TODO states, emphasis, dates, links, search and replace, git, projects); =F1= lists them. The mouse moves the cursor, picks a page and drags the border of the pages. The screen splits as in Emacs (=C-x 2=, =C-x 3=). Not in the terminal yet: export (HTML, PDF).
+
 * Your data
 
 - *Pages*: the =.org= and =.md= files in your folder. That's it.
 - *No telemetry.* The network is only used for updates (can be turned off), git, and
   the online videos or images in your pages.
-- *Settings*: JSON files you can keep under version control, =settings.json= and
-  =keybindings/<name>.json=. A missing option takes its default value. They live in
+- *Settings*: YAML files (with =#= comments) you can keep under version control, =settings.yaml= and
+  =keybindings/<name>.yaml=. A missing option takes its default value. They live in
   =~/.config/com.orgamnesia.app/= (Linux),
   =~/Library/Application Support/com.orgamnesia.app/= (macOS) or
   =%APPDATA%\com.orgamnesia.app\= (Windows).
@@ -128,17 +136,21 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [X] Test on macOS: works, according to a user
 - [ ] Package in the Debian repositories
 - [ ] Vi keybindings
-- [ ] Second brain with AI: a =CLAUDE.md= template to put in a project, so an agent (Claude Code…) understands the pages, links, tags and TODOs
+- [X] Second brain with AI: a =CLAUDE.md= template ([[file:docs/CLAUDE.template.md][docs/CLAUDE.template.md]]) to put in a project, so an agent (Claude Code…) understands the pages, links, tags and TODOs
 - [ ] MCP server: search, read, backlinks, tags, TODOs and page creation from Claude Desktop, Claude Code or another client
 - [ ] Unlinked mentions: the pages naming the open page without a link, with a button to link them
 - [ ] Quick capture into an Inbox page, and a weekly review (pages changed, open TODOs)
 - [ ] Agenda: the =SCHEDULED:= and =DEADLINE:= of the pages, by date, in a frame
 - [ ] Aliases (=#+ALIAS:=, Logseq's =alias::=): a page answering to several names
-- [ ] Bring notes back: a random page, orphan pages (no link at all), what was written a year ago
+- [X] Random page
+- [ ] Bring notes back: orphan pages (no link at all), what was written a year ago
 - [ ] Page templates: a skeleton to choose when creating a page (character, quest, meeting…)
 - [ ] Terminal in the editor
 - [ ] Folders and subfolders in the notes
 - [ ] Footnotes
+- [ ] Git diff & merge tools: see the changes of a page, resolve a diverged history or a conflict without a terminal
+- [X] Zen mode: only the text, without frames or bars
+- [ ] Multiple cursors
 
 * License
 

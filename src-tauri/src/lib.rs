@@ -8,6 +8,7 @@ pub mod project;
 pub mod settings;
 pub mod spell;
 pub mod tags;
+pub mod tui;
 pub mod update;
 pub mod watch;
 
@@ -138,7 +139,7 @@ use settings::{Prefs, Settings};
 pub struct AppState {
     /// The open project, if any.
     pub project: Mutex<Option<Project>>,
-    /// The settings, as last read from or written to `settings.json` and `state.json`.
+    /// The settings, as last read from or written to `settings.yaml` and `state.json`.
     pub settings: Mutex<Settings>,
     /// The configuration files: the text in effect of each, what is wrong in them.
     pub config: Mutex<config_files::ConfigState>,

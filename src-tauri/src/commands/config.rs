@@ -157,6 +157,33 @@ fn read_default(state: &AppState, file: &File) -> Cmd<String> {
     }
 }
 
+/// The JSON settings files of older versions now converted to YAML, whose
+/// deletion is offered: none when the user chose to keep them.
+#[tauri::command]
+pub async fn json_leftovers(state: State<'_, AppState>, app: AppHandle) -> Cmd<Vec<String>> {
+    let dir = config_dir(&app)?;
+    Ok(leftovers(&state, &dir).iter().map(File::legacy_name).collect())
+}
+
+fn leftovers(state: &AppState, dir: &Path) -> Vec<File> {
+    if state.settings().keep_json { return vec![]; }
+    config_files::json_leftovers(dir, &crate::lock(&state.config))
+}
+
+/// The JSON files no longer needed deleted (`remove`, kept as versions), or
+/// kept: then not offered again.
+#[tauri::command]
+pub async fn answer_json(state: State<'_, AppState>, app: AppHandle, remove: bool) -> Cmd<()> {
+    answer_leftovers(&state, &config_dir(&app)?, remove)
+}
+
+pub fn answer_leftovers(state: &AppState, dir: &Path, remove: bool) -> Cmd<()> {
+    if remove { return config_files::remove_json(dir, &leftovers(state, dir)); }
+    let mut s = state.settings();
+    s.keep_json = true;
+    store_state(state, dir, s)
+}
+
 /// The configuration files found wrong as the app started, and why.
 #[tauri::command]
 pub async fn config_problems(state: State<'_, AppState>) -> Cmd<Vec<Invalid>> {
@@ -169,6 +196,31 @@ mod tests {
     use crate::commands::testing::{block_on, folder, mock_app};
     use orgamnesia_core::keybindings::Profile;
     use tauri::Manager;
+
+    #[test]
+    fn json_files_converted_are_offered_for_deletion() {
+        let dir = folder("cmd-json-leftovers");
+        std::fs::write(dir.join("settings.json"), r#"{"autosave": true}"#).unwrap();
+        let state = AppState::new();
+        *crate::lock(&state.settings) = settings::load(&dir, &mut crate::lock(&state.config));
+        assert_eq!(leftovers(&state, &dir), vec![File::Settings]);
+        // A YAML file changed since: the JSON one no longer holds the same, not offered
+        std::fs::write(dir.join("settings.yaml"), "autosave: false\n").unwrap();
+        crate::lock(&state.config).reread(&dir, &File::Settings);
+        assert!(leftovers(&state, &dir).is_empty());
+        std::fs::write(dir.join("settings.yaml"), "autosave: true\n").unwrap();
+        crate::lock(&state.config).reread(&dir, &File::Settings);
+        // Kept: not offered again
+        answer_leftovers(&state, &dir, false).unwrap();
+        assert!(leftovers(&state, &dir).is_empty() && dir.join("settings.json").exists());
+        // Deleted: kept as a version of the YAML file
+        crate::lock(&state.settings).keep_json = false;
+        answer_leftovers(&state, &dir, true).unwrap();
+        assert!(!dir.join("settings.json").exists());
+        let kept = config_files::versions(&dir, &File::Settings);
+        assert!(kept.iter().any(|&v| config_files::version(&dir, &File::Settings, v).unwrap() == r#"{"autosave": true}"#));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn profile(id: &str, name: &str) -> Profile {
         Profile { id: id.into(), name: name.into(), editor_preset: "emacs".into(), app: Default::default(), editor: Default::default() }
@@ -185,7 +237,7 @@ mod tests {
         save_settings(&state, &dir, s).unwrap();
         let now = state.settings();
         assert_eq!((now.config.autosave, now.config.keybinding_profile.as_deref()), (Some(false), Some("emacs")));
-        assert!(std::fs::read_to_string(dir.join("settings.json")).unwrap().contains(r#""autosave": false"#));
+        assert!(std::fs::read_to_string(dir.join("settings.yaml")).unwrap().contains("autosave: false"));
         assert!(std::fs::read_to_string(dir.join("state.json")).unwrap().contains("/x"));
     }
 
@@ -198,7 +250,7 @@ mod tests {
         assert_eq!(saved.active_profile, "Mine");
         assert_eq!(state.settings().config.keybinding_profile.as_deref(), Some("Mine"));
         let names: Vec<String> = list_files(&dir).into_iter().map(|f| f.name).collect();
-        assert_eq!(names, vec!["settings.json", "keybindings/Mine.json"]);
+        assert_eq!(names, vec!["settings.yaml", "keybindings/Mine.yaml"]);
         // The same again: the settings are not written again
         save_keybindings(&state, &dir, &saved).unwrap();
         assert_eq!(config_files::versions(&dir, &File::Settings).len(), 0);
@@ -209,11 +261,11 @@ mod tests {
         let dir = folder("cmd-apply");
         let state = AppState::new();
         // Nothing on disk yet: the settings in effect
-        assert!(read(&state, &dir, &File::Settings).unwrap().contains("\"autosave\": null"));
+        assert!(read(&state, &dir, &File::Settings).unwrap().contains("autosave: null"));
         assert!(read(&state, &dir, &File::Profile("Mine".into())).is_err());
         // Wrong: refused, nothing written
         assert!(matches!(apply(&state, &dir, &File::Settings, "{"), Err(AppError::ConfigInvalid(_))));
-        assert!(!dir.join("settings.json").exists());
+        assert!(!dir.join("settings.yaml").exists());
         let effect = apply(&state, &dir, &File::Settings, r#"{"autosave": false}"#).unwrap();
         assert_eq!(effect.settings.autosave, Some(false));
         assert_eq!(state.settings().config.autosave, Some(false));
@@ -235,13 +287,13 @@ mod tests {
         let back = restore(&state, &dir, &File::Settings, Some(versions[0])).unwrap();
         assert_eq!((back.content.as_str(), back.effect.settings.autosave), (r#"{"autosave": false}"#, Some(false)));
         // Spoilt outside the app: the last valid one comes back
-        std::fs::write(dir.join("settings.json"), "{").unwrap();
+        std::fs::write(dir.join("settings.yaml"), "{").unwrap();
         let back = restore(&state, &dir, &File::Settings, None).unwrap();
-        assert_eq!(std::fs::read_to_string(dir.join("settings.json")).unwrap(), back.content);
+        assert_eq!(std::fs::read_to_string(dir.join("settings.yaml")).unwrap(), back.content);
         // None known: the one in effect
         let fresh = AppState::new();
         let back = restore(&fresh, &folder("cmd-restore-none"), &File::Settings, None).unwrap();
-        assert!(back.content.contains("\"autosave\": null"));
+        assert!(back.content.contains("autosave: null"));
     }
 
     #[test]

@@ -5,46 +5,9 @@
 pub use orgamnesia_core::links::{file_target, is_page_target, targets};
 use orgamnesia_core::hashtags::{hashtag_at, tag_ranges};
 use orgamnesia_core::links::{link_at, split};
-use orgamnesia_core::{Hashtags, TagSyntax};
+use orgamnesia_core::TagSyntax;
 
-/// The `[[target` being typed when the caret is at `caret` (inside `[[…`, before
-/// any `]` or `[`, on the same line): returns the index where the target starts
-/// and the part already typed.
-pub fn link_prefix(chars: &[char], caret: usize) -> Option<(usize, String)> {
-    let mut start = caret;
-    while start > 0 && !matches!(chars[start - 1], '[' | ']' | '\n') { start -= 1; }
-    if start < 2 || chars[start - 1] != '[' || chars[start - 2] != '[' { return None; }
-    Some((start, chars[start..caret].iter().collect()))
-}
-
-/// The place being typed in a link: `Page::*Ti` → (`Page`, `*Ti`, where `*Ti`
-/// starts); `*Ti` → (``, `*Ti`, 0), a headline of this page.
-pub fn place_prefix(prefix: &str) -> Option<(String, String, usize)> {
-    match prefix.split_once(orgamnesia_core::links::SEPARATOR) {
-        Some((page, place)) => Some((page.trim().to_string(), place.to_string(), page.chars().count() + 2)),
-        None => prefix.starts_with('*').then(|| (String::new(), prefix.to_string(), 0)),
-    }
-}
-
-/// Page names completing `prefix` (ignoring case and accents): names starting with it first
-/// (shortest first), then names containing it; the exact name is left out. With
-/// `tag: Some(_)`, only names usable as such a `#tag` are kept.
-pub fn complete_page(names: &[String], prefix: &str, tag: Option<Hashtags>, limit: usize) -> Vec<String> {
-    let p = orgamnesia_core::names::fold(prefix.trim());
-    let mut starts = Vec::new();
-    let mut contains = Vec::new();
-    for name in names {
-        let valid = tag.is_none_or(|t| name.chars().next().is_some_and(char::is_alphanumeric)
-            && name.chars().all(|c| t.is_tag_char(c)));
-        let n = orgamnesia_core::names::fold(name);
-        if !valid || n == p { continue; }
-        if n.starts_with(&p) { starts.push(name.clone()); }
-        else if n.contains(&p) { contains.push(name.clone()); }
-    }
-    starts.sort_by_key(|n| (n.chars().count(), n.to_lowercase()));
-    contains.sort_by_key(|n| n.to_lowercase());
-    starts.into_iter().chain(contains).take(limit).collect()
-}
+pub use orgamnesia_core::complete::{complete_page, place_prefix};
 
 /// Char range of the target text of the first `[[target]]` / `[[target][label]]`
 /// (or `[[target::place]]`) link naming `target`, else of the first `#tag` or `:tag:` naming it (per `tags`).
@@ -80,46 +43,9 @@ pub fn find_link(chars: &[char], target: &str, ignore_case: bool, tags: TagSynta
 mod tests {
     use super::*;
 
-    #[test]
-    fn place_being_typed() {
-        assert_eq!(place_prefix("Page::*Ti"), Some(("Page".into(), "*Ti".into(), 6)));
-        assert_eq!(place_prefix(" Idée ::cib"), Some(("Idée".into(), "cib".into(), 8)));
-        assert_eq!(place_prefix("*Ti"), Some((String::new(), "*Ti".into(), 0)));
-        assert_eq!(place_prefix("Page"), None);
-    }
-    use orgamnesia_core::OrgTags;
+    use orgamnesia_core::{Hashtags, OrgTags};
 
     fn c(s: &str) -> Vec<char> { s.chars().collect() }
-
-    #[test]
-    fn complete_page_ranks_prefix_matches_first() {
-        let names: Vec<String> = ["Rust", "rust-async", "Trust", "Notes", "my page", "Rustacean"]
-            .iter().map(|s| s.to_string()).collect();
-        let d = Some(Hashtags::Dashes);
-        assert_eq!(complete_page(&names, "ru", d, 10), vec!["Rust", "Rustacean", "rust-async", "Trust"]);
-        // The exact name is not proposed; names with spaces can't be tags
-        assert_eq!(complete_page(&names, "rust", d, 10), vec!["Rustacean", "rust-async", "Trust"]);
-        assert_eq!(complete_page(&names, "", d, 2), vec!["Rust", "Notes"]);
-        assert!(complete_page(&names, "page", d, 10).is_empty());
-        // Names with a dash can't be org-mode style tags
-        assert_eq!(complete_page(&names, "ru", Some(Hashtags::Org), 10), vec!["Rust", "Rustacean", "Trust"]);
-        // Links accept any page name
-        assert_eq!(complete_page(&names, "page", None, 10), vec!["my page"]);
-        // Accents ignored
-        let names: Vec<String> = ["Règles", "Élody"].iter().map(|s| s.to_string()).collect();
-        assert_eq!(complete_page(&names, "regle", None, 10), vec!["Règles"]);
-        assert_eq!(complete_page(&names, "elo", None, 10), vec!["Élody"]);
-    }
-
-    #[test]
-    fn link_prefix_while_typing() {
-        assert_eq!(link_prefix(&c("see [[my pa"), 11), Some((6, "my pa".into())));
-        assert_eq!(link_prefix(&c("[[]]"), 2), Some((2, String::new())));
-        assert_eq!(link_prefix(&c("[[a][lab"), 8), None);   // in the label
-        assert_eq!(link_prefix(&c("[[a]] b"), 7), None);    // after the link
-        assert_eq!(link_prefix(&c("[x"), 2), None);
-        assert_eq!(link_prefix(&c("[[a\nb"), 5), None);     // other line
-    }
 
     #[test]
     fn org_tag_link_found() {

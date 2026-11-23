@@ -40,7 +40,7 @@ pub struct Keybindings {
 /// default language, as the settings window names it).
 pub const DEFAULT_PROFILE_NAME: &str = "Personnalisé";
 
-/// `keybindings/<name>.json`: a profile of the user's own, named after its file.
+/// `keybindings/<name>.yaml`: a profile of the user's own, named after its file.
 /// Which profile is active is a setting (`keybinding_profile`); the built-in
 /// profiles are in the code.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -244,6 +244,15 @@ pub enum AppAction {
     NewPage, Save, OpenSettings, ShowShortcuts, QuickOpen, ProjectSearch, ProjectReplace, AddTag, CloseTab, NextTab, PrevTab, PageBack, PageForward,
     SplitVertical, SplitHorizontal, CloseSplit, SingleWindow, OtherWindow, NextRegion, PrevRegion, Quit,
     GitCommit, GitPull, GitPush, GitHistory, ExportPdf, ExportHtml, Graph, SwitchProject, Journal,
+    /// Open a page of the project picked at random (not the one shown).
+    RandomPage,
+    /// Only the page, full screen: no columns, tabs nor bars.
+    ZenMode,
+    /// Rename the page; the TODO headlines, the tags, the pages linking here, the
+    /// pages not created yet (the window's frames, the terminal's panels).
+    RenamePage, TodosPanel, TagsPanel, BacklinksPanel, BrokenPanel,
+    /// The list of the pages (its frame).
+    PagesPanel,
 }
 
 /// Editor actions.
@@ -260,9 +269,24 @@ pub enum EditorAction {
     BackToIndentation, PreviousHeading, NextHeading, BackwardHeading, ForwardHeading, UpHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell, GlobalCycle,
     InsertLink, InsertDate, InsertInactiveDate,
-    Bold, Italic, Underline, Strikethrough, TodoNext, TodoPrev,
+    Bold, Italic, Underline, Strikethrough, Quote, TodoNext, TodoPrev,
     PromoteSubtree, DemoteSubtree, MoveLineUp, MoveLineDown, SpellNext,
 }
+
+/// The editor actions the command list (`>`) offers too, in the window and the
+/// terminal: those worth a name. Not the moves, nor what only makes sense chained
+/// at the keyboard (mark, zap, yank-pop), nor the clipboard (the right-click menu has it).
+pub const PALETTE_EDITOR_ACTIONS: &[EditorAction] = {
+    use EditorAction::*;
+    &[
+        InsertLink, InsertDate, InsertInactiveDate,
+        Bold, Italic, Underline, Strikethrough, Quote,
+        NewHeading, TodoNext, TodoPrev, PromoteSubtree, DemoteSubtree, GlobalCycle, MoveLineUp, MoveLineDown,
+        Find, Replace, OpenLink, SpellNext,
+        UpcaseWord, DowncaseWord, CapitalizeWord, UpcaseRegion, DowncaseRegion, FillParagraph,
+        Undo, Redo, SelectAll, DeleteHorizontalSpace, JustOneSpace, DeleteIndentation,
+    ]
+};
 
 impl AppAction {
     pub fn from_id(id: &str) -> Option<Self> {
@@ -307,6 +331,14 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::Graph, id: "graph", label_key: "shortcut_graph" },
     ActionDef { action: AppAction::SwitchProject, id: "switch_project", label_key: "shortcut_switch_project" },
     ActionDef { action: AppAction::Journal, id: "journal", label_key: "shortcut_journal" },
+    ActionDef { action: AppAction::RandomPage, id: "random_page", label_key: "shortcut_random_page" },
+    ActionDef { action: AppAction::ZenMode, id: "zen_mode", label_key: "shortcut_zen_mode" },
+    ActionDef { action: AppAction::RenamePage, id: "rename_page", label_key: "shortcut_rename_page" },
+    ActionDef { action: AppAction::TodosPanel, id: "panel_todos", label_key: "shortcut_panel_todos" },
+    ActionDef { action: AppAction::TagsPanel, id: "panel_tags", label_key: "shortcut_panel_tags" },
+    ActionDef { action: AppAction::BacklinksPanel, id: "panel_backlinks", label_key: "shortcut_panel_backlinks" },
+    ActionDef { action: AppAction::BrokenPanel, id: "panel_broken", label_key: "shortcut_panel_broken" },
+    ActionDef { action: AppAction::PagesPanel, id: "panel_pages", label_key: "shortcut_panel_pages" },
 ];
 
 /// Every editor action, whatever the profile: a profile simply leaves the ones
@@ -380,6 +412,7 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Italic, id: "italic",              label_key: "shortcut_italic" },
     ActionDef { action: EditorAction::Underline, id: "underline",           label_key: "shortcut_underline" },
     ActionDef { action: EditorAction::Strikethrough, id: "strikethrough",       label_key: "shortcut_strikethrough" },
+    ActionDef { action: EditorAction::Quote, id: "quote",               label_key: "shortcut_quote" },
     ActionDef { action: EditorAction::TodoNext, id: "todo_next",           label_key: "shortcut_todo_next" },
     ActionDef { action: EditorAction::TodoPrev, id: "todo_prev",           label_key: "shortcut_todo_prev" },
     ActionDef { action: EditorAction::PromoteSubtree, id: "promote_subtree", label_key: "shortcut_promote_subtree" },
@@ -439,6 +472,15 @@ pub fn default_app() -> Bindings {
         ("graph",            &["ctrl+shift+m"]),
         ("switch_project",   &["ctrl+alt+p"]),
         ("journal",          &["ctrl+shift+j"]),
+        ("random_page",      &["ctrl+alt+r"]),
+        ("zen_mode",         &["F11", "ctrl+alt+z"]),
+        // Function keys free in both profiles (and in terminals)
+        ("rename_page",      &["F2"]),
+        ("panel_todos",      &["F4"]),
+        ("panel_tags",       &["F5"]),
+        ("panel_backlinks",  &["F8"]),
+        ("panel_broken",     &["F9"]),
+        ("panel_pages",      &["F10"]),
     ])
 }
 
@@ -558,6 +600,14 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("switch_project",   &["ctrl+x p p", "ctrl+alt+p"]),
             // As org-journal's `C-c C-j`, without the second Ctrl
             ("journal",          &["ctrl+c j"]),
+            ("random_page",      &["ctrl+c r"]),
+            ("zen_mode",         &["F11", "ctrl+c z"]),
+            ("rename_page",      &["F2"]),
+            ("panel_todos",      &["F4"]),
+            ("panel_tags",       &["F5"]),
+            ("panel_backlinks",  &["F8"]),
+            ("panel_broken",     &["F9"]),
+            ("panel_pages",      &["F3"]),
         ]),
         _ => default_app(),
     }

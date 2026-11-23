@@ -36,6 +36,24 @@ pub fn cycle_region(forward: bool) {
     if let Some(el) = target { let _ = el.focus(); }
 }
 
+/// Bring the frame `frame` into view and give the focus to its first item (the
+/// shortcuts of the TODO, tags, backlinks and broken links frames); said when
+/// the settings hide it.
+pub fn focus_frame(ctx: crate::state::AppCtx, frame: orgamnesia_core::Frame) {
+    if !ctx.pref_untracked(|p| p.frame_shown(frame)) {
+        ctx.notify_t("frame_off", "");
+        return;
+    }
+    let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return };
+    let Ok(Some(el)) = doc.query_selector(&format!("[data-frame='{}']", frame.id())) else { return };
+    el.scroll_into_view();
+    // The page open in the list of the pages, else the first item
+    let target = [".file-item.active", ".file-item", ".list-item", "button", "input", "a"].iter()
+        .find_map(|sel| el.query_selector(sel).ok().flatten())
+        .and_then(|el| el.dyn_into::<HtmlElement>().ok());
+    if let Some(t) = target { let _ = t.focus(); }
+}
+
 /// Keys on an item of a list (pages, backlinks, tags…): Enter or Space opens it
 /// like a click, the arrows go to the item above or below.
 pub fn list_item_keys(e: KeyboardEvent) {

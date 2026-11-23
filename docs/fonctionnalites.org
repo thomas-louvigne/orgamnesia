@@ -26,6 +26,7 @@ raccourcis Emacs et l'interface en anglais.
 - [[#thèmes][Thèmes]]
 - [[#préférences][Préférences]]
 - [[#préférences-en-texte][Préférences en texte]]
+- [[#terminal-bêta][Terminal (bêta)]]
 - [[#fichiers][Fichiers]]
 
 * Projets et pages
@@ -498,6 +499,11 @@ Comme org-mode : un mot-clé après les étoiles d'un titre donne son état.
   n'est pas dedans ; il redevient du texte pour l'éditer.
 - Tab et Maj+Tab passent à la cellule suivante ou précédente et réalignent le
   tableau, comme org-mode. Tab après la dernière cellule ajoute une ligne.
+- Entrée dans une cellule descend à la cellule du dessous, dans la même colonne, et
+  réaligne le tableau (=org-table-next-row= d'org-mode). Sans ligne en dessous, ou
+  devant une ligne de séparation, une nouvelle ligne est ajoutée sous la ligne
+  courante. Tout au début ou à la fin de la ligne, Entrée fait un simple retour à
+  la ligne.
 - =|-= puis Tab trace la ligne de séparation ; les lignes au-dessus de la première
   séparation sont l'en-tête.
 
@@ -599,6 +605,13 @@ Sans page ouverte : un bouton pour aller à une page et les raccourcis essentiel
 En bas de la fenêtre : messages (page enregistrée, erreur, combinaison en cours…).
 Après une suppression, elle propose « Annuler ». =×= la ferme.
 
+** Mode zen
+Seulement la page, en plein écran : ni colonnes, ni onglets, ni barres, pour écrire
+sans rien autour. =F11= (ou =Ctrl+Alt+Z= en Classique, =Ctrl+C Z= en Emacs), ou la
+commande « Mode zen » de l'ouverture rapide, y entre et en sort ; une ligne discrète
+en bas à droite rappelle comment en sortir. Dans le terminal, les colonnes et la
+ligne d'aide disparaissent de la même façon.
+
 * Export en PDF et en HTML
 Une page seule s'exporte depuis le menu du clic droit de son onglet ou de la liste
 des pages (« Exporter en PDF… », « Exporter en HTML… »), ou par raccourci, pour la
@@ -652,7 +665,8 @@ liens entrants, tags, à faire, pages non créées, « Le saviez-vous ? ».
 - *Graphe* : un bouton qui ouvre ou ferme le graphe (voir Graphe, dans Extensions) ; affiché
   seulement quand l'extension est activée.
 - *Le saviez-vous ?* : une astuce sur une fonctionnalité, avec son raccourci dans
-  votre profil (Classique, Emacs ou le vôtre) ; › affiche la suivante.
+  votre profil (Classique, Emacs ou le vôtre) ; › affiche la suivante. Le terminal
+  l'a aussi, dans une colonne (un clic affiche la suivante).
 
 [[file:images/tips.png]]
 
@@ -678,6 +692,10 @@ liens entrants, tags, à faire, pages non créées, « Le saviez-vous ? ».
 
 * Raccourcis clavier
 
+Orgamnesia est pensé *keyboard first* (le clavier d'abord) : chaque action est
+accessible au clavier, par son raccourci ou par les commandes =>= de l'ouverture
+rapide.
+
 ** Profils
 Deux profils intégrés, *Classique* et *Emacs*, s'appliquent à toute l'application.
 Modifier un raccourci crée un profil personnalisé (renommable, duplicable,
@@ -686,7 +704,7 @@ pour deux actions) est signalé et empêche d'enregistrer.
 
 Les profils intégrés sont dans l'application et ne se modifient pas : modifier un
 de leurs raccourcis les copie dans un profil personnalisé, qui prend effet. Chaque
-profil personnalisé est un fichier à lui, à son nom (=keybindings/Personnalisé.json=
+profil personnalisé est un fichier à lui, à son nom (=keybindings/Personnalisé.yaml=
 par défaut), modifiable en texte (voir [[#préférences-en-texte][Préférences en texte]]).
 
 Sous Linux, WebKitGTK ouvre son sélecteur d'emojis avec Ctrl+., Ctrl+; et Ctrl+M.
@@ -739,6 +757,14 @@ connaissait pas.
 | Exporter la page en HTML    | Ctrl+Maj+E       | Ctrl+C Ctrl+E H H         |
 | Graphe des pages (bêta)     | Ctrl+Maj+M       | Ctrl+C G                  |
 | Page du jour (journal)      | Ctrl+Maj+J       | Ctrl+C J                  |
+| Page au hasard              | Ctrl+Alt+R       | Ctrl+C R                  |
+| Mode zen                    | F11, Ctrl+Alt+Z  | F11, Ctrl+C Z             |
+| Renommer la page            | F2               | F2                        |
+| À faire (titres TODO)       | F4               | F4                        |
+| Tags                        | F5               | F5                        |
+| Pages qui pointent ici      | F8               | F8                        |
+| Pages pas encore créées     | F9               | F9                        |
+| La liste des pages          | F10              | F3                        |
 
 *** Éditeur
 | Action                       | Classique          | Emacs                       |
@@ -1131,17 +1157,18 @@ place du projet ouvert. Ce projet est toujours dans le menu des projets ;
 « ← <projet> », au-dessus du fichier, ramène au projet quitté, ses onglets et ses
 volets tels qu'ils étaient.
 
-- *Ses pages* : =settings.json= (les réglages, et =keybinding_profile=, le profil de
+- *Ses pages* : =settings.yaml= (les réglages, et =keybinding_profile=, le profil de
   raccourcis en vigueur : =classic=, =emacs= ou le nom d'un profil personnalisé),
-  puis un fichier =keybindings/<nom>.json= par profil personnalisé (son préset de
+  puis un fichier =keybindings/<nom>.yaml= par profil personnalisé (son préset de
   base, les raccourcis de l'application et de l'éditeur). Depuis l'onglet
   Raccourcis, le lien ouvre le fichier du profil en vigueur.
-- *Coloration JSON* : clés, chaînes, nombres, =true= / =false= / =null=. Tab et
+- *Coloration YAML* : clés, chaînes, nombres, =true= / =false= / =null=,
+  commentaires (=#=, gardés tant que l'application ne réécrit pas le fichier). Tab et
   Maj+Tab indentent et désindentent de deux espaces (les lignes sélectionnées
   s'il y a une sélection).
 - *Vérifié pendant la frappe* : la barre au-dessus du fichier indique « Fichier
   valide », ou ce qui ne va pas et où (« Ligne 3, colonne 5 : … »), souligné dans
-  le texte ; un clic sur le message y place le curseur. Sont refusés : un JSON
+  le texte ; un clic sur le message y place le curseur. Sont refusés : un YAML
   invalide, une valeur du mauvais type, une clé inconnue (une faute de frappe), un
   profil qui n'existe pas, un raccourci donné à deux actions, un fichier au nom
   d'un profil intégré. Une action inconnue n'est qu'un avertissement.
@@ -1159,10 +1186,80 @@ volets tels qu'ils étaient.
   dernière version valide. La même fenêtre s'affiche au démarrage pour un fichier
   trouvé invalide.
 
+* Terminal (bêta)
+#+begin_quote
+*Bêta.* L'interface terminal est jeune et bien moins utilisée que la fenêtre :
+attendez-vous à des aspérités, à des manques (l'export, voir plus bas) et à des
+changements d'une version à l'autre. Gardez vos notes sous git ou sauvegardées, et
+signalez ce qui ne va pas.
+#+end_quote
+
+[[file:images/tui.png]]
+
+=orgamnesia -nw [dossier]= (comme Emacs ; =--tui= et =-t= marchent aussi) ouvre le
+projet (sinon le dernier ouvert) dans le terminal, sans fenêtre :
+
+#+begin_src sh
+orgamnesia -nw              # le dernier projet ouvert
+orgamnesia --tui ~/notes    # ce dossier
+#+end_src
+
+Les réglages et les raccourcis sont ceux de la fenêtre (mêmes fichiers),
+et l'édition est faite par le même code : déplacements, zone, couper/coller, repli,
+tableaux, états TODO, mise en forme, dates, liens, recherche et remplacement, git,
+projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profil.
+
+- Liste des pages à gauche (on tape pour filtrer), =Entrée= ouvre la page dans
+  l'éditeur, =Échap= l'enregistre et revient à la liste.
+- Ouverture rapide (=quick_open=) : une boîte de recherche des pages, comme dans la fenêtre.
+- Souris : un clic place le curseur ou choisit une page, =Ctrl+clic= suit un lien, la
+  bordure de la liste se déplace. Un clic droit dans la page propose gras, italique,
+  souligné et barré pour la zone (=C-SPC=), et citation pour ses lignes ou la ligne
+  cliquée, écrits comme le veut le format de la page (org-mode ou Markdown).
+- Le titre de chaque fenêtre est le =#+TITLE:= de la page (=title:= en Markdown).
+- Raccourcis des profils, modifiables dans Réglages > Raccourcis comme les autres :
+  =F2= renomme la page (les liens suivent), =F4= les titres TODO, =F5= les tags, =F8=
+  les pages qui pointent ici, =F9= les pages pas encore créées, en panneaux ; =Entrée=
+  ou un clic ouvre la page à la ligne. Dans la fenêtre, les mêmes raccourcis ouvrent le
+  champ de renommage du titre, et donnent le focus au cadre.
+- Les cadres sont en colonnes de chaque côté de la page, disposés comme les réglages
+  les mettent pour la fenêtre (Réglages > Cadres) : projet, git, pages, rétroliens,
+  tags, TODO, pages non créées, « Le saviez-vous ? » (pas les boutons de la fenêtre). La colonne de droite
+  s'affiche dans un terminal assez large ; les deux se redimensionnent à la souris,
+  leur largeur est gardée. =F10= (=F3= dans le profil Emacs) va dans la liste des pages.
+- Complétion comme dans la fenêtre : pages après =[[=, titres après =[[Page::*=,
+  =#tags=, =:tags:=, liens Markdown (↑↓, Tab ou Entrée, Échap) ; Tab complète aussi
+  les lignes de saisie d'un tag et d'un lien.
+- La session (pages et écran découpé) revient au lancement, l'état git est en bas à
+  droite, l'aperçu en direct et la mise en avant du texte des liens suivent les réglages.
+- Ce qui est copié va aussi dans le presse-papiers du système (OSC 52 : kitty, foot,
+  WezTerm…).
+
+** Raccourcis incompatibles avec le terminal
+| Raccourci (profil Emacs)                  | Action                       | Pourquoi                                                                                                   |
+|-------------------------------------------+------------------------------+------------------------------------------------------------------------------------------------------------|
+| =C-c C-e l p=                             | export PDF                   | l'export a besoin du rendu HTML de la fenêtre et de son impression ; le terminal n'en a pas                |
+| =C-c C-e h h=                             | export HTML                  | même raison (le convertisseur dépend du code des images de la fenêtre)                                     |
+| =Ctrl+Shift+S=, =Ctrl+Shift+H=            | recherche / remplacement projet | kitty garde =Ctrl+Shift+…= pour lui (copier-coller, onglets…) : l'application ne reçoit jamais ces touches |
+| =Ctrl+Tab=, =Ctrl+Shift+Tab=              | onglet suivant / précédent   | idem, ce sont les onglets de kitty                                                                         |
+| =Ctrl+,=, =Ctrl+/=, =Ctrl+Entrée=         | réglages, annuler, ouvrir le lien | seuls les terminaux au protocole clavier de kitty (kitty, foot, WezTerm, Ghostty…) les distinguent ; ailleurs ils arrivent comme d'autres touches |
+
+Pour ces actions, gardez aussi une autre touche dans le profil (=C-x p g=, =C-x p r=,
+=C-x ←=, =C-c C-o=…) : elle marche dans les deux. Ce que le terminal fait autrement :
+=Ctrl+,= ouvre =settings.yaml= dans l'éditeur (il compte au prochain lancement), le
+graphe est une liste de liens, le commit prend tous les fichiers, l'historique liste
+les commits sans leurs différences.
+
+Les fichiers de configuration sont en YAML, qui accepte les commentaires (=#=) :
+=settings.yaml= porte à la suite de chaque réglage sans effet dans le terminal la raison
+(« # TUI version: … »), et chaque profil de raccourcis commence par ces explications. Les
+=settings.json= et =keybindings/*.json= des versions précédentes sont convertis une
+fois, et laissés tels quels pour une version plus ancienne de l'application.
+
 * Fichiers
 - Les pages restent de simples fichiers =.org= ou =.md=, lisibles et modifiables
   avec Emacs, Obsidian ou tout autre éditeur.
-- Réglages : =~/.config/com.orgamnesia.app/= : =settings.json= (les réglages),
+- Réglages : =~/.config/com.orgamnesia.app/= : =settings.yaml= (les réglages),
   =keybindings/= (les profils de raccourcis personnalisés), =themes/= (les thèmes
   de l'utilisateur), =state.json= (ce que
   l'application garde pour elle : le projet ouvert, les projets, les pages ouvertes

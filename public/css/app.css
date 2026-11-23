@@ -1551,6 +1551,7 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .qo-tag    { color: var(--purple); font-weight: bold; }
 .qo-create { color: var(--green); font-size: 15px; font-weight: bold; }
 .qo-cmd    { color: var(--accent); font-weight: bold; }
+.quick-open-item.qo-command .qo-name { color: var(--accent); }
 
 .qo-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -1724,12 +1725,12 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 .config-history-empty { padding: 6px 12px; color: var(--fg-dim); }
 
 /* The JSON of the configuration files */
-.json-key   { color: var(--accent2); }
-.json-str   { color: var(--green); }
-.json-num   { color: var(--orange); }
-.json-lit   { color: var(--cyan); }
-.json-punct { color: var(--fg-dim); }
-.json-bad   { color: var(--red); }
+.cfg-key     { color: var(--accent2); }
+.cfg-str     { color: var(--green); }
+.cfg-num     { color: var(--orange); }
+.cfg-lit     { color: var(--cyan); }
+.cfg-punct   { color: var(--fg-dim); }
+.cfg-comment { color: var(--fg-dim); font-style: italic; }
 
 /* What is wrong in the file (red), or odd (yellow), where it is */
 .problem-layer { background: transparent; color: transparent; z-index: 0; }
@@ -1769,3 +1770,15 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 /* Markdown: code (inline and fenced blocks), quotes */
 .md-code  { color: var(--green); }
 .md-quote { color: var(--fg-dim); font-style: italic; }
+
+/* Zen mode: only the page, full screen; a discreet hint to leave it */
+.zen .side-column, .zen .resizer, .zen .workspace-topbar, .zen .pane-tabs { display: none; }
+.zen-hint {
+    position: fixed;
+    right: 12px;
+    bottom: 8px;
+    font-size: var(--fs-meta);
+    color: var(--fg-dim);
+    opacity: .6;
+    pointer-events: none;
+}

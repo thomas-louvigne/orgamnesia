@@ -4,6 +4,23 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.8.2
+- Zen mode: F11 (or Ctrl+Alt+Z, C-c z in Emacs) leaves only the page, full screen, without columns, tabs nor bars; a discreet line says how to leave it. In the terminal too.
+- Random page: Ctrl+Alt+R (C-c r in Emacs), or the command of quick open, opens a page picked at random.
+- Tables: Enter in a cell goes to the cell below, as org-mode does; with no row below, a new row is added. Tab and Enter no longer put the cursor a few characters too far left in a table under a headline.
+- "Did you know?" in the terminal too, with new tips: random page, zen mode, the terminal version.
+- Right click in the page: bold, italic, underline, strikethrough and quote. The editing commands are in quick open after =>=. The terminal version also opens with -nw, --tui or -t, and Ctrl+←/→ move by word there.
+- A CLAUDE.md template (docs/CLAUDE.template.md) to put in a notes folder, so that an AI agent understands the pages, links, tags and TODOs.
+
+* 1.8.1
+- Code checks fixed (the build failed them); nothing changes in use.
+
+* 1.8.0
+- Terminal version (beta): orgamnesia --nox [folder] opens the project in the terminal, without a window. The list of pages filters as you type, pages are edited right there, highlighted as in the window, with the same shortcuts (classic, Emacs or custom profiles) and the same editing code: region, kill and yank, folding, tables, TODO states, emphasis, dates, links, find and replace, quick open, split screen, git, projects. F1 lists the shortcuts; F2 renames the page; F4, F5, F8 and F9 open the TODO headlines, the tags, the backlinks and the pages not created yet (new shortcuts, to change at will, which in the window open the title's renaming and give the focus to the frames). The window's frames (pages, backlinks, tags, TODO, pages not created, project, git) are in columns on each side, laid out as in the window, and F10 goes to the list of the pages. Names complete as in the window (links, headlines, tags). The session comes back on start, the git state shows at the bottom. The mouse places the cursor, Ctrl+click follows a link, the pages column can be resized. What doesn't work there yet is said in the documentation and in the settings files.
+- The settings are now YAML (settings.yaml, keybindings/*.yaml), which takes comments. On the first start, the JSON files of older versions are converted; when the conversion kept the same settings, the app offers to delete the old files (they stay in the settings history).
+- The settings file says, after each one, those that do nothing in the terminal version and why; each keybinding profile lists the shortcuts a terminal doesn't pass on.
+- The "preference" project highlights YAML and its comments, and checks the files as you type as before (line and column of the error).
+
 * 1.7.0
 - Journal: the pages of the days are created in a journals/ folder, next to pages/, instead of among the other pages. Its name is changed in Settings > Extensions; a posts/ or daily/ folder already there is taken automatically. Existing dated pages don't move.
 - Excalidraw: a drawing exported with its scene (.excalidraw.svg or .excalidraw.png) is shown in the page like an image, and stays editable in Excalidraw. Turned off in Settings > Display, under the images.

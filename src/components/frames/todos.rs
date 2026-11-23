@@ -50,7 +50,7 @@ pub fn TodosFrame() -> impl IntoView {
     let open_page = move |name: String, target: Option<Goto>| open_page(ctx, name, target);
 
     view! {
-        <div class="frame frame-grow panel-section">
+        <div class="frame frame-grow panel-section" data-frame="todos">
             <div class="panel-header panel-header-row">
                 <span>{move || t("todo_panel", ctx.lang.get())}</span>
                 <select

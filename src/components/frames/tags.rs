@@ -198,7 +198,7 @@ pub fn TagsFrame() -> impl IntoView {
     let open_page = move |name: String, target: Option<Goto>| open_page(ctx, name, target);
 
     view! {
-        <div class="frame frame-grow panel-section">
+        <div class="frame frame-grow panel-section" data-frame="tags">
             <div class="panel-header panel-header-row">
                 <span>{move || format!("{} ({})", t("tags", ctx.lang.get()), ctx.project.tags.with(Vec::len))}</span>
                 <button

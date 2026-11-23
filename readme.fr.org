@@ -41,7 +41,7 @@ contribution.
 | Système                       | Fichier        | Installation                                     |
 |-------------------------------+----------------+--------------------------------------------------|
 | Debian, Ubuntu, Mint…         | =.deb=         | =sudo apt install ./Orgamnesia_*.deb=            |
-| Arch Linux                    | =.pkg.tar.zst= | =sudo pacman -U orgamnesia-*.pkg.tar.zst=        |
+| Arch Linux                    | AUR            | =yay -S orgamnesia-bin=                          |
 | Tout Linux                    | =.AppImage=    | =chmod +x Orgamnesia_*.AppImage=, puis le lancer |
 | macOS 11+ (expérimental)      | =.dmg=         | glisser Orgamnesia dans Applications             |
 | Windows 10, 11 (expérimental) | =-setup.exe=   | double-cliquer, puis « Suivant »                 |
@@ -84,6 +84,8 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
   projet au clavier.
 - *Graphe* (bêta) : les pages et leurs liens en 3D.
 - *Journal* : une page par jour, nommée par sa date (=2026-11-15=). Un raccourci ouvre celle d'aujourd'hui, et la crée si elle n'existe pas encore.
+- *Page au hasard* : un raccourci (ou les commandes =>=) ouvre une page tirée au hasard, pour faire remonter de vieilles notes.
+- *Mode zen* : =F11= ne laisse que la page, en plein écran ; =F11= à nouveau ramène tout.
 - *Cadres* : pages, liens entrants, tags, à faire, git, astuces… placés où vous voulez.
 - *Thèmes* : Nuit, Jour, Fjord, Papier, Dracula, ou le vôtre en un fichier CSS.
 - *Export* d'une page en PDF ou en HTML, *site statique* avec
@@ -92,7 +94,7 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
   personnel (Hunspell).
 - *Filet de sécurité* : sauvegarde automatique, corbeille avec annulation, pages
   modifiées ailleurs rechargées.
-- *Réglages en texte* : du JSON ouvert dans l'éditeur, vérifié pendant la frappe,
+- *Réglages en texte* : du YAML (avec des commentaires) ouvert dans l'éditeur, vérifié pendant la frappe,
   appliqué à chaud, avec historique.
 - *Interface* en français et en anglais, *mises à jour* signées depuis l'application.
 
@@ -103,13 +105,19 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
 
 Le détail, avec tous les raccourcis : [[file:docs/fonctionnalites.org][docs/fonctionnalites.org]].
 
+*Terminal (bêta)* : =orgamnesia -nw [dossier]= (ou =--tui=, =-t=) ouvre le projet (sinon le dernier) dans le terminal, sans fenêtre. *C'est encore une bêta* : moins utilisée que la fenêtre, avec des aspérités et des changements à venir ; gardez vos notes sous git ou sauvegardées.
+
+[[file:docs/images/tui.png]]
+
+ On tape pour filtrer les pages, =Entrée= modifie la page sur place, colorée comme dans la fenêtre ; =Échap= l'enregistre et revient aux pages. Les raccourcis sont ceux de votre profil, ceux d'édition faits par le même code que dans la fenêtre (déplacements, zone, couper/coller, repli, tableaux, états TODO, emphase, dates, liens, recherche et remplacement, git, projets) ; =F1= les liste. La souris place le curseur, choisit une page et déplace la bordure des pages. L'écran se découpe comme dans Emacs (=C-x 2=, =C-x 3=). Pas encore dans le terminal : l'export (HTML, PDF).
+
 * Vos données
 
 - *Les pages* : les fichiers =.org= et =.md= de votre dossier. C'est tout.
 - *Aucune télémétrie.* Le réseau ne sert qu'aux mises à jour (désactivable), à git et
   aux vidéos ou images en ligne de vos pages.
-- *Les réglages* : des fichiers JSON à versionner si vous voulez, =settings.json= et
-  =keybindings/<nom>.json=. Une option absente prend sa valeur par défaut. Ils sont
+- *Les réglages* : des fichiers YAML (avec des commentaires =#=) à versionner si vous voulez, =settings.yaml= et
+  =keybindings/<nom>.yaml=. Une option absente prend sa valeur par défaut. Ils sont
   dans =~/.config/com.orgamnesia.app/= (Linux),
   =~/Library/Application Support/com.orgamnesia.app/= (macOS) ou
   =%APPDATA%\com.orgamnesia.app\= (Windows).
@@ -132,17 +140,21 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [X] Tester sur macOS : fonctionne, d'après un utilisateur
 - [ ] Paquet dans les dépôts Debian
 - [ ] Raccourcis clavier vi
-- [ ] Second cerveau avec l'IA : un modèle de =CLAUDE.md= à poser dans un projet, pour qu'un agent (Claude Code…) comprenne les pages, les liens, les tags et les TODO
+- [X] Second cerveau avec l'IA : un modèle de =CLAUDE.md= ([[file:docs/CLAUDE.template.md][docs/CLAUDE.template.md]]) à poser dans un projet, pour qu'un agent (Claude Code…) comprenne les pages, les liens, les tags et les TODO
 - [ ] Serveur MCP : chercher, lire, rétroliens, tags, TODO et créer des pages depuis Claude Desktop, Claude Code ou un autre client
 - [ ] Mentions non liées : les pages qui citent la page ouverte sans lien, avec un bouton pour lier
 - [ ] Capture rapide dans une page Inbox, et une revue de la semaine (pages modifiées, TODO ouverts)
 - [ ] Agenda : les =SCHEDULED:= et =DEADLINE:= des pages, par date, dans un cadre
 - [ ] Alias (=#+ALIAS:=, =alias::= de Logseq) : une page qui répond à plusieurs noms
-- [ ] Faire remonter les notes : une page au hasard, les pages orphelines (sans aucun lien), ce qui était écrit il y a un an
+- [X] Page au hasard
+- [ ] Faire remonter les notes : les pages orphelines (sans aucun lien), ce qui était écrit il y a un an
 - [ ] Modèles de page : un squelette à choisir en créant une page (personnage, quête, réunion…)
 - [ ] Terminal dans l'éditeur
 - [ ] Dossiers et sous-dossiers dans les notes
 - [ ] Notes de bas de page
+- [ ] Outils git de diff et de fusion : voir les changements d'une page, résoudre un historique divergé ou un conflit sans terminal
+- [X] Mode zen : seulement le texte, sans cadres ni barres
+- [ ] Curseurs multiples
 
 * Licence
 

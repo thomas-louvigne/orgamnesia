@@ -1,4 +1,4 @@
-//! The configuration files (`settings.json`, and the user's keybinding profiles
+//! The configuration files (`settings.yaml`, and the user's keybinding profiles
 //! in `keybindings/`): the text in effect of each,
 //! the versions kept to go back to, and watching them for the changes made
 //! outside the app.
@@ -76,7 +76,7 @@ impl ConfigState {
     /// the profile the settings name.
     pub fn keybindings(&self, active: Option<&str>) -> Keybindings {
         let mut profiles: Vec<(String, ProfileFile)> = self.applied.iter().filter_map(|(f, text)| match f {
-            File::Profile(name) => serde_json::from_str(text).ok().map(|p| (name.clone(), p)),
+            File::Profile(name) => orgamnesia_core::config::read_profile(text).map(|p| (name.clone(), p)),
             _ => None,
         }).collect();
         profiles.sort_by(|a, b| a.0.cmp(&b.0));
@@ -150,6 +150,52 @@ pub fn path(dir: &Path, file: &File) -> PathBuf {
     dir.join(file.name())
 }
 
+/// The files of older versions (JSON) with no YAML one yet, written as YAML:
+/// as they were (the steps bringing them up to date read them next), a
+/// profile the app can read with its comments. The JSON ones stay, for an
+/// older version of the app.
+pub fn convert_legacy(dir: &Path) {
+    let profiles = std::fs::read_dir(dir.join(PROFILES_DIR)).into_iter().flatten().filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().to_string_lossy().strip_suffix(".json").map(|n| File::Profile(n.to_string())));
+    for file in std::iter::once(File::Settings).chain(profiles) {
+        let (yaml, json) = (path(dir, &file), dir.join(file.legacy_name()));
+        if yaml.exists() { continue; }
+        let Ok(text) = std::fs::read_to_string(&json) else { continue };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
+        // A profile as the app writes it (unless older steps still have to read it)
+        let named = value.get("name").is_some();
+        let converted = match orgamnesia_core::config::from_legacy(&file, &text) {
+            Some(content @ Content::Profile(_)) if !named => to_text(&content),
+            _ => serde_yaml_ng::to_string(&value).unwrap_or_default(),
+        };
+        let _ = crate::write_atomic(&yaml, converted);
+    }
+}
+
+/// The JSON files of older versions no longer needed: those whose YAML file,
+/// in effect, holds the same (the conversion went well).
+pub fn json_leftovers(dir: &Path, config: &ConfigState) -> Vec<File> {
+    let profiles = std::fs::read_dir(dir.join(PROFILES_DIR)).into_iter().flatten().filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().to_string_lossy().strip_suffix(".json").map(|n| File::Profile(n.to_string())));
+    std::iter::once(File::Settings).chain(profiles).filter(|file| {
+        let Ok(json) = std::fs::read_to_string(dir.join(file.legacy_name())) else { return false };
+        let yaml = config.applied(file).and_then(|t| check(file, t, &config.profile_names()).ok());
+        matches!((orgamnesia_core::config::from_legacy(file, &json), yaml), (Some(old), Some(new)) if old == new.content)
+    }).collect()
+}
+
+/// Delete the JSON files `files` (see `json_leftovers`), each kept as a version
+/// of its YAML file first (JSON reads as YAML: it can be put back).
+pub fn remove_json(dir: &Path, files: &[File]) -> Result<(), AppError> {
+    for file in files {
+        let json = dir.join(file.legacy_name());
+        let Ok(text) = std::fs::read_to_string(&json) else { continue };
+        archive(dir, file, &text)?;
+        std::fs::remove_file(json)?;
+    }
+    Ok(())
+}
+
 /// The user's keybinding profiles on disk (valid or not), by id.
 pub fn profiles_on_disk(dir: &Path) -> Vec<File> {
     let mut files: Vec<File> = std::fs::read_dir(dir.join(PROFILES_DIR)).into_iter().flatten()
@@ -164,12 +210,18 @@ fn history_dir(dir: &Path) -> PathBuf {
     dir.join("history")
 }
 
-/// What the versions of `file` are named after (`settings-<stamp>.json`): `settings`, `profile-<name>`.
+/// What the versions of `file` are named after (`settings-<stamp>.yaml`): `settings`, `profile-<name>`.
 fn version_stem(file: &File) -> String {
     match file {
         File::Profile(id) => format!("profile-{id}"),
-        _ => file.name().trim_end_matches(".json").to_string(),
+        _ => file.name().trim_end_matches(".yaml").to_string(),
     }
+}
+
+/// The file of a version: YAML, or JSON when kept by an older version of the app.
+fn version_path(dir: &Path, stem: &str, stamp: u64) -> PathBuf {
+    let yaml = history_dir(dir).join(format!("{stem}-{stamp}.yaml"));
+    if yaml.exists() { yaml } else { history_dir(dir).join(format!("{stem}-{stamp}.json")) }
 }
 
 /// The versions kept of `file`, newest first: when each was replaced (ms since 1970).
@@ -184,7 +236,8 @@ fn stamps(dir: &Path, stem: &str) -> Vec<u64> {
         .filter_map(|e| e.ok())
         .filter_map(|e| {
             let name = e.file_name().to_string_lossy().to_string();
-            name.strip_prefix(&prefix)?.strip_suffix(".json")?.parse().ok()
+            let stamp = name.strip_prefix(&prefix)?;
+            stamp.strip_suffix(".yaml").or_else(|| stamp.strip_suffix(".json"))?.parse().ok()
         })
         .collect();
     stamps.sort_unstable_by(|a, b| b.cmp(a));
@@ -193,7 +246,7 @@ fn stamps(dir: &Path, stem: &str) -> Vec<u64> {
 
 /// The text of the version of `file` replaced at `stamp`.
 pub fn version(dir: &Path, file: &File, stamp: u64) -> Result<String, AppError> {
-    Ok(std::fs::read_to_string(history_dir(dir).join(format!("{}-{stamp}.json", version_stem(file))))?)
+    Ok(std::fs::read_to_string(version_path(dir, &version_stem(file), stamp))?)
 }
 
 /// Keep `text` as a version of `file` (unless it is the newest one already); the
@@ -204,7 +257,7 @@ pub fn archive(dir: &Path, file: &File, text: &str) -> Result<(), AppError> {
 
 /// Keep `text` as a version named after `stem` (also a file of an older version, gone).
 pub fn archive_as(dir: &Path, stem: &str, text: &str) -> Result<(), AppError> {
-    let read = |stamp: u64| std::fs::read_to_string(history_dir(dir).join(format!("{stem}-{stamp}.json"))).ok();
+    let read = |stamp: u64| std::fs::read_to_string(version_path(dir, stem, stamp)).ok();
     let kept = stamps(dir, stem);
     if kept.first().and_then(|&v| read(v)).as_deref() == Some(text) {
         return Ok(());
@@ -214,9 +267,9 @@ pub fn archive_as(dir: &Path, stem: &str, text: &str) -> Result<(), AppError> {
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
     // Two in the same millisecond: the later one a millisecond after
     let stamp = kept.first().map_or(now, |&last| now.max(last + 1));
-    std::fs::write(history.join(format!("{stem}-{stamp}.json")), text)?;
+    std::fs::write(history.join(format!("{stem}-{stamp}.yaml")), text)?;
     for old in stamps(dir, stem).into_iter().skip(HISTORY_LEN) {
-        let _ = std::fs::remove_file(history.join(format!("{stem}-{old}.json")));
+        let _ = std::fs::remove_file(version_path(dir, stem, old));
     }
     Ok(())
 }
@@ -332,6 +385,23 @@ mod tests {
         assert_eq!(state.reread(&dir, &File::Settings), Some(Ok(())));
         assert!(state.problems().is_empty());
         assert_eq!(versions(&dir, &File::Settings).len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn json_files_of_older_versions_become_yaml() {
+        let dir = folder("legacy");
+        std::fs::create_dir_all(dir.join(PROFILES_DIR)).unwrap();
+        std::fs::write(dir.join("keybindings/Mine.json"), r#"{"editor_preset": "emacs", "app": {"save": ["ctrl+j"]}}"#).unwrap();
+        std::fs::write(dir.join("settings.json"), r#"{"autosave": true}"#).unwrap();
+        convert_legacy(&dir);
+        let mine = std::fs::read_to_string(dir.join("keybindings/Mine.yaml")).unwrap();
+        assert!(mine.starts_with("# TUI version") && mine.contains("- ctrl+j"), "{mine}");
+        assert!(check(&File::Settings, &std::fs::read_to_string(dir.join("settings.yaml")).unwrap(), &[]).is_ok());
+        // Done once: a YAML file is not written over
+        std::fs::write(dir.join("keybindings/Mine.yaml"), "editor_preset: classic\n").unwrap();
+        convert_legacy(&dir);
+        assert_eq!(std::fs::read_to_string(dir.join("keybindings/Mine.yaml")).unwrap(), "editor_preset: classic\n");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

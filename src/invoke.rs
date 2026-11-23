@@ -205,6 +205,15 @@ pub async fn answer_assets(path: &str, create: bool) -> Result<(), String> {
     call("answer_assets", serde_json::json!({ "path": path, "create": create })).await
 }
 
+/// The JSON settings files of older versions, converted to YAML, no longer needed.
+pub async fn json_leftovers() -> Result<Vec<String>, String> {
+    call("json_leftovers", serde_json::json!({})).await
+}
+
+pub async fn answer_json(remove: bool) -> Result<(), String> {
+    call("answer_json", serde_json::json!({ "remove": remove })).await
+}
+
 pub async fn remove_project(path: &str) -> Result<Vec<String>, String> {
     call("remove_project", serde_json::json!({ "path": path })).await
 }
@@ -372,6 +381,10 @@ pub async fn config_problems() -> Result<Vec<ConfigInvalid>, String> {
 /// The system's print dialog for the window (where a page is saved as a PDF).
 pub async fn print_window() -> Result<(), String> {
     call("print_window", serde_json::json!({})).await
+}
+
+pub async fn set_fullscreen(on: bool) -> Result<(), String> {
+    call("set_fullscreen", serde_json::json!({ "on": on })).await
 }
 
 /// The save dialog for a page exported as HTML, then the file `html` written

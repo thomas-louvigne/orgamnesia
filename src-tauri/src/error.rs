@@ -25,7 +25,7 @@ pub enum AppError {
     CannotRun { program: String, error: String },
     /// A folder to show does not exist.
     FolderNotFound(String),
-    /// `settings.json` / `keybindings.json` could not be written.
+    /// `settings.yaml` or a keybinding profile could not be written.
     Settings(String),
     /// A configuration file to apply is not valid: what is wrong with it.
     ConfigInvalid(String),

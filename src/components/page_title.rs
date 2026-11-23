@@ -58,6 +58,18 @@ pub fn PageTitle(tab: Tab) -> impl IntoView {
         });
         editing.set(Some(mode));
     };
+    // The shortcut renaming the page: the field of the active page's title
+    // (each request seen once: switching tabs later doesn't open it again)
+    let seen = StoredValue::new(ctx.ui.rename_request.get_untracked());
+    let start_asked = start.clone();
+    let own_path = tab.path.clone();
+    Effect::new(move |_| {
+        let n = ctx.ui.rename_request.get();
+        if n == seen.get_value() { return; }
+        seen.set_value(n);
+        let active = untrack(|| ctx.work.active_tab_data()).is_some_and(|t| t.path == own_path);
+        if active && !fixed { start_asked(EditMode::Rename); }
+    });
     let start_rename = start.clone();
     let start_dbl = start.clone();
     let shown = {

@@ -4,12 +4,12 @@
 
 use crate::keybindings::EditorAction;
 use crate::{motion, tags};
-use orgamnesia_core::{hashtags::hashtag_at, links::link_at, Hashtags, TagSyntax};
+use crate::{hashtags::hashtag_at, links::link_at, Hashtags, TagSyntax};
 
 /// Lines moved by the page-up / page-down actions.
 pub const PAGE_LINES: i32 = 20;
 
-use orgamnesia_core::org::line_bounds;
+use crate::org::line_bounds;
 
 /// A move of lines one line up or down: the char range `a..b` becomes `text`,
 /// and the selection is now `sel`.
@@ -276,11 +276,11 @@ pub fn pair_of(key: &str) -> Option<(&'static str, &'static str)> {
 
 /// The emphasis markers electric mode wraps a selection in: `* / _` in org-mode
 /// (bold, italic, underline), `* _` in Markdown (typing `*` twice gives bold).
-pub fn emphasis_pair(key: &str, format: orgamnesia_core::Format) -> Option<(&'static str, &'static str)> {
+pub fn emphasis_pair(key: &str, format: crate::Format) -> Option<(&'static str, &'static str)> {
     match (key, format) {
         ("*", _) => Some(("*", "*")),
         ("_", _) => Some(("_", "_")),
-        ("/", orgamnesia_core::Format::Org) => Some(("/", "/")),
+        ("/", crate::Format::Org) => Some(("/", "/")),
         _ => None,
     }
 }
@@ -334,25 +334,73 @@ pub fn nth_line_start(chars: &[char], n: usize) -> usize {
 /// when it already is (markers just around it, or at its ends). Without a selection,
 /// the two markers are inserted with the caret between them (or removed if the caret
 /// is between two). Returns the range to replace, its new text and the new selection.
-pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, marker: char) -> (usize, usize, String, usize, usize) {
+pub fn toggle_emphasis(chars: &[char], start: usize, end: usize, open: &str, close: &str) -> (usize, usize, String, usize, usize) {
+    let (o, c): (Vec<char>, Vec<char>) = (open.chars().collect(), close.chars().collect());
+    let (n, m) = (o.len(), c.len());
     let inner: String = chars[start..end].iter().collect();
-    if start > 0 && chars[start - 1] == marker && chars.get(end) == Some(&marker) {
-        return (start - 1, end + 1, inner, start - 1, end - 1);
+    if start >= n && chars[start - n..start] == o[..] && chars.get(end..end + m) == Some(&c[..]) {
+        return (start - n, end + m, inner, start - n, end - n);
     }
-    if end - start >= 2 && chars[start] == marker && chars[end - 1] == marker {
-        let inside: String = chars[start + 1..end - 1].iter().collect();
-        return (start, end, inside, start, end - 2);
+    if end - start >= n + m && chars[start..start + n] == o[..] && chars[end - m..end] == c[..] {
+        let inside: String = chars[start + n..end - m].iter().collect();
+        return (start, end, inside, start, end - n - m);
     }
-    (start, end, format!("{marker}{inner}{marker}"), start + 1, end + 1)
+    (start, end, format!("{open}{inner}{close}"), start + n, end + n)
+}
+
+/// The markers of the emphasis `action` in a page of `format`: org-mode's `*` `/` `_` `+`,
+/// Markdown's `**` `*` `~~` (underline, not in Markdown, as the HTML `<u>` Obsidian reads).
+pub fn emphasis_marks(action: EditorAction, format: crate::Format) -> Option<(&'static str, &'static str)> {
+    use EditorAction::*;
+    let md = format == crate::Format::Markdown;
+    Some(match action {
+        Bold => if md { ("**", "**") } else { ("*", "*") },
+        Italic => if md { ("*", "*") } else { ("/", "/") },
+        Underline => if md { ("<u>", "</u>") } else { ("_", "_") },
+        Strikethrough => if md { ("~~", "~~") } else { ("+", "+") },
+        _ => return None,
+    })
+}
+
+/// The lines of `start..end` made a quote (org-mode's `#+begin_quote` block, Markdown's `> `),
+/// or no longer one when they are. Returns the range to replace, its new text and the new selection.
+pub fn toggle_quote(chars: &[char], start: usize, end: usize, format: crate::Format) -> (usize, usize, String, usize, usize) {
+    // A selection ending at the start of a line leaves that line out
+    let last = if end > start && chars[end - 1] == '\n' { end - 1 } else { end };
+    let (a, b) = (line_bounds(chars, start).0, line_bounds(chars, last).1);
+    let text: String = chars[a..b].iter().collect();
+    let with = if format == crate::Format::Markdown {
+        if text.lines().all(|l| l.trim_start().starts_with('>')) {
+            text.lines().map(|l| { let l = l.trim_start().trim_start_matches('>'); l.strip_prefix(' ').unwrap_or(l) })
+                .collect::<Vec<_>>().join("\n")
+        } else {
+            text.lines().map(|l| format!("> {l}")).collect::<Vec<_>>().join("\n")
+        }
+    } else {
+        let line = |s: usize, e: usize| chars[s..e].iter().collect::<String>().trim().to_lowercase();
+        // Already in a block: its two lines go away
+        if a > 0 && b < chars.len() {
+            let before = line_bounds(chars, a - 1);
+            let after = line_bounds(chars, b + 1);
+            if line(before.0, before.1) == "#+begin_quote" && line(after.0, after.1) == "#+end_quote" {
+                return (before.0, after.1, text, before.0, before.0 + (b - a));
+            }
+        }
+        let with = format!("#+begin_quote\n{text}\n#+end_quote");
+        let len = with.chars().count();
+        return (a, b, with, a + 14, a + len - 12);
+    };
+    let len = with.chars().count();
+    (a, b, with, a, a + len)
 }
 
 /// The page a link at `pos` points to: `[[target]]`, `[[target][text]]`, a
 /// `#tag` or an org-mode `:tag:` (per `tags`); with the extended links, also
 /// `[[target|text]]`, `[[Page#Titre]]` and `[text](Page.md)`, as read in a page of `format`.
-pub fn linked_page_at(chars: &[char], pos: usize, tags: TagSyntax, format: orgamnesia_core::Format) -> Option<String> {
+pub fn linked_page_at(chars: &[char], pos: usize, tags: TagSyntax, format: crate::Format) -> Option<String> {
     let syntax = tags.links(format);
-    let extended = (syntax != orgamnesia_core::links::LinkSyntax::NONE).then(|| {
-        orgamnesia_core::links::scan(chars, syntax).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
+    let extended = (syntax != crate::links::LinkSyntax::NONE).then(|| {
+        crate::links::scan(chars, syntax).into_iter().find(|f| pos >= f.start && pos < f.end).map(|f| f.target)
     }).flatten();
     extended.or_else(|| wiki_link_at(chars, pos, tags.hashtags))
         .or_else(|| tags.org.links.then(|| tags::org_tag_at(chars, pos, tags.org)).flatten())
@@ -673,7 +721,7 @@ mod tests {
         let t = c("* a\n** b\ntexte");
         assert_eq!(new_heading(&t, 14), (14, 14, "\n** ".to_string()));
         assert_eq!(new_heading(&c("rien"), 4), (4, 4, "\n* ".to_string()));
-        let _md = motion::FormatGuard::set(orgamnesia_core::Format::Markdown);
+        let _md = motion::FormatGuard::set(crate::Format::Markdown);
         assert_eq!(new_heading(&c("# A\n## B\ntexte"), 14), (14, 14, "\n## ".to_string()));
         drop(_md);
         // On a list item: a new item
@@ -716,7 +764,7 @@ mod tests {
         assert_eq!(pair_of(")"), Some(("(", ")")));
         assert_eq!(pair_of("a"), None);
         assert!(auto_closes("[") && !auto_closes("'") && !auto_closes(")"));
-        use orgamnesia_core::Format::{Markdown, Org};
+        use crate::Format::{Markdown, Org};
         assert_eq!(emphasis_pair("/", Org), Some(("/", "/")));
         assert_eq!(emphasis_pair("/", Markdown), None);
         assert_eq!(emphasis_pair("_", Markdown), Some(("_", "_")));
@@ -735,38 +783,59 @@ mod tests {
     #[test]
     fn emphasis_toggles() {
         let t = c("un mot ici");
-        assert_eq!(toggle_emphasis(&t, 3, 6, '*'), (3, 6, "*mot*".into(), 4, 7));
+        assert_eq!(toggle_emphasis(&t, 3, 6, "*", "*"), (3, 6, "*mot*".into(), 4, 7));
         let t = c("un *mot* ici");
-        assert_eq!(toggle_emphasis(&t, 4, 7, '*'), (3, 8, "mot".into(), 3, 6));
-        assert_eq!(toggle_emphasis(&t, 3, 8, '*'), (3, 8, "mot".into(), 3, 6));
-        assert_eq!(toggle_emphasis(&t, 4, 7, '_'), (4, 7, "_mot_".into(), 5, 8));
+        assert_eq!(toggle_emphasis(&t, 4, 7, "*", "*"), (3, 8, "mot".into(), 3, 6));
+        assert_eq!(toggle_emphasis(&t, 3, 8, "*", "*"), (3, 8, "mot".into(), 3, 6));
+        assert_eq!(toggle_emphasis(&t, 4, 7, "_", "_"), (4, 7, "_mot_".into(), 5, 8));
         // No selection: a pair of markers, the caret inside; again, they go away
-        assert_eq!(toggle_emphasis(&c("ab"), 1, 1, '+'), (1, 1, "++".into(), 2, 2));
-        assert_eq!(toggle_emphasis(&c("a++b"), 2, 2, '+'), (1, 3, String::new(), 1, 1));
+        assert_eq!(toggle_emphasis(&c("ab"), 1, 1, "+", "+"), (1, 1, "++".into(), 2, 2));
+        assert_eq!(toggle_emphasis(&c("a++b"), 2, 2, "+", "+"), (1, 3, String::new(), 1, 1));
+        // Markers of several chars, not the same at both ends
+        assert_eq!(toggle_emphasis(&c("un mot"), 3, 6, "<u>", "</u>"), (3, 6, "<u>mot</u>".into(), 6, 9));
+        assert_eq!(toggle_emphasis(&c("un <u>mot</u>"), 6, 9, "<u>", "</u>"), (3, 13, "mot".into(), 3, 6));
+        assert_eq!(toggle_emphasis(&c("un **mot**"), 3, 10, "**", "**"), (3, 10, "mot".into(), 3, 6));
+        assert_eq!(emphasis_marks(EditorAction::Bold, crate::Format::Markdown), Some(("**", "**")));
+        assert_eq!(emphasis_marks(EditorAction::Strikethrough, crate::Format::Org), Some(("+", "+")));
+    }
+
+    #[test]
+    fn quote_toggles() {
+        use crate::Format::{Markdown, Org};
+        let t = c("avant\nun\ndeux\napres");
+        let (a, b, with, s, e) = toggle_quote(&t, 7, 10, Org);
+        assert_eq!((a, b, with.as_str()), (6, 13, "#+begin_quote\nun\ndeux\n#+end_quote"));
+        assert_eq!(with.chars().skip(s - a).take(e - s).collect::<String>(), "un\ndeux");
+        // Again, inside the block: back as it was
+        let q = c("avant\n#+begin_quote\nun\ndeux\n#+end_quote\napres");
+        assert_eq!(toggle_quote(&q, 20, 25, Org), (6, 39, "un\ndeux".into(), 6, 13));
+        assert_eq!(toggle_quote(&t, 7, 14, Markdown), (6, 13, "> un\n> deux".into(), 6, 17));
+        assert_eq!(toggle_quote(&c("> un\n>deux"), 0, 0, Markdown), (0, 4, "un".into(), 0, 2));
+        assert_eq!(toggle_quote(&c("> un\n>deux"), 0, 10, Markdown), (0, 10, "un\ndeux".into(), 0, 7));
     }
 
     #[test]
     fn extended_links_under_the_cursor() {
         let t = c("[[Page|texte]] [[P#Titre]] [lien](Ma%20page.md)");
-        let ext = TagSyntax { org_links: orgamnesia_core::links::LinkSyntax::ALL, ..Hashtags::Off.into() };
-        assert_eq!(linked_page_at(&t, 9, ext, orgamnesia_core::Format::Org).as_deref(), Some("Page"));
-        assert_eq!(linked_page_at(&t, 17, ext, orgamnesia_core::Format::Org).as_deref(), Some("P::*Titre"));
-        assert_eq!(linked_page_at(&t, 30, ext, orgamnesia_core::Format::Org).as_deref(), Some("Ma page.md"));
-        assert_eq!(linked_page_at(&t, 9, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("Page|texte"));
-        assert_eq!(linked_page_at(&t, 30, Hashtags::Off.into(), orgamnesia_core::Format::Org), None);
+        let ext = TagSyntax { org_links: crate::links::LinkSyntax::ALL, ..Hashtags::Off.into() };
+        assert_eq!(linked_page_at(&t, 9, ext, crate::Format::Org).as_deref(), Some("Page"));
+        assert_eq!(linked_page_at(&t, 17, ext, crate::Format::Org).as_deref(), Some("P::*Titre"));
+        assert_eq!(linked_page_at(&t, 30, ext, crate::Format::Org).as_deref(), Some("Ma page.md"));
+        assert_eq!(linked_page_at(&t, 9, Hashtags::Off.into(), crate::Format::Org).as_deref(), Some("Page|texte"));
+        assert_eq!(linked_page_at(&t, 30, Hashtags::Off.into(), crate::Format::Org), None);
     }
 
     #[test]
     fn links_under_the_cursor() {
         let t = c("voir [[Ma page]] et [[cible][texte]] #tag fin");
-        assert_eq!(linked_page_at(&t, 8, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("Ma page"));
-        assert_eq!(linked_page_at(&t, 30, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("cible"));
-        assert_eq!(linked_page_at(&t, 39, Hashtags::Dashes.into(), orgamnesia_core::Format::Org).as_deref(), Some("tag"));
-        assert_eq!(linked_page_at(&t, 39, Hashtags::Off.into(), orgamnesia_core::Format::Org), None);
-        assert_eq!(linked_page_at(&t, 1, Hashtags::Dashes.into(), orgamnesia_core::Format::Org), None);
-        assert_eq!(linked_page_at(&c("* Titre :projet:"), 11, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("projet"));
-        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into(), orgamnesia_core::Format::Org).as_deref(), Some("exemple"));
-        let off = TagSyntax { hashtags: Hashtags::Off, org: orgamnesia_core::OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
-        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off, orgamnesia_core::Format::Org), None);
+        assert_eq!(linked_page_at(&t, 8, Hashtags::Dashes.into(), crate::Format::Org).as_deref(), Some("Ma page"));
+        assert_eq!(linked_page_at(&t, 30, Hashtags::Dashes.into(), crate::Format::Org).as_deref(), Some("cible"));
+        assert_eq!(linked_page_at(&t, 39, Hashtags::Dashes.into(), crate::Format::Org).as_deref(), Some("tag"));
+        assert_eq!(linked_page_at(&t, 39, Hashtags::Off.into(), crate::Format::Org), None);
+        assert_eq!(linked_page_at(&t, 1, Hashtags::Dashes.into(), crate::Format::Org), None);
+        assert_eq!(linked_page_at(&c("* Titre :projet:"), 11, Hashtags::Off.into(), crate::Format::Org).as_deref(), Some("projet"));
+        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, Hashtags::Off.into(), crate::Format::Org).as_deref(), Some("exemple"));
+        let off = TagSyntax { hashtags: Hashtags::Off, org: crate::OrgTags { links: false, dashes: false }, ..Hashtags::Off.into() };
+        assert_eq!(linked_page_at(&c("voir :exemple: ici"), 7, off, crate::Format::Org), None);
     }
 }

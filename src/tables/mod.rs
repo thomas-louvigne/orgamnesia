@@ -19,11 +19,11 @@
 //! Emacs' `org-indent-mode` does: each line gets `INDENT` characters in front of it,
 //! which are not in the page either.
 
-mod cells;
 mod html;
 mod view;
 
-pub use cells::{move_cell, CellMove};
+pub use orgamnesia_core::table::{is_rule, is_table_line, move_cell, next_row, CellMove};
+use orgamnesia_core::table::is_number;
 pub use html::to_html;
 pub use view::{Shown, View};
 
@@ -37,7 +37,7 @@ const FOLD_BASE: u32 = 0xF800;
 const MAX_FOLDS: u32 = 0x100;
 /// Indentation of a line under a headline (a no-break space: one column wide
 /// in every font, and very unlikely to start a line of the page).
-pub const INDENT: char = '\u{a0}';
+pub const INDENT: char = orgamnesia_core::motion::INDENT;
 
 fn tag(i: usize) -> char {
     char::from_u32(TAG_BASE + i as u32).unwrap_or(FILL)
@@ -63,27 +63,6 @@ pub fn is_fill(c: char) -> bool {
     c == FILL
 }
 
-/// Whether a line is a table line (`| a | b |`, `|---+---|`).
-pub fn is_table_line(line: &[char]) -> bool {
-    line.iter().find(|c| !c.is_whitespace()) == Some(&'|')
-}
-
-/// Whether a table line is a rule: `|---+---|` (or `|-` being typed), or
-/// Markdown's `|---|:---:|` / `| --- | --- |`, its cells only dashes with maybe a
-/// colon at either end.
-pub fn is_rule(line: &str) -> bool {
-    let t = line.trim();
-    if t.starts_with("|-") { return true; }
-    let Some(inner) = t.strip_prefix('|') else { return false };
-    let inner = inner.strip_suffix('|').unwrap_or(inner);
-    !inner.trim().is_empty() && inner.split('|').all(|c| {
-        let c = c.trim();
-        let c = c.strip_prefix(':').unwrap_or(c);
-        let c = c.strip_suffix(':').unwrap_or(c);
-        !c.is_empty() && c.chars().all(|x| x == '-')
-    })
-}
-
 /// Char ranges of the tables of the page: from the start of their first line
 /// to the end of their last one (newline excluded).
 pub fn find_tables(chars: &[char]) -> Vec<(usize, usize)> {
@@ -106,11 +85,6 @@ pub fn find_tables(chars: &[char]) -> Vec<(usize, usize)> {
     tables
 }
 
-/// Whether a cell holds a number (org-mode right-aligns the columns of numbers).
-fn is_number(cell: &str) -> bool {
-    cell.chars().any(|c| c.is_ascii_digit())
-        && cell.chars().all(|c| c.is_ascii_digit() || ".,%+-eE ".contains(c))
-}
 
 #[cfg(test)]
 mod tests {

@@ -67,7 +67,7 @@ pub fn BrokenFrame(right: bool) -> impl IntoView {
 
     view! {
         {bar(true)}
-        <div class=move || if fill() { "frame broken-links fill" } else { "frame broken-links" }>
+        <div class=move || if fill() { "frame broken-links fill" } else { "frame broken-links" } data-frame="broken">
             <button class="broken-links-header" aria-expanded=move || broken_open.get().to_string()
                 on:click=move |_| broken_open.update(|v| *v = !*v)>
                 <span>{move || format!("{} ({})", t("broken_links", ctx.lang.get()), broken.get().len())}</span>

@@ -4,6 +4,34 @@ use orgamnesia_lib::{AppState, commands};
 
 fn main() {
     if orgamnesia_lib::git::answer_askpass() { return; }
+    let mut args = std::env::args().skip(1);
+    match args.next().as_deref() {
+        Some("-h" | "--help") => {
+            println!("Orgamnesia {}: a personal wiki in org-mode or Markdown
+
+Usage:
+  orgamnesia                   open the window
+  orgamnesia -nw [folder]      open the project in the terminal (beta), else the last one
+                               (also --tui, -t)
+  orgamnesia -h, --help        show this help
+  orgamnesia -V, --version     show the version", env!("CARGO_PKG_VERSION"));
+            return;
+        }
+        Some("-V" | "--version") => {
+            println!("orgamnesia {}", env!("CARGO_PKG_VERSION"));
+            return;
+        }
+        // `-nw` (as Emacs), `--tui` or `-t` `[folder]`: the terminal interface (beta), without a window;
+        // `--nox`, its name in 1.8, still works
+        Some("-nw" | "--tui" | "-t" | "--nox") => {
+            if let Err(e) = orgamnesia_lib::tui::run(args.next()) {
+                eprintln!("orgamnesia: {e}");
+                std::process::exit(1);
+            }
+            return;
+        }
+        _ => {}
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -33,6 +61,8 @@ fn main() {
             commands::config::config_versions,
             commands::config::restore_config,
             commands::config::config_problems,
+            commands::config::json_leftovers,
+            commands::config::answer_json,
             commands::projects::open_vault,
             commands::projects::remove_project,
             commands::projects::existing_folders,
@@ -90,6 +120,7 @@ fn main() {
             commands::theme::create_theme,
             commands::theme::open_themes_folder,
             commands::app::print_window,
+            commands::app::set_fullscreen,
             commands::app::save_html,
             commands::app::quit_app,
             commands::clipboard::read_clipboard,

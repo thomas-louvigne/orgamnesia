@@ -1,9 +1,8 @@
-//! Tab / Shift+Tab in a table: to the next / previous cell, aligning the table
-//! as org-mode does. In a Markdown page, its rules are written as Markdown's
+//! Tab / Shift+Tab in a table: to the next / previous cell, Enter: to the cell
+//! below, aligning the table as org-mode does. In a Markdown page, its rules are written as Markdown's
 //! (`|-----|:---:|`), keeping the colons that align the columns.
 
-use super::{is_number, is_table_line};
-use orgamnesia_core::org::{line_end, line_start};
+use crate::org::{line_end, line_start};
 
 /// Where Tab / Shift+Tab takes the caret in a table.
 #[derive(Debug, PartialEq)]
@@ -31,7 +30,7 @@ impl Row {
     fn read(chars: &[char], start: usize, end: usize) -> Self {
         let line = &chars[start..end];
         let text: String = line.iter().collect();
-        let rule = super::is_rule(&text);
+        let rule = is_rule(&text);
         let pipes: Vec<usize> = (start..end).filter(|&i| chars[i] == '|').collect();
         let closed = line.iter().rev().find(|c| !c.is_whitespace()) == Some(&'|');
         let opens = pipes[..if closed { pipes.len() - 1 } else { pipes.len() }].to_vec();
@@ -75,7 +74,7 @@ fn align(rows: &[Row], indent: &str) -> (Vec<String>, Vec<Vec<usize>>) {
     let mut starts = Vec::new();
     for r in rows {
         if r.rule {
-            if crate::motion::format() == orgamnesia_core::Format::Markdown {
+            if crate::motion::format() == crate::Format::Markdown {
                 // Markdown: `|-----|:---:|`
                 let cells: Vec<String> = widths.iter().enumerate().map(|(c, &w)| {
                     let (left, right) = r.colons.get(c).copied().unwrap_or_default();
@@ -105,14 +104,10 @@ fn align(rows: &[Row], indent: &str) -> (Vec<String>, Vec<Vec<usize>>) {
     (lines, starts)
 }
 
-/// Tab (`forward`) or Shift+Tab in an org table, as org-mode does: the table is
-/// aligned again (see `align`), then the caret goes to the start of the next or
-/// previous cell; Tab past the last cell adds a row. `None` when `pos` is not in
-/// a table.
-pub fn move_cell(chars: &[char], pos: usize, forward: bool) -> Option<CellMove> {
+/// The table around `pos`: its first position, its rows, the row of `pos`, its end.
+fn read_table(chars: &[char], pos: usize) -> Option<(usize, Vec<Row>, usize, usize)> {
     let here = line_start(chars, pos);
     if !is_table_line(&chars[here..line_end(chars, here)]) { return None; }
-    // The table's lines
     let mut first = here;
     while first > 0 {
         let prev = line_start(chars, first - 1);
@@ -132,6 +127,33 @@ pub fn move_cell(chars: &[char], pos: usize, forward: bool) -> Option<CellMove> 
         if end >= chars.len() { break; }
         start = end + 1;
     }
+    Some((first, rows, here_row, table_end))
+}
+
+/// The table `rows` aligned in place of `first..table_end`, the caret at the start
+/// of the cell `target` (row, column).
+fn aligned(chars: &[char], first: usize, table_end: usize, rows: &[Row], target: (usize, usize)) -> CellMove {
+    // The window's indentation under a headline (`INDENT`) kept, as spaces and tabs
+    let indent: String = chars[first..].iter().take_while(|&&c| c == ' ' || c == '\t' || c == crate::motion::INDENT).collect();
+    let (lines, starts) = align(rows, &indent);
+    let text = lines.join("\n");
+    let line_at: usize = lines[..target.0].iter().map(|l| l.chars().count() + 1).sum();
+    let caret = first + line_at + starts[target.0][target.1];
+    if chars[first..table_end].iter().copied().eq(text.chars()) {
+        CellMove::Caret(caret)
+    } else {
+        CellMove::Edit { from: first, to: table_end, text, caret }
+    }
+}
+
+fn empty_row() -> Row { Row { rule: false, colons: vec![], opens: vec![], cells: vec![] } }
+
+/// Tab (`forward`) or Shift+Tab in an org table, as org-mode does: the table is
+/// aligned again (see `align`), then the caret goes to the start of the next or
+/// previous cell; Tab past the last cell adds a row. `None` when `pos` is not in
+/// a table.
+pub fn move_cell(chars: &[char], pos: usize, forward: bool) -> Option<CellMove> {
+    let (first, mut rows, here_row, table_end) = read_table(chars, pos)?;
     let columns = rows.iter().map(|r| r.cells.len()).max().unwrap_or(0).max(1);
 
     // Every cell, as (row, column), the short rows counted with the columns they get
@@ -161,22 +183,57 @@ pub fn move_cell(chars: &[char], pos: usize, forward: bool) -> Option<CellMove> 
     let target = match target.and_then(|t| cells.get(t).copied()) {
         Some(cell) => cell,
         None => {
-            rows.push(Row { rule: false, colons: vec![], opens: vec![], cells: vec![] });
+            rows.push(empty_row());
             (rows.len() - 1, 0)
         }
     };
+    Some(aligned(chars, first, table_end, &rows, target))
+}
 
-    let indent: String = chars[first..].iter().take_while(|c| *c == &' ' || *c == &'\t').collect();
-    let (lines, starts) = align(&rows, &indent);
-    let text = lines.join("\n");
-    let line_at: usize = lines[..target.0].iter().map(|l| l.chars().count() + 1).sum();
-    let caret = first + line_at + starts[target.0][target.1];
-    let unchanged = chars[first..table_end].iter().copied().eq(text.chars());
-    Some(if unchanged {
-        CellMove::Caret(caret)
-    } else {
-        CellMove::Edit { from: first, to: table_end, text, caret }
+/// Enter in a cell, as org-mode's `org-table-next-row`: the table aligned, the
+/// caret in the same column of the row below; with none below (the end of the
+/// table, a rule), a new row is put under this one. `None` (a plain new line)
+/// out of a table, on a rule, before the first `|` or after the last one.
+pub fn next_row(chars: &[char], pos: usize) -> Option<CellMove> {
+    let (first, mut rows, here_row, table_end) = read_table(chars, pos)?;
+    let row = &rows[here_row];
+    if row.rule { return None; }
+    let start = line_start(chars, pos);
+    let end = line_end(chars, pos);
+    let before = chars[start..pos].iter().all(|c| c.is_whitespace());
+    let after = chars[pos..end].iter().all(|c| c.is_whitespace());
+    if before || after { return None; }
+    let col = row.opens.iter().filter(|&&p| p < pos).count().saturating_sub(1);
+    let below = here_row + 1;
+    if rows.get(below).is_none_or(|r| r.rule) { rows.insert(below, empty_row()); }
+    Some(aligned(chars, first, table_end, &rows, (below, col)))
+}
+
+/// Whether a line is a table line (`| a | b |`, `|---+---|`).
+pub fn is_table_line(line: &[char]) -> bool {
+    line.iter().find(|c| !c.is_whitespace()) == Some(&'|')
+}
+
+/// Whether a table line is a rule: `|---+---|` (or `|-` being typed), or
+/// Markdown's `|---|:---:|` / `| --- | --- |`, its cells only dashes with maybe a
+/// colon at either end.
+pub fn is_rule(line: &str) -> bool {
+    let t = line.trim();
+    if t.starts_with("|-") { return true; }
+    let Some(inner) = t.strip_prefix('|') else { return false };
+    let inner = inner.strip_suffix('|').unwrap_or(inner);
+    !inner.trim().is_empty() && inner.split('|').all(|c| {
+        let c = c.trim();
+        let c = c.strip_prefix(':').unwrap_or(c);
+        let c = c.strip_suffix(':').unwrap_or(c);
+        !c.is_empty() && c.chars().all(|x| x == '-')
     })
+}
+
+/// Whether a cell holds a number (org-mode right-aligns the columns of numbers).
+pub fn is_number(cell: &str) -> bool {
+    cell.chars().any(|c| c.is_ascii_digit())
+        && cell.chars().all(|c| c.is_ascii_digit() || ".,%+-eE ".contains(c))
 }
 
 #[cfg(test)]
@@ -200,6 +257,36 @@ mod tests {
     }
 
     #[test]
+    fn enter_goes_to_the_cell_below() {
+        let t: Vec<char> = "| a | b |\n| c | d |\n|---+---|\n| e | f |".chars().collect();
+        // From "b" to "d", same column
+        assert_eq!(next_row(&t, 6), Some(CellMove::Caret(16)));
+        // A rule below "d": a new row between them, the caret in its second cell
+        assert_eq!(next_row(&t, 16), Some(CellMove::Edit {
+            from: 0, to: 39, text: "| a | b |\n| c | d |\n|   |   |\n|---+---|\n| e | f |".into(), caret: 26,
+        }));
+        // The last row: a new row at the end, the table aligned
+        let t: Vec<char> = "| aaa | b |\n| c |".chars().collect();
+        assert_eq!(next_row(&t, 14), Some(CellMove::Edit {
+            from: 0, to: 17, text: "| aaa | b |\n| c   |   |\n|     |   |".into(), caret: 26,
+        }));
+        // A plain new line: after the last `|`, before the first, on a rule, out of a table
+        let t: Vec<char> = "| a |\n|---|\nx".chars().collect();
+        assert_eq!(next_row(&t, 5), None);
+        assert_eq!(next_row(&t, 0), None);
+        assert_eq!(next_row(&t, 8), None);
+        assert_eq!(next_row(&t, 13), None);
+    }
+
+    #[test]
+    fn the_indentation_under_a_headline_stays() {
+        // The window indents the lines under `* Title` with `INDENT`s
+        let t: Vec<char> = "\u{a0}\u{a0}| a | b |\n\u{a0}\u{a0}| c | d |".chars().collect();
+        assert_eq!(move_cell(&t, 4, true), Some(CellMove::Caret(8)));
+        assert_eq!(next_row(&t, 8), Some(CellMove::Caret(20)));
+    }
+
+    #[test]
     fn tab_aligns_the_table() {
         // A space on each side of the text, the row closed, the columns as wide as their widest cell
         let t: Vec<char> = "|a|b\n| ccc | d |".chars().collect();
@@ -218,7 +305,7 @@ mod tests {
 
     #[test]
     fn markdown_tables() {
-        let _md = crate::motion::FormatGuard::set(orgamnesia_core::Format::Markdown);
+        let _md = crate::motion::FormatGuard::set(crate::Format::Markdown);
         let t: Vec<char> = "| Nom | Âge |\n| :-- | --: |\n| Léa | 7 |".chars().collect();
         let Some(CellMove::Edit { text, .. }) = move_cell(&t, 2, true) else { panic!() };
         assert_eq!(text, "| Nom | Âge |\n|:----|----:|\n| Léa |   7 |");

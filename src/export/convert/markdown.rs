@@ -43,6 +43,14 @@ impl Doc<'_> {
         if chars[i] == '`' && let Some(end) = (i + 1..chars.len()).find(|&j| chars[j] == '`') {
             return Some((format!("<code>{}</code>", escape(&chars[i + 1..end].iter().collect::<String>())), end + 1));
         }
+        // Underline, not in Markdown: the HTML `<u>` (what the editor writes)
+        if chars[i..].starts_with(&['<', 'u', '>']) {
+            let close = ['<', '/', 'u', '>'];
+            if let Some(end) = (i + 3..chars.len()).find(|&j| chars[j..].starts_with(&close)) {
+                let inner: String = chars[i + 3..end].iter().collect();
+                return Some((format!("<u>{}</u>", self.inline(&inner)), end + 4));
+            }
+        }
         if let Some((tag, n, end)) = emphasis(chars, i) {
             let inner: String = chars[i + n..end].iter().collect();
             return Some((format!("<{tag}>{}</{tag}>", self.inline(&inner)), end + n));
@@ -60,16 +68,7 @@ pub(super) fn is_structure(line: &str) -> bool {
 }
 
 /// A Markdown rule: `---`, `***`, `___` (spaces between allowed).
-pub(crate) fn is_rule_line(t: &str) -> bool {
-    let mut marks = t.chars().filter(|c| !c.is_whitespace());
-    let Some(first @ ('-' | '*' | '_')) = marks.next() else { return false };
-    let mut n = 1;
-    for c in marks {
-        if c != first { return false; }
-        n += 1;
-    }
-    n >= 3
-}
+pub(crate) use orgamnesia_core::highlight::is_rule_line;
 
 /// A line holding only a Markdown image: its target.
 fn image_line(t: &str) -> Option<String> {
