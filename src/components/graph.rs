@@ -365,6 +365,8 @@ pub fn GraphPage() -> impl IntoView {
         if let Some(i) = page_at(e.offset_x() as f64, e.offset_y() as f64) { open(i); }
     };
     let on_key = move |e: ev::KeyboardEvent| {
+        // A button of the graph keeps its own Space and Enter
+        if e.target().is_some_and(|t| t.dyn_ref::<web_sys::HtmlButtonElement>().is_some()) { return; }
         match e.key().as_str() {
             // Turn around, as with the right button
             "ArrowLeft" => yaw.update(|y| *y += 0.1),
@@ -392,7 +394,7 @@ pub fn GraphPage() -> impl IntoView {
     on_cleanup(move || { esc.remove(); up.remove(); resize.remove(); });
 
     view! {
-        <div node_ref=root class="main-panel" tabindex="-1" role="region" aria-label=move || t("graph_title", lang())>
+        <div node_ref=root class="main-panel" tabindex="-1" role="region" aria-label=move || t("graph_title", lang()) on:keydown=on_key>
             <div class="modal-header">
                 <h2>{move || t("graph_title", lang())} " " <span class="graph-beta">{move || t("graph_beta", lang())}</span></h2>
                 <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
@@ -407,7 +409,7 @@ pub fn GraphPage() -> impl IntoView {
                             class:dragging=move || dragged.get()
                             aria-label=move || t("graph_title", lang())
                             on:wheel=on_wheel on:mousemove=on_move on:mousedown=on_down on:click=on_click
-                            on:keydown=on_key on:mouseleave=move |_| hovered.set(None) />
+                            on:mouseleave=move |_| hovered.set(None) />
                         <div class="graph-fps" aria-hidden="true">{move || format!("{} {}", fps.get(), t("graph_fps", lang()))}</div>
                         <div class="graph-tools" role="group" aria-label=move || t("graph_zoom", lang())>
                             <button class="btn-secondary"

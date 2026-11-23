@@ -93,7 +93,7 @@ pub fn listen<T: for<'de> Deserialize<'de> + 'static>(event: &str, mut f: impl F
     handler.forget();
 }
 
-/// An error of the backend (`src-tauri/src/error.rs`): a code, the detail that
+/// An error of the backend (`backend/src/error.rs`): a code, the detail that
 /// goes with it, and for `cannot_run` the cause.
 #[derive(Debug, Deserialize)]
 struct BackendError {
@@ -558,11 +558,11 @@ pub async fn spell_add(word: &str) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    /// Every code the backend sends (`src-tauri/src/error.rs`) has its text in
+    /// Every code the backend sends (`backend/src/error.rs`) has its text in
     /// both languages, except the output of a tool, shown as it is.
     #[test]
     fn every_backend_error_is_worded() {
-        let source = include_str!("../src-tauri/src/error.rs");
+        let source = include_str!("../backend/src/error.rs");
         let codes: Vec<&str> = source.lines()
             .filter_map(|l| l.split_once("=> (\"")).filter_map(|(_, rest)| rest.split_once('"')).map(|(code, _)| code)
             .filter(|c| !matches!(*c, "io" | "tool_output"))

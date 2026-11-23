@@ -551,12 +551,16 @@ impl App {
 
     /// Follow the link under the cursor of the editor.
     fn follow_at_cursor(&mut self) {
-        let Some(e) = &self.editor else { return };
-        let (line, col) = e.line_col();
-        match self.page_links().into_iter().find(|l| l.line == line && (l.start..=l.end).contains(&col)) {
-            Some(l) => self.follow(&l.target),
+        match self.link_at_cursor() {
+            Some(target) => self.follow(&target),
             None => self.status = "no link under the cursor".into(),
         }
+    }
+
+    /// The target of the link under the cursor of the page, if any.
+    fn link_at_cursor(&self) -> Option<String> {
+        let (line, col) = self.editor.as_ref()?.line_col();
+        self.page_links().into_iter().find(|l| l.line == line && (l.start..=l.end).contains(&col)).map(|l| l.target)
     }
 
     /// Follow the link `target` as the window does: an address or a file with the

@@ -8,7 +8,7 @@
 
 [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Télécharger]] · [[file:docs/fonctionnalites.org][Toutes les fonctionnalités]] · [[file:readme.org][English]]
 
-[[file:docs/images/split.png]]
+[[file:docs/demo.mp4][file:docs/images/demo-poster-fr.png]]
 
 #+BEGIN_QUOTE
 *Écrite avec une IA (Claude, d'Anthropic).* Relisez le code comme n'importe quelle
@@ -145,6 +145,7 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [ ] Mentions non liées : les pages qui citent la page ouverte sans lien, avec un bouton pour lier
 - [ ] Capture rapide dans une page Inbox, et une revue de la semaine (pages modifiées, TODO ouverts)
 - [ ] Agenda : les =SCHEDULED:= et =DEADLINE:= des pages, par date, dans un cadre
+- [ ] Vue agenda : un calendrier du journal, pour passer d'un jour à l'autre et ouvrir la page d'une date
 - [ ] Alias (=#+ALIAS:=, =alias::= de Logseq) : une page qui répond à plusieurs noms
 - [X] Page au hasard
 - [ ] Faire remonter les notes : les pages orphelines (sans aucun lien), ce qui était écrit il y a un an

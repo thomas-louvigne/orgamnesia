@@ -8,7 +8,7 @@
 
 [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Download]] · [[file:docs/features.org][All the features]] · [[file:readme.fr.org][🇫🇷 Français]]
 
-[[file:docs/images/split.png]]
+[[file:docs/demo.mp4][file:docs/images/demo-poster.png]]
 
 #+BEGIN_QUOTE
 *Written with AI (Anthropic's Claude).* Review the code as you would any other
@@ -141,6 +141,7 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Unlinked mentions: the pages naming the open page without a link, with a button to link them
 - [ ] Quick capture into an Inbox page, and a weekly review (pages changed, open TODOs)
 - [ ] Agenda: the =SCHEDULED:= and =DEADLINE:= of the pages, by date, in a frame
+- [ ] Agenda view: a calendar of the journal, to move from day to day and open the page of a date
 - [ ] Aliases (=#+ALIAS:=, Logseq's =alias::=): a page answering to several names
 - [X] Random page
 - [ ] Bring notes back: orphan pages (no link at all), what was written a year ago

@@ -1,0 +1,16 @@
+[package]
+name = "orgamnesia-backend"
+version = "1.8.3"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "What Orgamnesia does with projects, pages, git and configuration, without an interface"
+workspace = "../src-tauri"
+
+[dependencies]
+serde              = { version = "1", features = ["derive"] }
+serde_json         = "1"
+serde_yaml_ng      = "0.10"
+toml               = "1"
+notify-debouncer-mini = "0.5"
+orgamnesia-core    = { path = "../core" }
+spellbook          = "0.4"

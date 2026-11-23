@@ -94,7 +94,7 @@ mod tests {
     use super::*;
 
     fn folder(test: &str) -> std::path::PathBuf {
-        crate::commands::testing::folder(&format!("keybindings-{test}"))
+        crate::testing::folder(&format!("keybindings-{test}"))
     }
 
     #[test]

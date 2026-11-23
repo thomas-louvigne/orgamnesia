@@ -66,7 +66,7 @@ fn reset_tab(tab: Tab, p: &mut Prefs, d: Prefs) {
     macro_rules! take { ($($f:ident),*) => {{ $(p.$f = d.$f;)* }} }
     match tab {
         Tab::General => take!(restore_session, default_format, single_format, ask_format, check_updates, lang),
-        Tab::Links => take!(org_links, md_links, case_insensitive_links, update_links, hashtag_links,
+        Tab::Links => take!(org_links, md_links, case_insensitive_links, update_links, click_follows_links, hashtag_links,
             hashtag_dashes, org_tag_links, org_tag_dashes, mark_broken_links, link_preview, link_preview_trigger),
         Tab::Editing => take!(autosave, electric_mode, electric_emphasis, find_match_case, indent_headings, tab_folds, todo_enabled,
             todo_keywords, delete_empty, delete_title_only, trash_auto_empty, trash_keep_days, trash_max_bytes),

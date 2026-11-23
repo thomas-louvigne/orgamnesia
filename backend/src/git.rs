@@ -553,7 +553,7 @@ mod tests {
     }
 
     fn temp(test: &str) -> std::path::PathBuf {
-        crate::commands::testing::folder(&format!("git-{test}"))
+        crate::testing::folder(&format!("git-{test}"))
     }
 
     #[test]

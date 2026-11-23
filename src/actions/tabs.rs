@@ -88,7 +88,8 @@ pub fn follow_link(ctx: AppCtx, name: String) {
     }
     // `[[Page::*Titre]]`: the headline `Titre` of `Page`; `[[*Titre]]`: of this page
     let (page, place) = orgamnesia_core::links::split(&name);
-    let goto = place.map(|p| Goto::Place(p.to_string()));
+    // The caret in the page reached, as quick open does: the keyboard goes on there
+    let goto = Some(place.map_or(Goto::Focus, |p| Goto::Place(p.to_string())));
     if page.is_empty() {
         if let (Some(tab), Some(goto)) = (ctx.work.active_tab_data(), goto) {
             ctx.work.goto.set(Some((tab.path, goto)));
@@ -99,10 +100,8 @@ pub fn follow_link(ctx: AppCtx, name: String) {
     let open = file.as_ref().and_then(|f| ctx.work.tabs.with_untracked(|tabs| tabs.iter().position(|t| t.path == f.path)));
     if let Some(idx) = open {
         ctx.work.active_tab.set(Some(idx));
-        if let Some(goto) = goto {
-            let path = ctx.work.tabs.with_untracked(|tabs| tabs[idx].path.clone());
-            ctx.work.goto.set(Some((path, goto)));
-        }
+        let path = ctx.work.tabs.with_untracked(|tabs| tabs[idx].path.clone());
+        ctx.work.goto.set(goto.map(|g| (path, g)));
     } else if let Some(file) = file {
         open_file(ctx, file, goto);
     } else {
@@ -143,7 +142,10 @@ pub fn create_page_as(ctx: AppCtx, name: String, format: Option<orgamnesia_core:
                     files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
                 });
                 ctx.warn_twin(&file);
+                let path = file.path.clone();
                 push_tab(ctx, Tab { path: file.path, name: file.name, content, dirty, history: StoredValue::new(Default::default()) });
+                // The caret in the new page, to write in it straight away
+                ctx.work.goto.set(Some((path, Goto::Focus)));
             }
             Err(e) => ctx.error("error", &e),
         }

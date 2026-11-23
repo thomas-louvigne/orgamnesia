@@ -1,0 +1,191 @@
+//! What Orgamnesia does with the projects, their pages, git and the
+//! configuration files, without any interface: the Tauri app and other
+//! front ends (a terminal one) build on it.
+
+pub mod config_files;
+pub mod error;
+pub mod git;
+pub mod keybindings;
+pub mod org_bloom;
+pub mod project;
+pub mod settings;
+pub mod spell;
+pub mod tags;
+pub mod watch;
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
+/// Lock `m`, even when a command panicked while holding it: the state it guards
+/// is still usable, and every later command would panic too otherwise.
+pub fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Write `text` as the file `path`, all or nothing: into a hidden file next to
+/// it, flushed to the disk, then put in its place. A crash meanwhile leaves the
+/// file as it was, never cut short. A link is followed (the file it leads to is
+/// written); the file keeps its permissions.
+pub fn write_atomic(path: impl AsRef<Path>, text: impl AsRef<[u8]>) -> std::io::Result<()> {
+    use std::io::Write;
+    let path = path.as_ref();
+    let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let name = path.file_name().ok_or_else(|| std::io::Error::other("no file name"))?.to_string_lossy();
+    let tmp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
+    let written = (|| {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(text.as_ref())?;
+        file.sync_all()?;
+        if let Ok(meta) = std::fs::metadata(&path) { std::fs::set_permissions(&tmp, meta.permissions())?; }
+        std::fs::rename(&tmp, &path)
+    })();
+    if written.is_err() { let _ = std::fs::remove_file(&tmp); }
+    written
+}
+
+/// The home folder: `$HOME`, else `%USERPROFILE%` (Windows).
+pub fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).filter(|h| !h.is_empty()).map(PathBuf::from)
+}
+
+/// `path` with a leading `~/` (or `~\`) made the home folder (`~/x` → `/home/me/x`);
+/// `~` alone is the home folder.
+pub fn expand_home(path: &str) -> String {
+    let rest = if path == "~" { Some("") } else { path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\")) };
+    match (rest, home_dir()) {
+        (Some(""), Some(home)) => slash(home),
+        (Some(rest), Some(home)) => slash(home.join(rest)),
+        _ => path.to_string(),
+    }
+}
+
+/// `path` as the interface knows paths: with `/` between folders, also on
+/// Windows (where the system takes them too), without the `\\?\` of the paths
+/// made canonical there. The interface splits and compares paths by `/`.
+pub fn slash(path: impl AsRef<Path>) -> String {
+    let s = path.as_ref().to_string_lossy();
+    if cfg!(windows) {
+        let s = s.replace('\\', "/");
+        s.strip_prefix("//?/").map(String::from).unwrap_or(s)
+    } else {
+        s.into_owned()
+    }
+}
+
+/// A command running `program`; on Windows, without the console window a
+/// program started from a windowed app would flash.
+pub fn command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    #[allow(unused_mut)]
+    let mut c = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        c.creation_flags(CREATE_NO_WINDOW);
+    }
+    c
+}
+
+/// Open `target` (a folder, a file, a web page) with the system's program for
+/// it: `open` on macOS, the shell's file handler on Windows, `xdg-open` elsewhere.
+pub fn open_with_system(target: &str) -> Result<(), AppError> {
+    let (program, args): (&str, Vec<String>) = if cfg!(target_os = "macos") {
+        ("open", vec![target.into()])
+    } else if cfg!(windows) {
+        // A file is given with Windows' separators; no shell reads the target
+        let target = if target.contains("://") { target.to_string() } else { target.replace('/', "\\") };
+        ("rundll32", vec!["url.dll,FileProtocolHandler".into(), target])
+    } else {
+        ("xdg-open", vec![target.into()])
+    };
+    command(program).args(&args).spawn()
+        .map(|_| ())
+        .map_err(|e| AppError::CannotRun { program: program.into(), error: e.to_string() })
+}
+
+/// The folder of the files installed with the app (Windows: git, the
+/// dictionaries); set once, when the app starts.
+static RESOURCES: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn set_resource_dir(dir: PathBuf) {
+    let _ = RESOURCES.set(dir);
+}
+
+pub fn resource_dir() -> Option<&'static Path> {
+    RESOURCES.get().map(PathBuf::as_path)
+}
+
+/// The `git` to run: the one of the system when there is one (its setup, its
+/// identifiers), else on Windows the one installed with the app (MinGit, with
+/// Git Credential Manager), else `git`, which then fails to start.
+pub fn git_program() -> &'static Path {
+    static GIT: OnceLock<PathBuf> = OnceLock::new();
+    GIT.get_or_init(|| {
+        let system = command("git").arg("--version").stdin(std::process::Stdio::null()).output()
+            .is_ok_and(|o| o.status.success());
+        let bundled = resource_dir().map(|d| d.join("mingit").join("cmd").join("git.exe")).filter(|g| g.is_file());
+        match bundled {
+            Some(g) if !system => g,
+            _ => PathBuf::from("git"),
+        }
+    })
+}
+
+use error::AppError;
+
+/// What the tests share.
+#[doc(hidden)]
+pub mod testing {
+    use std::path::PathBuf;
+
+    /// A new empty folder, for the test `test`.
+    pub fn folder(test: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-{test}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn writes_all_or_nothing() {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-atomic-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("Note.org");
+        write_atomic(&file, "un").unwrap();
+        write_atomic(&file, "deux").unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "deux");
+        #[cfg(unix)]
+        {
+            let link = dir.join("Lien.org");
+            std::os::unix::fs::symlink(&file, &link).unwrap();
+            write_atomic(&link, "trois").unwrap();
+            assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+            assert_eq!(std::fs::read_to_string(&file).unwrap(), "trois");
+        }
+        // No temporary file left behind
+        let names: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into()).collect();
+        assert!(names.iter().all(|n| !n.ends_with(".tmp")), "{names:?}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn home_and_slashes() {
+        let home = home_dir().map(slash).unwrap_or_default();
+        if !home.is_empty() {
+            assert_eq!(expand_home("~/notes"), format!("{home}/notes"));
+            assert_eq!(expand_home("~"), home);
+        }
+        assert_eq!(expand_home("/x/~/y"), "/x/~/y");
+        assert_eq!(slash("/home/me/notes"), "/home/me/notes");
+        if cfg!(windows) {
+            assert_eq!(slash(r"C:\Users\me\notes"), "C:/Users/me/notes");
+            assert_eq!(slash(r"\\?\C:\Users\me"), "C:/Users/me");
+        }
+    }
+}

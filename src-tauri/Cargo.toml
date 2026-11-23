@@ -1,8 +1,10 @@
 [workspace]
+# The backend without Tauri, tested with `cargo test --workspace`
+members = ["../backend"]
 
 [package]
 name = "orgamnesia"
-version = "1.8.2"
+version = "1.8.3"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
@@ -29,9 +31,8 @@ ratatui            = "0.29"
 unicode-width      = "0.2"
 chrono             = { version = "0.4", default-features = false, features = ["clock"] }
 tokio              = { version = "1", features = ["sync"] }
-notify-debouncer-mini = "0.5"
 orgamnesia-core = { path = "../core" }
-spellbook = "0.4"
+orgamnesia-backend = { path = "../backend" }
 tauri-plugin-updater = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]

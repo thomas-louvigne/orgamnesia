@@ -76,6 +76,27 @@ use ratatui::style::Modifier;
     }
 
     #[test]
+    fn a_plain_click_follows_a_link_when_the_settings_say_so() {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-tui-click-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("pages")).unwrap();
+        std::fs::write(dir.join("pages/Alpha.org"), "[[Beta]] alpha").unwrap();
+        std::fs::write(dir.join("pages/Beta.org"), "beta").unwrap();
+        let prefs = settings::Settings::default().prefs();
+        let project = Project::open(&crate::slash(&dir), prefs.tags(), prefs.formats(), &prefs.journal_folder).unwrap();
+        let mut app = App::new(project, prefs, Keybindings::with_profiles(Some("emacs"), vec![]));
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        app.page_area = Rect::new(30, 0, 40, 10);
+        let click = MouseEvent { kind: MouseEventKind::Down(MouseButton::Left), column: 33, row: 1, modifiers: KeyModifiers::NONE };
+        // Off (the default): the cursor placed in the link only
+        app.mouse(click);
+        assert!(app.editor.as_ref().unwrap().path.ends_with("Alpha.org"));
+        app.prefs.click_follows_links = true;
+        app.mouse(click);
+        assert!(app.editor.as_ref().unwrap().path.ends_with("Beta.org"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn splits_the_screen_as_emacs() {
         let dir = std::env::temp_dir().join(format!("orgamnesia-tui-split-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("pages")).unwrap();

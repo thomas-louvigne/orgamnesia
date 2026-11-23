@@ -344,7 +344,9 @@ abandonnée après 4 secondes. On peut garder Ctrl enfoncé pour la deuxième to
   par défaut (=#mon-tag=) ; décoché, =#mon-tag= est lu comme =#mon=, comme org-mode.
 - Ctrl+clic, ou le raccourci « Suivre le lien » (Ctrl+Entrée en Classique,
   Ctrl+C Ctrl+O en Emacs), ouvre la page du lien sous le curseur et la crée si elle
-  n'existe pas.
+  n'existe pas. Avec « Un clic sur un lien le suit » (Réglages > Liens, désactivé
+  par défaut), un clic simple fait de même ; le curseur se place alors dans un lien
+  au clavier.
 - Par défaut, les liens ignorent la casse et les accents : =[[élody]]= mène à
   =Elody=.
 - « Insérer un lien » (Ctrl+L en Classique, Ctrl+C Ctrl+L en Emacs, comme

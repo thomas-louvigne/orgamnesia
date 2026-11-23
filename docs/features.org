@@ -332,6 +332,8 @@ can be kept down for the second key (=Ctrl+X Ctrl+O= works as =Ctrl+X O=).
   by default (=#my-tag=); unchecked, =#my-tag= is read as =#my=, as org-mode does.
 - Ctrl+click, or the "Open link" shortcut (Ctrl+Enter in Classic, Ctrl+C Ctrl+O in
   Emacs), opens the page of the link under the cursor and creates it if needed.
+  With "A click on a link follows it" (Settings > Links, off by default), a plain
+  click does it too; the cursor is then put in a link with the keyboard.
 - By default, links ignore case and accents: =[[élody]]= leads to =Elody=.
 - "Insert a link" (Ctrl+L in Classic, Ctrl+C Ctrl+L in Emacs, as org-mode) asks
   for its target (the pages are proposed) and the text shown; the selected text

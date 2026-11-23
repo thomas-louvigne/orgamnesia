@@ -132,7 +132,7 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
             let shown = ctx.work.active_tab_data().map(|t| t.path);
             let page = ctx.project.files.with_untracked(|fs| orgamnesia_core::pages::random_page(fs, shown.as_deref(), js_sys::Math::random()).cloned());
             match page {
-                Some(file) => actions::open_file(ctx, file, None),
+                Some(file) => actions::open_file(ctx, file, Some(crate::state::Goto::Focus)),
                 None => ctx.notify_t("random_no_page", ""),
             }
         }

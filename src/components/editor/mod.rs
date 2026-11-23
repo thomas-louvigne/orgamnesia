@@ -169,11 +169,16 @@ fn Editor(tab: Tab, second: bool) -> impl IntoView {
     };
 
     // Ctrl+Click navigates to (or creates) the page of the wiki link, #tag or
-    // org-mode :tag: under the cursor
+    // org-mode :tag: under the cursor; a plain click too when the setting says so
     let on_click = move |e: web_sys::MouseEvent| {
-        if !e.ctrl_key() { return; }
+        let plain = !e.shift_key() && !e.alt_key() && !e.meta_key()
+            && ctx.pref_untracked(|p| p.click_follows_links);
+        if !e.ctrl_key() && !plain { return; }
         let Some(el) = e.target().and_then(|t| t.dyn_into::<Textarea>().ok()) else { return };
-        let pos = pane.page_pos(&el, dom::get_pos(&el).0);
+        let (start, end) = dom::get_pos(&el);
+        // A drag that selected text, in or over a link, only selects it
+        if !e.ctrl_key() && start != end { return; }
+        let pos = pane.page_pos(&el, start);
         let chars: Vec<char> = content.get_untracked().chars().collect();
         if let Some(name) = edit::linked_page_at(&chars, pos, pane.ctx.tags_untracked(), pane.fmt()) {
             e.prevent_default();

@@ -315,8 +315,13 @@ impl App {
             MouseEventKind::Down(MouseButton::Left) => {
                 if matches!(self.mode, Mode::Frame(_)) { self.mode = Mode::Normal; }
                 self.click_list(m.column, m.row);
-                // Ctrl+click on a link follows it, as in the window
-                if self.click_page(m.column, m.row) && m.modifiers.contains(KeyModifiers::CONTROL) { self.follow_at_cursor(); }
+                // Ctrl+click on a link follows it, as in the window; a plain click too when the settings say so
+                if !self.click_page(m.column, m.row) {
+                } else if m.modifiers.contains(KeyModifiers::CONTROL) {
+                    self.follow_at_cursor();
+                } else if m.modifiers.is_empty() && self.prefs.click_follows_links {
+                    if let Some(target) = self.link_at_cursor() { self.follow(&target); }
+                }
             }
             MouseEventKind::Down(MouseButton::Right) => self.format_menu(m.column, m.row),
             MouseEventKind::Drag(MouseButton::Left) if self.dragging == Some(false) => self.split = Some(m.column + 1),

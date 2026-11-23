@@ -91,6 +91,8 @@ pub fn LinksTab(draft: RwSignal<Prefs>) -> impl IntoView {
             <div class="setting-section-title">{move || t("links_pages", lang())}</div>
             <Check draft get=|p| p.case_insensitive_links set=|p, v| p.case_insensitive_links = v label="ci_links" />
             <Check draft get=|p| p.update_links set=|p, v| p.update_links = v label="update_links" />
+            <Check draft get=|p| p.click_follows_links set=|p, v| p.click_follows_links = v
+                label="click_follows_links" hint="click_follows_links_hint" />
             <div class="setting-section-title">{move || t("links_tags", lang())}</div>
             <Check draft get=|p| p.hashtag_links set=|p, v| p.hashtag_links = v label="hashtag_links" />
             <Check draft get=|p| p.hashtag_dashes set=|p, v| p.hashtag_dashes = v

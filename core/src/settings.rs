@@ -70,6 +70,9 @@ pub struct Config {
     pub update_links_on_rename: Option<bool>,
     /// Match `[[links]]` to pages ignoring case.
     pub case_insensitive_links: Option<bool>,
+    /// A plain click on a link follows it, as Ctrl+click does; off by default
+    /// (a click then places the cursor in the link).
+    pub click_follows_links: Option<bool>,
     /// Treat `#tags` as links to pages.
     pub hashtag_links: Option<bool>,
     /// Allow `-` in `#tags` (`#mon-tag`); org-mode tags don't.
@@ -339,6 +342,7 @@ pub struct Prefs {
     pub spell_lang: String,
     pub spell_dict_dir: String,
     pub case_insensitive_links: bool,
+    pub click_follows_links: bool,
     pub hashtag_links: bool,
     pub hashtag_dashes: bool,
     pub org_tag_links: bool,
@@ -434,6 +438,7 @@ impl Prefs {
             spell_lang: s.spell_language.clone().unwrap_or_default(),
             spell_dict_dir: s.spell_dict_dir.clone().unwrap_or_default(),
             case_insensitive_links: s.case_insensitive_links.unwrap_or(true),
+            click_follows_links: s.click_follows_links.unwrap_or(false),
             hashtag_links: s.hashtag_links.unwrap_or(true),
             hashtag_dashes: s.hashtag_dashes.unwrap_or(true),
             org_tag_links: s.org_tag_links.unwrap_or(true),
@@ -477,6 +482,7 @@ impl Prefs {
             md_links: Some(self.md_links),
             update_links_on_rename: Some(self.update_links),
             case_insensitive_links: Some(self.case_insensitive_links),
+            click_follows_links: Some(self.click_follows_links),
             hashtag_links: Some(self.hashtag_links),
             hashtag_dashes: Some(self.hashtag_dashes),
             org_tag_links: Some(self.org_tag_links),

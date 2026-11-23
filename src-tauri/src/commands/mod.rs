@@ -42,21 +42,12 @@ fn store_state(state: &AppState, dir: &std::path::Path, settings: Settings) -> C
 /// What the tests of the commands share.
 #[cfg(test)]
 pub(crate) mod testing {
-    use std::path::PathBuf;
-
     use tauri::Manager;
 
+    pub use orgamnesia_backend::testing::folder;
     pub use tauri::async_runtime::block_on;
 
     use crate::AppState;
-
-    /// A new empty folder, for the test `test`.
-    pub fn folder(test: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("orgamnesia-{test}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
 
     /// An app of Tauri's mock runtime, with its state: the commands taking only
     /// the state run on it.

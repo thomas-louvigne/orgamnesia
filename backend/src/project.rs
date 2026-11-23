@@ -488,7 +488,7 @@ mod tests {
 
     /// A fresh project folder holding the given pages.
     pub(super) fn project(test: &str, pages: &[(&str, &str)]) -> (PathBuf, Project) {
-        let dir = crate::commands::testing::folder(&format!("project-{test}"));
+        let dir = crate::testing::folder(&format!("project-{test}"));
         std::fs::create_dir_all(dir.join("pages")).unwrap();
         for (name, content) in pages {
             std::fs::write(dir.join("pages").join(format!("{name}.org")), content).unwrap();

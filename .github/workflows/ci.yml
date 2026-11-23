@@ -57,9 +57,9 @@ jobs:
           workspaces: src-tauri
       # The interface is not built here; Tauri only needs its folder to exist
       - run: mkdir -p dist
-      - run: cargo clippy --all-targets
+      - run: cargo clippy --workspace --all-targets
         working-directory: src-tauri
-      - run: cargo test
+      - run: cargo test --workspace
         working-directory: src-tauri
 
   backend-windows:
@@ -77,7 +77,7 @@ jobs:
       - run: pwsh packaging/windows/fetch-tools.ps1
       # The interface is not built here; Tauri only needs its folder to exist
       - run: New-Item -ItemType Directory -Force dist
-      - run: cargo clippy --all-targets
+      - run: cargo clippy --workspace --all-targets
         working-directory: src-tauri
-      - run: cargo test
+      - run: cargo test --workspace
         working-directory: src-tauri

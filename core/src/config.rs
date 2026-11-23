@@ -152,7 +152,7 @@ const UPDATES: &str = "updates go through the window";
 /// how `settings.yaml` is written, each tab as a comment above its settings.
 pub const SECTIONS: &[(&str, &[&str])] = &[
     ("General", &["language", "default_format", "single_format", "ask_format", "restore_session", "check_updates", "skipped_update"]),
-    ("Links", &["org_links", "md_links", "case_insensitive_links", "update_links_on_rename", "hashtag_links", "hashtag_dashes",
+    ("Links", &["org_links", "md_links", "case_insensitive_links", "update_links_on_rename", "click_follows_links", "hashtag_links", "hashtag_dashes",
         "org_tag_links", "org_tag_dashes", "mark_broken_links", "link_preview", "link_preview_trigger", "embed_videos"]),
     ("Editing", &["autosave", "electric_mode", "electric_emphasis", "find_match_case", "indent_headings", "tab_folds",
         "todo_enabled", "todo_keywords", "delete_empty_pages", "delete_title_only_pages", "trash_auto_empty", "trash_keep_days", "trash_max_bytes"]),

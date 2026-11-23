@@ -2543,18 +2543,17 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "orgamnesia"
-version = "1.8.2"
+version = "1.8.3"
 dependencies = [
  "arboard",
  "chrono",
  "gtk",
- "notify-debouncer-mini",
+ "orgamnesia-backend",
  "orgamnesia-core",
  "ratatui",
  "serde",
  "serde_json",
  "serde_yaml_ng",
- "spellbook",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -2565,8 +2564,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "orgamnesia-backend"
+version = "1.8.3"
+dependencies = [
+ "notify-debouncer-mini",
+ "orgamnesia-core",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "spellbook",
+ "toml 1.1.6+spec-1.1.0",
+]
+
+[[package]]
 name = "orgamnesia-core"
-version = "1.8.2"
+version = "1.8.3"
 dependencies = [
  "regex",
  "serde",

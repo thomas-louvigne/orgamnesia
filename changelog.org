@@ -4,6 +4,12 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.8.3
+- "A click on a link follows it" (Settings > Links, off by default): a plain click follows a link, as Ctrl+click does. In the terminal too.
+- Keyboard: the arrows, Space and +/- turn and zoom the graph as soon as it opens (they needed a click on it first); a new page, the page of the day, a random page and the page a link leads to take the cursor, to type in them straight away.
+- A demo video in the readme.
+- Inside: what the app does with projects, pages, git and the configuration is now its own crate (backend), shared by the window and the terminal.
+
 * 1.8.2
 - Zen mode: F11 (or Ctrl+Alt+Z, C-c z in Emacs) leaves only the page, full screen, without columns, tabs nor bars; a discreet line says how to leave it. In the terminal too.
 - Random page: Ctrl+Alt+R (C-c r in Emacs), or the command of quick open, opens a page picked at random.
