@@ -4,6 +4,9 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.8.4
+- Mode zen : le texte au milieu de l'écran, à une largeur de lecture.
+
 * 1.8.3
 - « Un clic sur un lien le suit » (Réglages > Liens, désactivé par défaut) : un clic simple suit un lien, comme Ctrl+clic. Dans le terminal aussi.
 - Clavier : les flèches, Espace et +/- tournent et zooment le graphe dès son ouverture (il fallait d'abord cliquer dessus) ; une nouvelle page, la page du jour, une page au hasard et la page où mène un lien prennent le curseur, pour y écrire aussitôt.

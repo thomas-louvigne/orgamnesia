@@ -1,6 +1,6 @@
 [package]
 name = "orgamnesia-backend"
-version = "1.8.3"
+version = "1.8.4"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "What Orgamnesia does with projects, pages, git and configuration, without an interface"

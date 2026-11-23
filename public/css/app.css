@@ -1773,6 +1773,12 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
 
 /* Zen mode: only the page, full screen; a discreet hint to leave it */
 .zen .side-column, .zen .resizer, .zen .workspace-topbar, .zen .pane-tabs { display: none; }
+/* The text in the middle of the screen, at a reading width (about 100 columns): the
+   editor itself is narrower, its two layers and the widths it measures stay in step */
+.zen { --zen-width: 900px; }
+.zen .editor-pane-body { justify-content: center; }
+.zen .editor-wrap { flex: 0 1 var(--zen-width); }
+.zen .page-title { align-self: center; width: var(--zen-width); max-width: 100%; }
 .zen-hint {
     position: fixed;
     right: 12px;
