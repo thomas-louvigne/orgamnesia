@@ -6,7 +6,6 @@ use std::collections::{HashMap, HashSet};
 use orgamnesia_core::{search, PageHits, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults, TagSyntax};
 
 use super::Project;
-use super::files;
 use crate::error::AppError;
 
 /// Matches sent to the interface at most; the counts stay exact past it.
@@ -24,7 +23,7 @@ impl Project {
     /// text of the pages being edited, used in place of the one known on disk.
     pub fn search(&self, query: &str, opts: SearchOptions, open: &HashMap<String, String>) -> SearchResults {
         let mut paths: Vec<&String> = self.pages.keys().collect();
-        paths.sort_by_cached_key(|p| files::page_name(p).to_lowercase());
+        paths.sort_by_cached_key(|p| self.name_of(p).to_lowercase());
         let mut results = SearchResults::default();
         for path in paths {
             let text = open.get(path).unwrap_or(&self.pages[path]);
@@ -36,7 +35,7 @@ impl Project {
             results.truncated |= shown.len() < ranges.len();
             results.total += ranges.len();
             results.pages.push(PageHits {
-                page: files::page_name(path),
+                page: self.name_of(path),
                 path: path.clone(),
                 hits: search::hits(&chars, shown),
                 count: ranges.len(),

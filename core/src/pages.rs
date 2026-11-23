@@ -12,6 +12,24 @@ pub fn file_name(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path)
 }
 
+/// True when a page holds no text: only spaces, tabs, line breaks, `*` or `#`.
+pub fn is_blank(content: &str) -> bool {
+    content.chars().all(|c| c.is_whitespace() || c == '*' || c == '#')
+}
+
+/// True when a page holds nothing but its title heading (`* Name` or `# Name`,
+/// as a new page starts).
+pub fn is_title_only(content: &str) -> bool {
+    let mut lines = content.lines().filter(|l| !l.trim().is_empty());
+    let Some(first) = lines.next() else { return false };
+    let first = first.trim_start();
+    let mark = if first.starts_with('#') { '#' } else { '*' };
+    let stars = first.len() - first.trim_start_matches(mark).len();
+    stars > 0
+        && (first.len() == stars || first[stars..].starts_with([' ', '\t']))
+        && lines.next().is_none()
+}
+
 /// Finds the page a link names, among the pages of the project (borrowed, or
 /// owned to be kept: `Resolver<'static>`).
 #[derive(Clone, PartialEq)]

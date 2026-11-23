@@ -103,6 +103,11 @@ pub fn tag_page(ctx: AppCtx, file: FileEntry, tag: &'static str) {
 }
 
 /// Bring back the page deleted to `trashed`; reopen it when it was open.
+/// Bring back a page from the trash, its tab not opened again (a folder's pages).
+pub fn restore_page_quietly(ctx: AppCtx, trashed: String) {
+    restore_page(ctx, trashed, false);
+}
+
 fn restore_page(ctx: AppCtx, trashed: String, reopen: bool) {
     spawn_local(async move {
         match invoke::restore_page(&trashed).await {

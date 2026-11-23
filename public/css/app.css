@@ -286,6 +286,11 @@ select.git-branch option { background: var(--bg2); color: var(--fg); font-weight
     font-size: var(--fs-ui);
     border-left: 2px solid transparent;
 }
+.folder-item { display: flex; align-items: baseline; gap: 4px; font-weight: 600; }
+.folder-item .file-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.folder-arrow { flex: none; width: 1em; color: var(--fg-dim); }
+/* The number of pages, at the right end of the line, apart from the name */
+.folder-count { flex: none; margin-left: 12px; font-size: var(--fs-meta); color: var(--fg-dim); font-weight: normal; }
 .file-item:hover { background: var(--bg3); color: var(--accent2); }
 /* Git extension: the page differs from the remote, to push */
 .file-unpushed {
@@ -1280,6 +1285,10 @@ pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
     outline: none;
 }
 .setting-input:focus { border-color: var(--accent); }
+.prompt-box { display: flex; flex-direction: column; gap: 8px; min-width: 360px; }
+.prompt-choices { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; }
+.template-new { flex-direction: row; align-items: center; gap: 8px; }
+.template-list { margin: 0; padding-left: 18px; }
 
 .btn-pick {
     background: var(--bg3); border: 1px solid var(--border);

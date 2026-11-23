@@ -128,6 +128,10 @@ impl App {
                 commands::QuickItem::Page { name, .. } => ListItem::new(format!("  {name}")),
                 commands::QuickItem::Create(name) => ListItem::new(format!("+ create “{name}”")).style(Style::new().fg(Color::Green)),
                 commands::QuickItem::Command { id, keys } => ListItem::new(format!("› {:<28} {keys}", id.replace('_', " "))).style(Style::new().fg(Color::Cyan)),
+                commands::QuickItem::Template { name, edit: false, .. } => ListItem::new(format!("▤ template: {name}")).style(Style::new().fg(Color::Cyan)),
+                commands::QuickItem::Template { name, .. } => ListItem::new(format!("✎ edit template: {name}")).style(Style::new().fg(Color::Cyan)),
+                commands::QuickItem::NewTemplate => ListItem::new("› new template").style(Style::new().fg(Color::Cyan)),
+                commands::QuickItem::SuggestedTemplates => ListItem::new("› add suggested templates").style(Style::new().fg(Color::Cyan)),
             }).collect();
             let mut state = ListState::default().with_selected(Some(q.selected));
             f.render_stateful_widget(List::new(lines).block(Block::bordered().title(" ↑↓ Enter · Esc "))
@@ -185,9 +189,13 @@ impl App {
         let cyan = Style::new().fg(ratatui::style::Color::Cyan);
         match frame {
             Frame::Pages => {
-                let pages = self.shown();
                 let count = |p: &FileEntry| self.hits.as_ref().and_then(|(_, h)| h.iter().find(|(path, _)| *path == p.path)).map(|(_, n)| format!(" ({n})"));
-                let names: Vec<String> = pages.iter().map(|p| format!("{}{}", p.name, count(p).unwrap_or_default())).collect();
+                let names: Vec<String> = self.rows().into_iter().map(|r| match r {
+                    orgamnesia_core::tree::Row::Folder { name, depth, open, pages, .. } =>
+                        format!("{}{} {name}/ ({pages})", "  ".repeat(depth), if open { "▾" } else { "▸" }),
+                    orgamnesia_core::tree::Row::Page { file, name, depth } =>
+                        format!("{}  {name}{}", "  ".repeat(depth), count(&file).unwrap_or_default()),
+                }).collect();
                 let title = match (&self.hits, self.filter.is_empty()) {
                     (Some((q, _)), _) => format!(" “{q}” "),
                     (None, true) => " Pages ".to_string(),

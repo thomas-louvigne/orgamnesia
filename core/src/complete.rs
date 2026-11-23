@@ -23,7 +23,8 @@ pub fn place_prefix(prefix: &str) -> Option<(String, String, usize)> {
 }
 
 /// Page names completing `prefix` (ignoring case and accents): names starting with it first
-/// (shortest first), then names containing it; the exact name is left out. With
+/// or whose last part (a page in a folder: `Jeux/Dragon`) does (shortest first),
+/// then names containing it; the exact name is left out. With
 /// `tag: Some(_)`, only names usable as such a `#tag` are kept.
 pub fn complete_page(names: &[String], prefix: &str, tag: Option<crate::Hashtags>, limit: usize) -> Vec<String> {
     let p = crate::names::fold(prefix.trim());
@@ -34,7 +35,8 @@ pub fn complete_page(names: &[String], prefix: &str, tag: Option<crate::Hashtags
             && name.chars().all(|c| t.is_tag_char(c)));
         let n = crate::names::fold(name);
         if !valid || n == p { continue; }
-        if n.starts_with(&p) { starts.push(name.clone()); }
+        // `dra` finds `Jeux/Dragon` as `Dragon`: by the page's own name too
+        if n.starts_with(&p) || n.rsplit('/').next().is_some_and(|leaf| leaf.starts_with(&p)) { starts.push(name.clone()); }
         else if n.contains(&p) { contains.push(name.clone()); }
     }
     starts.sort_by_key(|n| (n.chars().count(), n.to_lowercase()));
@@ -162,6 +164,13 @@ mod tests {
         assert_eq!(place_prefix("*Ti"), Some((String::new(), "*Ti".into(), 0)));
         assert_eq!(place_prefix("Page"), None);
     }
+    #[test]
+    fn pages_in_folders_complete_by_their_own_name() {
+        let names: Vec<String> = ["Jeux/Quêtes/Dragon", "Notes/Dragonnier", "Hydra", "Dragée"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(complete_page(&names, "dra", None, 10), vec!["Dragée", "Notes/Dragonnier", "Jeux/Quêtes/Dragon", "Hydra"]);
+        assert_eq!(complete_page(&names, "jeux/", None, 10), vec!["Jeux/Quêtes/Dragon"]);
+    }
+
     #[test]
     fn complete_page_ranks_prefix_matches_first() {
         let names: Vec<String> = ["Rust", "rust-async", "Trust", "Notes", "my page", "Rustacean"]

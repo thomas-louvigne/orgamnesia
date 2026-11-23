@@ -109,11 +109,7 @@ impl App {
         match key.code {
             _ if cancel(&key) => { self.mode = Mode::Normal; self.status.clear(); }
             KeyCode::Enter => self.submit(),
-            KeyCode::Tab => match p.completes() {
-                Some(true) => self.complete_prompt(App::tag_names),
-                Some(false) => self.complete_prompt(App::link_names),
-                None => {}
-            },
+            KeyCode::Tab => if let Some(names) = p.completes() { self.complete_prompt(names) },
             KeyCode::Backspace => { p.input.pop(); p.choices.clear(); }
             KeyCode::Char(c) if plain => { p.input.push(c); p.choices.clear(); }
             _ => {}
@@ -169,7 +165,9 @@ impl App {
             KeyCode::Tab => self.next_link(true),
             KeyCode::BackTab => self.next_link(false),
             KeyCode::Enter if self.link.is_some() => self.follow_chosen(),
-            KeyCode::Enter => if let Some(page) = self.selected() { self.edit(&page.path); },
+            KeyCode::Enter => if let Some(page) = self.selected() { self.edit(&page.path); } else { self.fold_folder(None); },
+            KeyCode::Right => { self.fold_folder(Some(true)); }
+            KeyCode::Left => { self.fold_folder(Some(false)); }
             KeyCode::Backspace => { self.filter.pop(); self.list.select_first(); self.moved(); }
             KeyCode::Char(c) if !ctrl => { self.filter.push(c); self.list.select_first(); self.moved(); }
             _ => {}
@@ -231,6 +229,8 @@ impl App {
                 else { self.open_or_create(name); }
             }
             "journal" => self.journal(),
+            "capture" => self.capture(),
+            "new_folder" | "move_page" | "rename_folder" | "delete_folder" => { self.folder_action(id); }
             "open_link" if editing => self.follow_at_cursor(),
             "open_link" => {
                 if self.link.is_none() { self.next_link(true); }
@@ -294,6 +294,7 @@ impl App {
                     Some(commands::QuickItem::Page { path, .. }) => { self.hits = None; self.edit(&path); }
                     Some(commands::QuickItem::Create(name)) => self.open_or_create(name),
                     Some(commands::QuickItem::Command { id, .. }) => return self.run_action(&id).unwrap_or(false),
+                    Some(item) => self.template_chosen(item),
                     None => {}
                 }
             }
@@ -401,9 +402,12 @@ impl App {
         if column <= a.x || column + 1 >= a.x + a.width || row <= a.y || row + 1 >= a.y + a.height { return; }
         if !self.back_to_list() { return; }
         let i = self.list.offset() + (row - a.y - 1) as usize;
-        if i < self.shown().len() && self.list.selected() != Some(i) {
+        if i < self.rows().len() && self.list.selected() != Some(i) {
             self.list.select(Some(i));
             self.moved();
+        // A folder clicked again: folded or unfolded
+        } else if self.list.selected() == Some(i) {
+            self.fold_folder(None);
         }
     }
 

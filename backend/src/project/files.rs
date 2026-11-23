@@ -8,11 +8,32 @@ use crate::error::AppError;
 
 pub use orgamnesia_core::FileEntry;
 use orgamnesia_core::{Format, Formats};
+pub use orgamnesia_core::pages::{is_blank, is_title_only};
 
 /// Directory holding the pages: `<vault>/pages/` when it exists, else the folder itself.
 pub fn pages_dir(vault_path: &str) -> PathBuf {
     let pages = Path::new(vault_path).join("pages");
     if pages.is_dir() { pages } else { PathBuf::from(vault_path) }
+}
+
+/// The folder of the page templates named in the settings, in the project: a
+/// relative path (`templates`, `_meta/Templates`), else `templates`.
+pub fn templates_dir(vault_path: &str, setting: &str) -> PathBuf {
+    let s = Path::new(setting.trim());
+    let plain = !s.as_os_str().is_empty() && s.components().all(|c| matches!(c, std::path::Component::Normal(_)));
+    Path::new(vault_path).join(if plain { s } else { Path::new("templates") })
+}
+
+/// The templates of the project (`*.org`, `*.md` of a format read, in the folder
+/// `setting` names), sorted by name.
+pub fn list_templates(vault_path: &str, setting: &str, formats: Formats) -> Vec<FileEntry> {
+    let Ok(dir) = std::fs::read_dir(templates_dir(vault_path, setting)) else { return vec![] };
+    let mut list: Vec<FileEntry> = dir.filter_map(|e| e.ok())
+        .filter(|e| page_format(&e.path()).is_some_and(|f| formats.accepts(f)))
+        .map(|e| FileEntry { name: page_name(&e.path().to_string_lossy()), path: crate::slash(e.path()) })
+        .collect();
+    list.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
+    list
 }
 
 /// The journal folder named in the settings: a plain folder name, else `journals`.
@@ -36,9 +57,7 @@ pub fn journal_dir(vault_path: &str, name: &str) -> PathBuf {
 
 /// Whether the page `name` is a day of the journal: `2026-11-18`.
 pub fn is_journal_day(name: &str) -> bool {
-    let b = name.as_bytes();
-    b.len() == 10 && b[4] == b'-' && b[7] == b'-'
-        && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+    orgamnesia_core::tree::is_day(name)
 }
 
 /// Whether the file `path` is a page of either format (`.org`, `.md`).
@@ -60,27 +79,74 @@ fn has_org_files(dir: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// List the pages of the vault (see `pages_dir`, and `journal_dir` for the journal
-/// folder `journal`): its `.org` and `.md` files, those `formats` accepts, sorted by name.
-pub fn list_pages(vault_path: &str, formats: Formats, journal: &str) -> Result<Vec<FileEntry>, AppError> {
+/// The folders of the vault that hold pages: the pages folder and its folders,
+/// but the hidden ones, `assets/`, the journal's (read apart) and the templates'
+/// (no pages); folders first (by their path from the pages folder), then the
+/// pages files, in no order.
+fn walk(vault_path: &str, journal: &str, templates: &str) -> (Vec<PathBuf>, Vec<PathBuf>) {
+    let pages = pages_dir(vault_path);
+    let skip = [journal_dir(vault_path, journal), templates_dir(vault_path, templates), Path::new(vault_path).join("assets")];
+    let (mut folders, mut files) = (vec![], vec![]);
+    let mut todo = vec![pages];
+    while let Some(dir) = todo.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for e in entries.filter_map(|e| e.ok()) {
+            let path = e.path();
+            let hidden = e.file_name().to_string_lossy().starts_with('.');
+            if e.file_type().is_ok_and(|t| t.is_dir()) {
+                if !hidden && !skip.contains(&path) { folders.push(path.clone()); todo.push(path); }
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    (folders, files)
+}
+
+/// The name of the page `path`: its path from the pages folder, without the
+/// extension and with `/` (`Jeux/Quêtes/Dragon`), as links name it; the file
+/// name alone (`2026-11-18`) for a page of the journal folder `journal`.
+pub fn name_in(vault_path: &str, journal: &str, path: &str) -> String {
+    let p = Path::new(path);
+    if p.parent() == Some(journal_dir(vault_path, journal).as_path()) { return page_name(path); }
+    match p.strip_prefix(pages_dir(vault_path)) {
+        Ok(rel) => rel.with_extension("").components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"),
+        Err(_) => page_name(path),
+    }
+}
+
+/// List the pages of the vault (see `pages_dir` and its folders, and `journal_dir`
+/// for the journal folder `journal`; the folder of the templates `templates` left
+/// out): its `.org` and `.md` files, those `formats` accepts, sorted by name.
+pub fn list_pages(vault_path: &str, formats: Formats, journal: &str, templates: &str) -> Result<Vec<FileEntry>, AppError> {
     let pages = pages_dir(vault_path);
     if !pages.exists() {
         return Err(AppError::VaultNotFound(vault_path.to_string()));
     }
     let days = journal_dir(vault_path, journal);
     let days = (days.is_dir() && days != pages).then(|| std::fs::read_dir(days).ok()).flatten();
-    let mut files: Vec<FileEntry> = std::fs::read_dir(&pages)?
-        .chain(days.into_iter().flatten())
-        .filter_map(|entry| entry.ok())
-        .filter(|e| page_format(&e.path()).is_some_and(|f| formats.accepts(f)))
-        .map(|e| {
-            let path = e.path();
-            let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
-            FileEntry { name, path: crate::slash(&path) }
+    let mut files: Vec<FileEntry> = walk(vault_path, journal, templates).1.into_iter()
+        .chain(days.into_iter().flatten().filter_map(|e| e.ok()).map(|e| e.path()))
+        .filter(|p| page_format(p).is_some_and(|f| formats.accepts(f)))
+        .map(|p| {
+            let path = crate::slash(&p);
+            FileEntry { name: name_in(vault_path, journal, &path), path }
         })
         .collect();
     files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
     Ok(files)
+}
+
+/// The folders of the pages (see `walk`), by their path from the pages folder
+/// (`Jeux/Quêtes`), sorted: empty ones too.
+pub fn list_folders(vault_path: &str, journal: &str, templates: &str) -> Vec<String> {
+    let pages = pages_dir(vault_path);
+    let mut folders: Vec<String> = walk(vault_path, journal, templates).0.iter()
+        .filter_map(|f| f.strip_prefix(&pages).ok())
+        .map(|rel| rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"))
+        .collect();
+    folders.sort();
+    folders
 }
 
 /// Modification time and size of a file, to notice when it changes on disk.
@@ -153,29 +219,13 @@ pub fn page_name(path: &str) -> String {
 }
 
 /// Full path for a new page of `format` in the vault: a day (see `is_journal_day`)
-/// goes in the journal folder `journal`, created if needed.
+/// goes in the journal folder `journal`; `Jeux/Dragon` in the folder `Jeux` of the
+/// pages folder. The folder is created if needed.
 pub fn page_path(vault_path: &str, name: &str, format: Format, journal: &str) -> std::io::Result<PathBuf> {
-    let dir = if is_journal_day(name) { journal_dir(vault_path, journal) } else { pages_dir(vault_path) };
-    std::fs::create_dir_all(&dir)?;
-    Ok(dir.join(format!("{name}.{}", format.ext())))
-}
-
-/// True when a page holds no text: only spaces, tabs, line breaks, `*` or `#`.
-pub fn is_blank(content: &str) -> bool {
-    content.chars().all(|c| c.is_whitespace() || c == '*' || c == '#')
-}
-
-/// True when a page holds nothing but its title heading (`* Name` or `# Name`,
-/// as a new page starts).
-pub fn is_title_only(content: &str) -> bool {
-    let mut lines = content.lines().filter(|l| !l.trim().is_empty());
-    let Some(first) = lines.next() else { return false };
-    let first = first.trim_start();
-    let mark = if first.starts_with('#') { '#' } else { '*' };
-    let stars = first.len() - first.trim_start_matches(mark).len();
-    stars > 0
-        && (first.len() == stars || first[stars..].starts_with([' ', '\t']))
-        && lines.next().is_none()
+    let path = if is_journal_day(name) { journal_dir(vault_path, journal) } else { pages_dir(vault_path) }
+        .join(format!("{name}.{}", format.ext()));
+    if let Some(dir) = path.parent() { std::fs::create_dir_all(dir)?; }
+    Ok(path)
 }
 
 /// The trash folder of the project `vault_path`, created if needed, with a
@@ -191,22 +241,31 @@ pub fn trash_dir(vault_path: &str) -> std::io::Result<PathBuf> {
 }
 
 /// Move the page `path` to the trash of `vault_path`, named `<time>-<page>.org`
-/// (or `.md`); its path there.
+/// (or `.md`), its folder kept in the name (`<time>-Jeux%2FDragon.org`, see
+/// `from_trash_name`); its path there.
 pub fn to_trash(vault_path: &str, path: &str) -> std::io::Result<PathBuf> {
     let stamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_millis());
-    let to = trash_dir(vault_path)?.join(format!("{stamp}-{}", orgamnesia_core::pages::file_name(path)));
+    let name = Path::new(path).strip_prefix(pages_dir(vault_path)).ok()
+        .map(|rel| rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("%2F"))
+        .unwrap_or_else(|| orgamnesia_core::pages::file_name(path).to_string());
+    let to = trash_dir(vault_path)?.join(format!("{stamp}-{name}"));
     std::fs::rename(path, &to)?;
     Ok(to)
+}
+
+/// The page name a file of the trash was (see `to_trash`): `Jeux/Dragon` for `<time>-Jeux%2FDragon.org`.
+pub fn from_trash_name(stem: &str) -> Option<String> {
+    stem.split_once('-').map(|(_, n)| n.replace("%2F", "/"))
 }
 
 /// Move to the trash the pages of the vault that are blank (see `is_blank`)
 /// and/or hold only their title heading, depending on the flags. Returns their
 /// paths before.
-pub fn delete_blank_pages(vault_path: &str, formats: Formats, journal: &str, empty: bool, title_only: bool) -> Vec<String> {
+pub fn delete_blank_pages(vault_path: &str, formats: Formats, journal: &str, templates: &str, empty: bool, title_only: bool) -> Vec<String> {
     if !empty && !title_only {
         return vec![];
     }
-    let Ok(files) = list_pages(vault_path, formats, journal) else { return vec![] };
+    let Ok(files) = list_pages(vault_path, formats, journal, templates) else { return vec![] };
     files.into_iter()
         .filter(|f| {
             let Ok(content) = std::fs::read_to_string(&f.path) else { return false };
@@ -253,7 +312,7 @@ mod tests {
         for name in ["Note.org", ".#Note.org", "._Note.md", ".Note.org.123.tmp"] {
             std::fs::write(dir.join(name), "").unwrap();
         }
-        let names: Vec<String> = list_pages(dir.to_str().unwrap(), Formats::default(), "journals").unwrap().into_iter().map(|f| f.name).collect();
+        let names: Vec<String> = list_pages(dir.to_str().unwrap(), Formats::default(), "journals", "templates").unwrap().into_iter().map(|f| f.name).collect();
         assert_eq!(names, ["Note"]);
         std::fs::remove_dir_all(&dir).unwrap();
     }
@@ -275,7 +334,7 @@ mod tests {
         assert_eq!(page_path(vp, "Note", Format::Org, "notes").unwrap(), dir.join("pages/Note.org"));
         std::fs::write(&day, "* 2026-11-18\n").unwrap();
         std::fs::write(dir.join("pages/Note.org"), "* Note\n").unwrap();
-        let names: Vec<String> = list_pages(vp, Formats::default(), "notes").unwrap().into_iter().map(|f| f.name).collect();
+        let names: Vec<String> = list_pages(vp, Formats::default(), "notes", "templates").unwrap().into_iter().map(|f| f.name).collect();
         assert_eq!(names, ["2026-11-18", "Note"]);
         // An existing `daily/` is taken when the folder of the settings is missing
         std::fs::remove_dir_all(dir.join("notes")).unwrap();
@@ -330,10 +389,10 @@ mod tests {
             std::fs::write(dir.join(format!("{name}.org")), content).unwrap();
         }
         let vp = dir.to_str().unwrap();
-        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", false, false).len(), 0);
-        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", true, false).len(), 2);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", "templates", false, false).len(), 0);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", "templates", true, false).len(), 2);
         assert!(!dir.join("vide.org").exists() && !dir.join("espaces.org").exists() && dir.join("titre.org").exists());
-        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", false, true).len(), 1);
+        assert_eq!(delete_blank_pages(vp, Formats::default(), "journals", "templates", false, true).len(), 1);
         assert!(!dir.join("titre.org").exists() && dir.join("texte.org").exists());
         // In the trash, not gone for good
         assert_eq!(std::fs::read_dir(dir.join(".trash")).unwrap().flatten().filter(|e| e.file_name() != ".gitignore").count(), 3);

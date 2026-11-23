@@ -456,6 +456,36 @@ fn goto_target(pane: Pane, find: Find, insert: Insert, tab: Tab, second: bool) {
                 if let Some(el) = pane.area.get_untracked() { keys::run_action(pane, find, insert, &el, action); }
                 None
             }
+            Goto::Capture(now) => {
+                pane.focus();
+                if let Some(el) = pane.area.get_untracked() {
+                    // Now, not at the next tick (`pane.focus`): the browser inserts only in the element focused
+                    let _ = el.focus();
+                    let value = el.value();
+                    let len = value.chars().count();
+                    let end = dom::splice(&el, len, len, &orgamnesia_core::capture::entry(&value, now));
+                    dom::set_cursor(&el, end);
+                    pane.track_caret(&el);
+                }
+                None
+            }
+            Goto::Insert { text, whole } => {
+                pane.focus();
+                if let Some(el) = pane.area.get_untracked() {
+                    // Now, not at the next tick (`pane.focus`): the browser inserts only in the element focused
+                    let _ = el.focus();
+                    let value = el.value();
+                    let (from, to) = if whole || orgamnesia_core::templates::replaces(&value) {
+                        (0, value.chars().count())
+                    } else {
+                        dom::get_pos(&el)
+                    };
+                    let end = dom::splice(&el, from, to, &text);
+                    dom::set_cursor(&el, end);
+                    pane.track_caret(&el);
+                }
+                None
+            }
         };
         if let Some((start, end)) = range { pane.select_page_range(start, end, true); }
     });

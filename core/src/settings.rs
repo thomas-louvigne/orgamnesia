@@ -227,6 +227,9 @@ pub struct Config {
     /// Git extension: the commit message proposed, with `{date}`, `{time}`,
     /// `{count}` and `{files}` replaced; empty: a summary and the list of the files.
     pub git_commit_template: Option<String>,
+    /// The folder of the page templates, in the project (Obsidian's "Template folder
+    /// location"): `templates` when not set.
+    pub templates_folder: Option<String>,
     /// Look for a new version of the app when it starts.
     pub check_updates: Option<bool>,
     /// The new version the user chose to skip: not offered again at start.
@@ -323,6 +326,8 @@ pub struct Prefs {
     pub journal: bool,
     /// See `Config::journal_folder`.
     pub journal_folder: String,
+    /// See `Config::templates_folder`.
+    pub templates_folder: String,
     pub show_excalidraw: bool,
     pub git_ssh_key: String,
     /// See `Settings::git_auto_sync_minutes`.
@@ -423,6 +428,7 @@ impl Prefs {
             show_graph: s.show_graph.unwrap_or(true),
             journal: s.journal_enabled.unwrap_or(false),
             journal_folder: s.journal_folder.clone().unwrap_or_else(|| "journals".to_string()),
+            templates_folder: s.templates_folder.clone().filter(|f| !f.trim().is_empty()).unwrap_or_else(|| "templates".to_string()),
             show_excalidraw: s.show_excalidraw.unwrap_or(true),
             git_ssh_key: s.git_ssh_key.clone().unwrap_or_default(),
             git_auto_sync: s.git_auto_sync_minutes.unwrap_or(0),
@@ -541,6 +547,7 @@ impl Prefs {
             show_graph: Some(self.show_graph),
             journal_enabled: Some(self.journal),
             journal_folder: Some(self.journal_folder.clone()),
+            templates_folder: Some(self.templates_folder.clone()),
             show_excalidraw: Some(self.show_excalidraw),
             git_ssh_key: some(&self.git_ssh_key),
             git_auto_sync_minutes: Some(self.git_auto_sync),

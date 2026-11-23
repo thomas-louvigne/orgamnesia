@@ -156,6 +156,7 @@ pub const SECTIONS: &[(&str, &[&str])] = &[
         "org_tag_links", "org_tag_dashes", "mark_broken_links", "link_preview", "link_preview_trigger", "embed_videos"]),
     ("Editing", &["autosave", "electric_mode", "electric_emphasis", "find_match_case", "indent_headings", "tab_folds",
         "todo_enabled", "todo_keywords", "delete_empty_pages", "delete_title_only_pages", "trash_auto_empty", "trash_keep_days", "trash_max_bytes"]),
+    ("Templates", &["templates_folder"]),
     ("Display", &["show_page_title", "show_page_nav", "show_line_numbers", "show_images", "image_size_format", "show_excalidraw",
         "show_video_thumbnails", "hide_leading_stars", "live_preview", "ligatures", "link_text_first"]),
     ("Frames", &["frames_left", "frames_right", "show_brand", "show_project", "show_git", "show_pages", "show_backlinks", "show_tags",

@@ -57,9 +57,33 @@ pub fn search_order(name: &str, query: &str) -> (bool, usize, String) {
     (!key.starts_with(query), name.chars().count(), key)
 }
 
+/// The page name `name` (`Jeux/Quêtes/Dragon`) in `max` chars at most, its first
+/// folders left out for `…/` (`…/Quêtes/Dragon`): the page's own name stays whole.
+pub fn short_path(name: &str, max: usize) -> String {
+    if name.chars().count() <= max { return name.to_string(); }
+    let parts: Vec<&str> = name.split('/').collect();
+    let Some((last, folders)) = parts.split_last() else { return name.to_string() };
+    let mut from = folders.len();
+    let mut len = last.chars().count() + 2;
+    while from > 0 && len + folders[from - 1].chars().count() < max {
+        from -= 1;
+        len += folders[from].chars().count() + 1;
+    }
+    if from == 0 { return name.to_string(); }
+    format!("…/{}", parts[from..].join("/"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn long_paths_keep_their_last_names() {
+        assert_eq!(short_path("Jeux/Dragon", 20), "Jeux/Dragon");
+        assert_eq!(short_path("Jeux de rôle/Quêtes/Dragon", 20), "…/Quêtes/Dragon");
+        assert_eq!(short_path("Jeux de rôle/Quêtes/Un dragon rouge", 20), "…/Un dragon rouge");
+        assert_eq!(short_path("Une page au nom très très long", 10), "Une page au nom très très long");
+    }
 
     #[test]
     fn accents_fold_one_char_for_one() {

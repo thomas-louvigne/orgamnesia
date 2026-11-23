@@ -253,6 +253,11 @@ pub enum AppAction {
     RenamePage, TodosPanel, TagsPanel, BacklinksPanel, BrokenPanel,
     /// The list of the pages (its frame).
     PagesPanel,
+    /// Quick capture (see `capture`): the page notes go to, beside the one in view.
+    Capture,
+    /// The folders of the pages: one made, the page open moved to one, one
+    /// renamed (moved), one deleted. No shortcut by default.
+    NewFolder, MovePage, RenameFolder, DeleteFolder,
 }
 
 /// Editor actions.
@@ -332,6 +337,11 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::SwitchProject, id: "switch_project", label_key: "shortcut_switch_project" },
     ActionDef { action: AppAction::Journal, id: "journal", label_key: "shortcut_journal" },
     ActionDef { action: AppAction::RandomPage, id: "random_page", label_key: "shortcut_random_page" },
+    ActionDef { action: AppAction::Capture, id: "capture", label_key: "shortcut_capture" },
+    ActionDef { action: AppAction::NewFolder, id: "new_folder", label_key: "shortcut_new_folder" },
+    ActionDef { action: AppAction::MovePage, id: "move_page", label_key: "shortcut_move_page" },
+    ActionDef { action: AppAction::RenameFolder, id: "rename_folder", label_key: "shortcut_rename_folder" },
+    ActionDef { action: AppAction::DeleteFolder, id: "delete_folder", label_key: "shortcut_delete_folder" },
     ActionDef { action: AppAction::ZenMode, id: "zen_mode", label_key: "shortcut_zen_mode" },
     ActionDef { action: AppAction::RenamePage, id: "rename_page", label_key: "shortcut_rename_page" },
     ActionDef { action: AppAction::TodosPanel, id: "panel_todos", label_key: "shortcut_panel_todos" },
@@ -473,6 +483,7 @@ pub fn default_app() -> Bindings {
         ("switch_project",   &["ctrl+alt+p"]),
         ("journal",          &["ctrl+shift+j"]),
         ("random_page",      &["ctrl+alt+r"]),
+        ("capture",          &["ctrl+alt+c"]),
         ("zen_mode",         &["F11", "ctrl+alt+z"]),
         // Function keys free in both profiles (and in terminals)
         ("rename_page",      &["F2"]),
@@ -601,6 +612,8 @@ pub fn preset_app(preset: &str) -> Bindings {
             // As org-journal's `C-c C-j`, without the second Ctrl
             ("journal",          &["ctrl+c j"]),
             ("random_page",      &["ctrl+c r"]),
+            // org-capture
+            ("capture",          &["ctrl+c c"]),
             ("zen_mode",         &["F11", "ctrl+c z"]),
             ("rename_page",      &["F2"]),
             ("panel_todos",      &["F4"]),

@@ -231,6 +231,37 @@ pub async fn create_page(name: &str, format: Option<orgamnesia_core::Format>) ->
     call("create_page", serde_json::json!({ "pageName": name, "format": format })).await
 }
 
+pub async fn list_pages() -> Result<Vec<FileEntry>, String> {
+    call("list_pages", serde_json::json!({})).await
+}
+
+/// The folders of the pages, by their path from the pages folder (`Jeux/Quêtes`).
+pub async fn list_folders() -> Result<Vec<String>, String> {
+    call("list_folders", serde_json::json!({})).await
+}
+
+pub async fn create_folder(name: &str) -> Result<String, String> {
+    call("create_folder", serde_json::json!({ "name": name })).await
+}
+
+pub async fn rename_folder(old: &str, new: &str) -> Result<String, String> {
+    call("rename_folder", serde_json::json!({ "old": old, "new": new })).await
+}
+
+/// Returns the paths of the folder's pages in the trash.
+pub async fn delete_folder(name: &str) -> Result<Vec<String>, String> {
+    call("delete_folder", serde_json::json!({ "name": name })).await
+}
+
+/// The page templates of the project (`templates/`).
+pub async fn list_templates() -> Result<Vec<FileEntry>, String> {
+    call("list_templates", serde_json::json!({})).await
+}
+
+pub async fn create_template(name: &str, format: orgamnesia_core::Format, text: &str) -> Result<FileEntry, String> {
+    call("create_template", serde_json::json!({ "name": name, "format": format, "text": text })).await
+}
+
 pub async fn rename_page(old_path: &str, new_name: &str) -> Result<FileEntry, String> {
     call("rename_page", serde_json::json!({ "oldPath": old_path, "newName": new_name })).await
 }

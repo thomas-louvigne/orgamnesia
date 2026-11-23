@@ -1,7 +1,8 @@
 use leptos::{html, prelude::*};
 use wasm_bindgen::JsCast;
 
-use orgamnesia_core::names::{fold, search_order};
+use orgamnesia_core::{names::{fold, search_order}, Format};
+use wasm_bindgen_futures::spawn_local;
 
 use crate::{
     actions,
@@ -21,12 +22,14 @@ enum QuickItem {
     Command { action: AppAction, label: String, keys: Option<String> },
     /// An editing action on the page open, the same way.
     Edit { action: EditorAction, label: String, keys: Option<String> },
+    /// A template of the project (`templates/`), applied to the page open.
+    Template { file: FileEntry, label: String },
 }
 
 impl QuickItem {
     fn display_name(&self) -> String {
         match self {
-            Self::Tab { name, .. } | Self::Create { name } | Self::Command { label: name, .. } | Self::Edit { label: name, .. } => name.clone(),
+            Self::Tab { name, .. } | Self::Create { name } | Self::Command { label: name, .. } | Self::Edit { label: name, .. } | Self::Template { label: name, .. } => name.clone(),
             Self::File(f) => f.name.clone(),
             Self::Tag(tag) => format!(":{tag}:"),
         }
@@ -50,7 +53,50 @@ fn do_open(ctx: AppCtx, item: QuickItem) {
         QuickItem::Edit { action, .. } => if let Some(tab) = ctx.work.active_tab_data() {
             ctx.work.goto.set(Some((tab.path, Goto::Action(action))));
         },
+        QuickItem::Template { file, .. } => if let Some(tab) = ctx.work.active_tab_data() {
+            spawn_local(async move {
+                match crate::invoke::read_file(&file.path).await {
+                    Ok(text) => {
+                        let now = js_sys::Date::new_0();
+                        let now = orgamnesia_core::templates::Now {
+                            year: now.get_full_year() as i32, month: now.get_month() + 1, day: now.get_date(),
+                            hour: now.get_hours(), minute: now.get_minutes(),
+                        };
+                        let text = orgamnesia_core::templates::fill(&text, &tab.name, now);
+                        let page = tab.content.get_untracked();
+                        let path = tab.path.clone();
+                        let apply = move |whole: bool| {
+                            let (path, text) = (path.clone(), text.clone());
+                            move || ctx.work.goto.set(Some((path.clone(), Goto::Insert { text: text.clone(), whole })))
+                        };
+                        if orgamnesia_core::templates::replaces(&page) { return apply(true)(); }
+                        // On a page already written: a template applied there is offered to be
+                        // replaced; else the new one adds to the page, asked first
+                        let lang = ctx.lang.get_untracked();
+                        match applied_template(&page, &file).await {
+                            Some(old) => ctx.ask_choice(
+                                t("template_replace_ask", lang).replacen("{}", &old, 1).replacen("{}", &file.name, 1),
+                                "template_add_at_cursor", apply(false),
+                                "template_replace", apply(true),
+                            ),
+                            None => ctx.ask_confirm(t("template_confirm", lang).replace("{}", &file.name), apply(false)),
+                        }
+                    }
+                    Err(e) => ctx.error("error", &e),
+                }
+            });
+        },
     }
+}
+
+/// The template of the project (of the format of `new`) the page `page` holds already, if any.
+async fn applied_template(page: &str, new: &FileEntry) -> Option<String> {
+    let format = Format::of_page(&new.path);
+    let mut templates = vec![];
+    for f in crate::invoke::list_templates().await.ok()?.into_iter().filter(|f| Format::of_page(&f.path) == format) {
+        if let Ok(text) = crate::invoke::read_file(&f.path).await { templates.push((f.name, text)); }
+    }
+    orgamnesia_core::templates::applied(page, &templates).map(str::to_string)
 }
 
 /// Scrolls the list just enough to show its line `i`.
@@ -70,8 +116,9 @@ fn reveal(list: NodeRef<html::Div>, i: usize) {
     list.set_scroll_top(list.scroll_top() + by.round() as i32);
 }
 
-/// The application actions available here, whose name holds `q` (folded), each with its shortcut.
-fn commands(ctx: AppCtx, q: &str) -> Vec<QuickItem> {
+/// The application actions available here, whose name holds `q` (folded), each with
+/// its shortcut; and the `templates` of the format of the page open.
+fn commands(ctx: AppCtx, q: &str, templates: &[FileEntry]) -> Vec<QuickItem> {
     let lang = ctx.lang.get();
     let (graph, git, journal) = ctx.pref(|p| (p.graph, p.git_ext, p.journal));
     let mut list: Vec<QuickItem> = APP_ACTIONS.iter()
@@ -85,6 +132,12 @@ fn commands(ctx: AppCtx, q: &str) -> Vec<QuickItem> {
         .chain(EDITOR_ACTIONS.iter()
             .filter(|a| PALETTE_EDITOR_ACTIONS.contains(&a.action) && ctx.work.active_tab_data().is_some())
             .map(|a| QuickItem::Edit { action: a.action, label: t(a.label_key, lang).to_string(), keys: ctx.shortcut(a.id) }))
+        .chain(ctx.work.active_tab_data().into_iter().flat_map(|tab| {
+            let format = Format::of_page(&tab.path);
+            templates.iter()
+                .filter(move |f| Format::of_page(&f.path) == format)
+                .map(move |f| QuickItem::Template { file: f.clone(), label: format!("{}{}", t("quick_template", lang), f.name) })
+        }))
         .filter(|item| q.is_empty() || fold(&item.display_name()).contains(q))
         .collect();
     if !q.is_empty() { list.sort_by_cached_key(|item| search_order(&item.display_name(), q)); }
@@ -135,13 +188,19 @@ pub fn QuickOpenModal() -> impl IntoView {
     let selected = RwSignal::new(0usize);
     let input_ref = NodeRef::<html::Input>::new();
     let list_ref = NodeRef::<html::Div>::new();
+    // The project's templates, read each time the list opens (they are files anyone may change)
+    let templates = RwSignal::new(Vec::<FileEntry>::new());
+    if ctx.project.vault_path.get_untracked().is_some() {
+        spawn_local(async move { if let Ok(found) = crate::invoke::list_templates().await { templates.set(found); } });
+    }
 
     Effect::new(move |_| {
         if let Some(el) = input_ref.get() { let _ = el.focus(); }
     });
 
     let items = move || -> Vec<QuickItem> {
-        if let Some(rest) = query.get().strip_prefix('>') { return commands(ctx, &fold(rest.trim())); }
+        let templates = templates.get();
+        if let Some(rest) = query.get().strip_prefix('>') { return commands(ctx, &fold(rest.trim()), &templates); }
         let tabs = ctx.work.tabs.get();
         let tags = ctx.pref(|p| p.show_tags)
             .then(|| ctx.project.tags.with(|tags| tags.iter().map(|t| t.name.clone()).collect::<Vec<_>>()));
@@ -149,7 +208,7 @@ pub fn QuickOpenModal() -> impl IntoView {
         let pages = ctx.project.files.with(|files| page_items(&q, &tabs, ctx.work.active_tab.get(), files, tags.as_deref()));
         // The commands whose name holds what is typed too, before the page to create
         let q = fold(q.trim());
-        if q.is_empty() { pages } else { with_commands(pages, commands(ctx, &q)) }
+        if q.is_empty() { pages } else { with_commands(pages, commands(ctx, &q, &templates)) }
     };
 
     let on_keydown = move |e: web_sys::KeyboardEvent| {
@@ -211,7 +270,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                             <div class="quick-open-list" node_ref=list_ref>
                                 {list.into_iter().enumerate().map(|(i, item)| {
                                     let name   = item.display_name();
-                                    let command = matches!(item, QuickItem::Command { .. } | QuickItem::Edit { .. });
+                                    let command = matches!(item, QuickItem::Command { .. } | QuickItem::Edit { .. } | QuickItem::Template { .. });
                                     let lang   = ctx.lang.get();
                                     let (icon, cls, hint): (&str, &str, Option<String>) = match &item {
                                         QuickItem::Tab { is_active: true,  .. } => ("●", "qo-tab",    None),
@@ -220,6 +279,7 @@ pub fn QuickOpenModal() -> impl IntoView {
                                         QuickItem::Tag(_)                       => ("#", "qo-tag",    Some(t("quick_open_tag", lang).to_string())),
                                         QuickItem::Create { .. }                => ("+", "qo-create", Some(t("quick_open_new", lang).to_string())),
                                         QuickItem::Command { keys, .. } | QuickItem::Edit { keys, .. } => ("›", "qo-cmd", keys.clone()),
+                                        QuickItem::Template { .. }              => ("▤", "qo-cmd", None),
                                     };
                                     view! {
                                         <div

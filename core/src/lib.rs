@@ -3,6 +3,7 @@
 //! read (`#tags`, `:tags:`), the TODO keywords and the shortcut registry. Plain Rust, no I/O.
 
 pub mod assets;
+pub mod capture;
 pub mod complete;
 pub mod config;
 pub mod edit;
@@ -25,7 +26,9 @@ pub mod spell;
 pub mod table;
 pub mod tips;
 pub mod tags;
+pub mod templates;
 pub mod todo;
+pub mod tree;
 
 pub use format::{Format, Formats};
 pub use hashtags::{Hashtags, OrgTags, TagSyntax};

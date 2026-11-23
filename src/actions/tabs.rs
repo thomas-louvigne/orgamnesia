@@ -129,6 +129,11 @@ pub fn asks_format(ctx: AppCtx) -> bool {
 /// Create the page `name` in `format` (`None`: the default one), add it to the
 /// list and open it in a new tab.
 pub fn create_page_as(ctx: AppCtx, name: String, format: Option<orgamnesia_core::Format>) {
+    create_page_then(ctx, name, format, Goto::Focus);
+}
+
+/// The same, the caret then going to `goto` in the new page.
+fn create_page_then(ctx: AppCtx, name: String, format: Option<orgamnesia_core::Format>, goto: Goto) {
     // Signals are created here, in the reactive owner, not after the await
     let content = RwSignal::new(String::new());
     let dirty = RwSignal::new(true);
@@ -136,7 +141,8 @@ pub fn create_page_as(ctx: AppCtx, name: String, format: Option<orgamnesia_core:
         match invoke::create_page(&name, format).await {
             Ok(file) => {
                 let format = orgamnesia_core::Format::of_page(&file.path);
-                content.set(format.title_line(&file.name));
+                // The page's own name, without its folder: `Dragon` for `Jeux/Dragon`
+                content.set(format.title_line(file.name.rsplit('/').next().unwrap_or(&file.name)));
                 ctx.project.files.update(|files| {
                     files.push(file.clone());
                     files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
@@ -145,11 +151,43 @@ pub fn create_page_as(ctx: AppCtx, name: String, format: Option<orgamnesia_core:
                 let path = file.path.clone();
                 push_tab(ctx, Tab { path: file.path, name: file.name, content, dirty, history: StoredValue::new(Default::default()) });
                 // The caret in the new page, to write in it straight away
-                ctx.work.goto.set(Some((path, Goto::Focus)));
+                ctx.work.goto.set(Some((path, goto)));
             }
             Err(e) => ctx.error("error", &e),
         }
     });
+}
+
+/// Quick capture: the page notes go to (the day's, else `Inbox`, made if needed)
+/// opened in the second pane, the editor split when it isn't, a new note at its
+/// end. Again, it closes, back to the page in view.
+pub fn capture(ctx: AppCtx) {
+    let work = ctx.work;
+    if let Some(split_here) = work.capture.get_untracked() {
+        work.capture.set(None);
+        // Still open as it was left (not closed by hand)
+        if work.split.get_untracked().is_some() {
+            if split_here { work.focus_pane(true); work.close_window(); } else { work.focus_pane(false); }
+            if let Some(tab) = work.active_tab_data() { work.goto.set(Some((tab.path, Goto::Focus))); }
+            return;
+        }
+    }
+    let d = js_sys::Date::new_0();
+    let now = orgamnesia_core::templates::Now {
+        year: d.get_full_year() as i32, month: d.get_month() + 1, day: d.get_date(), hour: d.get_hours(), minute: d.get_minutes(),
+    };
+    let name = orgamnesia_core::capture::page(ctx.pref_untracked(|p| p.journal), now);
+    if work.active_tab_data().is_some() {
+        let split_here = work.split.get_untracked().is_none();
+        if split_here { ctx.split_window(orgamnesia_core::SplitKind::Vertical); }
+        work.focus_pane(true);
+        work.capture.set(Some(split_here));
+    }
+    match ctx.find_page(&name) {
+        Some(file) => open_file(ctx, file, Some(Goto::Capture(now))),
+        // In the default format, not asked: a capture goes on without a question
+        None => create_page_then(ctx, name, None, Goto::Capture(now)),
+    }
 }
 
 /// Close the tab at `idx`; the one before it becomes active.

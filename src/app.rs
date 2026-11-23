@@ -128,6 +128,11 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
                 if let Err(err) = invoke::set_fullscreen(on).await { ctx.error("error", &err); }
             });
         }
+        AppAction::Capture => actions::capture(ctx),
+        AppAction::NewFolder => actions::new_folder(ctx, None),
+        AppAction::MovePage => actions::move_current_page(ctx),
+        AppAction::RenameFolder => actions::rename_folder(ctx, None),
+        AppAction::DeleteFolder => actions::delete_folder(ctx, None),
         AppAction::RandomPage => {
             let shown = ctx.work.active_tab_data().map(|t| t.path);
             let page = ctx.project.files.with_untracked(|fs| orgamnesia_core::pages::random_page(fs, shown.as_deref(), js_sys::Math::random()).cloned());
@@ -174,6 +179,12 @@ pub fn App() -> impl IntoView {
     provide_context(ctx);
     // The backend's errors and the crash message are worded in the chosen language
     Effect::new(move |_| crate::i18n::set_current(ctx.lang.get()));
+    // The folders of the pages, read again when the pages change (or the project)
+    Effect::new(move |_| {
+        ctx.project.files.track();
+        ctx.project.vault_path.track();
+        actions::refresh_folders(ctx);
+    });
 
     // Sizes of the side menus and of the "pages not created" block, remembered between runs
     let sidebar_w = RwSignal::new(load_size(SIDEBAR_KEY, 220));
@@ -345,6 +356,7 @@ pub fn App() -> impl IntoView {
             })}
             {move || ctx.ui.show_quick_open.get().then(|| view! { <QuickOpenModal /> })}
             {move || ctx.ui.confirm.get().is_some().then(|| view! { <dialogs::ConfirmDialog /> })}
+            {move || ctx.ui.prompt.get().is_some().then(|| view! { <dialogs::PromptDialog /> })}
             {move || ctx.ui.disk_conflicts.with(|q| !q.is_empty()).then(|| view! { <dialogs::DiskConflictDialog /> })}
             {move || ctx.ui.show_new_page.get().then(|| view! { <NewPageModal /> })}
             {move || ctx.ui.update.get().map(|info| view! { <crate::components::update_modal::UpdateModal info /> })}

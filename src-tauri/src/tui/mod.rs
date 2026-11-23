@@ -50,7 +50,7 @@ pub fn run(folder: Option<String>) -> Result<(), String> {
     let prefs = settings.prefs();
     let path = folder.map(|f| crate::expand_home(&f)).or(settings.vault_path.clone())
         .ok_or("no project: give its folder, `orgamnesia -nw ~/notes`")?;
-    let project = Project::open(&path, prefs.tags(), prefs.formats(), &prefs.journal_folder).map_err(|e| e.to_string())?;
+    let project = Project::open(&path, prefs.tags(), prefs.formats(), &prefs.journal_folder, &prefs.templates_folder).map_err(|e| e.to_string())?;
     prune_trash(&project, &prefs);
     let mut app = App::new(project, prefs, kb);
     app.projects = settings.projects.clone();
@@ -68,7 +68,7 @@ pub fn run(folder: Option<String>) -> Result<(), String> {
     // On quit, as the window does: the sync (git_sync_on_quit), the blank pages deleted
     if result.is_ok() && app.prefs.git_sync_on_quit { app.sync(); }
     let p = &app.prefs;
-    crate::project::files::delete_blank_pages(&app.project.path, p.formats(), &p.journal_folder, p.delete_empty, p.delete_title_only);
+    crate::project::files::delete_blank_pages(&app.project.path, p.formats(), &p.journal_folder, &p.templates_folder, p.delete_empty, p.delete_title_only);
     // The state read again first: the window may have changed it meanwhile
     if let Some(dir) = &app.config_dir {
         let mut state = settings::load(dir, &mut ConfigState::default());
@@ -196,6 +196,10 @@ struct App {
     other: Option<Editor>,
     split_dir: Option<Direction>,
     active_slot: usize,
+    /// The quick capture is open in the other window; `true` when it split the screen itself.
+    capture: Option<bool>,
+    /// The folders of the list folded (see `orgamnesia_core::tree`); the journal's at first.
+    closed: std::collections::HashSet<String>,
     /// The pages opened in the editor, in the order they were.
     tabs: Vec<String>,
     /// A search of the project: what, and the pages holding it (with how many times).
@@ -222,7 +226,7 @@ impl App {
             project, prefs, help: [help(&kb, false), help(&kb, true)], kb, chord: keys::Chord::default(),
             filter: String::new(), list: ListState::default(), editor: None, link: None,
             scroll: 0, height: 0, width: 0, split: None, total: 0, dragging: None, right_split: None, right_x: 0, list_area: Rect::default(), back: vec![], forward: vec![], status: String::new(), zen: false, tip: clock_nanos() as usize,
-            page_area: Rect::default(), other_area: Rect::default(), other: None, split_dir: None, active_slot: 0, tabs: vec![], hits: None,
+            page_area: Rect::default(), other_area: Rect::default(), other: None, split_dir: None, active_slot: 0, capture: None, closed: [orgamnesia_core::tree::JOURNAL.to_string()].into(), tabs: vec![], hits: None,
             projects: vec![], config_dir: None, git: None, last_session: None,
             mode: Mode::Normal, frame_state: Default::default(), frame_areas: vec![], right_column: true,
         };
@@ -240,8 +244,38 @@ impl App {
         pages
     }
 
+    /// The lines of the list: the tree of the folders and pages (see
+    /// `orgamnesia_core::tree`), filtered; the pages found alone after a search.
+    fn rows(&self) -> Vec<orgamnesia_core::tree::Row> {
+        use orgamnesia_core::tree::{rows, Row};
+        if self.hits.is_some() {
+            return self.shown().into_iter().map(|f| Row::Page { name: f.name.clone(), file: f, depth: 0 }).collect();
+        }
+        rows(&self.project.files(), &self.project.folders(), Some("Journal"), &self.closed, &self.filter)
+    }
+
+    /// The page chosen in the list (none on a folder).
     fn selected(&self) -> Option<FileEntry> {
-        self.list.selected().and_then(|i| self.shown().into_iter().nth(i))
+        match self.list.selected().and_then(|i| self.rows().into_iter().nth(i)) {
+            Some(orgamnesia_core::tree::Row::Page { file, .. }) => Some(file),
+            _ => None,
+        }
+    }
+
+    /// The folder chosen in the list, or the one of the page chosen (`None`: at the top).
+    fn selected_folder(&self) -> Option<String> {
+        match self.list.selected().and_then(|i| self.rows().into_iter().nth(i)) {
+            Some(orgamnesia_core::tree::Row::Folder { key, .. }) if key != orgamnesia_core::tree::JOURNAL => Some(key),
+            Some(orgamnesia_core::tree::Row::Page { file, .. }) => file.name.rsplit_once('/').map(|(d, _)| d.to_string()),
+            _ => None,
+        }
+    }
+
+    /// The folder chosen in the list folded or unfolded (`open`: `None` turns it over).
+    fn fold_folder(&mut self, open: Option<bool>) -> bool {
+        let Some(orgamnesia_core::tree::Row::Folder { key, open: is_open, .. }) = self.list.selected().and_then(|i| self.rows().into_iter().nth(i)) else { return false };
+        if open.unwrap_or(!is_open) { self.closed.remove(&key); } else { self.closed.insert(key); }
+        true
     }
 
     /// The page in view: the one edited, else the one chosen.
@@ -278,7 +312,12 @@ impl App {
     /// Choose the page `path`, the filter cleared.
     fn select_path(&mut self, path: &str) {
         self.filter.clear();
-        let i = self.shown().iter().position(|f| f.path == path);
+        // Its folders unfolded
+        let name = self.project.name_of(path);
+        let mut at = 0;
+        while let Some(i) = name[at..].find('/') { self.closed.remove(&name[..at + i]); at += i + 1; }
+        if orgamnesia_core::tree::is_day(&name) { self.closed.remove(orgamnesia_core::tree::JOURNAL); }
+        let i = self.rows().iter().position(|r| matches!(r, orgamnesia_core::tree::Row::Page { file, .. } if file.path == path));
         self.list.select(i);
         self.moved();
     }
@@ -604,6 +643,44 @@ impl App {
         let Some(path) = from.pop() else { return };
         to.extend(current);
         self.show(&path);
+    }
+
+    /// Quick capture, as the window does it (see `orgamnesia_core::capture`): the
+    /// page notes go to (the day's, else `Inbox`, made if needed) in the other
+    /// window, the screen split when it isn't, a new note at its end. Again, it
+    /// closes (saved), back to the page edited.
+    fn capture(&mut self) {
+        if let Some(split_here) = self.capture.take() && self.other.is_some() {
+            if !self.save() { self.capture = Some(split_here); return; }
+            self.swap();
+            if split_here { self.single(); }
+            return;
+        }
+        use chrono::{Datelike, Timelike};
+        let t = chrono::Local::now();
+        let now = orgamnesia_core::templates::Now { year: t.year(), month: t.month(), day: t.day(), hour: t.hour(), minute: t.minute() };
+        let name = orgamnesia_core::capture::page(self.prefs.journal, now);
+        let existing = self.project.files().into_iter().find(|f| f.name.eq_ignore_ascii_case(&name));
+        let page = match existing {
+            Some(page) => page,
+            None => match self.project.create(&name, None, self.prefs.tags()) {
+                Ok(page) => page,
+                Err(e) => { self.status = e.to_string(); return; }
+            },
+        };
+        if self.editor.is_some() {
+            let split_here = self.other.is_none();
+            if split_here { self.split(Direction::Horizontal); }
+            self.swap();
+            self.capture = Some(split_here);
+        }
+        self.edit(&page.path);
+        if let Some(e) = self.editor.as_mut().filter(|e| e.path == page.path) {
+            let text = e.text();
+            let end = text.chars().count();
+            e.put(end, end, &orgamnesia_core::capture::entry(&text, now));
+        }
+        if let Some(keys) = self.shortcut("capture") { self.status = format!("capture: {keys} again to close"); }
     }
 
     fn journal(&mut self) {

@@ -12,12 +12,14 @@ use crate::{
 };
 
 mod disk;
+mod folders;
 mod history;
 mod pages;
 mod project;
 mod tabs;
 
 pub use disk::*;
+pub use folders::*;
 pub use history::*;
 pub use pages::*;
 pub use project::*;

@@ -17,7 +17,7 @@ use crate::{
     state::{AppCtx, Prefs, Settings},
 };
 use shortcuts::{KbDraft, KbSnapshot, ShortcutsTab};
-use tabs::{AboutTab, DisplayTab, FramesTab, ThemesTab, EditingTab, ExtensionsTab, GeneralTab, LinksTab, SpellingTab};
+use tabs::{AboutTab, DisplayTab, FramesTab, ThemesTab, EditingTab, ExtensionsTab, GeneralTab, LinksTab, SpellingTab, TemplatesTab};
 
 /// Everything the settings window edits, to tell whether there is anything to apply.
 #[derive(Clone, PartialEq)]
@@ -32,6 +32,7 @@ enum Tab {
     General,
     Links,
     Editing,
+    Templates,
     Display,
     Frames,
     Themes,
@@ -42,13 +43,14 @@ enum Tab {
 }
 
 impl Tab {
-    const ALL: [Tab; 10] = [Tab::General, Tab::Links, Tab::Editing, Tab::Display, Tab::Frames, Tab::Themes, Tab::Shortcuts, Tab::Spelling, Tab::Extensions, Tab::About];
+    const ALL: [Tab; 11] = [Tab::General, Tab::Links, Tab::Editing, Tab::Templates, Tab::Display, Tab::Frames, Tab::Themes, Tab::Shortcuts, Tab::Spelling, Tab::Extensions, Tab::About];
 
     fn label(self) -> &'static str {
         match self {
             Tab::General => "tab_general",
             Tab::Links => "tab_links",
             Tab::Editing => "tab_editing",
+            Tab::Templates => "tab_templates",
             Tab::Display => "tab_display",
             Tab::Frames => "tab_frames",
             Tab::Themes => "tab_themes",
@@ -81,6 +83,7 @@ fn reset_tab(tab: Tab, p: &mut Prefs, d: Prefs) {
         Tab::Extensions => take!(org_bloom, org_bloom_path, org_bloom_zip, org_bloom_no_external_deps, git_ext,
             git_ssh_key, git_fetch, git_pull_rebase, git_unpushed_marker, git_commit_push, git_commit_template,
             git_auto_sync, git_sync_on_quit, graph, journal, journal_folder),
+        Tab::Templates => take!(templates_folder),
         Tab::About => {}
     }
 }
@@ -217,6 +220,7 @@ pub fn SettingsPage() -> impl IntoView {
                         Tab::General => view! { <GeneralTab draft /> }.into_any(),
                         Tab::Links => view! { <LinksTab draft /> }.into_any(),
                         Tab::Editing => view! { <EditingTab draft /> }.into_any(),
+                        Tab::Templates => view! { <TemplatesTab draft /> }.into_any(),
                         Tab::Display => view! { <DisplayTab draft /> }.into_any(),
         Tab::Frames => view! { <FramesTab draft /> }.into_any(),
                         Tab::Themes => view! { <ThemesTab draft /> }.into_any(),

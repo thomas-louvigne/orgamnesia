@@ -5,6 +5,9 @@ use crate::{actions, i18n::t, state::{AppCtx, FileEntry}};
 /// The open pages. With `pane` (false: left / top, true: right / bottom), the bar
 /// belongs to one pane of a split: it shows that pane's page and clicking a tab
 /// opens the page there. Without, it follows the focused pane.
+/// The length of a tab's name, in chars, beyond which its first folders go.
+const TAB_NAME_MAX: usize = 24;
+
 #[component]
 pub fn TabBar(#[prop(optional)] pane: Option<bool>) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
@@ -125,7 +128,8 @@ fn TabItem(
                 on:click=|e: web_sys::MouseEvent| e.stop_propagation()
                 on:dblclick=|e: web_sys::MouseEvent| e.stop_propagation()
             />
-            <span class="tab-name" style=hidden_while_editing>{name}</span>
+            // A page deep in folders: its last names only (`…/Quêtes/Dragon`), the whole path over it
+            <span class="tab-name" style=hidden_while_editing title=name.clone()>{orgamnesia_core::names::short_path(&name, TAB_NAME_MAX)}</span>
             // With auto-save the dot would only flicker on each keystroke; config files are not auto-saved
             {move || (dirty.get() && (config || !ctx.pref(|p| p.autosave))).then(|| view! {
                 <span

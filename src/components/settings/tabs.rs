@@ -665,3 +665,107 @@ pub fn AboutTab() -> impl IntoView {
         </div>
     }
 }
+
+/// The page templates of the project (its templates folder): opened in the editor to be
+/// changed, created empty, or the suggested ones added.
+#[component]
+pub fn TemplatesTab(draft: RwSignal<Prefs>) -> impl IntoView {
+    use orgamnesia_core::{templates, Format};
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let project = move || ctx.project.vault_path.get().is_some();
+    let list = RwSignal::new(Vec::<crate::state::FileEntry>::new());
+    let reload = move || spawn_local(async move {
+        if let Ok(found) = invoke::list_templates().await { list.set(found); }
+    });
+    if ctx.project.vault_path.get_untracked().is_some() { reload(); }
+    let name = RwSignal::new(String::new());
+    let format = RwSignal::new(draft.with_untracked(|p| p.default_format));
+
+    let create = move || {
+        let n = name.get_untracked().trim().to_string();
+        if n.is_empty() { return; }
+        spawn_local(async move {
+            match invoke::create_template(&n, format.get_untracked(), "").await {
+                Ok(file) => { name.set(String::new()); crate::actions::open_file(ctx, file, Some(crate::state::Goto::Focus)); }
+                Err(e) => ctx.error("error", &e),
+            }
+        });
+    };
+    // In the format of the new pages; those already there (same name) are left as they are
+    let add_defaults = move |_| {
+        let f = draft.with_untracked(|p| p.default_format);
+        spawn_local(async move {
+            for (n, text) in templates::defaults(ctx.lang.get_untracked().as_str(), f) {
+                if let Err(e) = invoke::create_template(n, f, text).await
+                    && !list.with_untracked(|l| l.iter().any(|t| t.name == n)) { ctx.error("error", &e); }
+            }
+            reload();
+        });
+    };
+
+    view! {
+        <div class="tab-content">
+            <div class="setting-row"><span class="setting-hint">{move || t("templates_hint", lang())}</span></div>
+            <div class="setting-row">
+                <label for="templates-folder">{move || t("templates_folder", lang())}</label>
+                <input
+                    id="templates-folder"
+                    type="text"
+                    class="setting-input"
+                    spellcheck="false"
+                    placeholder="templates"
+                    prop:value=move || draft.with(|p| p.templates_folder.clone())
+                    on:input=move |e| draft.update(|p| p.templates_folder = event_target_value(&e))
+                />
+                <span class="setting-hint">{move || t("templates_folder_hint", lang())}</span>
+            </div>
+            <hr class="setting-separator" />
+            {move || if !project() {
+                view! { <div class="setting-row"><span class="setting-hint">{t("templates_no_project", lang())}</span></div> }.into_any()
+            } else {
+                view! {
+                    <div class="setting-row">
+                        {move || if list.with(Vec::is_empty) {
+                            view! { <span class="setting-hint">{t("templates_none", lang())}</span> }.into_any()
+                        } else {
+                            view! {
+                                <ul class="template-list">
+                                    {list.get().into_iter().map(|file| {
+                                        let label = format!("{} ({})", file.name, Format::of_page(&file.path).ext());
+                                        view! { <li><button class="btn-link" on:click=move |_| crate::actions::open_file(ctx, file.clone(), Some(crate::state::Goto::Focus))>{label}</button></li> }
+                                    }).collect_view()}
+                                </ul>
+                            }.into_any()
+                        }}
+                    </div>
+                    <hr class="setting-separator" />
+                    <div class="setting-row template-new">
+                        <input
+                            type="text"
+                            class="setting-input"
+                            placeholder=move || t("template_name", lang())
+                            prop:value=move || name.get()
+                            on:input=move |e| name.set(event_target_value(&e))
+                            on:keydown=move |e| if e.key() == "Enter" { create(); }
+                        />
+                        {move || (!draft.with(|p| p.single_format)).then(|| view! {
+                            <select
+                                aria-label=move || t("default_format", lang())
+                                prop:value=move || format.get().id()
+                                on:change=move |e| format.set(Format::from_id(&event_target_value(&e)).unwrap_or_default())
+                            >
+                                <option value="org">{move || t("format_org", lang())}</option>
+                                <option value="markdown">{move || t("format_markdown", lang())}</option>
+                            </select>
+                        })}
+                        <button class="btn-secondary" on:click=move |_| create()>{move || t("template_add", lang())}</button>
+                    </div>
+                    <div class="setting-row">
+                        <button class="btn-secondary" on:click=add_defaults>{move || t("templates_defaults", lang())}</button>
+                    </div>
+                }.into_any()
+            }}
+        </div>
+    }
+}

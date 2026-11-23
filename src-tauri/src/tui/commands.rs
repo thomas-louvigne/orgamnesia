@@ -20,11 +20,12 @@ pub struct Prompt {
 }
 
 impl Prompt {
-    /// What Tab completes the value with: the tags (`Some(true)`), the pages (`Some(false)`).
-    pub fn completes(&self) -> Option<bool> {
+    /// What Tab completes the value with: the tags, the pages, the folders.
+    pub(super) fn completes(&self) -> Option<fn(&App) -> Vec<String>> {
         match self.then {
-            Then::AddTag => Some(true),
-            Then::LinkTarget { .. } => Some(false),
+            Then::AddTag => Some(App::tag_names),
+            Then::LinkTarget { .. } => Some(App::link_names),
+            Then::NewFolder | Then::MovePage(_) | Then::RenameFolder | Then::RenameFolderTo(_) | Then::DeleteFolder => Some(App::folder_names),
             _ => None,
         }
     }
@@ -49,6 +50,21 @@ enum Then {
     NewPage(String),
     /// The page at this path renamed.
     Rename(String),
+    /// A template of this name made (in the default format), then edited.
+    NewTemplate,
+    /// A folder of this name made (`Jeux/Quêtes`).
+    NewFolder,
+    /// The page at this path moved to the folder typed (empty: at the top).
+    MovePage(String),
+    /// The folder to rename, then its new name.
+    RenameFolder,
+    RenameFolderTo(String),
+    /// The folder to delete, then `y` to be sure.
+    DeleteFolder,
+    DeleteFolderSure(String),
+    /// This template (filled) on a page already written: added at the cursor (`y`,
+    /// `a`), or put in the page's place (`r`, when it holds a template already).
+    ApplyTemplate { text: String, replace: bool },
     /// The JSON settings files of older versions deleted (`y`), or kept for good.
     RemoveJson(Vec<crate::config_files::File>, Box<crate::settings::Settings>),
     /// One of the projects, by its number.
@@ -69,6 +85,12 @@ pub enum QuickItem {
     Create(String),
     /// A shortcut of the window (`>` typed first), with its keys.
     Command { id: String, keys: String },
+    /// A template of the project (`templates/`): applied to the page edited, or edited itself.
+    Template { name: String, path: String, edit: bool },
+    /// A new template, its name asked.
+    NewTemplate,
+    /// The suggested templates added to the project (see `templates::defaults`).
+    SuggestedTemplates,
 }
 
 /// What the quick open lists for `query`: the pages open first, then the
@@ -124,8 +146,86 @@ impl App {
                 (name, QuickItem::Command { id: id.to_string(), keys })
             })
             .collect();
+        list.extend(self.template_items().into_iter().filter(|(name, _)| q.is_empty() || fold(name).contains(&q)));
         if !q.is_empty() { list.sort_by_cached_key(|(name, _)| search_order(name, &q)); }
         list.into_iter().map(|(_, i)| i).collect()
+    }
+
+    /// The templates of the project, by the name they are found by: those of the
+    /// page edited's format to apply, all to edit, and the two to make some.
+    fn template_items(&self) -> Vec<(String, QuickItem)> {
+        let format = self.editor.as_ref().filter(|e| e.page).map(|e| e.format());
+        let templates = self.project.templates();
+        let apply = templates.iter().filter(|t| Some(Format::of_page(&t.path)) == format)
+            .map(|t| (format!("template {}", t.name), QuickItem::Template { name: t.name.clone(), path: t.path.clone(), edit: false }));
+        let edit = templates.iter()
+            .map(|t| (format!("edit template {}", t.name), QuickItem::Template { name: t.name.clone(), path: t.path.clone(), edit: true }));
+        apply.chain(edit).chain([
+            ("new template".to_string(), QuickItem::NewTemplate),
+            ("add suggested templates".to_string(), QuickItem::SuggestedTemplates),
+        ]).collect()
+    }
+
+    /// The quick open's template line chosen.
+    pub(super) fn template_chosen(&mut self, item: QuickItem) {
+        match item {
+            QuickItem::Template { path, edit: true, .. } => self.edit(&path),
+            QuickItem::Template { path, name, .. } => match self.project.read(&path) {
+                Ok(text) => self.apply_template(&text, &name),
+                Err(e) => self.status = e.to_string(),
+            },
+            QuickItem::NewTemplate => self.ask("New template name: ", "", Then::NewTemplate),
+            QuickItem::SuggestedTemplates => {
+                let format = self.prefs.default_format;
+                let made = orgamnesia_core::templates::defaults(&self.prefs.lang, format).into_iter()
+                    .filter(|(name, text)| self.project.create_template(name, format, text).is_ok())
+                    .count();
+                self.status = format!("{made} template(s) added to {}/", self.prefs.templates_folder);
+            }
+            _ => {}
+        }
+    }
+
+    /// The template `text` put in the page edited, as the window does: over the
+    /// whole page when it is blank or holds only its title, else at the cursor
+    /// (over the region).
+    fn apply_template(&mut self, text: &str, name: &str) {
+        let Some(e) = self.editor.as_ref() else { return };
+        use chrono::{Datelike, Timelike};
+        let t = chrono::Local::now();
+        let now = orgamnesia_core::templates::Now { year: t.year(), month: t.month(), day: t.day(), hour: t.hour(), minute: t.minute() };
+        let text = orgamnesia_core::templates::fill(text, &crate::project::files::page_name(&e.path), now);
+        let page = e.text();
+        if orgamnesia_core::templates::replaces(&page) { return self.put_template(&text, true); }
+        // On a page already written: a template applied there is offered to be
+        // replaced; else the new one adds to the page, asked first
+        let format = e.format();
+        let templates: Vec<(String, String)> = self.project.templates().into_iter()
+            .filter(|t| Format::of_page(&t.path) == format)
+            .filter_map(|t| Some((t.name, self.project.read(&t.path).ok()?)))
+            .collect();
+        match orgamnesia_core::templates::applied(&page, &templates) {
+            Some(old) => {
+                let label = format!("The page holds the template “{old}”: (r)eplace the page with “{name}”, or (a)dd it at the cursor? ");
+                self.ask(&label, "", Then::ApplyTemplate { text, replace: true });
+            }
+            None => self.ask(&format!("The page holds text: add the template “{name}” at the cursor? (y/n) "), "", Then::ApplyTemplate { text, replace: false }),
+        }
+    }
+
+    /// The filled template `text` put in the page edited: over the whole page
+    /// (`whole`, or when it is blank or holds only its title), else at the cursor
+    /// (over the region).
+    fn put_template(&mut self, text: &str, whole: bool) {
+        let Some(e) = self.editor.as_mut() else { return };
+        let page = e.text();
+        let (a, b) = if whole || orgamnesia_core::templates::replaces(&page) {
+            (0, page.chars().count())
+        } else {
+            e.region().unwrap_or((e.cursor, e.cursor))
+        };
+        e.put(a, b, text);
+        e.mark = None;
     }
 }
 
@@ -237,6 +337,49 @@ impl App {
                     Err(e) => self.status = e.to_string(),
                 }
             }
+            Then::ApplyTemplate { text, replace } => match input.to_lowercase().as_str() {
+                "r" if replace => self.put_template(&text, true),
+                "y" | "o" | "yes" | "oui" | "a" => self.put_template(&text, false),
+                _ => {}
+            },
+            Then::NewFolder if !input.is_empty() => match self.project.create_folder(&input) {
+                Ok(name) => self.status = format!("folder {name} made"),
+                Err(e) => self.status = e.to_string(),
+            },
+            Then::MovePage(path) => {
+                let name = self.project.name_of(&path);
+                let leaf = name.rsplit('/').next().unwrap_or(&name).to_string();
+                let folder = input.trim_matches('/');
+                self.rename(&path, &if folder.is_empty() { leaf } else { format!("{folder}/{leaf}") });
+            }
+            Then::RenameFolder if !input.is_empty() => {
+                let label = format!("Rename the folder “{input}” to: ");
+                self.ask(&label, &input.clone(), Then::RenameFolderTo(input));
+            }
+            Then::RenameFolderTo(old) if !input.is_empty() => self.rename_folder(&old, &input),
+            Then::DeleteFolder if !input.is_empty() => {
+                let count = self.project.files().iter().filter(|f| f.name.starts_with(&format!("{input}/"))).count();
+                self.ask(&format!("Delete the folder “{input}”, its {count} pages to the trash? (y/n) "), "", Then::DeleteFolderSure(input));
+            }
+            Then::DeleteFolderSure(name) => if matches!(input.to_lowercase().as_str(), "y" | "o" | "yes" | "oui") {
+                if !self.save() || !self.save_other() { return; }
+                match self.project.delete_folder(&name) {
+                    Ok(trashed) => {
+                        let prefix = format!("{name}/");
+                        let gone = |p: &String| self.project.name_of(p).starts_with(&prefix);
+                        let gone: Vec<String> = self.tabs.iter().filter(|p| gone(p)).cloned().collect();
+                        self.tabs.retain(|p| !gone.contains(p));
+                        if self.other.as_ref().is_some_and(|o| gone.contains(&o.path)) { self.single(); }
+                        if self.editor.as_ref().is_some_and(|e| gone.contains(&e.path)) { self.editor = None; }
+                        self.status = format!("folder {name} deleted, {} pages in the trash", trashed.len());
+                    }
+                    Err(e) => self.status = e.to_string(),
+                }
+            },
+            Then::NewTemplate if !input.is_empty() => match self.project.create_template(&input, self.prefs.default_format, "") {
+                Ok(t) => self.edit(&t.path),
+                Err(e) => self.status = e.to_string(),
+            },
             Then::Project(paths) => match input.parse::<usize>().ok().and_then(|n| paths.get(n.wrapping_sub(1))) {
                 Some(path) => self.switch_project(&path.clone()),
                 None => self.status = "no such project".into(),
@@ -508,11 +651,53 @@ impl App {
         self.ask(&label, "", Then::RemoveJson(files, Box::new(settings)));
     }
 
+    /// The folder actions of the window's command list (`new_folder`…): what they ask.
+    pub(super) fn folder_action(&mut self, id: &str) -> bool {
+        match id {
+            "new_folder" => {
+                let start = self.selected_folder().map(|f| format!("{f}/")).unwrap_or_default();
+                self.ask("New folder (Jeux/Quêtes: in a folder): ", &start, Then::NewFolder);
+            }
+            "move_page" => match self.current_path().filter(|_| self.editor.as_ref().is_none_or(|e| e.page)) {
+                Some(path) => {
+                    let name = self.project.name_of(&path);
+                    let folder = name.rsplit_once('/').map_or("", |(d, _)| d).to_string();
+                    self.ask(&format!("Move “{name}” to the folder (empty: at the top): "), &folder, Then::MovePage(path));
+                }
+                None => self.status = "no page to move".into(),
+            },
+            "rename_folder" | "delete_folder" => {
+                if self.project.folders().is_empty() { self.status = "no folder in this project yet".into(); return true; }
+                let start = self.selected_folder().unwrap_or_default();
+                if id == "rename_folder" { self.ask("Folder to rename: ", &start, Then::RenameFolder); }
+                else { self.ask("Folder to delete: ", &start, Then::DeleteFolder); }
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    /// The folders of the pages, for Tab in the line typed.
+    pub(super) fn folder_names(&self) -> Vec<String> {
+        self.project.folders()
+    }
+
+    /// Rename (move) the folder `old` `new`, as the window does: its pages, the
+    /// links to them, and the pages open, the tabs and the history follow.
+    fn rename_folder(&mut self, old: &str, new: &str) {
+        if !self.save() || !self.save_other() { return; }
+        let base = crate::slash(crate::project::files::pages_dir(&self.project.path));
+        let (from, to) = (format!("{base}/{old}/"), format!("{base}/{}/", new.trim_matches('/')));
+        if let Err(e) = self.project.rename_folder(old, new, &self.prefs) { self.status = e.to_string(); return; }
+        self.follow_paths(|p| p.strip_prefix(&from).map(|rest| format!("{to}{rest}")));
+        self.status = format!("folder {old} renamed {new}");
+    }
+
     /// The new name of the page in view asked (F2).
     fn ask_rename(&mut self) {
         if self.editor.as_ref().is_some_and(|e| !e.page) { return; }
         let Some(path) = self.current_path() else { return };
-        let name = crate::project::files::page_name(&path);
+        let name = self.project.name_of(&path);
         self.ask(&format!("Rename “{name}” to: "), &name, Then::Rename(path));
     }
 
@@ -525,20 +710,25 @@ impl App {
             Ok(entry) => entry.path,
             Err(e) => { self.status = e.to_string(); return; }
         };
-        let follow = |p: &mut String| if p == old { *p = new.clone(); };
+        self.follow_paths(|p| (p == old).then(|| new.clone()));
+        self.select_path(&new);
+        self.status = format!("renamed {}", self.project.name_of(&new));
+    }
+
+    /// Pages moved (`to` gives the new path of an old one): the tabs, the history
+    /// and the pages open follow; those open read again (their links rewritten).
+    fn follow_paths(&mut self, to: impl Fn(&str) -> Option<String>) {
+        let follow = |p: &mut String| if let Some(new) = to(p) { *p = new; };
         self.tabs.iter_mut().for_each(follow);
         self.back.iter_mut().chain(self.forward.iter_mut()).for_each(follow);
-        // The pages open read again: renamed, or their links to it rewritten
         for e in [&mut self.editor, &mut self.other].into_iter().flatten() {
-            if e.path == old { e.path = new.clone(); }
+            if let Some(new) = to(&e.path) { e.path = new; }
             if let Ok(text) = self.project.read(&e.path) && text != e.text() {
                 let (cursor, prefs) = (e.cursor, e.prefs);
                 *e = Editor::new(e.path.clone(), &text, true);
                 (e.cursor, e.prefs) = (cursor.min(text.chars().count()), prefs);
             }
         }
-        self.select_path(&new);
-        self.status = format!("renamed {}", crate::project::files::page_name(&new));
     }
 
     /// The format of the new page `name` asked (`ask_format`).
@@ -587,7 +777,7 @@ impl App {
 
     fn switch_project(&mut self, path: &str) {
         if !self.close() { return; }
-        match Project::open(path, self.prefs.tags(), self.prefs.formats(), &self.prefs.journal_folder) {
+        match Project::open(path, self.prefs.tags(), self.prefs.formats(), &self.prefs.journal_folder, &self.prefs.templates_folder) {
             Ok(project) => {
                 super::prune_trash(&project, &self.prefs);
                 self.project = project;
@@ -670,7 +860,7 @@ mod tests {
     fn quick_open_lists_as_the_window() {
         let file = |n: &str| orgamnesia_core::FileEntry { name: n.into(), path: format!("/p/{n}.org") };
         let files = [file("Ma quête"), file("Quête"), file("Règle"), file("Autre")];
-        let names = |items: Vec<QuickItem>| items.into_iter().map(|i| match i { QuickItem::Page { name, open, .. } => format!("{name}{}", if open { "*" } else { "" }), QuickItem::Create(n) => format!("+{n}"), QuickItem::Command { id, .. } => format!(">{id}") }).collect::<Vec<_>>();
+        let names = |items: Vec<QuickItem>| items.into_iter().map(|i| match i { QuickItem::Page { name, open, .. } => format!("{name}{}", if open { "*" } else { "" }), QuickItem::Create(n) => format!("+{n}"), QuickItem::Command { id, .. } => format!(">{id}"), _ => String::new() }).collect::<Vec<_>>();
         assert_eq!(names(quick_items("quete", &[], &files)), ["Quête", "Ma quête"]);
         assert_eq!(names(quick_items("regle", &[], &files)), ["Règle"]);
         // A name no page has: the page to create

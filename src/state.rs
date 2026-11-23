@@ -19,6 +19,11 @@ pub enum Goto {
     Focus,
     /// Where it already is, then this editing action (from the command list).
     Action(crate::keybindings::EditorAction),
+    /// A new note at the end of the page (quick capture), at this time.
+    Capture(orgamnesia_core::templates::Now),
+    /// Where it already is, this text put in (a template): over the whole page
+    /// (`whole`, or when it is blank or holds only its title), else at the cursor.
+    Insert { text: String, whole: bool },
 }
 
 /// What the project search pop-in shows; kept while it is closed.
@@ -74,6 +79,16 @@ pub struct ConfirmReq {
     pub choice: Option<(&'static str, Callback<()>, &'static str)>,
 }
 
+/// A value asked in a small dialog (see `AppCtx::ask_text`).
+#[derive(Clone)]
+pub struct PromptReq {
+    pub label: String,
+    pub value: String,
+    /// Offered while typing (the folders…).
+    pub choices: Vec<String>,
+    pub on_ok: Callback<String>,
+}
+
 /// A git command of the git extension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitOp { Pull, Commit, Push, Sync, Setup }
@@ -99,6 +114,8 @@ pub struct ProjectState {
     /// Every project opened, most recent first.
     pub projects: RwSignal<Vec<String>>,
     pub files: RwSignal<Vec<FileEntry>>,
+    /// The folders of the pages (`Jeux/Quêtes`), empty ones too.
+    pub folders: RwSignal<Vec<String>>,
     /// Finds the page a link names, among `files`, per the settings (ignoring
     /// case, default format); built again when they change.
     pub resolver: Memo<orgamnesia_core::pages::Resolver<'static>>,
@@ -137,6 +154,8 @@ pub struct Workspace {
     pub other_path: RwSignal<Option<String>>,
     /// Whether the focused pane is the second one (right / bottom).
     pub focus_second: RwSignal<bool>,
+    /// The quick capture is open in the second pane; `true` when it split the editor itself.
+    pub capture: RwSignal<Option<bool>>,
     /// (page path, target): the editor showing that page moves the cursor there.
     pub goto: RwSignal<Option<(String, Goto)>>,
     /// Text of the last Emacs kill, for yank.
@@ -199,6 +218,8 @@ pub struct Ui {
     pub tag_add: RwSignal<bool>,
     /// Pending confirmation (the webview's own `window.confirm` shows nothing here).
     pub confirm: RwSignal<Option<ConfirmReq>>,
+    /// A value asked (a folder's name…).
+    pub prompt: RwSignal<Option<PromptReq>>,
     /// Message of the status bar.
     pub status: RwSignal<Option<String>>,
     /// A message of the status bar with an "Undo" button, and what the button does.
@@ -239,6 +260,7 @@ impl AppCtx {
                 vault_path: RwSignal::new(None),
                 projects: RwSignal::new(vec![]),
                 files,
+                folders: RwSignal::new(vec![]),
                 resolver: Memo::new(move |_| {
                     let (loose, default) = prefs.with(|p| (p.case_insensitive_links, p.default_format));
                     orgamnesia_core::pages::Resolver::new(files.get(), loose, default)
@@ -260,6 +282,7 @@ impl AppCtx {
                 split: RwSignal::new(None),
                 other_path: RwSignal::new(None),
                 focus_second: RwSignal::new(false),
+                capture: RwSignal::new(None),
                 goto: RwSignal::new(None),
                 kill_ring: RwSignal::new(String::new()),
                 history_back: RwSignal::new(vec![]),
@@ -300,6 +323,7 @@ impl AppCtx {
                     can_undo: RwSignal::new(false),
                 },
                 confirm: RwSignal::new(None),
+                prompt: RwSignal::new(None),
                 status: RwSignal::new(None),
                 status_undo: RwSignal::new(None),
                 drag: RwSignal::new(None),
@@ -393,6 +417,11 @@ impl AppCtx {
 
     pub fn ask_confirm(&self, message: String, on_yes: impl Fn() + Send + Sync + 'static) {
         self.ui.confirm.set(Some(ConfirmReq { message, on_yes: Callback::new(move |_| on_yes()), danger: None, info: false, choice: None }));
+    }
+
+    /// Ask a value (`value` typed already, `choices` offered); `on_ok` gets it, trimmed, when not empty.
+    pub fn ask_text(&self, label: String, value: String, choices: Vec<String>, on_ok: impl Fn(String) + Send + Sync + 'static) {
+        self.ui.prompt.set(Some(PromptReq { label, value, choices, on_ok: Callback::new(on_ok) }));
     }
 
     /// Show a message in a dialog the user closes with OK.

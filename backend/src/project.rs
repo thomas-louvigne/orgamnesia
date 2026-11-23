@@ -31,6 +31,8 @@ pub struct Project {
     formats: Formats,
     /// The journal folder from the settings (see `files::journal_dir`).
     journal: String,
+    /// The templates folder from the settings (see `files::templates_dir`).
+    templates: String,
     snapshot: files::Snapshot,
     /// The pages of the last project replacement, for its undo.
     last_replace: Vec<search::Replaced>,
@@ -41,7 +43,7 @@ pub struct Project {
 
 impl Project {
     /// Open the folder `path` (creating `pages/` and `assets/` if needed) and read its pages.
-    pub fn open(path: &str, tags: TagSyntax, formats: Formats, journal: &str) -> Result<Self, AppError> {
+    pub fn open(path: &str, tags: TagSyntax, formats: Formats, journal: &str, templates: &str) -> Result<Self, AppError> {
         files::ensure_structure(path)?;
         let path = &crate::slash(path);
         let mut project = Self {
@@ -51,11 +53,12 @@ impl Project {
             links: BacklinkIndex::new(),
             formats,
             journal: journal.to_string(),
+            templates: templates.to_string(),
             snapshot: files::Snapshot::new(),
             last_replace: Vec::new(),
             resolver: Default::default(),
         };
-        let files = files::list_pages(path, formats, journal)?;
+        let files = files::list_pages(path, formats, journal, templates)?;
         for f in &files {
             let content = std::fs::read_to_string(&f.path).unwrap_or_default();
             project.store(&f.path, content, tags);
@@ -69,6 +72,11 @@ impl Project {
     pub fn set_formats(&mut self, formats: Formats) {
         self.formats = formats;
         self.resolver.take();
+    }
+
+    /// The templates folder now in effect (see `Prefs::templates_folder`).
+    pub fn set_templates(&mut self, folder: &str) {
+        self.templates = folder.to_string();
     }
 
     /// The journal folder now in effect: its pages come at the next `refresh`.
@@ -86,23 +94,35 @@ impl Project {
         std::cell::Ref::map(self.resolver.borrow(), |r| &r.as_ref().expect("just built").1)
     }
 
+    /// The name of the page `path`, as links name it (see `files::name_in`).
+    pub fn name_of(&self, path: &str) -> String {
+        files::name_in(&self.path, &self.journal, path)
+    }
+
+    /// The folders of the pages, by their path from the pages folder (see `files::list_folders`).
+    pub fn folders(&self) -> Vec<String> {
+        files::list_folders(&self.path, &self.journal, &self.templates)
+    }
+
     /// The pages, sorted by name.
     pub fn files(&self) -> Vec<FileEntry> {
         let mut files: Vec<FileEntry> = self.pages.keys()
-            .map(|p| FileEntry { name: files::page_name(p), path: p.clone() })
+            .map(|p| FileEntry { name: self.name_of(p), path: p.clone() })
             .collect();
         files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
         files
     }
 
     /// Ok when `path` is a page of the project: a `.org` or `.md` file (of a format
-    /// read) right in its pages folder or its journal folder. Every path received
-    /// from the interface goes through here.
+    /// read) in its pages folder or one of its folders (not a hidden one), or in its
+    /// journal folder. Every path received from the interface goes through here.
     pub fn check_page(&self, path: &str) -> Result<(), AppError> {
         let p = Path::new(path);
         let folder = p.parent().and_then(|d| std::fs::canonicalize(d).ok());
         let journal = std::fs::canonicalize(files::journal_dir(&self.path, &self.journal)).ok();
-        let in_folder = folder.is_some() && (folder.as_deref() == Some(self.pages_dir.as_path()) || folder == journal);
+        let in_pages = folder.as_deref().and_then(|f| f.strip_prefix(&self.pages_dir).ok())
+            .is_some_and(|rel| rel.components().all(|c| !c.as_os_str().to_string_lossy().starts_with('.')));
+        let in_folder = folder.is_some() && (in_pages || folder == journal) || self.is_template(path);
         if self.formats.accepts_path(path) && in_folder {
             Ok(())
         } else {
@@ -124,23 +144,52 @@ impl Project {
     }
 
     /// Create the page `name`, holding its title heading, in `format` (else the
-    /// default one); `Note.md` is the page `Note` in Markdown.
+    /// default one); `Note.md` is the page `Note` in Markdown, `Jeux/Dragon` the
+    /// page `Dragon` of the folder `Jeux` (made if needed).
     pub fn create(&mut self, name: &str, format: Option<Format>, tags: TagSyntax) -> Result<FileEntry, AppError> {
-        let name = valid_name(name)?;
+        let name = valid_path(name)?;
         let (name, format) = match split_ext(&name) {
-            Some((stem, f)) if self.formats.accepts(f) => (valid_name(stem)?, f),
+            Some((stem, f)) if self.formats.accepts(f) => (valid_path(stem)?, f),
             _ => (name, format.filter(|f| self.formats.accepts(*f)).unwrap_or(self.formats.default)),
         };
         let path = files::page_path(&self.path, &name, format, &self.journal)?;
         if path.exists() {
             return Err(AppError::PageExists(name));
         }
-        let content = format.title_line(&name);
+        let content = format.title_line(leaf(&name));
         crate::write_atomic(&path, &content)?;
         let path = crate::slash(&path);
         self.store(&path, content, tags);
         self.remember(&path);
         Ok(FileEntry { name, path })
+    }
+
+    /// The page templates of the project.
+    pub fn templates(&self) -> Vec<FileEntry> {
+        files::list_templates(&self.path, &self.templates, self.formats)
+    }
+
+    /// Create the template `name` in `format` holding `text`, in `templates/` (made if needed).
+    pub fn create_template(&mut self, name: &str, format: Format, text: &str) -> Result<FileEntry, AppError> {
+        let name = valid_name(name)?;
+        if !self.formats.accepts(format) {
+            return Err(AppError::NotAPage(format!("{name}.{}", format.ext())));
+        }
+        let dir = files::templates_dir(&self.path, &self.templates);
+        std::fs::create_dir_all(&dir)?;
+        let path = dir.join(format!("{name}.{}", format.ext()));
+        if path.exists() {
+            return Err(AppError::PageExists(name));
+        }
+        crate::write_atomic(&path, text)?;
+        Ok(FileEntry { name, path: crate::slash(&path) })
+    }
+
+    /// Whether `path` is a page template (in the templates folder): read and written as a page,
+    /// but no page of the project (no links, tags, nor place in the pages list).
+    fn is_template(&self, path: &str) -> bool {
+        let folder = Path::new(path).parent().and_then(|d| std::fs::canonicalize(d).ok());
+        folder.is_some() && folder == std::fs::canonicalize(files::templates_dir(&self.path, &self.templates)).ok()
     }
 
     /// Copy the image `source` into the project's `assets/` folder, named as Logseq
@@ -187,7 +236,8 @@ impl Project {
         let p = Path::new(trashed);
         let in_trash = p.parent().and_then(|d| std::fs::canonicalize(d).ok())
             == std::fs::canonicalize(self.trash_dir()?).ok();
-        let name = p.file_stem().and_then(|s| s.to_str()).and_then(|s| s.split_once('-')).map(|(_, n)| n);
+        let name = p.file_stem().and_then(|s| s.to_str()).and_then(files::from_trash_name);
+        let name = name.as_deref();
         let format = Format::of_path(trashed).filter(|f| self.formats.accepts(*f));
         let (Some(name), true, Some(format)) = (name, in_trash, format) else {
             return Err(AppError::NotAPage(trashed.to_string()));
@@ -254,13 +304,21 @@ impl Project {
         Ok(files::trash_dir(&self.path)?)
     }
 
-    /// Rename a page; when the settings say so, the links to it in every page follow.
+    /// Rename a page; `Jeux/Dragon` moves it to the folder `Jeux` (made if needed).
+    /// When the settings say so, the links to it in every page follow.
     pub fn rename(&mut self, old_path: &str, new_name: &str, prefs: &Prefs) -> Result<FileEntry, AppError> {
         self.check_page(old_path)?;
-        let new_name = valid_name(new_name)?;
+        let new_name = valid_path(new_name)?;
         let ext = Format::of_page(old_path).ext();
-        let new_path = Path::new(old_path).with_file_name(format!("{new_name}.{ext}"));
-        let old_name = files::page_name(old_path);
+        let old_name = self.name_of(old_path);
+        // A day of the journal keeps its folder, unless sent to one of the pages
+        let in_journal = Path::new(old_path).parent() == Some(files::journal_dir(&self.path, &self.journal).as_path())
+            && !new_name.contains('/');
+        let new_path = if in_journal {
+            Path::new(old_path).with_file_name(format!("{new_name}.{ext}"))
+        } else {
+            files::pages_dir(&self.path).join(format!("{new_name}.{ext}"))
+        };
         if new_name != old_name && taken(&new_path, &old_name, &new_name) {
             return Err(AppError::PageExists(new_name));
         }
@@ -270,6 +328,7 @@ impl Project {
         let leads_here = |target: &str| resolver.resolve(target).is_some_and(|f| f.path == old_path);
         let by_name = leads_here(&old_name);
         // In the page's folder, as the interface knows it (not the canonical one)
+        if let Some(dir) = new_path.parent() { std::fs::create_dir_all(dir)?; }
         std::fs::rename(old_path, &new_path)?;
         let new_path = crate::slash(&new_path);
         let tags = prefs.tags();
@@ -294,10 +353,56 @@ impl Project {
         Ok(FileEntry { name: new_name, path: new_path })
     }
 
+    /// Make the folder `name` of the pages (`Jeux/Quêtes`: a folder in a folder).
+    pub fn create_folder(&self, name: &str) -> Result<String, AppError> {
+        let name = valid_path(name)?;
+        let dir = files::pages_dir(&self.path).join(&name);
+        if dir.exists() { return Err(AppError::PageExists(name)); }
+        std::fs::create_dir_all(dir)?;
+        Ok(name)
+    }
+
+    /// The pages in the folder `folder` of the pages, and in its folders.
+    fn pages_in(&self, folder: &str) -> Vec<FileEntry> {
+        let prefix = format!("{folder}/");
+        self.files().into_iter().filter(|f| f.name.starts_with(&prefix)).collect()
+    }
+
+    /// Rename (or move) the folder `old` of the pages `new`: each of its pages
+    /// renamed, the links to them following as for one page (see `rename`), then
+    /// what else it holds (images…). Refused when `new` is there already.
+    pub fn rename_folder(&mut self, old: &str, new: &str, prefs: &Prefs) -> Result<String, AppError> {
+        let (old, new) = (valid_path(old)?, valid_path(new)?);
+        let base = files::pages_dir(&self.path);
+        let (from, to) = (base.join(&old), base.join(&new));
+        if !from.is_dir() { return Err(AppError::NotAPage(old)); }
+        if to.exists() || to.starts_with(&from) { return Err(AppError::PageExists(new)); }
+        for page in self.pages_in(&old) {
+            self.rename(&page.path, &format!("{new}{}", &page.name[old.len()..]), prefs)?;
+        }
+        move_rest(&from, &to)?;
+        Ok(new)
+    }
+
+    /// Delete the folder `name` of the pages: its pages go to the trash (back in
+    /// their folder when restored), then the folders left empty. What else it
+    /// holds stays (an image…), with its folder. Returns the pages' paths in the trash.
+    pub fn delete_folder(&mut self, name: &str) -> Result<Vec<String>, AppError> {
+        let name = valid_path(name)?;
+        let dir = files::pages_dir(&self.path).join(&name);
+        if !dir.is_dir() { return Err(AppError::NotAPage(name)); }
+        let mut trashed = vec![];
+        for page in self.pages_in(&name) {
+            trashed.push(self.delete(&page.path)?);
+        }
+        remove_empty(&dir);
+        Ok(trashed)
+    }
+
     /// Pick up the pages created, modified or deleted outside the app since the
     /// last look. `None` when nothing changed.
     pub fn refresh(&mut self, tags: TagSyntax) -> Result<Option<VaultChanges>, AppError> {
-        let files = files::list_pages(&self.path, self.formats, &self.journal)?;
+        let files = files::list_pages(&self.path, self.formats, &self.journal, &self.templates)?;
         let now = files::snapshot(&files);
         let (changed, removed) = files::diff(&self.snapshot, &now);
         if changed.is_empty() && removed.is_empty() {
@@ -325,7 +430,7 @@ impl Project {
     /// The names links give the pages `paths` (see `Resolver::link_name`), sorted.
     fn link_names(&self, resolver: &Resolver, paths: impl IntoIterator<Item = String>) -> Vec<String> {
         let mut names: Vec<String> = paths.into_iter()
-            .map(|p| FileEntry { name: files::page_name(&p), path: p })
+            .map(|p| FileEntry { name: self.name_of(&p), path: p })
             .map(|f| resolver.link_name(&f))
             .collect();
         names.sort();
@@ -432,6 +537,7 @@ impl Project {
     }
 
     fn store(&mut self, path: &str, content: String, tags: TagSyntax) {
+        if self.is_template(path) { return; }
         self.links.index_file(path, &links::extract_links(&content, tags, Format::of_page(path)));
         if self.pages.insert(path.to_string(), content).is_none() { self.resolver.take(); }
     }
@@ -445,6 +551,7 @@ impl Project {
     /// Record the stamp of a page written by the app, so `refresh` doesn't
     /// report it as changed outside.
     fn remember(&mut self, path: &str) {
+        if self.is_template(path) { return; }
         if let Some(s) = files::stamp(path) {
             self.snapshot.insert(path.to_string(), s);
         }
@@ -471,6 +578,44 @@ fn taken(new_path: &Path, old: &str, new: &str) -> bool {
         .is_some_and(|mut entries| entries.any(|e| e.is_ok_and(|e| Some(e.file_name().as_os_str()) == exact)))
 }
 
+/// What is left in the folder `from` (no page: they went first) put at the same
+/// place in `to`, then `from` removed.
+fn move_rest(from: &Path, to: &Path) -> std::io::Result<()> {
+    if !to.exists() {
+        if let Some(parent) = to.parent() { std::fs::create_dir_all(parent)?; }
+        return std::fs::rename(from, to);
+    }
+    for e in std::fs::read_dir(from)?.filter_map(|e| e.ok()) {
+        let target = to.join(e.file_name());
+        if e.file_type()?.is_dir() { move_rest(&e.path(), &target)?; } else if !target.exists() { std::fs::rename(e.path(), target)?; }
+    }
+    // Not empty: a file was in the way, it stays here
+    let _ = std::fs::remove_dir(from);
+    Ok(())
+}
+
+/// The folder `dir` removed with its folders, those holding nothing (but empty folders).
+fn remove_empty(dir: &Path) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for e in entries.filter_map(|e| e.ok()).filter(|e| e.file_type().is_ok_and(|t| t.is_dir())) { remove_empty(&e.path()); }
+    }
+    let _ = std::fs::remove_dir(dir);
+}
+
+/// The last part of the page name `name`: `Dragon` for `Jeux/Dragon`.
+fn leaf(name: &str) -> &str {
+    name.rsplit('/').next().unwrap_or(name)
+}
+
+/// `name` trimmed, if it can be the name of a page or folder in a folder:
+/// `Jeux/Quêtes/Dragon`, each part a valid name (see `valid_name`), no `..`.
+fn valid_path(name: &str) -> Result<String, AppError> {
+    let name = name.trim().trim_matches('/');
+    let bad = || AppError::InvalidName(name.to_string());
+    if name.split('/').any(|part| part != part.trim() || valid_name(part).is_err()) { return Err(bad()); }
+    Ok(name.to_string())
+}
+
 /// `name` trimmed, if it can be a page name (and so a file name, on every system:
 /// Windows takes none of `: * ? " < > |`, and reads `a:b` as a hidden stream of `a`).
 fn valid_name(name: &str) -> Result<String, AppError> {
@@ -493,7 +638,7 @@ mod tests {
         for (name, content) in pages {
             std::fs::write(dir.join("pages").join(format!("{name}.org")), content).unwrap();
         }
-        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), Formats::default(), "journals").unwrap();
+        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), Formats::default(), "journals", "templates").unwrap();
         (dir, p)
     }
 
@@ -529,6 +674,76 @@ mod tests {
             assert!(matches!(valid_name(bad), Err(AppError::InvalidName(_))), "{bad}");
         }
         assert_eq!(valid_name(" Réunion de 12h ").unwrap(), "Réunion de 12h");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn pages_in_folders_named_by_their_path() {
+        let (dir, mut p) = project("folders", &[("a", "voir [[Jeux/Quêtes/Dragon]] et [[Jeux/Règles]]\n")]);
+        let prefs = Prefs::default();
+        let tags: TagSyntax = Hashtags::Dashes.into();
+        // Made with their folders, titled by their own name
+        let dragon = p.create("Jeux/Quêtes/Dragon", None, tags).unwrap();
+        assert_eq!(dragon.name, "Jeux/Quêtes/Dragon");
+        assert_eq!(p.read(&dragon.path).unwrap(), "* Dragon\n");
+        p.create("Jeux/Règles", None, tags).unwrap();
+        assert!(p.broken_links(false).is_empty());
+        assert_eq!(p.backlinks(&dragon.path, false), vec!["a"]);
+        p.create_folder("Vide/Sous").unwrap();
+        assert_eq!(p.folders(), ["Jeux", "Jeux/Quêtes", "Vide", "Vide/Sous"]);
+        for bad in ["../x", "Jeux/../x", ".cache/x", "a//b", "a/ b"] {
+            assert!(matches!(p.create(bad, None, tags), Err(AppError::InvalidName(_))), "{bad}");
+        }
+        // Read again from disk: the same names; the templates', journal's, assets' folders left out
+        std::fs::create_dir_all(dir.join("templates")).unwrap();
+        std::fs::write(dir.join("templates/T.org"), "").unwrap();
+        std::fs::create_dir_all(dir.join("pages/.git")).unwrap();
+        std::fs::write(dir.join("pages/.git/x.org"), "").unwrap();
+        let again = Project::open(dir.to_str().unwrap(), tags, Formats::default(), "journals", "templates").unwrap();
+        assert_eq!(again.files().iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["Jeux/Quêtes/Dragon", "Jeux/Règles", "a"]);
+        assert!(matches!(p.read(&format!("{}/pages/.git/x.org", dir.display())), Err(AppError::NotAPage(_))));
+
+        // A page moved: the links follow
+        let moved = p.rename(&dragon.path, "Bêtes/Dragon", &prefs).unwrap();
+        assert!(moved.path.ends_with("pages/Bêtes/Dragon.org"));
+        assert_eq!(std::fs::read_to_string(path_of(&p, "a")).unwrap(), "voir [[Bêtes/Dragon]] et [[Jeux/Règles]]\n");
+        // A folder renamed: its pages, their links, and what else it holds
+        std::fs::write(dir.join("pages/Jeux/carte.png"), "png").unwrap();
+        assert!(matches!(p.rename_folder("Jeux", "Bêtes", &prefs), Err(AppError::PageExists(_))));
+        p.rename_folder("Jeux", "JdR/Jeux", &prefs).unwrap();
+        assert_eq!(std::fs::read_to_string(path_of(&p, "a")).unwrap(), "voir [[Bêtes/Dragon]] et [[JdR/Jeux/Règles]]\n");
+        assert!(dir.join("pages/JdR/Jeux/carte.png").is_file() && !dir.join("pages/Jeux").exists());
+        // A folder deleted: its pages in the trash, back in their folder when restored
+        let trashed = p.delete_folder("Bêtes").unwrap();
+        assert_eq!(trashed.len(), 1);
+        assert!(!dir.join("pages/Bêtes").exists() && p.files().iter().all(|f| f.name != "Bêtes/Dragon"));
+        let back = p.restore(&trashed[0], tags).unwrap();
+        assert_eq!(back.name, "Bêtes/Dragon");
+        assert!(back.path.ends_with("pages/Bêtes/Dragon.org"));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn templates_are_read_and_written_but_are_no_pages() {
+        let (dir, mut p) = project("templates", &[("a", "* a\n")]);
+        assert!(p.templates().is_empty());
+        let tpl = p.create_template("Réunion", Format::Org, "* Notes [[a]]\n").unwrap();
+        assert!(matches!(p.create_template("Réunion", Format::Org, ""), Err(AppError::PageExists(_))));
+        assert!(matches!(p.create_template("../x", Format::Org, ""), Err(AppError::InvalidName(_))));
+        assert_eq!(p.templates(), vec![tpl.clone()]);
+        assert_eq!(p.read(&tpl.path).unwrap(), "* Notes [[a]]\n");
+        p.write(&tpl.path, "* Ordre du jour [[a]]\n".into(), Hashtags::Dashes.into()).unwrap();
+        // Not a page: not listed, links from it not counted, no outside change seen
+        assert_eq!(p.files().len(), 1);
+        assert!(p.backlinks(&path_of(&p, "a"), false).is_empty());
+        assert!(p.refresh(Hashtags::Dashes.into()).unwrap().is_none());
+        // Another folder, as Obsidian's; a path leaving the project is not taken
+        p.set_templates("_meta/Templates");
+        assert!(p.templates().is_empty());
+        let other = p.create_template("Jour", Format::Org, "").unwrap();
+        assert!(other.path.ends_with("_meta/Templates/Jour.org") && p.read(&other.path).is_ok());
+        assert!(matches!(p.read(&tpl.path), Err(AppError::NotAPage(_))));
+        assert!(files::templates_dir("/p", "../x").ends_with("p/templates") && files::templates_dir("/p", "/etc").ends_with("p/templates"));
         std::fs::remove_dir_all(dir).unwrap();
     }
 
@@ -641,7 +856,7 @@ mod tests {
         for (file, content) in files {
             std::fs::write(dir.join("pages").join(file), content).unwrap();
         }
-        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), formats, "journals").unwrap();
+        let p = Project::open(dir.to_str().unwrap(), Hashtags::Dashes.into(), formats, "journals", "templates").unwrap();
         (dir, p)
     }
 

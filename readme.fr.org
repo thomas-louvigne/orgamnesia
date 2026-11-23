@@ -8,7 +8,7 @@
 
 [[https://github.com/thomas-louvigne/orgamnesia/releases/latest][Télécharger]] · [[file:docs/fonctionnalites.org][Toutes les fonctionnalités]] · [[file:readme.org][English]]
 
-[[file:docs/demo.mp4][file:docs/images/demo-poster-fr.png]]
+[[https://youtu.be/TbY1UtvPjaU][file:docs/images/demo-poster-fr.png]]
 
 #+BEGIN_QUOTE
 *Écrite avec une IA (Claude, d'Anthropic).* Relisez le code comme n'importe quelle
@@ -143,15 +143,16 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [X] Second cerveau avec l'IA : un modèle de =CLAUDE.md= ([[file:docs/CLAUDE.template.md][docs/CLAUDE.template.md]]) à poser dans un projet, pour qu'un agent (Claude Code…) comprenne les pages, les liens, les tags et les TODO
 - [ ] Serveur MCP : chercher, lire, rétroliens, tags, TODO et créer des pages depuis Claude Desktop, Claude Code ou un autre client
 - [ ] Mentions non liées : les pages qui citent la page ouverte sans lien, avec un bouton pour lier
-- [ ] Capture rapide dans une page Inbox, et une revue de la semaine (pages modifiées, TODO ouverts)
+- [X] Capture rapide : un raccourci (=Ctrl+Alt+C=, =C-c c=) ouvre à côté de la page celle du jour (ou =Inbox=) sur une nouvelle note ; à nouveau, il la referme. Aussi dans le terminal
+- [ ] Revue de la semaine (pages modifiées, TODO ouverts)
 - [ ] Agenda : les =SCHEDULED:= et =DEADLINE:= des pages, par date, dans un cadre
 - [ ] Vue agenda : un calendrier du journal, pour passer d'un jour à l'autre et ouvrir la page d'une date
 - [ ] Alias (=#+ALIAS:=, =alias::= de Logseq) : une page qui répond à plusieurs noms
 - [X] Page au hasard
 - [ ] Faire remonter les notes : les pages orphelines (sans aucun lien), ce qui était écrit il y a un an
-- [ ] Modèles de page : un squelette à choisir en créant une page (personnage, quête, réunion…)
+- [X] Modèles de page, comme dans Obsidian : un dossier du projet (=templates/= par défaut, réglable), ={{title}}=, ={{date}}=, ={{time}}=, appliqués depuis l'ouverture rapide, aussi dans le terminal
 - [ ] Terminal dans l'éditeur
-- [ ] Dossiers et sous-dossiers dans les notes
+- [X] Dossiers et sous-dossiers dans les pages : un arbre repliable (le journal à part), clic droit et commandes pour créer, déplacer, renommer, supprimer ; les liens nomment la page par son chemin (=[[Jeux/Dragon]]=). Aussi dans le terminal
 - [ ] Notes de bas de page
 - [ ] Outils git de diff et de fusion : voir les changements d'une page, résoudre un historique divergé ou un conflit sans terminal
 - [X] Mode zen : seulement le texte, sans cadres ni barres

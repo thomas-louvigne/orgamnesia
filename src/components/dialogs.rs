@@ -59,6 +59,68 @@ pub fn ConfirmDialog() -> impl IntoView {
     }
 }
 
+/// A value asked (`ctx.ui.prompt`): a field, the choices holding what is typed
+/// under it (a click or Tab takes the first), Enter gives it, Escape gives up.
+#[component]
+pub fn PromptDialog() -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let Some(req) = ctx.ui.prompt.get_untracked() else { return ().into_any() };
+    let value = RwSignal::new(req.value.clone());
+    let close = move || ctx.ui.prompt.set(None);
+    let ok = move || {
+        let v = value.get_untracked().trim().to_string();
+        let Some(req) = ctx.ui.prompt.get_untracked() else { return };
+        close();
+        if !v.is_empty() { req.on_ok.run(v); }
+    };
+    let all = req.choices.clone();
+    let found = Memo::new(move |_| {
+        let q = orgamnesia_core::names::fold(&value.get());
+        let mut list: Vec<String> = all.iter().filter(|c| orgamnesia_core::names::fold(c).contains(&q)).cloned().collect();
+        list.sort_by_cached_key(|c| orgamnesia_core::names::search_order(c, &q));
+        list.truncate(8);
+        list
+    });
+    let input = NodeRef::<leptos::html::Input>::new();
+    Effect::new(move |_| if let Some(el) = input.get() { let _ = el.focus(); });
+    view! {
+        <div class="alert-overlay" on:click=move |_| close()>
+            <div class="alert-box confirm prompt-box" role="dialog" on:click=|e| e.stop_propagation()>
+                <label for="prompt-input">{req.label.clone()}</label>
+                <input
+                    id="prompt-input"
+                    node_ref=input
+                    class="setting-input"
+                    type="text"
+                    spellcheck="false"
+                    prop:value=move || value.get()
+                    on:input=move |e| value.set(event_target_value(&e))
+                    on:keydown=move |e: web_sys::KeyboardEvent| {
+                        e.stop_propagation();
+                        match e.key().as_str() {
+                            "Enter" => { e.prevent_default(); ok(); }
+                            "Escape" => close(),
+                            "Tab" => if let Some(first) = found.get_untracked().into_iter().next() { e.prevent_default(); value.set(first); },
+                            _ => {}
+                        }
+                    }
+                />
+                <div class="prompt-choices">
+                    {move || found.get().into_iter().map(|c| {
+                        let shown = if c.is_empty() { t("folder_top", lang()).to_string() } else { c.clone() };
+                        view! { <button class="ctx-menu-item" on:click=move |_| { value.set(c.clone()); if let Some(el) = input.get_untracked() { let _ = el.focus(); } }>{shown}</button> }
+                    }).collect_view()}
+                </div>
+                <div class="alert-buttons">
+                    <button class="btn-secondary" on:click=move |_| close()>{move || t("cancel", lang())}</button>
+                    <button class="btn-primary" on:click=move |_| ok()>{move || t("ok", lang())}</button>
+                </div>
+            </div>
+        </div>
+    }.into_any()
+}
+
 /// A page changed on disk while it has unsaved changes: keep the text being
 /// edited, or take the one on disk. Escape keeps the text being edited.
 #[component]
