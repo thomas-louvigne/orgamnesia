@@ -319,8 +319,9 @@ impl App {
                 if !self.click_page(m.column, m.row) {
                 } else if m.modifiers.contains(KeyModifiers::CONTROL) {
                     self.follow_at_cursor();
-                } else if m.modifiers.is_empty() && self.prefs.click_follows_links {
-                    if let Some(target) = self.link_at_cursor() { self.follow(&target); }
+                } else if m.modifiers.is_empty() && self.prefs.click_follows_links
+                    && let Some(target) = self.link_at_cursor() {
+                    self.follow(&target);
                 }
             }
             MouseEventKind::Down(MouseButton::Right) => self.format_menu(m.column, m.row),

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Before a push, the checks of the CI (scripts/check.sh), Windows included when
+# Docker is there: a push the CI would refuse stops here. `git push --no-verify`
+# skips them. Enabled once per clone: git config core.hooksPath .githooks
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+    exec scripts/check.sh --windows
+else
+    echo "pre-push: no Docker, the Windows build is not checked" >&2
+    exec scripts/check.sh
+fi
