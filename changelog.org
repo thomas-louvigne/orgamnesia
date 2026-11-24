@@ -4,6 +4,14 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.8.6
+- Typing =[= on a selection makes it a link: =[[selection]]=.
+- The "keyboard quit" shortcut (Ctrl+G in Emacs) also drops a selection made with Shift or the mouse.
+- Find and replace in the page: Replace and Replace all work again.
+- Every =#+KEYWORD:= line (=#+DATE:=, =#+AUTHOR:=…) is coloured as =#+TITLE:= is.
+- A new version is offered before a settings file found wrong at start.
+- Terminal: no shortcut written in the code any more, only yours: Ctrl+J, Ctrl+C, Ctrl+N/P and Ctrl+G do what your shortcuts say (a Ctrl+Shift shortcut works from Ctrl alone, which most terminals send). In the window too, the completion follows your shortcuts.
+
 * 1.8.5
 - Folders: pages go in folders and subfolders of =pages/=, named by their path in links (=[[Games/Dragon]]=). The pages list becomes a foldable tree, in alphabetical order, the journal in a folder of its own. Right click or commands to make a folder, move a page into it, rename or delete a folder; the links follow.
 - Page templates, as in Obsidian: the files of the =templates/= folder (configurable), with ={{title}}=, ={{date}}=, ={{time}}=, applied from quick open (type "template"). A Templates tab in the settings, and four suggested templates: meeting, person, reading, project.

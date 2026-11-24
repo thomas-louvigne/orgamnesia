@@ -50,6 +50,11 @@ pub fn token(key: &KeyEvent) -> Option<String> {
     Some(parts.join("+"))
 }
 
+/// Whether `key` is one of the user's shortcuts of the action `id` (a key, not a chord).
+pub fn bound(kb: &Keybindings, key: &KeyEvent, id: &str) -> bool {
+    token(key).is_some_and(|t| kb.app.get(id).into_iter().chain(kb.editor.get(id)).flatten().any(|b| *b == t))
+}
+
 /// `ctrl+x ctrl+s` → `Ctrl+X Ctrl+S`.
 pub fn display(binding: &str) -> String {
     binding.split(' ').map(|key| key.split('+').map(|p| match p {
@@ -93,7 +98,12 @@ impl Chord {
         }
         let was_chord = !self.0.is_empty();
         self.0.clear();
-        if was_chord { Resolution::Aborted } else { Resolution::None }
+        if was_chord { return Resolution::Aborted; }
+        // Most terminals send Ctrl+Shift+J as Ctrl+J: the user's Ctrl+Shift binding then
+        if let Some(id) = seq_str.strip_prefix("ctrl+").filter(|r| !r.starts_with("shift+")).and_then(|r| find(&format!("ctrl+shift+{r}"))) {
+            return Resolution::Action(id);
+        }
+        Resolution::None
     }
 }
 
@@ -125,5 +135,8 @@ mod tests {
         assert_eq!(c.step(&kb, "a".into()), Resolution::None);
         let classic = Keybindings::with_profiles(None, vec![]);
         assert_eq!(c.step(&classic, "ctrl+shift+j".into()), Resolution::Action("journal".into()));
+        // The terminal's Ctrl+J for it; nothing when the journal is bound elsewhere
+        assert_eq!(c.step(&classic, "ctrl+j".into()), Resolution::Action("journal".into()));
+        assert_eq!(c.step(&kb, "ctrl+j".into()), Resolution::None);
     }
 }

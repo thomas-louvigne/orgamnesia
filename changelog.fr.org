@@ -4,6 +4,14 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.8.6
+- Taper =[= sur une sélection en fait un lien : =[[sélection]]=.
+- Le raccourci « annuler » (Ctrl+G en Emacs) enlève aussi une sélection faite avec Maj ou la souris.
+- Rechercher et remplacer dans la page : Remplacer et Tout remplacer marchent de nouveau.
+- Toute ligne =#+MOTCLÉ:= (=#+DATE:=, =#+AUTHOR:=…) est colorée comme =#+TITLE:=.
+- Une nouvelle version est proposée avant un fichier de réglages trouvé invalide au démarrage.
+- Terminal : plus aucun raccourci écrit dans le code, seulement les vôtres : Ctrl+J, Ctrl+C, Ctrl+N/P et Ctrl+G font ce que disent vos raccourcis (un raccourci Ctrl+Maj marche avec Ctrl seul, que la plupart des terminaux envoient). Dans la fenêtre aussi, la complétion suit vos raccourcis.
+
 * 1.8.5
 - Dossiers : les pages se rangent dans des dossiers et sous-dossiers de =pages/=, nommés par leur chemin dans les liens (=[[Jeux/Dragon]]=). La liste des pages devient un arbre repliable, par ordre alphabétique, le journal dans un dossier à part. Clic droit ou commandes pour créer un dossier, y déplacer une page, renommer ou supprimer un dossier ; les liens suivent.
 - Modèles de page, comme dans Obsidian : les fichiers du dossier =templates/= (réglable), avec ={{title}}=, ={{date}}=, ={{time}}=, appliqués depuis l'ouverture rapide (taper « modèle »). Un onglet Modèles dans les réglages, et quatre modèles proposés : réunion, personne, lecture, projet.

@@ -21,14 +21,20 @@ const AT_START_AFTER: std::time::Duration = std::time::Duration::from_secs(8);
 /// the one the user skipped is not offered again. Says nothing otherwise (offline…).
 pub fn at_start(ctx: AppCtx) {
     set_timeout(move || {
-        if !ctx.pref_untracked(|p| p.check_updates) || Package::current() == Package::Flatpak { return; }
-        spawn_local(async move {
-            let Ok(Some(info)) = invoke::check_update().await else { return };
-            ctx.ui.new_version.set(Some(info.clone()));
-            if ctx.pref_untracked(|p| p.skipped_update == info.version) { return; }
-            ctx.ui.update.set(Some(info));
-        });
+        // Already looked for, before the settings found wrong (see `offer`)
+        if ctx.ui.new_version.get_untracked().is_some() { return; }
+        spawn_local(offer(ctx));
     }, AT_START_AFTER);
+}
+
+/// Look for a new version now, when the settings say so, and offer it unless
+/// skipped. Says nothing otherwise (offline…).
+pub async fn offer(ctx: AppCtx) {
+    if !ctx.pref_untracked(|p| p.check_updates) || Package::current() == Package::Flatpak { return; }
+    let Ok(Some(info)) = invoke::check_update().await else { return };
+    ctx.ui.new_version.set(Some(info.clone()));
+    if ctx.pref_untracked(|p| p.skipped_update == info.version) { return; }
+    ctx.ui.update.set(Some(info));
 }
 
 /// Look for a new version now (from the settings), saying what was found.

@@ -285,8 +285,9 @@ Pendant la frappe, une liste propose :
 Une page dans un dossier se trouve aussi par son propre nom : =[[dra= propose
 =Jeux/Quêtes/Dragon=.
 
-Flèches haut et bas (ou Ctrl+N / Ctrl+P) pour choisir, Entrée ou Tab pour accepter,
-Échap (ou Ctrl+G) pour fermer. La recherche ignore la casse et les accents.
+Flèches haut et bas (ou les raccourcis « ligne suivante / précédente », Ctrl+N /
+Ctrl+P en Emacs) pour choisir, Entrée ou Tab pour accepter, Échap (ou « annuler »,
+Ctrl+G en Emacs) pour fermer. La recherche ignore la casse et les accents.
 
 ** Paires et mode électrique
 - Taper =(=, =[=, ={= ou ="= insère aussi le caractère fermant.

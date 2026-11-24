@@ -81,7 +81,8 @@ impl App {
     /// A key on text or a list over the page: moving, opening the line chosen;
     /// another key closes it.
     fn popup_key(&mut self, key: KeyEvent) {
-        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let next = keys::bound(&self.kb, &key, "next_line");
+        let previous = keys::bound(&self.kb, &key, "previous_line");
         let half = self.height / 2;
         let Mode::Popup(p) = &mut self.mode else { return };
         let list = !p.targets.is_empty();
@@ -90,8 +91,8 @@ impl App {
             KeyCode::Enter if list => self.open_target(),
             KeyCode::Down if list => p.step(true),
             KeyCode::Up if list => p.step(false),
-            KeyCode::Char('n') if list && ctrl => p.step(true),
-            KeyCode::Char('p') if list && ctrl => p.step(false),
+            _ if list && next => p.step(true),
+            _ if list && previous => p.step(false),
             KeyCode::PageDown if list => for _ in 0..10 { p.step(true) },
             KeyCode::PageUp if list => for _ in 0..10 { p.step(false) },
             KeyCode::Down => p.scroll = p.scroll.saturating_add(1),
@@ -115,7 +116,7 @@ impl App {
         let plain = !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
         let Mode::Prompt(p) = &mut self.mode else { return };
         match key.code {
-            _ if cancel(&key) => { self.mode = Mode::Normal; self.status.clear(); }
+            _ if cancel(&self.kb, &key) => { self.mode = Mode::Normal; self.status.clear(); }
             KeyCode::Enter => self.submit(),
             KeyCode::Tab => if let Some(names) = p.completes() { self.complete_prompt(names) },
             KeyCode::Backspace => { p.input.pop(); p.choices.clear(); }
@@ -141,16 +142,16 @@ impl App {
     /// A key while names are suggested: moving among them, accepting one, closing
     /// them. False when the key goes on (typing, which refreshes them).
     fn suggest_key(&mut self, key: KeyEvent) -> bool {
-        let ctrl_only = key.modifiers == KeyModifiers::CONTROL;
+        let (next, previous) = (keys::bound(&self.kb, &key, "next_line"), keys::bound(&self.kb, &key, "previous_line"));
         let Mode::Suggest(s) = &mut self.mode else { return false };
         let n = s.items.len();
         match key.code {
             KeyCode::Down => s.selected = (s.selected + 1) % n,
             KeyCode::Up => s.selected = (s.selected + n - 1) % n,
-            KeyCode::Char('n') if ctrl_only => s.selected = (s.selected + 1) % n,
-            KeyCode::Char('p') if ctrl_only => s.selected = (s.selected + n - 1) % n,
+            _ if next => s.selected = (s.selected + 1) % n,
+            _ if previous => s.selected = (s.selected + n - 1) % n,
             KeyCode::Tab | KeyCode::Enter if key.modifiers.is_empty() => self.accept_suggest(),
-            _ if cancel(&key) => self.mode = Mode::Normal,
+            _ if cancel(&self.kb, &key) => self.mode = Mode::Normal,
             // Typing goes on (and refreshes them); anything else closes them, then does its work
             KeyCode::Char(_) | KeyCode::Backspace if !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => return false,
             _ => { self.mode = Mode::Normal; return false; }
@@ -163,9 +164,6 @@ impl App {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         match key.code {
             KeyCode::Esc => return self.cancel(),
-            KeyCode::Char('c') if ctrl => return true,
-            // Ctrl+Shift+J is Ctrl+J in most terminals
-            KeyCode::Char('j') if ctrl => self.journal(),
             KeyCode::Down => { self.list.select_next(); self.moved(); }
             KeyCode::Up => { self.list.select_previous(); self.moved(); }
             KeyCode::PageDown => self.scroll = self.scroll.saturating_add(self.height / 2),
@@ -191,8 +189,6 @@ impl App {
         let act = |e: &mut Editor, id: &str| { e.action(id, page, None); };
         match key.code {
             KeyCode::Esc => { self.back_to_list(); }
-            KeyCode::Char('c') if ctrl => return true,
-            KeyCode::Char('j') if ctrl => self.journal(),
             KeyCode::Char(c) if !ctrl && !key.modifiers.contains(KeyModifiers::ALT) => e.type_char(c),
             KeyCode::Enter => e.enter(),
             KeyCode::Tab => e.insert("\t"),
@@ -257,7 +253,7 @@ impl App {
     /// True when the key was the frame's.
     pub(super) fn frame_key(&mut self, key: KeyEvent) -> bool {
         let Some(frame) = self.frame_focus() else { return false };
-        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let (next, previous) = (keys::bound(&self.kb, &key, "next_line"), keys::bound(&self.kb, &key, "previous_line"));
         let (_, items) = self.frame_items(frame);
         let state = self.frame_state.entry(frame).or_default();
         let step = |state: &mut ListState, forward: bool| {
@@ -271,8 +267,8 @@ impl App {
         match key.code {
             KeyCode::Down => step(state, true),
             KeyCode::Up => step(state, false),
-            KeyCode::Char('n') if ctrl => step(state, true),
-            KeyCode::Char('p') if ctrl => step(state, false),
+            _ if next => step(state, true),
+            _ if previous => step(state, false),
             KeyCode::Enter => if let Some((_, target)) = state.selected().and_then(|i| items.get(i)).cloned() { self.open(target); },
             KeyCode::Esc => self.mode = Mode::Normal,
             _ => { self.mode = Mode::Normal; return false; }
@@ -283,15 +279,16 @@ impl App {
     /// A key in the quick open: typing, moving among the pages found, Enter
     /// opening the one chosen (made when it is to create).
     pub(super) fn quick_key(&mut self, key: KeyEvent) -> bool {
-        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let (next, previous) = (keys::bound(&self.kb, &key, "next_line"), keys::bound(&self.kb, &key, "previous_line"));
         let plain = !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        let quit = cancel(&self.kb, &key);
         let Mode::Quick(q) = &mut self.mode else { return false };
         match key.code {
-            _ if cancel(&key) => self.mode = Mode::Normal,
+            _ if quit => self.mode = Mode::Normal,
             KeyCode::Down | KeyCode::Tab => q.selected += 1,
-            KeyCode::Char('n') if ctrl => q.selected += 1,
+            _ if next => q.selected += 1,
             KeyCode::Up | KeyCode::BackTab => q.selected = q.selected.saturating_sub(1),
-            KeyCode::Char('p') if ctrl => q.selected = q.selected.saturating_sub(1),
+            _ if previous => q.selected = q.selected.saturating_sub(1),
             KeyCode::Backspace => { q.query.pop(); q.selected = 0; }
             KeyCode::Char(c) if plain || key.modifiers == KeyModifiers::SHIFT => { q.query.push(c); q.selected = 0; }
             KeyCode::Enter => {
@@ -470,7 +467,7 @@ impl App {
     }
 }
 
-/// Esc or Ctrl+G: what closes a popup, a line typed, the suggestions.
-fn cancel(key: &KeyEvent) -> bool {
-    key.code == KeyCode::Esc || (key.code == KeyCode::Char('g') && key.modifiers.contains(KeyModifiers::CONTROL))
+/// Esc or the user's `keyboard_quit`: what closes a popup, a line typed, the suggestions.
+fn cancel(kb: &Keybindings, key: &KeyEvent) -> bool {
+    key.code == KeyCode::Esc || keys::bound(kb, key, "keyboard_quit")
 }

@@ -198,6 +198,16 @@ fn view_keys(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) -> bool {
 fn auto_pair(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea) -> bool {
     let key = e.key();
     let (start, end) = get_pos(el);
+    // `[` on a selection: a link to it, the region done with
+    let selected: String = el.value().chars().skip(start).take(end - start).collect();
+    if let Some(link) = edit::link_of(&key, &selected) {
+        e.prevent_default();
+        let caret = splice(el, start, end, &link);
+        pane.mark.set(None);
+        set_cursor(el, caret);
+        pane.commit(el);
+        return true;
+    }
     let emphasis = || (start != end && pane.ctx.pref_untracked(|p| p.electric_emphasis))
         .then(|| edit::emphasis_pair(&key, pane.fmt())).flatten();
     let Some((open, close)) = edit::pair_of(&key).or_else(emphasis) else { return false };
@@ -595,6 +605,8 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
         }
         EditorAction::KeyboardQuit => {
             pane.mark.set(None);
+            // A selection made with Shift (or the mouse) goes too, as the region does
+            set_cursor(el, caret(el));
             if find.is_open() { find.close(); }
         }
         EditorAction::Find | EditorAction::FindPrevious => find.open(false, el),

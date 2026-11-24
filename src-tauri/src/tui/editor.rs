@@ -220,6 +220,16 @@ impl Editor {
     /// (`electric_emphasis`); else `( [ { "` come with their closing one.
     pub fn type_char(&mut self, ch: char) {
         let key = ch.to_string();
+        // `[` on the region: a link to it, the region done with
+        if let Some((a, b)) = self.region() {
+            let selected: String = self.text[a..b].iter().collect();
+            if let Some(link) = edit::link_of(&key, &selected) {
+                let end = a + link.chars().count();
+                self.replace(a, b, &link, end, Change::Other);
+                self.mark = None;
+                return;
+            }
+        }
         if let Some((a, b)) = self.region().filter(|_| self.prefs.electric) {
             let emphasis = || self.prefs.electric_emphasis.then(|| edit::emphasis_pair(&key, self.format())).flatten();
             if let Some((open, close)) = edit::pair_of(&key).or_else(emphasis) {
@@ -869,8 +879,13 @@ fin", 0);
         e.prefs.electric = true;
         e.mark = Some(0);
         e.cursor = 2;
+        e.type_char('{');
+        assert_eq!(e.text(), "{ab}()");
+        // `[` on the region: a link, the region done with
+        e.mark = Some(1);
+        e.cursor = 3;
         e.type_char('[');
-        assert_eq!(e.text(), "[ab]()");
+        assert_eq!((e.text().as_str(), e.cursor, e.mark), ("{[[ab]]}()", 7, None));
         e.prefs.emacs_mark = false;
         assert!(!e.action("set_mark", 10, None));
         e.prefs.match_case = true;

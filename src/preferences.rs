@@ -235,9 +235,16 @@ pub fn watch(ctx: AppCtx) {
         refresh(ctx);
     });
     invoke::listen(invoke::CONFIG_INVALID, move |c: ConfigInvalid| tell_invalid(ctx, vec![c]));
+    // Found wrong at start: a new version first (it may read them), then them, its window closed
+    let at_start = RwSignal::new(None::<Vec<ConfigInvalid>>);
+    Effect::new(move |_| {
+        if ctx.ui.update.get().is_some() { return; }
+        if let Some(list) = at_start.get() { at_start.set(None); tell_invalid(ctx, list); }
+    });
     spawn_local(async move {
         if let Ok(list) = invoke::config_problems().await && !list.is_empty() {
-            tell_invalid(ctx, list);
+            crate::update::offer(ctx).await;
+            at_start.set(Some(list));
         }
     });
 }

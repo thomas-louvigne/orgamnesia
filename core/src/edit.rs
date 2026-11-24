@@ -285,6 +285,11 @@ pub fn emphasis_pair(key: &str, format: crate::Format) -> Option<(&'static str, 
     }
 }
 
+/// `[` typed on a selection of one line: the link to the page it names, `[[it]]`.
+pub fn link_of(key: &str, selected: &str) -> Option<String> {
+    (key == "[" && !selected.trim().is_empty() && !selected.contains('\n')).then(|| format!("[[{selected}]]"))
+}
+
 /// Typing this character with no selection also inserts its closing one.
 pub fn auto_closes(key: &str) -> bool {
     matches!(key, "(" | "[" | "{" | "\"")
@@ -764,6 +769,9 @@ mod tests {
         assert_eq!(pair_of(")"), Some(("(", ")")));
         assert_eq!(pair_of("a"), None);
         assert!(auto_closes("[") && !auto_closes("'") && !auto_closes(")"));
+        assert_eq!(link_of("[", "Dragon"), Some("[[Dragon]]".into()));
+        assert_eq!(link_of("[", "a\nb"), None);
+        assert_eq!(link_of("(", "Dragon"), None);
         use crate::Format::{Markdown, Org};
         assert_eq!(emphasis_pair("/", Org), Some(("/", "/")));
         assert_eq!(emphasis_pair("/", Markdown), None);

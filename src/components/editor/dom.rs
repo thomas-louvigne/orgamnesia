@@ -68,8 +68,17 @@ pub fn set_selection(el: &Textarea, start: usize, end: usize) {
 /// Uses execCommand so the browser's undo stack (Ctrl+Z) stays intact.
 pub fn splice(el: &Textarea, del_start: usize, del_end: usize, insert: &str) -> usize {
     set_selection(el, del_start, del_end);
-    exec_insert(insert);
-    del_start + insert.chars().count()
+    let end = del_start + insert.chars().count();
+    // execCommand edits the focused element: from the find bar, the textarea is not it
+    let focused = web_sys::window().and_then(|w| w.document()).and_then(|d| d.active_element())
+        .is_some_and(|a| a == ***el);
+    if focused {
+        exec_insert(insert);
+    } else if let (Ok(Some(s)), Ok(Some(e))) = (el.selection_start(), el.selection_end()) {
+        el.set_range_text_with_start_and_end(insert, s, e).ok();
+        set_cursor(el, end);
+    }
+    end
 }
 
 // ─── Layout ──────────────────────────────────────────────────────────────────

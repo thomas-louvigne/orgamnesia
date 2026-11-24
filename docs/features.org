@@ -273,8 +273,9 @@ While typing, a list offers:
 
 A page in a folder is found by its own name too: =[[dra= offers =Games/Quests/Dragon=.
 
-Up and down arrows (or Ctrl+N / Ctrl+P) to choose, Enter or Tab to accept, Escape
-(or Ctrl+G) to close. Matching ignores case and accents.
+Up and down arrows (or the "next / previous line" shortcuts, Ctrl+N / Ctrl+P in
+Emacs) to choose, Enter or Tab to accept, Escape (or "keyboard quit", Ctrl+G in
+Emacs) to close. Matching ignores case and accents.
 
 ** Pairs and electric mode
 - Typing =(=, =[=, ={= or ="= also inserts the closing character.

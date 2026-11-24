@@ -533,10 +533,12 @@ fn one_thing_has_the_keys_at_a_time() {
     assert!(matches!(app.mode, Mode::Normal));
     press(&mut app, KeyCode::Char('x'), KeyModifiers::NONE);
     assert!(app.editor.as_ref().unwrap().text().contains("[[lux"));
-    // The quick open over it; Ctrl+G closes it as Esc does
+    // The quick open over it; Ctrl+G, no shortcut of the classic keys, leaves it; Esc closes it
     press(&mut app, KeyCode::Char('k'), KeyModifiers::CONTROL);
     assert!(matches!(app.mode, Mode::Quick(_)));
     press(&mut app, KeyCode::Char('g'), KeyModifiers::CONTROL);
+    assert!(matches!(app.mode, Mode::Quick(_)));
+    press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
     assert!(matches!(app.mode, Mode::Normal));
     std::fs::remove_dir_all(&dir).unwrap();
 }

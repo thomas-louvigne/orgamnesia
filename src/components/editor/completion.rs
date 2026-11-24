@@ -7,6 +7,7 @@ use super::{
     dom::{caret_coords, get_pos, set_cursor, splice, Textarea},
     pane::Pane,
 };
+use crate::keybindings::{EditorAction, Resolution, Scope};
 use crate::links;
 use orgamnesia_core::complete::{accepted, being_typed, Kind};
 use orgamnesia_core::links::headlines;
@@ -144,18 +145,23 @@ impl Completion {
         let Some(c) = self.shown.get_untracked() else { return false };
         let n = c.items.len();
         let plain = !e.ctrl_key() && !e.alt_key() && !e.meta_key() && !e.shift_key();
-        let ctrl_only = e.ctrl_key() && !e.alt_key() && !e.meta_key() && !e.shift_key();
         let select = |i: usize| self.shown.set(Some(Suggestions { selected: i, ..c.clone() }));
         let key = e.key();
         let handled = match key.as_str() {
             "ArrowDown" if plain => { select((c.selected + 1) % n); true }
-            "n" if ctrl_only     => { select((c.selected + 1) % n); true }
             "ArrowUp" if plain   => { select((c.selected + n - 1) % n); true }
-            "p" if ctrl_only     => { select((c.selected + n - 1) % n); true }
             "Enter" | "Tab" if plain => { self.accept(el, &c.items[c.selected]); true }
             "Escape" if plain    => { self.close(); true }
-            "g" if ctrl_only     => { self.close(); true }
-            _ => false,
+            // The user's line moves and keyboard quit (Ctrl+N, Ctrl+P, Ctrl+G in Emacs)
+            _ => match crate::keybindings::resolve(&self.pane.ctx.keybindings.get_untracked(), e) {
+                Resolution::Action(Scope::Editor, id) => match EditorAction::from_id(&id) {
+                    Some(EditorAction::NextLine) => { select((c.selected + 1) % n); true }
+                    Some(EditorAction::PreviousLine) => { select((c.selected + n - 1) % n); true }
+                    Some(EditorAction::KeyboardQuit) => { self.close(); true }
+                    _ => false,
+                },
+                _ => false,
+            },
         };
         if handled {
             e.prevent_default();

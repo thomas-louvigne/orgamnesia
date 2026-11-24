@@ -168,7 +168,9 @@ impl App {
         // A search going on: what is searched, in place of the help
         if let Some(s) = self.editor.as_ref().and_then(|e| e.search.as_ref()) {
             let failing = !s.query.is_empty() && s.current.is_none();
-            let line = format!("{}Search: {}{}   (Enter/Esc: stop, Ctrl+G: cancel)",
+            let quit = self.kb.editor.get("keyboard_quit").and_then(|b| b.iter().find(|b| !b.is_empty()))
+                .map(|b| format!(", {}: cancel", keys::display(b))).unwrap_or_default();
+            let line = format!("{}Search: {}{}   (Enter/Esc: stop{quit})",
                 if s.wrapped { "Wrapped " } else { "" }, s.query, if failing { "  [not found]" } else { "" });
             f.render_widget(Line::from(line).style(Style::new().add_modifier(Modifier::BOLD)), help);
             return;

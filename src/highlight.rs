@@ -416,6 +416,9 @@ mod tests {
     fn title_keyword_dimmed_like_filetags() {
         assert_eq!(highlight_line("#+TITLE: Ma page", &dr()), "<span class='kw'>#+TITLE:</span> Ma page");
         assert!(highlight_line("#+FILETAGS: :a:", &dr()).starts_with("<span class='kw'>#+FILETAGS:</span>"));
+        assert_eq!(highlight_line("#+DATE: 2026-11-24", &dr()), "<span class='kw'>#+DATE:</span> 2026-11-24");
+        // Not a keyword: a block line, no colon
+        assert!(!highlight_line("#+BEGIN_SRC rust", &dr()).contains("'kw'"));
     }
 
     #[test]

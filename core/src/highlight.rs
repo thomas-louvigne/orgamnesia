@@ -98,11 +98,14 @@ pub fn line(line: &str, d: &Draw) -> Vec<Node> {
         return vec![span_text("kw", part(0, v)), span("tags", tag_links(&part(v, chars.len()), d))];
     }
 
-    // `#+TITLE: …`: the keyword dimmed, the value as text
+    // `#+TITLE: …`, `#+DATE: …` (any keyword): the keyword dimmed, the value as text
     let indent = chars.iter().take_while(|c| c.is_whitespace()).count();
-    if part(indent, chars.len()).get(..8).is_some_and(|k| k.eq_ignore_ascii_case("#+title:")) {
-        let mut out = vec![span_text("kw", part(0, indent + 8))];
-        out.extend(inline(&part(indent + 8, chars.len()), d));
+    let name = chars[indent..].strip_prefix(&['#', '+'])
+        .map(|rest| rest.iter().take_while(|c| c.is_alphanumeric() || matches!(c, '_' | '-')).count());
+    if let Some(n) = name.filter(|&n| n > 0 && chars.get(indent + 2 + n) == Some(&':')) {
+        let end = indent + 3 + n;
+        let mut out = vec![span_text("kw", part(0, end))];
+        out.extend(inline(&part(end, chars.len()), d));
         return out;
     }
 
