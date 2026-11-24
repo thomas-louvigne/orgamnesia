@@ -4,6 +4,16 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.9.0
+- Agenda, comme dans Emacs : Ctrl+Alt+A (C-c a en Emacs) montre la semaine jour par jour : titres planifiés et à échéance, notes et éléments de liste datés, pages nommées par une date. Une planification en retard ou une échéance proche s'affiche aujourd'hui. Sur une ligne : =t= l'état TODO suivant, =s= / =d= ses dates, Maj+flèches un jour plus tard ou plus tôt, =f= / =b= la semaine suivante ou précédente, Entrée ouvre la page.
+- Planifier et échéance : C-c C-s / C-c C-d (Emacs) demandent une date, tapée =2026-12-01=, =+3j=, =demain=, =lundi=, =14:00= ; =-= l'enlève.
+- Répétitions (=+1w=, =++1w=, =.+1w=) : un titre répété marqué fait passe à sa date suivante. Un titre fait reçoit =CLOSED: [date]=.
+- Liste des TODO : filtrée par état, par tags, datés ou non.
+- Capture rapide : le jour et l'heure sont écrits comme une date (=<2026-11-24 Tue 14:05>=) : les notes apparaissent dans l'agenda.
+- Dates colorées dans la page : la date, le jour et l'heure chacun de sa couleur ; =SCHEDULED:=, =DEADLINE:=, =CLOSED:= grisés.
+- Thèmes : =--h1= … =--h6= colorent les titres et =--ts-date=, =--ts-day=, =--ts-time= les dates, à part du reste de l'application.
+- Tout cela aussi dans le terminal.
+
 * 1.8.6
 - Taper =[= sur une sélection en fait un lien : =[[sélection]]=.
 - Le raccourci « annuler » (Ctrl+G en Emacs) enlève aussi une sélection faite avec Maj ou la souris.

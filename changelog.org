@@ -4,6 +4,16 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.9.0
+- Agenda, as in Emacs: Ctrl+Alt+A (C-c a in Emacs) shows the week day by day: scheduled and due headlines, dated notes and list items, the pages named after a date. A late schedule or a coming deadline shows on today. On a line: =t= the next TODO state, =s= / =d= its dates, Shift+arrows a day later or earlier, =f= / =b= the next or previous week, Enter opens the page.
+- Schedule and deadline: C-c C-s / C-c C-d (Emacs) ask for a date, typed as =2026-12-01=, =+3d=, =tomorrow=, =monday=, =14:00=; =-= removes it.
+- Repeaters (=+1w=, =++1w=, =.+1w=): a repeated headline marked done moves on to its next date. A headline done gets =CLOSED: [date]=.
+- TODO list: filtered by state, by tags, dated or undated.
+- Quick capture writes the day and time as a date (=<2026-11-24 Tue 14:05>=): its notes show in the agenda.
+- Dates coloured in the page: the date, the day and the time each in its colour; =SCHEDULED:=, =DEADLINE:=, =CLOSED:= dimmed.
+- Themes: =--h1= … =--h6= colour the headlines and =--ts-date=, =--ts-day=, =--ts-time= the dates, apart from the rest of the app.
+- All of it in the terminal too.
+
 * 1.8.6
 - Typing =[= on a selection makes it a link: =[[selection]]=.
 - The "keyboard quit" shortcut (Ctrl+G in Emacs) also drops a selection made with Shift or the mouse.
