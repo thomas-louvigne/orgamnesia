@@ -5,7 +5,8 @@
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use orgamnesia_core::org::{line_bounds, line_start};
+use orgamnesia_core::agenda;
+use orgamnesia_core::org::line_start;
 
 use super::{
     completion::Completion,
@@ -18,6 +19,7 @@ use crate::{
     actions::follow_link,
     edit,
     folding,
+    i18n::t,
     keybindings::{EditorAction, Resolution, Scope},
     tables,
     text_field,
@@ -123,6 +125,10 @@ pub fn on_keydown(pane: Pane, completion: Completion, find: Find, insert: Insert
     match action {
         EditorAction::TableNextCell | EditorAction::TablePrevCell => table_cell(pane, &e, &el, action),
         EditorAction::TodoNext | EditorAction::TodoPrev => todo_cycle(pane, &e, &el, action),
+        EditorAction::Schedule | EditorAction::Deadline => {
+            swallow(&e);
+            plan(pane, &el, action);
+        }
         EditorAction::PromoteSubtree | EditorAction::DemoteSubtree => shift_subtree(pane, &e, &el, action),
         _ => {
             swallow(&e);
@@ -295,20 +301,54 @@ fn global_cycle(pane: Pane, el: &Textarea) -> bool {
 /// Shift+arrows), when TODO keywords are on.
 fn todo_cycle(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, action: EditorAction) {
     let Some(keywords) = pane.todo_keywords.get_untracked() else { return };
-    let chars: Vec<char> = el.value().chars().collect();
-    let (_, end) = get_pos(el);
-    let (ls, le) = line_bounds(&chars, end);
-    // The view may indent the line, and ends a folded headline with its fold character
-    let ls = ls + chars[ls..le].iter().take_while(|&&c| c == tables::INDENT).count();
-    let le = if le > ls && tables::fold_index(chars[le - 1]).is_some() { le - 1 } else { le };
+    let page = pane.content.get_untracked();
+    let pos = pane.page_pos(el, get_pos(el).1);
+    let line = page.chars().take(pos).filter(|&c| c == '\n').count();
     let forward = action == EditorAction::TodoNext;
-    let Some((a, b, with)) = keywords.cycle(&chars[ls..le], forward, pane.fmt()) else { return };
+    // Done, a repeated headline goes to its next dates, another gets its CLOSED date
+    let Some(edits) = agenda::cycle_todo(&page, line, &keywords, pane.fmt(), forward, &crate::actions::now()) else { return };
     swallow(e);
-    let (a, b) = (ls + a, ls + b);
-    let new_b = splice(el, a, b, &with);
-    // The caret keeps its place in the title
-    set_cursor(el, if end >= b { end + new_b - b } else { end.min(a) });
-    pane.commit(el);
+    page_edits(pane, el, &edits);
+}
+
+/// The `SCHEDULED:` or `DEADLINE:` date of the headline of the caret, asked
+/// (org-mode's `C-c C-s`, `C-c C-d`): `+3d`, `ven`, `2026-12-01 14:30`; `-` takes it away.
+fn plan(pane: Pane, el: &Textarea, action: EditorAction) {
+    let ctx = pane.ctx;
+    let (key, when, label) = if action == EditorAction::Schedule {
+        (agenda::SCHEDULED, agenda::When::Scheduled, "plan_scheduled")
+    } else {
+        (agenda::DEADLINE, agenda::When::Deadline, "plan_deadline")
+    };
+    let page = pane.content.get_untracked();
+    let pos = pane.page_pos(el, get_pos(el).1);
+    let line = page.chars().take(pos).filter(|&c| c == '\n').count();
+    let Some(head) = agenda::headline_of(&page, line, pane.fmt()) else { return ctx.notify_t("plan_no_headline", "") };
+    let typed = agenda::entries(&page, pane.todo_keywords.get_untracked().as_ref(), pane.fmt()).iter()
+        .find(|e| e.line == head).map(|e| agenda::typed_date(e, when)).unwrap_or_default();
+    ctx.ask_text(t(label, ctx.lang.get_untracked()).to_string(), typed, vec![], move |input| {
+        let Some(el) = pane.area.get_untracked() else { return };
+        let page = pane.content.get_untracked();
+        match agenda::plan_typed(&page, head, pane.fmt(), key, &input, crate::actions::today()) {
+            Ok(Some(edit)) => page_edits(pane, &el, &[edit]),
+            Ok(None) => {}
+            Err(_) => ctx.notify_t("not_a_date", &input),
+        }
+        pane.focus();
+    });
+}
+
+/// The edits of the agenda (page positions, in the order of the page) made as one
+/// change; the caret and the folds move with them.
+fn page_edits(pane: Pane, el: &Textarea, edits: &[agenda::Edit]) {
+    let (Some(first), Some(last)) = (edits.first(), edits.last()) else { return };
+    let page: Vec<char> = pane.content.with_untracked(|c| c.chars().collect());
+    let (a, b) = (first.a, last.b.min(page.len()));
+    let span: String = page[a..b].iter().collect();
+    let local: Vec<agenda::Edit> = edits.iter().map(|e| agenda::Edit { a: e.a - a, b: e.b - a, text: e.text.clone() }).collect();
+    let caret = agenda::moved(pane.page_pos(el, get_pos(el).1), edits);
+    let folds = pane.folds.with_untracked(|f| f.iter().map(|&(x, y)| (agenda::moved(x, edits), agenda::moved(y, edits))).collect());
+    replace_lines(pane, el, &page, a, b, &agenda::apply(&span, &local), (caret, caret), Some(folds));
     pane.track_caret(el);
 }
 

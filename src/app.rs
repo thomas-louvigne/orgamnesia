@@ -102,6 +102,12 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
             ctx.close_panels();
             ctx.ui.show_graph.set(true);
         },
+        AppAction::Agenda => if ctx.ui.show_agenda.get_untracked() {
+            ctx.ui.show_agenda.set(false);
+        } else {
+            ctx.close_panels();
+            ctx.ui.show_agenda.set(true);
+        },
         // The title of the page opens its field to rename it
         AppAction::RenamePage => if ctx.work.active_tab_data().is_none() {
             ctx.notify_t("export_no_page", "");
@@ -341,6 +347,7 @@ pub fn App() -> impl IntoView {
                     {move || ctx.ui.show_settings.get().then(|| view! { <SettingsPage /> })}
                     {move || ctx.ui.show_commit.get().then(|| view! { <crate::components::commit_page::CommitPage /> })}
                     {move || ctx.ui.show_graph.get().then(|| view! { <crate::components::graph::GraphPage /> })}
+                    {move || ctx.ui.show_agenda.get().then(|| view! { <crate::components::agenda::AgendaPage /> })}
                     {move || ctx.ui.git_history.get().map(|file| view! { <crate::components::git_history::GitHistoryPage file /> })}
                     {move || ctx.ui.show_clone.get().then(|| view! { <crate::components::git_setup::ClonePage /> })}
                     {move || ctx.ui.show_git_identity.get().then(|| view! { <crate::components::git_setup::IdentityPage /> })}

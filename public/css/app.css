@@ -57,6 +57,12 @@
     --link-text:        var(--link);
     --link-text-weight: bold;
 
+    /* The page: headline levels and timestamps, in the theme's palette unless it
+       gives them their own */
+    --h1: var(--red);  --h2: var(--accent2);  --h3: var(--yellow);
+    --h4: var(--cyan); --h5: var(--green);    --h6: var(--orange);
+    --ts-date: var(--orange);  --ts-day: var(--purple);  --ts-time: var(--green);
+
     font-family: var(--font-ui);
     font-size: var(--fs-body);
     color: var(--fg);
@@ -810,12 +816,12 @@ kbd {
    in hue, the weight going down with depth (bold to level 2, plain from level 3).
    Nothing that changes the width of a character: the text must stay on the
    textarea's columns */
-.h1 { color: var(--red);     font-weight: bold; }
-.h2 { color: var(--accent2); font-weight: bold; }
-.h3 { color: var(--yellow); }
-.h4 { color: var(--cyan); }
-.h5 { color: var(--green); }
-.h6 { color: var(--orange); }
+.h1 { color: var(--h1); font-weight: bold; }
+.h2 { color: var(--h2); font-weight: bold; }
+.h3 { color: var(--h3); }
+.h4 { color: var(--h4); }
+.h5 { color: var(--h5); }
+.h6 { color: var(--h6); }
 .h-stars { opacity: 0.5; }
 /* org-hide-leading-stars: the stars before the last fade into the page, the level
    reads as an indent */
@@ -837,6 +843,14 @@ kbd {
 .em-i  { color: var(--green); font-style: italic; }
 .em-u  { color: var(--link); text-decoration: underline; }
 .em-s  { text-decoration: line-through; }
+
+/* Timestamps: the date, the day and the time each in its colour; `[…]` (inactive,
+   outside the agenda) faded */
+.ts :is(.mk, .ts-rest) { color: var(--fg-dim); }
+.ts-date    { color: var(--ts-date); }
+.ts-day     { color: var(--ts-day); }
+.ts-time    { color: var(--ts-time); font-weight: bold; }
+.ts-off     { opacity: 0.6; }
 
 .kw         { color: var(--fg-dim); }
 .tag-t      { text-decoration: underline; text-underline-offset: 2px; }
@@ -941,6 +955,21 @@ kbd {
 .todo-item .todo, .todo-item .done { font-size: var(--fs-meta); font-weight: 600; padding: 0 4px; flex-shrink: 0; }
 .todo-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-item.is-done .todo-item-title { color: var(--fg-dim); }
+.todo-tags { margin: 0 12px 4px; width: auto; font-size: var(--fs-meta); }
+
+/* The agenda of a week: its days, the dated headlines of each */
+.agenda-nav { display: flex; gap: 4px; margin-left: auto; margin-right: 8px; }
+.agenda-body { overflow-y: auto; }
+.agenda-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.agenda-day { margin: 14px 0 4px; font-size: var(--fs-ui); color: var(--fg-dim); text-transform: capitalize; }
+.agenda-day.today { color: var(--accent2); }
+.agenda-list { list-style: none; margin: 0; padding: 0; }
+.agenda-item { padding: 3px 10px; cursor: pointer; border-left: 2px solid transparent; }
+.agenda-item.active { background: var(--bg3); border-left-color: var(--accent); }
+.agenda-page { color: var(--fg-dim); min-width: 10em; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.agenda-time { min-width: 3em; flex-shrink: 0; }
+.agenda-when { color: var(--cyan); flex-shrink: 0; }
+.agenda-item.is-late .agenda-when { color: var(--red); }
 
 /* ── Status bar ────────────────────────────────────────────── */
 .status-bar {

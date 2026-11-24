@@ -192,6 +192,30 @@ pub struct TodoHit {
     pub level: usize,
     /// Line of the headline in the page (0-based).
     pub line: usize,
+    /// It has a `SCHEDULED:` or `DEADLINE:` date.
+    #[serde(default)]
+    pub dated: bool,
+}
+
+/// A line of the agenda: a headline on a day, somewhere in the project.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AgendaHit {
+    pub page: String,
+    pub path: String,
+    /// Line of the headline in the page (0-based).
+    pub line: usize,
+    /// The day (from 1970-01-01) it is shown on.
+    pub day: i64,
+    pub when: crate::agenda::When,
+    /// `14:30`.
+    pub time: Option<String>,
+    /// Days late; below 0, days left before a deadline shown early.
+    pub late: i64,
+    pub keyword: Option<String>,
+    pub done: bool,
+    pub title: String,
+    /// For a timestamp: which of the headline's.
+    pub stamp: usize,
 }
 
 /// Pages changed on disk by another program since the last look.

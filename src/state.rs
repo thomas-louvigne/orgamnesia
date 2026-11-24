@@ -187,6 +187,8 @@ pub struct Ui {
     pub show_commit: RwSignal<bool>,
     /// The graph of the pages (graph extension).
     pub show_graph: RwSignal<bool>,
+    /// The agenda of the week (org-mode's `C-c a a`).
+    pub show_agenda: RwSignal<bool>,
     /// Zen mode: only the page, full screen.
     pub zen: RwSignal<bool>,
     /// The history window of this page (git extension).
@@ -300,6 +302,7 @@ impl AppCtx {
                 show_quick_open: RwSignal::new(false),
                 show_commit: RwSignal::new(false),
                 show_graph: RwSignal::new(false),
+                show_agenda: RwSignal::new(false),
                 zen: RwSignal::new(false),
                 git_history: RwSignal::new(None),
                 show_git_remote: RwSignal::new(false),
@@ -410,6 +413,7 @@ impl AppCtx {
         self.ui.show_settings.set(false);
         self.ui.show_commit.set(false);
         self.ui.show_graph.set(false);
+        self.ui.show_agenda.set(false);
         self.ui.git_history.set(None);
         self.ui.show_clone.set(false);
         self.ui.show_git_identity.set(false);

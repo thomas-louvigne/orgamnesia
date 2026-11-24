@@ -743,3 +743,50 @@ fn tab_and_enter_move_in_a_table() {
         assert_eq!(app.editor.as_ref().unwrap().text(), "* A\n");
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    #[test]
+    fn plans_and_works_from_the_agenda() {
+        let dir = std::env::temp_dir().join(format!("orgamnesia-tui-agenda-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("pages")).unwrap();
+        std::fs::write(dir.join("pages/Plan.org"), "#+TODO: TODO | DONE\n* TODO Écrire\ntexte").unwrap();
+        std::fs::write(dir.join("pages/Notes.md"), "## TODO Lire\n").unwrap();
+        let prefs = settings::Settings::default().prefs();
+        let project = Project::open(&crate::slash(&dir), prefs.tags(), prefs.formats(), &prefs.journal_folder, &prefs.templates_folder).unwrap();
+        let mut app = App::new(project, prefs, Keybindings::with_profiles(None, vec![]));
+        app.height = 10;
+        let now = super::editor::now();
+        let day = |n: i64| orgamnesia_core::edit::Stamp { time: None, active: true, ..now.on(now.day_number() + n) }.text();
+
+        // Scheduled from the text of the headline: `.` is today
+        let plan = dir.join("pages/Plan.org").to_string_lossy().replace('\\', "/");
+        app.edit(&plan);
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        app.run_action("schedule");
+        press(&mut app, KeyCode::Char('.'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(app.editor.as_ref().unwrap().text(), format!("#+TODO: TODO | DONE\n* TODO Écrire\nSCHEDULED: {}\ntexte", day(0)));
+
+        // The agenda shows it today; `t` marks it done (in the page open), S-→ moves it a day
+        app.run_action("agenda");
+        let shown = app.popup().unwrap().lines.join("\n");
+        assert!(shown.contains("Scheduled: TODO Écrire"), "{shown}");
+        press(&mut app, KeyCode::Char('t'), KeyModifiers::NONE);
+        assert!(app.editor.as_ref().unwrap().text().starts_with("#+TODO: TODO | DONE\n* DONE Écrire\nCLOSED: ["), "{} / {}", app.status, app.editor.as_ref().unwrap().text());
+        press(&mut app, KeyCode::Right, KeyModifiers::SHIFT);
+        assert!(app.editor.as_ref().unwrap().text().contains(&format!("SCHEDULED: {}", day(1))));
+
+        // A Markdown page not open: its deadline set from the agenda, on disk
+        app.agenda(orgamnesia_core::agenda::week_start(now.day_number()), 0);
+        assert!(app.popup().unwrap().agenda.is_some());
+        let notes = dir.join("pages/Notes.md").to_string_lossy().replace('\\', "/");
+        app.change_page(&notes, |t| orgamnesia_core::agenda::plan_typed(t, 0, orgamnesia_core::Format::Markdown, "DEADLINE:", "+2d", now.day_number()).unwrap().map(|e| vec![e]));
+        assert_eq!(std::fs::read_to_string(&notes).unwrap(), format!("## TODO Lire\nDEADLINE: {}\n", day(2)));
+
+        // The TODO frame: those with no date only
+        app.todo_filter = "undated".into();
+        assert!(app.frame_items(orgamnesia_core::Frame::Todos).1.is_empty());
+        app.todo_filter = "dated".into();
+        assert_eq!(app.frame_items(orgamnesia_core::Frame::Todos).1.len(), 1);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }

@@ -1057,6 +1057,8 @@ The colours are CSS variables of =:root=:
 | =--link-text=             | with /Bring out the text of links/: a link's text (=--link=) |
 | =--link-text-weight=      | with /Bring out the text of links/: its weight (=bold=)  |
 | =--red= =--orange= =--yellow= =--green= =--cyan= =--purple= | headline levels, TODO states, tags, tables, errors, diffs |
+| =--h1= … =--h6=           | the headlines of each level, in the page (=--red=, =--accent2=, =--yellow=, =--cyan=, =--green=, =--orange=) |
+| =--ts-date= =--ts-day= =--ts-time= | the date, day name and time of a timestamp =<2026-11-24 Tue 14:05>= (=--orange=, =--purple=, =--green=) |
 
 Add =color-scheme: light;= or =color-scheme: dark;= in =:root= so that the native
 controls (checkboxes, lists, scroll bars) match. Secondary text should keep a
@@ -1073,6 +1075,8 @@ A small theme:
     --red: #b8322f;  --orange: #9d4a0f;  --yellow: #7a5c00;
     --green: #4f6a00;  --cyan: #156560;  --purple: #8a3f8f;
 }
+/* The headlines and timestamps of the page, apart from the rest of the app */
+:root { --h1: #268bd2; --ts-time: #cb4b16; }
 /* Anything else can be restyled too, for example the page's font */
 .edit-layer, .hl-layer { font-family: 'Iosevka', monospace; }
 #+END_SRC

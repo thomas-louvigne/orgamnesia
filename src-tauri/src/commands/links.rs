@@ -1,6 +1,6 @@
 //! Backlinks, broken links, tags and TODO headlines of the project.
 
-use orgamnesia_core::{BrokenLink, Graph, TagCount, TagHit, TodoHit};
+use orgamnesia_core::{AgendaHit, BrokenLink, Graph, TagCount, TagHit, TodoHit};
 use tauri::State;
 
 use super::Cmd;
@@ -43,9 +43,20 @@ pub async fn search_tags(state: State<'_, AppState>, query: String) -> Cmd<Vec<T
     state.with_project(|p| Ok(p.search_tags(&query, org)))
 }
 
-/// Headlines of the project with a TODO keyword; none when TODO keywords are off.
+/// Headlines of the project with a TODO keyword, those of the tag search `query`
+/// only when it names a tag; none when TODO keywords are off.
 #[tauri::command]
-pub async fn list_todos(state: State<'_, AppState>) -> Cmd<Vec<TodoHit>> {
+pub async fn list_todos(state: State<'_, AppState>, query: Option<String>) -> Cmd<Vec<TodoHit>> {
     let Some(keywords) = state.prefs().todo() else { return Ok(vec![]) };
-    state.with_project(|p| Ok(p.todos(&keywords)))
+    let org = state.prefs().tags().org;
+    state.with_project(|p| Ok(p.todos(&keywords, query.as_deref().unwrap_or(""), org)))
+}
+
+/// The agenda of the `days` days from the day `from` (from 1970-01-01).
+#[tauri::command]
+pub async fn get_agenda(state: State<'_, AppState>, from: i64, days: i64) -> Cmd<Vec<AgendaHit>> {
+    let keywords = state.prefs().todo();
+    let now = chrono::Local::now().date_naive();
+    let today = { use chrono::Datelike; orgamnesia_core::agenda::day_of(now.year(), now.month(), now.day()) };
+    state.with_project(|p| Ok(p.agenda(keywords.as_ref(), from, days.clamp(1, 366), today)))
 }

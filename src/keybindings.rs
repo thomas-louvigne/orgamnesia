@@ -15,7 +15,7 @@ pub const MARK_ACTIONS: &[EditorAction] = &[EditorAction::SetMark, EditorAction:
 pub const GIT_ACTIONS: &[AppAction] = &[AppAction::GitCommit, AppAction::GitPull, AppAction::GitPush, AppAction::GitHistory];
 
 /// Editor actions of the TODO states; shown in their own section.
-pub const TODO_ACTIONS: &[EditorAction] = &[EditorAction::TodoNext, EditorAction::TodoPrev];
+pub const TODO_ACTIONS: &[EditorAction] = &[EditorAction::TodoNext, EditorAction::TodoPrev, EditorAction::Schedule, EditorAction::Deadline];
 
 /// Label key of a built-in profile.
 pub fn preset_label_key(preset: &str) -> &'static str {

@@ -258,6 +258,8 @@ pub enum AppAction {
     /// The folders of the pages: one made, the page open moved to one, one
     /// renamed (moved), one deleted. No shortcut by default.
     NewFolder, MovePage, RenameFolder, DeleteFolder,
+    /// The agenda of the week (org-mode's `C-c a a`).
+    Agenda,
 }
 
 /// Editor actions.
@@ -274,7 +276,7 @@ pub enum EditorAction {
     BackToIndentation, PreviousHeading, NextHeading, BackwardHeading, ForwardHeading, UpHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell, GlobalCycle,
     InsertLink, InsertDate, InsertInactiveDate,
-    Bold, Italic, Underline, Strikethrough, Quote, TodoNext, TodoPrev,
+    Bold, Italic, Underline, Strikethrough, Quote, TodoNext, TodoPrev, Schedule, Deadline,
     PromoteSubtree, DemoteSubtree, MoveLineUp, MoveLineDown, SpellNext,
 }
 
@@ -286,7 +288,7 @@ pub const PALETTE_EDITOR_ACTIONS: &[EditorAction] = {
     &[
         InsertLink, InsertDate, InsertInactiveDate,
         Bold, Italic, Underline, Strikethrough, Quote,
-        NewHeading, TodoNext, TodoPrev, PromoteSubtree, DemoteSubtree, GlobalCycle, MoveLineUp, MoveLineDown,
+        NewHeading, TodoNext, TodoPrev, Schedule, Deadline, PromoteSubtree, DemoteSubtree, GlobalCycle, MoveLineUp, MoveLineDown,
         Find, Replace, OpenLink, SpellNext,
         UpcaseWord, DowncaseWord, CapitalizeWord, UpcaseRegion, DowncaseRegion, FillParagraph,
         Undo, Redo, SelectAll, DeleteHorizontalSpace, JustOneSpace, DeleteIndentation,
@@ -348,6 +350,7 @@ pub const APP_ACTIONS: &[ActionDef<AppAction>] = &[
     ActionDef { action: AppAction::TagsPanel, id: "panel_tags", label_key: "shortcut_panel_tags" },
     ActionDef { action: AppAction::BacklinksPanel, id: "panel_backlinks", label_key: "shortcut_panel_backlinks" },
     ActionDef { action: AppAction::BrokenPanel, id: "panel_broken", label_key: "shortcut_panel_broken" },
+    ActionDef { action: AppAction::Agenda, id: "agenda", label_key: "shortcut_agenda" },
     ActionDef { action: AppAction::PagesPanel, id: "panel_pages", label_key: "shortcut_panel_pages" },
 ];
 
@@ -425,6 +428,8 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Quote, id: "quote",               label_key: "shortcut_quote" },
     ActionDef { action: EditorAction::TodoNext, id: "todo_next",           label_key: "shortcut_todo_next" },
     ActionDef { action: EditorAction::TodoPrev, id: "todo_prev",           label_key: "shortcut_todo_prev" },
+    ActionDef { action: EditorAction::Schedule, id: "schedule",            label_key: "shortcut_schedule" },
+    ActionDef { action: EditorAction::Deadline, id: "deadline",            label_key: "shortcut_deadline" },
     ActionDef { action: EditorAction::PromoteSubtree, id: "promote_subtree", label_key: "shortcut_promote_subtree" },
     ActionDef { action: EditorAction::DemoteSubtree, id: "demote_subtree",   label_key: "shortcut_demote_subtree" },
     ActionDef { action: EditorAction::MoveLineUp, id: "move_line_up",       label_key: "shortcut_move_line_up" },
@@ -484,6 +489,7 @@ pub fn default_app() -> Bindings {
         ("journal",          &["ctrl+shift+j"]),
         ("random_page",      &["ctrl+alt+r"]),
         ("capture",          &["ctrl+alt+c"]),
+        ("agenda",           &["ctrl+alt+a"]),
         ("zen_mode",         &["F11", "ctrl+alt+z"]),
         // Function keys free in both profiles (and in terminals)
         ("rename_page",      &["F2"]),
@@ -614,6 +620,8 @@ pub fn preset_app(preset: &str) -> Bindings {
             ("random_page",      &["ctrl+c r"]),
             // org-capture
             ("capture",          &["ctrl+c c"]),
+            // org-agenda
+            ("agenda",           &["ctrl+c a"]),
             ("zen_mode",         &["F11", "ctrl+c z"]),
             ("rename_page",      &["F2"]),
             ("panel_todos",      &["F4"]),
@@ -712,6 +720,9 @@ pub fn preset_editor(preset: &str) -> Bindings {
             // org-shiftright / org-shiftleft on a headline (elsewhere, Shift+arrows select)
             ("todo_next",           &["shift+ArrowRight", "ctrl+c ctrl+t"]),
             ("todo_prev",           &["shift+ArrowLeft"]),
+            // org-schedule / org-deadline
+            ("schedule",            &["ctrl+c ctrl+s"]),
+            ("deadline",            &["ctrl+c ctrl+d"]),
             // org-promote-subtree / org-demote-subtree (M-S-<left> / M-S-<right>)
             ("promote_subtree",     &["shift+alt+ArrowLeft"]),
             ("demote_subtree",      &["shift+alt+ArrowRight"]),

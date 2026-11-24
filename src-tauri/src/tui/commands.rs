@@ -4,7 +4,7 @@
 //! window's shortcuts done with the project (search, replace, git, projects).
 
 use orgamnesia_core::keybindings::{APP_ACTIONS, EDITOR_ACTIONS, PALETTE_EDITOR_ACTIONS};
-use orgamnesia_core::{edit::Stamp, Format, Frame, ReplaceSkip, SearchOptions};
+use orgamnesia_core::{agenda::{self, When}, edit::Stamp, AgendaHit, Format, Frame, ReplaceSkip, SearchOptions};
 
 use super::{keys, App, Editor, Mode};
 use crate::project::Project;
@@ -30,7 +30,7 @@ impl Prompt {
     /// What Tab completes the value with: the tags, the pages, the folders.
     pub(super) fn completes(&self) -> Option<fn(&App) -> Vec<String>> {
         match self.then {
-            Then::AddTag => Some(App::tag_names),
+            Then::AddTag | Then::TodoFilter => Some(App::tag_names),
             Then::LinkTarget { .. } => Some(App::link_names),
             Then::NewFolder | Then::MovePage(_) | Then::RenameFolder | Then::RenameFolderTo(_) | Then::DeleteFolder => Some(App::folder_names),
             _ => None,
@@ -44,6 +44,13 @@ enum Then {
     LinkText { a: usize, b: usize, target: String },
     /// A date written over `a..b`, as `2026-11-20` or `2026-11-20 14:30`.
     Date { a: usize, b: usize, active: bool, rest: String },
+    /// The `SCHEDULED:` or `DEADLINE:` date of the headline of the cursor.
+    Plan(&'static str),
+    /// The same, for a headline of the agenda (its page, line), the agenda then
+    /// shown again from its day, on the line it was on.
+    AgendaPlan { path: String, line: usize, key: &'static str, from: i64, selected: usize },
+    /// What the TODO frame shows.
+    TodoFilter,
     /// The page's `query-replace`: what to replace, then with what.
     ReplaceFrom,
     ReplaceTo(String),
@@ -250,6 +257,8 @@ impl App {
 /// `targets`, a list to pick from (TODO, tags, links), the line `selected`.
 #[derive(Default)]
 pub struct Popup {
+    /// The agenda (`agenda`): its first day, the headline of each line.
+    pub agenda: Option<(i64, Vec<Option<AgendaHit>>)>,
     pub title: String,
     pub lines: Vec<String>,
     pub scroll: u16,
@@ -313,7 +322,7 @@ impl Popup {
 const NOT_HERE: &[&str] = &["export_pdf", "export_html", "spell_next"];
 
 /// Commands of the terminal's command list (`>`) with no shortcut of the window.
-const TERMINAL_COMMANDS: &[&str] = &["delete_page", "trash", "empty_trash", "undo_replace"];
+const TERMINAL_COMMANDS: &[&str] = &["delete_page", "trash", "empty_trash", "undo_replace", "todo_filter"];
 
 impl App {
     fn ask(&mut self, label: &str, input: &str, then: Then) {
@@ -343,6 +352,30 @@ impl App {
                 if found { self.mode = Mode::Replace(from, input); } else { self.status = format!("“{from}” not found"); }
             }
             Then::AddTag if !input.is_empty() => self.add_tag(&input),
+            Then::Plan(key) => {
+                let today = super::editor::now().day_number();
+                let Some(e) = &mut self.editor else { return };
+                match agenda::plan_typed(&e.text(), e.line(), e.format(), key, &input, today) {
+                    Ok(Some(edit)) => e.edits(&[edit]),
+                    Ok(None) => {}
+                    Err(_) => self.status = format!("not a date: {input}"),
+                }
+            }
+            Then::AgendaPlan { path, line, key, from, selected } => {
+                let today = super::editor::now().day_number();
+                let format = Format::of_page(&path);
+                let mut bad = false;
+                self.change_page(&path, |text| match agenda::plan_typed(text, line, format, key, &input, today) {
+                    Ok(edit) => edit.map(|e| vec![e]),
+                    Err(_) => { bad = true; None }
+                });
+                self.agenda(from, selected);
+                if bad { self.status = format!("not a date: {input}"); }
+            }
+            Then::TodoFilter => {
+                self.todo_filter = input;
+                self.panel(Frame::Todos);
+            }
             Then::ProjectSearch if !input.is_empty() => self.project_search(&input),
             Then::ProjectReplaceFrom if !input.is_empty() => self.ask(&format!("Replace “{input}” in the project with: "), "", Then::ProjectReplaceTo(input)),
             Then::ProjectReplaceTo(from) => {
@@ -452,6 +485,20 @@ impl App {
                 let value = if time.is_empty() { s.date_field() } else { format!("{} {time}", s.date_field()) };
                 self.ask("Date: ", &value, Then::Date { a, b, active: s.active, rest: s.rest });
             }
+            "schedule" | "deadline" if editing => {
+                let Some(e) = &self.editor else { return Some(()) };
+                let (key, when) = if id == "schedule" { (agenda::SCHEDULED, When::Scheduled) } else { (agenda::DEADLINE, When::Deadline) };
+                let text = e.text();
+                let Some(head) = agenda::headline_of(&text, e.line(), e.format()) else {
+                    self.status = "not under a headline".into();
+                    return Some(());
+                };
+                let todo = self.prefs.todo();
+                let typed = agenda::entries(&text, todo.as_ref(), e.format()).iter().find(|x| x.line == head).map(|x| agenda::typed_date(x, when)).unwrap_or_default();
+                self.ask(&format!("{key} (2026-12-01, +3d, fri, 14:30; - removes): "), &typed, Then::Plan(key));
+            }
+            "agenda" => self.agenda(agenda::week_start(super::editor::now().day_number()), 0),
+            "todo_filter" => self.ask("TODOs shown (open, done, all, dated, undated or a keyword; then tags +a-b): ", &self.todo_filter.clone(), Then::TodoFilter),
             "replace" if editing => self.ask("Replace: ", "", Then::ReplaceFrom),
             "add_tag" => self.ask("Tag: ", "", Then::AddTag),
             "project_search" => self.ask("Search the project: ", "", Then::ProjectSearch),
@@ -533,10 +580,25 @@ impl App {
         match frame {
             Frame::Todos => {
                 let Some(keywords) = self.prefs.todo() else { return ("To do".into(), vec![]) };
-                let mut hits = self.project.todos(&keywords);
+                // The first word: which ones (as the window's list offers); the rest, a tag search
+                let filter = self.todo_filter.trim();
+                let (state, tags) = match filter.split_once(' ').unwrap_or((filter, "")) {
+                    (w, rest) if matches!(w, "open" | "done" | "all" | "dated" | "undated") || w.chars().all(|c| c.is_uppercase()) && !w.is_empty() => (w, rest),
+                    _ => ("all", filter),
+                };
+                let mut hits = self.project.todos(&keywords, tags.trim(), self.prefs.tags().org);
+                hits.retain(|h| match state {
+                    "all" => true,
+                    "open" => !h.done,
+                    "done" => h.done,
+                    "dated" => !h.done && h.dated,
+                    "undated" => !h.done && !h.dated,
+                    k => h.keyword == k,
+                });
                 // Those to do first, by page
                 hits.sort_by_key(|a| (a.done, a.page.to_lowercase(), a.line));
-                ("To do".into(), hits.into_iter().map(|h| {
+                let title = if filter.is_empty() { "To do".to_string() } else { format!("To do: {filter}") };
+                (title, hits.into_iter().map(|h| {
                     (format!("{} {} {}  — {}", if h.done { "✓" } else { "·" }, h.keyword, h.title, h.page), Target::Page(h.path, h.line))
                 }).collect())
             }
@@ -1093,6 +1155,113 @@ fn short(hash: &str) -> &str {
 /// A yes typed (y, yes, o, oui).
 fn yes(input: &str) -> bool {
     matches!(input.to_lowercase().as_str(), "y" | "o" | "yes" | "oui")
+}
+
+/// What puts a headline of the agenda on its day, as org-mode writes it.
+fn agenda_label(h: &AgendaHit) -> String {
+    match (h.when, h.late) {
+        (When::Scheduled, 0) => "Scheduled:".into(),
+        (When::Scheduled, n) => format!("Sched.{n}x:"),
+        (When::Deadline, 0) => "Deadline:".into(),
+        (When::Deadline, n) if n > 0 => format!("{n} d. ago:"),
+        (When::Deadline, n) => format!("In {} d.:", -n),
+        (When::Timestamp, _) => String::new(),
+        (When::Page, _) => "Day page:".into(),
+    }
+}
+
+impl App {
+    /// The agenda of the week from the day `from`, over the page, its line `selected` chosen.
+    pub(super) fn agenda(&mut self, from: i64, selected: usize) {
+        // Read from the pages as written: those edited are saved first
+        if !(self.save() && self.save_other()) { return; }
+        self.status.clear();
+        let today = super::editor::now().day_number();
+        let hits = self.project.agenda(self.prefs.todo().as_ref(), from, 7, today);
+        let (mut items, mut rows) = (vec![], vec![]);
+        for day in from..from + 7 {
+            let s = Stamp { year: 1970, month: 1, day: 1, time: None, active: true, rest: String::new() }.on(day);
+            let name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][agenda::weekday(day) as usize];
+            items.push((format!("{name} {}{}", s.date_field(), if day == today { "  (today)" } else { "" }), Target::None));
+            rows.push(None);
+            for h in hits.iter().filter(|h| h.day == day) {
+                let time = h.time.as_deref().map(|t| format!("{t} ")).unwrap_or_default();
+                let label = agenda_label(h);
+                let kw = h.keyword.as_deref().map(|k| format!("{k} ")).unwrap_or_default();
+                items.push((format!("  {:<14} {time}{label}{}{kw}{}", h.page, if label.is_empty() { "" } else { " " }, h.title), Target::Page(h.path.clone(), h.line)));
+                rows.push(Some(h.clone()));
+            }
+        }
+        let mut p = Popup {
+            keys: Some("Enter open · t state · s/d plan · S-←/→ ±1 day · f/b week · . today · Esc"),
+            ..Popup::pick(format!("Agenda, week of {}", Stamp { year: 1970, month: 1, day: 1, time: None, active: true, rest: String::new() }.on(from).date_field()), items)
+        };
+        if p.targets.get(selected).is_some_and(|t| *t != Target::None) { p.selected = selected; }
+        p.agenda = Some((from, rows));
+        self.mode = Mode::Popup(p);
+    }
+
+    /// A key on the agenda: `t` the next TODO state, `s`/`d` its dates, `f`/`b`
+    /// the next/previous week, `.` this week, `+`/`-` (S-→/S-←) a day later/earlier.
+    /// False when the key is none of those.
+    pub(super) fn agenda_key(&mut self, key: char) -> bool {
+        let Some(Popup { agenda: Some((from, rows)), selected, .. }) = self.popup() else { return false };
+        let (from, selected, hit) = (*from, *selected, rows.get(*selected).cloned().flatten());
+        let today = super::editor::now().day_number();
+        match (key, hit) {
+            ('f', _) => self.agenda(from + 7, 0),
+            ('b', _) => self.agenda(from - 7, 0),
+            ('.', _) => self.agenda(agenda::week_start(today), 0),
+            // The page of the day: only opened
+            ('t' | 's' | 'd' | '+' | '-', Some(h)) if h.when == When::Page => {}
+            ('t', Some(h)) => {
+                let Some(keywords) = self.prefs.todo() else { self.status = "TODO keywords are off (settings)".into(); return true };
+                let format = Format::of_page(&h.path);
+                self.change_page(&h.path, |text| agenda::cycle_todo(text, h.line, &keywords, format, true, &super::editor::now()));
+                self.agenda(from, selected);
+            }
+            ('s' | 'd', Some(h)) => {
+                let (key, when) = if key == 's' { (agenda::SCHEDULED, When::Scheduled) } else { (agenda::DEADLINE, When::Deadline) };
+                let text = self.page_text(&h.path);
+                let typed = agenda::entries(&text, self.prefs.todo().as_ref(), Format::of_page(&h.path)).iter()
+                    .find(|e| e.line == h.line).map(|e| agenda::typed_date(e, when)).unwrap_or_default();
+                self.ask(&format!("{key} (2026-12-01, +3d, fri, 14:30; - removes): "), &typed, Then::AgendaPlan { path: h.path, line: h.line, key, from, selected });
+            }
+            ('+' | '-', Some(h)) => {
+                let days = if key == '+' { 1 } else { -1 };
+                let todo = self.prefs.todo();
+                let format = Format::of_page(&h.path);
+                self.change_page(&h.path, |text| {
+                    let e = agenda::entries(text, todo.as_ref(), format).into_iter().find(|e| e.line == h.line)?;
+                    agenda::shift(text, &e, h.when, h.stamp, days).map(|e| vec![e])
+                });
+                self.agenda(from, selected);
+            }
+            ('t' | 's' | 'd' | '+' | '-', None) => {}
+            _ => return false,
+        }
+        true
+    }
+
+    /// The text of the page `path`: as edited when it is open, else on disk.
+    fn page_text(&self, path: &str) -> String {
+        match [&self.editor, &self.other].into_iter().flatten().find(|e| e.path == path) {
+            Some(e) => e.text(),
+            None => self.project.read(path).unwrap_or_default(),
+        }
+    }
+
+    /// The page `path` changed by the edits `f` makes of its text: in its window
+    /// when it is open (saved with it), else on disk.
+    pub(super) fn change_page(&mut self, path: &str, f: impl FnOnce(&str) -> Option<Vec<agenda::Edit>>) {
+        if let Some(e) = [&mut self.editor, &mut self.other].into_iter().flatten().find(|e| e.path == path) {
+            if let Some(edits) = f(&e.text()) { e.edits(&edits); }
+            return;
+        }
+        let text = match self.project.read(path) { Ok(t) => t, Err(e) => { self.status = e.to_string(); return } };
+        let Some(edits) = f(&text) else { return };
+        if let Err(e) = self.project.write(path, agenda::apply(&text, &edits), self.prefs.tags()) { self.status = e.to_string(); }
+    }
 }
 
 #[cfg(test)]

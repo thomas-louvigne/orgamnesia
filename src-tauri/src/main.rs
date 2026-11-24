@@ -85,6 +85,7 @@ Usage:
             commands::links::list_tags,
             commands::links::search_tags,
             commands::links::list_todos,
+            commands::links::get_agenda,
             commands::pages::rename_page,
             commands::pages::delete_page,
             commands::pages::restore_page,

@@ -19,8 +19,11 @@ pub fn TodosFrame() -> impl IntoView {
     // Headlines of the project with a TODO keyword. Refreshed (debounced) like the tags.
     let todos = RwSignal::new(Vec::<TodoHit>::new());
     let todos_seq = StoredValue::new(0u32);
+    // A tag search (`travail-perso`): only the headlines it finds
+    let tag_query = RwSignal::new(String::new());
     Effect::new(move |_| {
         ctx.project.files.track();
+        tag_query.track();
         ctx.project.links_version.track();
         ctx.pref(|p| p.todo_keywords.clone());
         if ctx.project.vault_path.get().is_none() {
@@ -32,7 +35,7 @@ pub fn TodosFrame() -> impl IntoView {
         after_ms(400, move || {
             if todos_seq.try_get_value() != Some(seq) { return; }
             spawn_local(async move {
-                if let Ok(list) = invoke::list_todos().await
+                if let Ok(list) = invoke::list_todos(&tag_query.get_untracked()).await
                     && todos.try_get_untracked().is_some_and(|t| t != list) { todos.set(list); }
             });
         });
@@ -62,11 +65,19 @@ pub fn TodosFrame() -> impl IntoView {
                     <option value="open">{move || t("todo_filter_open", ctx.lang.get())}</option>
                     <option value="done">{move || t("todo_filter_done", ctx.lang.get())}</option>
                     <option value="all">{move || t("todo_filter_all", ctx.lang.get())}</option>
+                    <option value="dated">{move || t("todo_filter_dated", ctx.lang.get())}</option>
+                    <option value="undated">{move || t("todo_filter_undated", ctx.lang.get())}</option>
                     {move || todo_keywords().into_iter().map(|k| view! {
                         <option value=k.clone() selected=move || todo_filter.get() == k>{k.clone()}</option>
                     }).collect_view()}
                 </select>
             </div>
+            <input class="todo-tags setting-input" type="search" spellcheck="false"
+                placeholder=move || t("todo_tags", ctx.lang.get())
+                aria-label=move || t("todo_tags", ctx.lang.get())
+                prop:value=move || tag_query.get()
+                on:change=move |e| tag_query.set(event_target_value(&e))
+                on:keydown=|e: web_sys::KeyboardEvent| e.stop_propagation() />
             <div class="panel-body">
                 {move || {
                     let filter = todo_filter.get();
@@ -74,6 +85,8 @@ pub fn TodosFrame() -> impl IntoView {
                         "open" => !h.done,
                         "done" => h.done,
                         "all" => true,
+                        "dated" => !h.done && h.dated,
+                        "undated" => !h.done && !h.dated,
                         k => h.keyword == k,
                     }).collect();
                     if list.is_empty() {

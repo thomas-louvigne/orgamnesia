@@ -11,6 +11,7 @@ use crate::{
     state::{AppCtx, FileEntry, Goto, Tab, VaultChanges},
 };
 
+mod agenda;
 mod disk;
 mod folders;
 mod history;
@@ -18,6 +19,7 @@ mod pages;
 mod project;
 mod tabs;
 
+pub use agenda::{change_page, now, today};
 pub use disk::*;
 pub use folders::*;
 pub use history::*;

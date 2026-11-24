@@ -505,7 +505,7 @@ impl Stamp {
     }
 }
 
-fn parse_time(s: &str) -> Option<(u32, u32)> {
+pub(crate) fn parse_time(s: &str) -> Option<(u32, u32)> {
     let (h, m) = s.split_once(':')?;
     let (h, m) = (h.parse::<u32>().ok()?, m.parse::<u32>().ok()?);
     (h < 24 && m < 60 && s.len() <= 5).then_some((h, m))

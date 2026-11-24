@@ -188,6 +188,8 @@ struct App {
     zen: bool,
     /// The tip of the "Did you know?" frame (one more at each click on it).
     tip: usize,
+    /// What the TODO frame shows (`open`, `done`, `undated`…, then a tag search).
+    todo_filter: String,
     /// Where the page is drawn, to put the cursor where it is clicked; where
     /// the other window is.
     page_area: Rect,
@@ -236,7 +238,7 @@ impl App {
         let mut app = Self {
             project, prefs, help: [help(&kb, false), help(&kb, true)], kb, chord: keys::Chord::default(),
             filter: String::new(), list: ListState::default(), editor: None, link: None,
-            scroll: 0, height: 0, width: 0, split: None, total: 0, dragging: None, right_split: None, right_x: 0, list_area: Rect::default(), back: vec![], forward: vec![], status: String::new(), zen: false, tip: clock_nanos() as usize,
+            scroll: 0, height: 0, width: 0, split: None, total: 0, dragging: None, right_split: None, right_x: 0, list_area: Rect::default(), back: vec![], forward: vec![], status: String::new(), zen: false, tip: clock_nanos() as usize, todo_filter: String::new(),
             page_area: Rect::default(), other_area: Rect::default(), other: None, split_dir: None, active_slot: 0, capture: None, closed: [orgamnesia_core::tree::JOURNAL.to_string()].into(), tabs: vec![], hits: None,
             projects: vec![], config_dir: None, git: None, last_session: None, folders, disk_conflicts: vec![], disk_watch: None,
             mode: Mode::Normal, frame_state: Default::default(), frame_areas: vec![], right_column: true,

@@ -285,8 +285,14 @@ pub async fn empty_trash() -> Result<usize, String> {
     call("empty_trash", serde_json::json!({})).await
 }
 
-pub async fn list_todos() -> Result<Vec<TodoHit>, String> {
-    call("list_todos", serde_json::json!({})).await
+/// The TODO headlines of the project; with a tag search (`travail-perso`), those it finds.
+pub async fn list_todos(query: &str) -> Result<Vec<TodoHit>, String> {
+    call("list_todos", serde_json::json!({ "query": query })).await
+}
+
+/// The agenda of the `days` days from the day `from` (from 1970-01-01).
+pub async fn get_agenda(from: i64, days: i64) -> Result<Vec<orgamnesia_core::AgendaHit>, String> {
+    call("get_agenda", serde_json::json!({ "from": from, "days": days })).await
 }
 
 /// Pages linking to the page `path`, by the names links give them.

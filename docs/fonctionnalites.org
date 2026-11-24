@@ -1119,6 +1119,8 @@ Les couleurs sont des variables CSS de =:root= :
 | =--link-text=             | avec /Mettre en avant le texte des liens/ : le texte d'un lien (=--link=) |
 | =--link-text-weight=      | avec /Mettre en avant le texte des liens/ : sa graisse (=bold=) |
 | =--red= =--orange= =--yellow= =--green= =--cyan= =--purple= | niveaux de titres, états TODO, tags, tableaux, erreurs, diffs |
+| =--h1= … =--h6=           | les titres de chaque niveau, dans la page (=--red=, =--accent2=, =--yellow=, =--cyan=, =--green=, =--orange=) |
+| =--ts-date= =--ts-day= =--ts-time= | la date, le jour et l'heure d'une date =<2026-11-24 Tue 14:05>= (=--orange=, =--purple=, =--green=) |
 
 Ajouter =color-scheme: light;= ou =color-scheme: dark;= dans =:root= pour que les
 contrôles natifs (cases, listes, barres de défilement) s'accordent. Le texte
@@ -1135,6 +1137,8 @@ Un petit thème :
     --red: #b8322f;  --orange: #9d4a0f;  --yellow: #7a5c00;
     --green: #4f6a00;  --cyan: #156560;  --purple: #8a3f8f;
 }
+/* Les titres et les dates de la page, à part du reste de l'application */
+:root { --h1: #268bd2; --ts-time: #cb4b16; }
 /* Tout le reste peut aussi être retouché, par exemple la police de la page */
 .edit-layer, .hl-layer { font-family: 'Iosevka', monospace; }
 #+END_SRC

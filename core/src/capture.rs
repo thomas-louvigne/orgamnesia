@@ -13,10 +13,12 @@ pub fn page(journal: bool, now: Now) -> String {
 }
 
 /// What goes at the end of the page `text` for a new note: a list item with
-/// the time (`- 14:05 `), on a line of its own.
+/// its day and time as an active timestamp (`- <2026-11-24 Tue 14:05> `), so the
+/// agenda shows it that day; on a line of its own.
 pub fn entry(text: &str, now: Now) -> String {
     let sep = if text.is_empty() || text.ends_with('\n') { "" } else { "\n" };
-    format!("{sep}- {:02}:{:02} ", now.hour, now.minute)
+    let stamp = crate::edit::Stamp { year: now.year, month: now.month, day: now.day, time: Some((now.hour, now.minute)), active: true, rest: String::new() };
+    format!("{sep}- {} ", stamp.text())
 }
 
 #[cfg(test)]
@@ -33,8 +35,12 @@ mod tests {
 
     #[test]
     fn a_line_of_its_own() {
-        assert_eq!(entry("* Inbox\n", NOW), "- 09:05 ");
-        assert_eq!(entry("* Inbox", NOW), "\n- 09:05 ");
-        assert_eq!(entry("", NOW), "- 09:05 ");
+        assert_eq!(entry("* Inbox\n", NOW), "- <2026-03-07 Sat 09:05> ");
+        assert_eq!(entry("* Inbox", NOW), "\n- <2026-03-07 Sat 09:05> ");
+        assert_eq!(entry("", NOW), "- <2026-03-07 Sat 09:05> ");
+        // The agenda finds it on its day, as a line of its own
+        let page = format!("* Inbox\n{}idée", entry("* Inbox\n", NOW));
+        let e = crate::agenda::entries(&page, None, crate::Format::Org);
+        assert_eq!((e.len(), e[0].title.as_str(), e[0].stamps[0].3.day), (1, "idée", 7));
     }
 }

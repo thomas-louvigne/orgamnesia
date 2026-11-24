@@ -153,6 +153,11 @@ impl Paint<'_, '_> {
             "em-u" => s.fg(Color::Blue).add_modifier(Modifier::UNDERLINED),
             "em-s" => s.add_modifier(Modifier::CROSSED_OUT),
             "md-code" => s.fg(Color::Green),
+            "ts" => s.fg(Color::DarkGray),
+            "ts-off" => s.add_modifier(Modifier::DIM),
+            "ts-date" => s.fg(Color::Indexed(208)),
+            "ts-day" => s.fg(Color::Magenta),
+            "ts-time" => s.fg(Color::Green).add_modifier(Modifier::BOLD),
             "md-quote" => s.fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
             // A link: its text first (link_text_first) dims the rest of it
             "link" => s.fg(if first { Color::DarkGray } else { Color::Cyan }),

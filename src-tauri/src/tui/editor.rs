@@ -6,7 +6,7 @@ use orgamnesia_core::edit::{self, Stamp};
 use orgamnesia_core::keybindings::EditorAction;
 use orgamnesia_core::motion::{self, FormatGuard};
 use orgamnesia_core::org::{line_end, line_start};
-use orgamnesia_core::{folding, search::find_all, table, Format, Prefs, SearchOptions, TodoKeywords};
+use orgamnesia_core::{agenda, folding, search::find_all, table, Format, Prefs, SearchOptions, TodoKeywords};
 use unicode_width::UnicodeWidthChar;
 
 /// What the last change was: a run of typing is undone at once, kills one after
@@ -430,13 +430,9 @@ impl Editor {
             GlobalCycle => return self.cycle(false),
             TodoNext | TodoPrev => {
                 let Some(keywords) = todo else { return false };
-                let (ls, le) = (line_start(&self.text, c), line_end(&self.text, c));
-                let Some((a, b, with)) = keywords.cycle(&self.text[ls..le], action == TodoNext, self.format()) else { return false };
-                let (a, b) = (ls + a, ls + b);
-                let new_b = a + with.chars().count();
-                // The cursor keeps its place in the title
-                let cursor = if c >= b { c + new_b - b } else { c.min(a) };
-                self.replace(a, b, &with, cursor, Change::Other);
+                // Done, a repeated headline goes to its next dates, another gets its CLOSED date
+                let Some(edits) = agenda::cycle_todo(&self.text(), self.line(), keywords, self.format(), action == TodoNext, &now()) else { return false };
+                self.edits(&edits);
             }
             PromoteSubtree | DemoteSubtree => {
                 let demote = action == DemoteSubtree;
@@ -617,6 +613,22 @@ impl Editor {
         self.replace(a, b, with, end, Change::Other);
     }
 
+    /// The line of the cursor (from 0).
+    pub fn line(&self) -> usize {
+        self.text[..self.cursor].iter().filter(|&&c| c == '\n').count()
+    }
+
+    /// The edits of the agenda (in the order of the text) made as one change,
+    /// the cursor moved with them.
+    pub fn edits(&mut self, edits: &[agenda::Edit]) {
+        let (Some(first), Some(last)) = (edits.first(), edits.last()) else { return };
+        let (a, b) = (first.a, last.b.min(self.text.len()));
+        let span: String = self.text[a..b].iter().collect();
+        let local: Vec<agenda::Edit> = edits.iter().map(|e| agenda::Edit { a: e.a - a, b: e.b - a, text: e.text.clone() }).collect();
+        let cursor = agenda::moved(self.cursor, edits);
+        self.replace(a, b, &agenda::apply(&span, &local), cursor, Change::Other);
+    }
+
     /// The whole text replaced (a tag added to the page…), the cursor kept.
     pub fn set_text(&mut self, text: &str) {
         let (len, c) = (self.text.len(), self.cursor);
@@ -731,6 +743,13 @@ impl Editor {
         if col < self.left { self.left = col; }
         if width > 0 && col >= self.left + width { self.left = col + 1 - width; }
     }
+}
+
+/// Now, as the inactive timestamp org-mode writes when a headline is done.
+pub fn now() -> Stamp {
+    use chrono::{Datelike, Timelike};
+    let n = chrono::Local::now();
+    Stamp { year: n.year(), month: n.month(), day: n.day(), time: Some((n.hour(), n.minute())), active: false, rest: String::new() }
 }
 
 #[cfg(test)]

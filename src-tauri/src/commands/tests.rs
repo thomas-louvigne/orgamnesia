@@ -74,10 +74,10 @@ fn links_tags_and_todos() {
     assert_eq!(broken.iter().map(|b| b.target.as_str()).collect::<Vec<_>>(), vec!["Nulle part", "projet"]);
     assert_eq!(block_on(links::list_tags(s())).unwrap()[0].name, "projet");
     assert_eq!(block_on(links::search_tags(s(), "projet".into())).unwrap().len(), 1);
-    assert_eq!(block_on(links::list_todos(s())).unwrap()[0].keyword, "TODO");
+    assert_eq!(block_on(links::list_todos(s(), None)).unwrap()[0].keyword, "TODO");
     // TODO keywords off: none
     crate::lock(&s().settings).config.todo_enabled = Some(false);
-    assert!(block_on(links::list_todos(s())).unwrap().is_empty());
+    assert!(block_on(links::list_todos(s(), None)).unwrap().is_empty());
 }
 
 #[test]

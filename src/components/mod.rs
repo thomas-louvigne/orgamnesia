@@ -1,3 +1,4 @@
+pub mod agenda;
 pub mod commit_page;
 pub mod config_bar;
 pub mod dialogs;

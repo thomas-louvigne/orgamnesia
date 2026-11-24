@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use orgamnesia_core::{
-    format::split_ext, pages::Resolver, BrokenLink, FileEntry, Format, Formats, Graph, OrgTags, Prefs, TagCount, TagHit,
+    agenda, format::split_ext, pages::Resolver, AgendaHit, BrokenLink, FileEntry, Format, Formats, Graph, OrgTags, Prefs, TagCount, TagHit,
     TagSyntax, TodoHit, TodoKeywords, VaultChanges,
 };
 
@@ -552,21 +552,78 @@ impl Project {
     }
 
     /// Every headline of the project with a TODO keyword (`keywords`: those of the
-    /// settings, which a page's `#+TODO:` lines replace), by page then line.
-    pub fn todos(&self, keywords: &TodoKeywords) -> Vec<TodoHit> {
+    /// settings, which a page's `#+TODO:` lines replace), by page then line;
+    /// with a tag search (`travail-perso`), those it finds only.
+    pub fn todos(&self, keywords: &TodoKeywords, query: &str, org: OrgTags) -> Vec<TodoHit> {
+        let query = tags::Query::parse(query, org);
         self.files().into_iter().flat_map(|f| {
             let content = self.pages.get(&f.path).map(String::as_str).unwrap_or("");
             let format = Format::of_page(&f.path);
-            orgamnesia_core::todo::headlines(content, keywords, format).into_iter().map(move |h| TodoHit {
+            let dated: Vec<usize> = agenda::entries(content, Some(keywords), format).into_iter()
+                .filter(|e| e.scheduled.is_some() || e.deadline.is_some()).map(|e| e.line).collect();
+            let found = query.as_ref().map(|q| tags::search(content, q, org, format));
+            let levels: Vec<Option<usize>> = content.lines().map(|l| format.heading_level_of(l)).collect();
+            // Found: the page, the headline, or a headline above it whose subtree it is in
+            let tagged = |line: usize, level: usize| found.as_ref().is_none_or(|hits| hits.iter().any(|h| h.heading.is_none() || h.line == line
+                || (h.line < line && h.level < level && !levels[h.line + 1..line].iter().any(|l| l.is_some_and(|l| l <= h.level)))));
+            orgamnesia_core::todo::headlines(content, keywords, format).into_iter()
+                .filter(|h| tagged(h.line, h.level))
+                .map(|h| TodoHit {
+                    page: f.name.clone(),
+                    path: f.path.clone(),
+                    dated: dated.contains(&h.line),
+                    keyword: h.keyword,
+                    done: h.done,
+                    title: h.title,
+                    level: h.level,
+                    line: h.line,
+                }).collect::<Vec<_>>()
+        }).collect()
+    }
+
+    /// The agenda of the `days` days from `from` (days from 1970-01-01), `today`
+    /// being today: the dated headlines of every page (`keywords`: those of the
+    /// settings, `None` when off), by day.
+    pub fn agenda(&self, keywords: Option<&TodoKeywords>, from: i64, days: i64, today: i64) -> Vec<AgendaHit> {
+        let mut out: Vec<AgendaHit> = self.files().into_iter().flat_map(|f| {
+            let content = self.pages.get(&f.path).map(String::as_str).unwrap_or("");
+            let format = Format::of_page(&f.path);
+            let entries = agenda::entries(content, keywords, format);
+            // A page named after a day (the journal's) is in the agenda that day
+            let day_page = agenda::day_of_name(&f.name).filter(|d| (from..from + days).contains(d)).map(|day| AgendaHit {
                 page: f.name.clone(),
                 path: f.path.clone(),
-                keyword: h.keyword,
-                done: h.done,
-                title: h.title,
-                level: h.level,
-                line: h.line,
-            }).collect::<Vec<_>>()
-        }).collect()
+                line: 0,
+                day,
+                when: agenda::When::Page,
+                time: None,
+                late: 0,
+                keyword: None,
+                done: false,
+                title: format.title(content).unwrap_or_else(|| f.name.rsplit('/').next().unwrap_or(&f.name).to_string()),
+                stamp: 0,
+            });
+            day_page.into_iter().chain(agenda::agenda(&entries, from, days, today).into_iter().map(|i| {
+                let e = &entries[i.entry];
+                AgendaHit {
+                    page: f.name.clone(),
+                    path: f.path.clone(),
+                    line: e.line,
+                    day: i.day,
+                    when: i.when,
+                    time: i.time.map(|(h, m)| format!("{h:02}:{m:02}")),
+                    late: i.late,
+                    keyword: e.keyword.clone(),
+                    done: e.done,
+                    title: e.title.clone(),
+                    stamp: i.stamp,
+                }
+            })).collect::<Vec<_>>()
+        }).collect();
+        // The day's page first, then the times of the day, then the rest
+        out.sort_by(|a, b| (a.day, a.when != agenda::When::Page, a.time.is_none(), &a.time, a.when, a.late <= 0)
+            .cmp(&(b.day, b.when != agenda::When::Page, b.time.is_none(), &b.time, b.when, b.late <= 0)));
+        out
     }
 
     fn store(&mut self, path: &str, content: String, tags: TagSyntax) {
@@ -846,9 +903,29 @@ mod tests {
         std::fs::write(dir.join("pages/c.md"), "# TODO quatre\n- [x] cinq\n").unwrap();
         let mut p = p;
         p.refresh(Hashtags::Dashes.into()).unwrap();
-        let todos = p.todos(&TodoKeywords::parse("TODO | DONE"));
+        let todos = p.todos(&TodoKeywords::parse("TODO | DONE"), "", OrgTags::default());
         let seen: Vec<(&str, &str, bool, usize)> = todos.iter().map(|t| (t.page.as_str(), t.title.as_str(), t.done, t.line)).collect();
         assert_eq!(seen, vec![("a", "un", false, 0), ("a", "deux", true, 1), ("b", "trois", false, 1), ("c", "quatre", false, 0), ("c", "cinq", true, 1)]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn todos_of_a_tag_and_the_agenda() {
+        let (dir, p) = project("agenda", &[
+            ("a", "* Projet :travail:\n** TODO un\nSCHEDULED: <2026-11-24 Tue>\n* TODO deux :perso:\n"),
+            ("b", "#+FILETAGS: :travail:\n* TODO trois\n"),
+            ("2026-11-24", "- <2026-11-24 Tue 09:30> idée\n"),
+        ]);
+        let k = TodoKeywords::parse("TODO | DONE");
+        let seen = |q: &str| p.todos(&k, q, OrgTags::default()).into_iter().map(|t| (t.title, t.dated)).collect::<Vec<_>>();
+        assert_eq!(seen("travail"), vec![("un".to_string(), true), ("trois".to_string(), false)]);
+        assert_eq!(seen("perso"), vec![("deux".to_string(), false)]);
+        assert_eq!(seen("").len(), 3);
+        let today = orgamnesia_core::agenda::day_of(2026, 11, 24);
+        let a = p.agenda(Some(&k), today, 1, today);
+        // The day's page first, the note captured at 09:30, then the rest
+        assert_eq!(a.iter().map(|h| (h.page.as_str(), h.title.as_str(), h.line)).collect::<Vec<_>>(),
+                   vec![("2026-11-24", "2026-11-24", 0), ("2026-11-24", "idée", 0), ("a", "un", 1)]);
         std::fs::remove_dir_all(dir).unwrap();
     }
 

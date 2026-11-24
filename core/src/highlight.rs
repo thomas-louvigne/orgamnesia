@@ -142,6 +142,19 @@ pub fn inline(s: &str, d: &Draw) -> Vec<Node> {
     let mut i = 0;
     let md = d.format == Format::Markdown;
     while i < chars.len() {
+        // A timestamp `<2026-11-24 Tue 14:05 +1w>` (`[…]` inactive), in both formats: the agenda reads both
+        if matches!(chars[i], '<' | '[') && let Some((a, b, _)) = crate::edit::stamp_around(&chars, i) && a == i {
+            out.push(stamp(&chars[a..b]));
+            i = b;
+            continue;
+        }
+        // `SCHEDULED:`, `DEADLINE:`, `CLOSED:` dimmed as the `#+` keywords
+        if (i == 0 || chars[i - 1].is_whitespace())
+            && let Some(k) = crate::agenda::PLANNING.iter().find(|k| chars[i..].starts_with(&k.chars().collect::<Vec<_>>())) {
+            out.push(span_text("kw", *k));
+            i += k.chars().count();
+            continue;
+        }
         // A link `[[…]]` (and the extended ones: `[[a|b]]`, `[texte](Page.md)`)
         if chars[i] == '[' && let Some(f) = crate::links::link_starting(&chars, i, d.links()) {
             out.push(link(&chars, &f, d));
@@ -188,6 +201,29 @@ pub fn inline(s: &str, d: &Draw) -> Vec<Node> {
         i += 1;
     }
     merge(out)
+}
+
+/// A timestamp in pieces: its date, day name and time each in their class, the
+/// brackets as markup, the rest (repeater, warning) dimmed.
+fn stamp(chars: &[char]) -> Node {
+    let inner: String = chars[1..chars.len() - 1].iter().collect();
+    let mut children = vec![span_text("mk", chars[0].to_string())];
+    let mut word = String::new();
+    let mut first = true;
+    let mut push = |w: &mut String, children: &mut Vec<Node>| {
+        if w.is_empty() { return; }
+        let class = if std::mem::take(&mut first) { "ts-date" }
+            else if w.starts_with(|c: char| c.is_ascii_digit()) && w.contains(':') { "ts-time" }
+            else if w.chars().all(|c| c.is_alphabetic() || c == '.') { "ts-day" }
+            else { "ts-rest" };
+        children.push(span_text(class, std::mem::take(w)));
+    };
+    for c in inner.chars() {
+        if c.is_whitespace() { push(&mut word, &mut children); children.push(text(c.to_string())); } else { word.push(c); }
+    }
+    push(&mut word, &mut children);
+    children.push(span_text("mk", chars[chars.len() - 1].to_string()));
+    span(if chars[0] == '<' { "ts" } else { "ts ts-off" }, merge(children))
 }
 
 /// The text pieces next to each other made one.
@@ -423,6 +459,19 @@ mod tests {
         let md = Draw::new(Format::Markdown, crate::Hashtags::Off.into());
         assert_eq!(html(&line("[t](Ma%20page.md) `x`", &md)),
             "<link →Ma page.md><mk>[</><link-d>t</><mk>](<link-t>Ma%20page.md</>)</></> <md-code>`x`</>");
+    }
+
+    #[test]
+    fn timestamps_in_pieces() {
+        let d = Draw::new(Format::Org, crate::Hashtags::Off.into());
+        assert_eq!(html(&line("- <2026-11-24 Tue 14:05-15:00 +1w> [[P]] [2026-11-24 mar.]", &d)),
+            "- <ts><mk><</><ts-date>2026-11-24</> <ts-day>Tue</> <ts-time>14:05-15:00</> <ts-rest>+1w</><mk>></></> \
+             <link><mk>[[</><link-t>P</><mk>]]</></> <ts ts-off><mk>[</><ts-date>2026-11-24</> <ts-day>mar.</><mk>]</></>");
+        assert_eq!(html(&line("  SCHEDULED: <2026-11-24> DEADLINE:x", &d)),
+            "  <kw>SCHEDULED:</> <ts><mk><</><ts-date>2026-11-24</><mk>></></> <kw>DEADLINE:</>x");
+        assert_eq!(html(&line("NOTSCHEDULED:", &d)), "NOTSCHEDULED:");
+        let md = Draw::new(Format::Markdown, crate::Hashtags::Off.into());
+        assert!(html(&line("# a <2026-11-24>", &md)).contains("<ts><mk><</><ts-date>2026-11-24</><mk>></></>"));
     }
 
     #[test]

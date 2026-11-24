@@ -84,6 +84,17 @@ impl App {
         let next = keys::bound(&self.kb, &key, "next_line");
         let previous = keys::bound(&self.kb, &key, "previous_line");
         let half = self.height / 2;
+        // The agenda: its keys (S-→/S-← a day later/earlier)
+        if matches!(&self.mode, Mode::Popup(p) if p.agenda.is_some()) {
+            let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+            let done = match key.code {
+                KeyCode::Right if shift => self.agenda_key('+'),
+                KeyCode::Left if shift => self.agenda_key('-'),
+                KeyCode::Char(c) => self.agenda_key(c),
+                _ => false,
+            };
+            if done { return; }
+        }
         let Mode::Popup(p) = &mut self.mode else { return };
         let list = !p.targets.is_empty();
         match key.code {
