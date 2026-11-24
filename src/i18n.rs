@@ -1541,6 +1541,8 @@ pub fn t(key: &'static str, lang: Lang) -> &'static str {
         ("err_not_a_page",       Lang::Fr) => "Pas une page du projet ouvert :",
         ("err_page_exists",      Lang::En) => "This page already exists:",
         ("err_page_exists",      Lang::Fr) => "Cette page existe déjà :",
+        ("err_changed_on_disk",  Lang::En) => "Not saved, the page changed on disk:",
+        ("err_changed_on_disk",  Lang::Fr) => "Non enregistrée, la page a changé sur le disque :",
         ("err_invalid_name",     Lang::En) => "Invalid page name:",
         ("err_invalid_name",     Lang::Fr) => "Nom de page invalide :",
         ("err_org_bloom_not_found", Lang::En) => "org-bloom not found (install it, or set its path in the settings):",

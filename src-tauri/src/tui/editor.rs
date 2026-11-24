@@ -539,7 +539,12 @@ impl Editor {
 
     /// The cursor at the start of the line `n` (from 0), shown (out of any fold).
     pub fn goto_line(&mut self, n: usize) {
-        self.cursor = edit::nth_line_start(&self.text, n).min(self.text.len());
+        self.goto(edit::nth_line_start(&self.text, n));
+    }
+
+    /// The cursor at the char `at`, shown (out of any fold).
+    pub fn goto(&mut self, at: usize) {
+        self.cursor = at.min(self.text.len());
         let c = self.cursor;
         self.folds.retain(|&(a, b)| !(a < c && c <= b));
         self.goal = None;

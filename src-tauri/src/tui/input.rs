@@ -98,7 +98,15 @@ impl App {
             KeyCode::Up => p.scroll = p.scroll.saturating_sub(1),
             KeyCode::PageDown => p.scroll = p.scroll.saturating_add(half),
             KeyCode::PageUp => p.scroll = p.scroll.saturating_sub(half),
-            _ => self.mode = Mode::Normal,
+            // The commit's files: ticked, committed; a commit of the history: put back
+            KeyCode::Char(' ') if p.targets.iter().any(|t| matches!(t, commands::Target::Change { .. })) => self.tick_change(),
+            KeyCode::Char('c') if p.targets.iter().any(|t| matches!(t, commands::Target::Change { .. })) => self.commit_ticked(),
+            KeyCode::Char('r') if matches!(p.targets.get(p.selected), Some(commands::Target::Commit { .. })) => self.restore_version(),
+            // Closed: back to the popup it came from, if any
+            _ => {
+                let back = p.parent.take();
+                self.mode = back.map_or(Mode::Normal, |b| Mode::Popup(*b));
+            }
         }
     }
 

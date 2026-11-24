@@ -20,6 +20,13 @@ pub struct Prompt {
 }
 
 impl Prompt {
+    /// Whether it asks which text of a page changed on disk to keep.
+    pub(super) fn asks_disk_conflict(&self) -> bool {
+        matches!(self.then, Then::DiskConflict(_))
+    }
+}
+
+impl Prompt {
     /// What Tab completes the value with: the tags, the pages, the folders.
     pub(super) fn completes(&self) -> Option<fn(&App) -> Vec<String>> {
         match self.then {
@@ -45,7 +52,13 @@ enum Then {
     ProjectReplaceFrom,
     ProjectReplaceTo(String),
     ProjectReplaceSure(String, String),
-    Commit,
+    /// The commit message: then the commit of these files (relative to the
+    /// root of the repository), `None`: of all the changes.
+    Commit(Option<Vec<String>>),
+    /// The page at this path to the trash (`y`).
+    DeletePage(String),
+    /// Every page of the trash deleted for good (`y`).
+    EmptyTrash,
     /// The format of the new page named so (`ask_format`).
     NewPage(String),
     /// The page at this path renamed.
@@ -69,6 +82,9 @@ enum Then {
     RemoveJson(Vec<crate::config_files::File>, Box<crate::settings::Settings>),
     /// One of the projects, by its number.
     Project(Vec<String>),
+    /// The page at this path, changed on disk while edited: the text edited kept
+    /// (`y`, saved) or the one on disk taken.
+    DiskConflict(String),
 }
 
 /// The quick open (the window's `quick_open`): a page found by typing part of its name.
@@ -137,6 +153,7 @@ impl App {
             // Opening this very list is no command
             .filter(|a| a.id != "quick_open" && !NOT_HERE.contains(&a.id))
             .map(|a| a.id)
+            .chain(TERMINAL_COMMANDS.iter().copied())
             .chain(editing)
             .map(|id| (id.replace('_', " "), id))
             .filter(|(name, _)| q.is_empty() || fold(name).contains(&q))
@@ -238,6 +255,12 @@ pub struct Popup {
     pub scroll: u16,
     pub targets: Vec<Target>,
     pub selected: usize,
+    /// The keys it takes, shown in its title (`None`: those of any text or list).
+    pub keys: Option<&'static str>,
+    /// A diff: its added lines in green, its removed ones in red.
+    pub diff: bool,
+    /// The popup it was opened from, back when it closes (a diff from the commit's files).
+    pub parent: Option<Box<Popup>>,
 }
 
 /// What a line of a popup leads to.
@@ -251,6 +274,13 @@ pub enum Target {
     Tag(String),
     /// An editing action on the page (the right-click menu).
     Action(&'static str),
+    /// A page in the trash, by its path there: restored.
+    Trashed(String),
+    /// A file changed since the last commit (relative to the root of the
+    /// repository; its path before a rename): its diff shown.
+    Change { file: String, old: Option<String> },
+    /// A commit of the page `page` (`file` in it): its diff shown, or that version put back.
+    Commit { hash: String, file: String, page: String },
     /// Nothing (a title, a blank line).
     None,
 }
@@ -265,7 +295,7 @@ impl Popup {
     pub fn pick(title: String, items: Vec<(String, Target)>) -> Self {
         let (lines, targets): (Vec<String>, Vec<Target>) = items.into_iter().unzip();
         let selected = targets.iter().position(|t| *t != Target::None).unwrap_or(0);
-        Self { title, lines, targets, selected, scroll: 0 }
+        Self { title, lines, targets, selected, ..Self::default() }
     }
 
     /// The next (previous) line leading somewhere.
@@ -281,6 +311,9 @@ impl Popup {
 
 /// The actions of the shortcuts the terminal does not do.
 const NOT_HERE: &[&str] = &["export_pdf", "export_html", "spell_next"];
+
+/// Commands of the terminal's command list (`>`) with no shortcut of the window.
+const TERMINAL_COMMANDS: &[&str] = &["delete_page", "trash", "empty_trash", "undo_replace"];
 
 impl App {
     fn ask(&mut self, label: &str, input: &str, then: Then) {
@@ -317,10 +350,10 @@ impl App {
                 if n == 0 { self.status = format!("“{from}” not found"); return; }
                 self.ask(&format!("Replace {n} × “{from}” with “{input}”? (y/n) "), "", Then::ProjectReplaceSure(from, input));
             }
-            Then::ProjectReplaceSure(from, to) if matches!(input.as_str(), "y" | "o" | "yes" | "oui") => self.project_replace(&from, &to),
+            Then::ProjectReplaceSure(from, to) if yes(&input) => self.project_replace(&from, &to),
             Then::RemoveJson(files, mut settings) => {
                 let Some(dir) = self.config_dir.clone() else { return };
-                let done = if matches!(input.as_str(), "y" | "o" | "yes" | "oui") {
+                let done = if yes(&input) {
                     crate::config_files::remove_json(&dir, &files)
                 } else {
                     settings.keep_json = true;
@@ -328,12 +361,17 @@ impl App {
                 };
                 self.status = match done { Ok(()) => String::new(), Err(e) => e.to_string() };
             }
-            Then::Commit => self.git_commit(if input.is_empty() { "Orgamnesia" } else { &input }),
+            Then::Commit(files) => self.git_commit(if input.is_empty() { "Orgamnesia" } else { &input }, files),
+            Then::DeletePage(path) if yes(&input) => self.delete_page(&path),
+            Then::EmptyTrash if yes(&input) => self.status = match self.project.empty_trash() {
+                Ok(n) => format!("{n} pages deleted for good"),
+                Err(e) => e.to_string(),
+            },
             Then::Rename(old) if !input.is_empty() => self.rename(&old, &input),
             Then::NewPage(name) => {
                 let format = match input.to_lowercase().as_str() { "md" | "markdown" => Format::Markdown, _ => Format::Org };
                 match self.project.create(&name, Some(format), self.prefs.tags()) {
-                    Ok(page) => self.edit(&page.path),
+                    Ok(page) => { self.folders_changed(); self.edit(&page.path) }
                     Err(e) => self.status = e.to_string(),
                 }
             }
@@ -343,7 +381,7 @@ impl App {
                 _ => {}
             },
             Then::NewFolder if !input.is_empty() => match self.project.create_folder(&input) {
-                Ok(name) => self.status = format!("folder {name} made"),
+                Ok(name) => { self.folders_changed(); self.status = format!("folder {name} made") }
                 Err(e) => self.status = e.to_string(),
             },
             Then::MovePage(path) => {
@@ -361,7 +399,7 @@ impl App {
                 let count = self.project.files().iter().filter(|f| f.name.starts_with(&format!("{input}/"))).count();
                 self.ask(&format!("Delete the folder “{input}”, its {count} pages to the trash? (y/n) "), "", Then::DeleteFolderSure(input));
             }
-            Then::DeleteFolderSure(name) => if matches!(input.to_lowercase().as_str(), "y" | "o" | "yes" | "oui") {
+            Then::DeleteFolderSure(name) => if yes(&input) {
                 if !self.save() || !self.save_other() { return; }
                 match self.project.delete_folder(&name) {
                     Ok(trashed) => {
@@ -371,6 +409,7 @@ impl App {
                         self.tabs.retain(|p| !gone.contains(p));
                         if self.other.as_ref().is_some_and(|o| gone.contains(&o.path)) { self.single(); }
                         if self.editor.as_ref().is_some_and(|e| gone.contains(&e.path)) { self.editor = None; }
+                        self.folders_changed();
                         self.status = format!("folder {name} deleted, {} pages in the trash", trashed.len());
                     }
                     Err(e) => self.status = e.to_string(),
@@ -379,6 +418,13 @@ impl App {
             Then::NewTemplate if !input.is_empty() => match self.project.create_template(&input, self.prefs.default_format, "") {
                 Ok(t) => self.edit(&t.path),
                 Err(e) => self.status = e.to_string(),
+            },
+            Then::DiskConflict(path) => if yes(&input) {
+                // `refresh` has seen the change: writing goes through
+                if self.save() && self.save_other() { self.status = format!("{}: your text kept", self.project.name_of(&path)); }
+            } else {
+                self.reread(&path, true);
+                self.status = format!("{}: the text on disk taken", self.project.name_of(&path));
             },
             Then::Project(paths) => match input.parse::<usize>().ok().and_then(|n| paths.get(n.wrapping_sub(1))) {
                 Some(path) => self.switch_project(&path.clone()),
@@ -410,7 +456,18 @@ impl App {
             "add_tag" => self.ask("Tag: ", "", Then::AddTag),
             "project_search" => self.ask("Search the project: ", "", Then::ProjectSearch),
             "project_replace" => self.ask("Replace in the project: ", "", Then::ProjectReplaceFrom),
-            "git_commit" => if self.save() { let message = self.commit_message(); self.ask("Commit message: ", &message, Then::Commit) },
+            "git_commit" => self.commit_popup(),
+            "delete_page" => if let Some(path) = self.current_path() {
+                let name = self.project.name_of(&path);
+                self.ask(&format!("Delete “{name}” (it goes to the trash)? (y/n) "), "", Then::DeletePage(path));
+            },
+            "trash" => self.trash_popup(),
+            "empty_trash" => match self.project.trash_count() {
+                Ok(0) => self.status = "the trash is empty".into(),
+                Ok(n) => self.ask(&format!("Delete for good the {n} pages of the trash? (y/n) "), "", Then::EmptyTrash),
+                Err(e) => self.status = e.to_string(),
+            },
+            "undo_replace" => self.undo_replace(),
             "git_pull" => self.git(|p, prefs| crate::git::pull(p, &prefs.git_ssh_key, prefs.git_pull_rebase)),
             "git_push" => self.git(|p, prefs| crate::git::push(p, &prefs.git_ssh_key)),
             "git_history" => self.history(),
@@ -548,6 +605,15 @@ impl App {
             Target::Page(path, line) => (path, line),
             Target::Mention(path, name) => { let line = self.line_naming(&path, &name); (path, line) }
             Target::Tag(tag) => return self.tag_panel(&tag),
+            Target::Trashed(trashed) => return self.restore_trashed(&trashed),
+            Target::Change { file, old } => {
+                let diff = crate::git::diff(&self.project.path, &file, old.as_deref());
+                return self.diff_popup(file, diff);
+            }
+            Target::Commit { hash, file, .. } => {
+                let diff = crate::git::commit_diff(&self.project.path, &hash, &file);
+                return self.diff_popup(format!("{} {file}", short(&hash)), diff);
+            }
             Target::Action(id) => {
                 self.mode = Mode::Normal;
                 self.run_action(id);
@@ -601,14 +667,47 @@ impl App {
 
     /// The page edited read again from the disk (changed by a replacement, a pull).
     fn reload(&mut self) {
-        let Some(e) = &self.editor else { return };
-        if e.dirty || !e.page { return; }
-        let (path, cursor) = (e.path.clone(), e.cursor);
-        if let Ok(text) = self.project.read(&path) {
-            let mut fresh = Editor::new(path, &text, true);
-            fresh.prefs = super::editor::EditPrefs::from(&self.prefs);
-            fresh.cursor = cursor.min(text.chars().count());
-            self.editor = Some(fresh);
+        if let Some(path) = self.editor.as_ref().map(|e| e.path.clone()) { self.reread(&path, false); }
+    }
+
+    /// The windows on the page `path` read again from the disk, their cursor
+    /// kept; those with unsaved changes too only with `even_dirty`.
+    fn reread(&mut self, path: &str, even_dirty: bool) {
+        let Ok(text) = self.project.read(path) else { return };
+        for e in [&mut self.editor, &mut self.other].into_iter().flatten() {
+            if e.path != path || !e.page || (e.dirty && !even_dirty) { continue; }
+            let (cursor, prefs) = (e.cursor, e.prefs);
+            *e = Editor::new(path.to_string(), &text, true);
+            (e.cursor, e.prefs) = (cursor.min(text.chars().count()), prefs);
+        }
+    }
+
+    /// Take the changes another program (a sync tool, the window) made on disk:
+    /// the list follows, the pages open without unsaved changes are read again;
+    /// for one with some, which text to keep is asked (as the window does). The
+    /// folder is only read when the watcher saw a change, or with `now`.
+    pub(super) fn disk_changes(&mut self, now: bool) {
+        let seen = self.disk_watch.as_ref().is_none_or(|(_, c)| c.swap(false, std::sync::atomic::Ordering::Relaxed));
+        if let Some(Ok(Some(changes))) = (now || seen).then(|| self.project.refresh(self.prefs.tags())) {
+            self.folders_changed();
+            let open: Vec<(String, bool)> = [&self.editor, &self.other].into_iter().flatten()
+                .filter(|e| e.page).map(|e| (e.path.clone(), e.dirty)).collect();
+            for (path, dirty) in open {
+                if changes.removed.contains(&path) {
+                    self.status = format!("{}: deleted on disk, saving writes it again", self.project.name_of(&path));
+                } else if !changes.changed.contains(&path) {
+                } else if !dirty {
+                    self.reread(&path, false);
+                } else if !self.disk_conflicts.contains(&path) {
+                    self.disk_conflicts.push(path);
+                }
+            }
+        }
+        // Asked when nothing else has the keys
+        if matches!(self.mode, Mode::Normal) && !self.disk_conflicts.is_empty() {
+            let path = self.disk_conflicts.remove(0);
+            let name = self.project.name_of(&path);
+            self.ask(&format!("“{name}” changed on disk. Keep your text (y) or take the one on disk (n)? "), "", Then::DiskConflict(path));
         }
     }
 
@@ -620,15 +719,16 @@ impl App {
             Err(e) => e.to_string(),
         };
         let _ = self.project.refresh(self.prefs.tags());
+        self.folders_changed();
         self.reload();
         self.look_at_git();
     }
 
-    fn git_commit(&mut self, message: &str) {
+    fn git_commit(&mut self, message: &str, files: Option<Vec<String>>) {
         let message = message.to_string();
         // And pushed, when the settings say so (git_commit_push)
         self.git(move |p, prefs| {
-            let out = crate::git::commit(p, &message, None)?;
+            let out = crate::git::commit(p, &message, files.as_deref())?;
             if prefs.git_commit_push { crate::git::push(p, &prefs.git_ssh_key) } else { Ok(out) }
         });
     }
@@ -688,7 +788,9 @@ impl App {
         if !self.save() || !self.save_other() { return; }
         let base = crate::slash(crate::project::files::pages_dir(&self.project.path));
         let (from, to) = (format!("{base}/{old}/"), format!("{base}/{}/", new.trim_matches('/')));
-        if let Err(e) = self.project.rename_folder(old, new, &self.prefs) { self.status = e.to_string(); return; }
+        let renamed = self.project.rename_folder(old, new, &self.prefs);
+        self.folders_changed();
+        if let Err(e) = renamed { self.status = e.to_string(); return; }
         self.follow_paths(|p| p.strip_prefix(&from).map(|rest| format!("{to}{rest}")));
         self.status = format!("folder {old} renamed {new}");
     }
@@ -706,7 +808,9 @@ impl App {
     /// open, the tabs and the history follow it.
     fn rename(&mut self, old: &str, new_name: &str) {
         if !self.save() || !self.save_other() { return; }
-        let new = match self.project.rename(old, new_name, &self.prefs) {
+        let renamed = self.project.rename(old, new_name, &self.prefs);
+        self.folders_changed();
+        let new = match renamed {
             Ok(entry) => entry.path,
             Err(e) => { self.status = e.to_string(); return; }
         };
@@ -751,17 +855,143 @@ impl App {
     }
 
     /// The commits of the page in view.
+    /// The commits of the page in view: Enter shows what one changed, `r` puts
+    /// that version back in the editor (undo takes it back).
     fn history(&mut self) {
         let Some(path) = self.current_path() else { return };
-        let lines = match crate::git::log(&self.project.path, &path) {
-            Ok(commits) if commits.is_empty() => vec!["No commit of this page.".to_string()],
-            Ok(commits) => commits.iter().map(|c| {
-                let date = chrono::DateTime::from_timestamp(c.date, 0).map(|d| d.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default();
-                format!("{date}  {}  {}  {}", &c.hash[..c.hash.len().min(7)], c.author, c.subject)
-            }).collect(),
+        let title = format!("History: {}", crate::project::files::page_name(&path));
+        let commits = match crate::git::log(&self.project.path, &path) {
+            Ok(commits) if commits.is_empty() => vec![],
+            Ok(commits) => commits,
+            Err(e) => { self.mode = Mode::Popup(Popup::text(title, vec![e.to_string()])); return; }
+        };
+        let items = commits.into_iter().map(|c| {
+            let date = chrono::DateTime::from_timestamp(c.date, 0).map(|d| d.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default();
+            let line = format!("{date}  {}  {}  {}", short(&c.hash), c.author, c.subject);
+            (line, Target::Commit { hash: c.hash, file: c.path, page: path.clone() })
+        }).collect();
+        self.mode = Mode::Popup(Popup { keys: Some("↑↓ · Enter: its changes · r: put this version back · Esc"), ..Popup::pick(title, items) });
+    }
+
+    /// The version of the page of `Target::Commit` put back in the editor, as an
+    /// edit: undo takes it back.
+    pub(super) fn restore_version(&mut self) {
+        let Some(Target::Commit { hash, file, page }) = self.popup().and_then(|p| p.targets.get(p.selected).cloned()) else { return };
+        match crate::git::show(&self.project.path, &hash, &file) {
+            Ok(text) => {
+                self.mode = Mode::Normal;
+                if self.editor.as_ref().is_none_or(|e| e.path != page) { self.edit(&page); }
+                if let Some(e) = &mut self.editor && e.path == page {
+                    e.set_text(&text);
+                    self.status = format!("version {} put back (undo takes it back)", short(&hash));
+                }
+            }
+            Err(e) => self.status = e.to_string(),
+        }
+    }
+
+    /// The files changed since the last commit, all ticked: Space ticks one or
+    /// not, Enter shows what changed in it, `c` commits the ticked ones.
+    fn commit_popup(&mut self) {
+        if !self.save() || !self.save_other() { return; }
+        let changes = match crate::git::changes(&self.project.path) {
+            Ok(changes) => changes,
+            Err(e) => { self.status = e.to_string(); return; }
+        };
+        if changes.is_empty() { self.status = "nothing to commit".into(); return; }
+        use orgamnesia_core::GitChangeKind as K;
+        let items = changes.into_iter().map(|c| {
+            let kind = match c.kind { K::Added => "added", K::Modified => "modified", K::Deleted => "deleted", K::Renamed => "renamed" };
+            (format!("[x] {:<9} {}", kind, c.path), Target::Change { file: c.path, old: c.old_path })
+        }).collect();
+        self.mode = Mode::Popup(Popup { keys: Some("↑↓ · Space: tick · Enter: changes · c: commit · Esc"), ..Popup::pick("Commit".into(), items) });
+    }
+
+    /// The line of the commit's files chosen ticked, or no longer.
+    pub(super) fn tick_change(&mut self) {
+        let Mode::Popup(p) = &mut self.mode else { return };
+        if !matches!(p.targets.get(p.selected), Some(Target::Change { .. })) { return; }
+        let line = &mut p.lines[p.selected];
+        let ticked = line.starts_with("[x]");
+        line.replace_range(..3, if ticked { "[ ]" } else { "[x]" });
+    }
+
+    /// The ticked files of the commit's list committed: their message asked.
+    pub(super) fn commit_ticked(&mut self) {
+        let Some(p) = self.popup() else { return };
+        let (mut files, mut all) = (vec![], true);
+        for (line, target) in p.lines.iter().zip(&p.targets) {
+            let Target::Change { file, old } = target else { continue };
+            if line.starts_with("[x]") { files.push(file.clone()); files.extend(old.clone()); } else { all = false; }
+        }
+        if files.is_empty() { self.status = "no file ticked".into(); return; }
+        let message = self.commit_message();
+        self.ask("Commit message: ", &message, Then::Commit((!all).then_some(files)));
+    }
+
+    /// A diff over the popup it comes from (back to it when closed).
+    fn diff_popup(&mut self, title: String, diff: Result<String, crate::error::AppError>) {
+        let lines = match diff {
+            Ok(text) if text.is_empty() => vec!["(no change)".into()],
+            Ok(text) => text.lines().map(String::from).collect(),
             Err(e) => vec![e.to_string()],
         };
-        self.mode = Mode::Popup(Popup::text(format!("History: {}", crate::project::files::page_name(&path)), lines));
+        let parent = match std::mem::replace(&mut self.mode, Mode::Normal) { Mode::Popup(p) => Some(Box::new(p)), _ => None };
+        self.mode = Mode::Popup(Popup { title, lines, diff: true, parent, ..Popup::default() });
+    }
+
+    /// The page at `path` to the trash (saved first): its tabs and windows closed.
+    fn delete_page(&mut self, path: &str) {
+        if !self.save() || !self.save_other() { return; }
+        let name = self.project.name_of(path);
+        match self.project.delete(path) {
+            Ok(_) => {
+                self.tabs.retain(|p| p != path);
+                self.back.retain(|p| p != path);
+                self.forward.retain(|p| p != path);
+                if self.other.as_ref().is_some_and(|o| o.path == path) { self.single(); }
+                if self.editor.as_ref().is_some_and(|e| e.path == path) { self.editor = None; }
+                self.folders_changed();
+                self.status = format!("{name} is in the trash (“trash” brings it back)");
+            }
+            Err(e) => self.status = e.to_string(),
+        }
+    }
+
+    /// The pages of the trash, newest first: Enter brings one back.
+    fn trash_popup(&mut self) {
+        match self.project.trash_list() {
+            Ok(pages) => {
+                let items = pages.into_iter().map(|f| (format!("  {}", f.name), Target::Trashed(f.path))).collect();
+                self.mode = Mode::Popup(Popup { keys: Some("↑↓ · Enter: bring it back · Esc"), ..Popup::pick("Trash".into(), items) });
+            }
+            Err(e) => self.status = e.to_string(),
+        }
+    }
+
+    /// The page of the trash at `trashed` brought back, and shown.
+    fn restore_trashed(&mut self, trashed: &str) {
+        self.mode = Mode::Normal;
+        match self.project.restore(trashed, self.prefs.tags()) {
+            Ok(page) => {
+                self.folders_changed();
+                self.status = format!("{} brought back", page.name);
+                self.show(&page.path);
+            }
+            Err(e) => self.status = e.to_string(),
+        }
+    }
+
+    /// The last replacement in the project undone (but the pages changed since).
+    fn undo_replace(&mut self) {
+        if !self.project.can_undo_replace() { self.status = "no replacement to undo".into(); return; }
+        if !self.save() || !self.save_other() { return; }
+        self.status = match self.project.undo_replace(self.prefs.tags()) {
+            Ok(done) if done.skipped > 0 => format!("{} pages put back, {} changed since left as they are", done.pages, done.skipped),
+            Ok(done) => format!("{} pages put back", done.pages),
+            Err(e) => e.to_string(),
+        };
+        self.reload();
     }
 
     /// The links of the page in view and the pages linking to it (the graph, as text).
@@ -781,6 +1011,9 @@ impl App {
             Ok(project) => {
                 super::prune_trash(&project, &self.prefs);
                 self.project = project;
+                self.folders_changed();
+                self.watch_disk();
+                self.disk_conflicts.clear();
                 self.tabs.clear();
                 self.back.clear();
                 self.forward.clear();
@@ -850,6 +1083,16 @@ fn base64(bytes: &[u8]) -> String {
         }
     }
     out
+}
+
+/// The short form of a commit hash.
+fn short(hash: &str) -> &str {
+    &hash[..hash.len().min(7)]
+}
+
+/// A yes typed (y, yes, o, oui).
+fn yes(input: &str) -> bool {
+    matches!(input.to_lowercase().as_str(), "y" | "o" | "yes" | "oui")
 }
 
 #[cfg(test)]

@@ -4,6 +4,19 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.8.5
+- Folders: pages go in folders and subfolders of =pages/=, named by their path in links (=[[Games/Dragon]]=). The pages list becomes a foldable tree, in alphabetical order, the journal in a folder of its own. Right click or commands to make a folder, move a page into it, rename or delete a folder; the links follow.
+- Page templates, as in Obsidian: the files of the =templates/= folder (configurable), with ={{title}}=, ={{date}}=, ={{time}}=, applied from quick open (type "template"). A Templates tab in the settings, and four suggested templates: meeting, person, reading, project.
+- Quick capture: Ctrl+Alt+C (C-c c in Emacs) opens beside the page the day's page (or Inbox) on a new note; the same shortcut closes it.
+- Tab names too long keep only their last folders (…/Quests/Dragon).
+- All of it in the terminal too, and in "Did you know?".
+- A page changed on disk by another program (Syncthing, another editor) while it is being edited is no longer overwritten: the app asks which text to keep. The terminal now notices these changes too.
+- =settings.yaml= explains each setting in a comment above it.
+- Terminal: delete a page and bring it back from the trash (commands "delete page", "trash", "empty trash"), undo the last replacement in the project; a link to a headline (=[[Page::*Title]]=) opens the page on it.
+- Terminal: the commit lists the changed files to tick, with their changes in colour; the history of a page shows what each commit changed, and puts an old version back.
+- Renaming a folder of many pages is much faster; a page whose links can't be updated no longer stops a rename halfway.
+- Git: when git fails, the commit window no longer shows a page as wholly added.
+
 * 1.8.4
 - Zen mode: the text in the middle of the screen, at a reading width.
 

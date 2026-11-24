@@ -154,13 +154,23 @@ pub fn diff(path: &str, file: &str, old_path: Option<&str>) -> Result<String, Ap
     let mut c = git(&root);
     c.args(["diff", "--no-color", "-M", "HEAD", "--"]).arg(file);
     if let Some(old) = old_path { c.arg(old); }
-    let out = run(&mut c).unwrap_or_default();
+    // A failure (no commit yet aside) is said, not shown as the whole file added
+    let out = match run(&mut c) {
+        Ok(out) => out,
+        Err(AppError::Git(e)) if no_commit_yet(&e) => String::new(),
+        Err(e) => return Err(e),
+    };
     if !out.is_empty() {
         return Ok(out);
     }
     // Untracked, or no commit yet
     let text = std::fs::read_to_string(Path::new(&root).join(file)).unwrap_or_default();
     Ok(text.lines().map(|l| format!("+{l}\n")).collect())
+}
+
+/// Git failed because the repository has no commit yet (`HEAD` names none).
+fn no_commit_yet(err: &str) -> bool {
+    err.contains("bad revision 'HEAD'") || err.contains("unknown revision")
 }
 
 /// The root of the repository holding `path`.
@@ -294,12 +304,14 @@ fn parse_log(out: &str) -> Vec<GitCommit> {
 
 /// What `commit` changed in `file` (relative to the root of the repository).
 pub fn commit_diff(path: &str, hash: &str, file: &str) -> Result<String, AppError> {
+    check_hash(hash)?;
     let root = toplevel(path)?;
     run(git(&root).args(["show", "--no-color", "--format=", "-M", hash, "--", file]))
 }
 
 /// The text of `file` (relative to the root of the repository) in `commit`.
 pub fn show(path: &str, hash: &str, file: &str) -> Result<String, AppError> {
+    check_hash(hash)?;
     let root = toplevel(path)?;
     let out = git(&root).arg("show").arg(format!("{hash}:{file}")).stdin(Stdio::null()).output()?;
     if !out.status.success() {
@@ -307,6 +319,16 @@ pub fn show(path: &str, hash: &str, file: &str) -> Result<String, AppError> {
     }
     // Not trimmed: the page comes back as it was
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Ok when `hash` is a commit hash (hexadecimal): never read by git as an option
+/// (`--output=<file>` would have `git show` write a file anywhere).
+fn check_hash(hash: &str) -> Result<(), AppError> {
+    if !hash.is_empty() && hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err(AppError::Git(format!("not a commit hash: '{hash}'")))
+    }
 }
 
 /// The name and email git signs the commits of `path` with (empty when not set).
@@ -535,6 +557,14 @@ mod tests {
         assert_eq!(askpass_reply("Enter passphrase for key '/k': ", "secret"), Some("secret"));
         assert_eq!(askpass_reply("git@host's password: ", "secret"), None);
         assert_eq!(askpass_reply("Username for 'https://github.com': ", "secret"), None);
+    }
+
+    #[test]
+    fn a_hash_is_never_an_option() {
+        assert!(check_hash("0123abcDEF").is_ok());
+        assert!(show(".", "--output=/tmp/x", "a.org").is_err());
+        assert!(commit_diff(".", "-p", "a.org").is_err());
+        assert!(check_hash("").is_err() && check_hash("HEAD~1").is_err());
     }
 
     fn sh(dir: &Path, args: &[&str]) {

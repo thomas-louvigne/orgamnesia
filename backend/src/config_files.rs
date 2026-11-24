@@ -322,7 +322,7 @@ mod tests {
         std::fs::write(dir.join("settings.json"), r#"{"autosave": true}"#).unwrap();
         convert_legacy(&dir);
         let mine = std::fs::read_to_string(dir.join("keybindings/Mine.yaml")).unwrap();
-        assert!(mine.starts_with("# TUI version") && mine.contains("- ctrl+j"), "{mine}");
+        assert!(mine.starts_with("# Terminal version") && mine.contains("- ctrl+j"), "{mine}");
         assert!(check(&File::Settings, &std::fs::read_to_string(dir.join("settings.yaml")).unwrap(), &[]).is_ok());
         // Done once: a YAML file is not written over
         std::fs::write(dir.join("keybindings/Mine.yaml"), "editor_preset: classic\n").unwrap();

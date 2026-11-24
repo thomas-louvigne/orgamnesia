@@ -84,7 +84,9 @@ Depuis les sources, =main= sur Arch, particularités de macOS et de Windows :
   projet au clavier.
 - *Graphe* (bêta) : les pages et leurs liens en 3D.
 - *Journal* : une page par jour, nommée par sa date (=2026-11-15=). Un raccourci ouvre celle d'aujourd'hui, et la crée si elle n'existe pas encore.
-- *Page au hasard* : un raccourci (ou les commandes =>=) ouvre une page tirée au hasard, pour faire remonter de vieilles notes.
+- *Dossiers* : les pages se rangent dans des dossiers et sous-dossiers, montrés en arbre repliable (le journal à part). Clic droit ou commandes pour créer, déplacer, renommer, supprimer ; les liens suivent (=[[Jeux/Dragon]]=).
+- *Modèles de page*, comme dans Obsidian : un dossier =templates/=, ={{title}}=, ={{date}}=, appliqués depuis l'ouverture rapide. Quatre modèles proposés (réunion, personne, lecture, projet).
+- *Capture rapide* : un raccourci ouvre, à côté de la page, celle du jour (ou =Inbox=) sur une nouvelle note ; le même la referme.
 - *Mode zen* : =F11= ne laisse que la page, en plein écran ; =F11= à nouveau ramène tout.
 - *Cadres* : pages, liens entrants, tags, à faire, git, astuces… placés où vous voulez.
 - *Thèmes* : Nuit, Jour, Fjord, Papier, Dracula, ou le vôtre en un fichier CSS.
@@ -148,7 +150,6 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [ ] Agenda : les =SCHEDULED:= et =DEADLINE:= des pages, par date, dans un cadre
 - [ ] Vue agenda : un calendrier du journal, pour passer d'un jour à l'autre et ouvrir la page d'une date
 - [ ] Alias (=#+ALIAS:=, =alias::= de Logseq) : une page qui répond à plusieurs noms
-- [X] Page au hasard
 - [ ] Faire remonter les notes : les pages orphelines (sans aucun lien), ce qui était écrit il y a un an
 - [X] Modèles de page, comme dans Obsidian : un dossier du projet (=templates/= par défaut, réglable), ={{title}}=, ={{date}}=, ={{time}}=, appliqués depuis l'ouverture rapide, aussi dans le terminal
 - [ ] Terminal dans l'éditeur

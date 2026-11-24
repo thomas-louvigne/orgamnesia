@@ -110,6 +110,7 @@ fn error_text(err: &BackendError, lang: Lang) -> String {
         "not_a_folder" => "err_not_a_folder",
         "not_a_page" => "err_not_a_page",
         "page_exists" => "err_page_exists",
+        "changed_on_disk" => "err_changed_on_disk",
         "invalid_name" => "err_invalid_name",
         "org_bloom_not_found" => "err_org_bloom_not_found",
         "cannot_run" => "err_cannot_run",

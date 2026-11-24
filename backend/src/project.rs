@@ -135,8 +135,16 @@ impl Project {
         Ok(std::fs::read_to_string(path)?)
     }
 
+    /// Write the page `path`; refused when it changed on disk since the app last
+    /// read or wrote it (a sync tool, another editor): the interface then asks
+    /// which text to keep, once `refresh` has seen the change.
     pub fn write(&mut self, path: &str, content: String, tags: TagSyntax) -> Result<(), AppError> {
         self.check_page(path)?;
+        // shortcut: a change `refresh` took in just before this write still goes through; closing
+        // that too means the interface sending the stamp its text was read at.
+        if self.snapshot.get(path).is_some_and(|s| files::stamp(path).as_ref() != Some(s)) {
+            return Err(AppError::ChangedOnDisk(path.to_string()));
+        }
         crate::write_atomic(path, &content)?;
         self.store(path, content, tags);
         self.remember(path);
@@ -253,6 +261,17 @@ impl Project {
         Ok(FileEntry { name: name.to_string(), path })
     }
 
+    /// The pages in the trash, newest first: the name each had (`Jeux/Dragon`),
+    /// and its path in the trash (for `restore`).
+    pub fn trash_list(&self) -> Result<Vec<FileEntry>, AppError> {
+        let mut pages = self.trashed()?;
+        pages.sort_by_key(|p| std::cmp::Reverse(p.deleted_at));
+        Ok(pages.into_iter().filter_map(|p| {
+            let name = p.path.file_stem().and_then(|s| s.to_str()).and_then(files::from_trash_name)?;
+            Some(FileEntry { name, path: crate::slash(&p.path) })
+        }).collect())
+    }
+
     /// Number of pages in the trash.
     pub fn trash_count(&self) -> Result<usize, AppError> {
         Ok(self.trashed()?.len())
@@ -338,13 +357,27 @@ impl Project {
         self.remember(&new_path);
 
         if prefs.update_links && old_name != new_name {
-            let paths: Vec<String> = self.pages.keys().cloned().collect();
+            // Only the pages linking to it (the index says which) or naming it in a
+            // tag, not all of them: a folder renamed does this once per page
+            let norm = |s: &str| orgamnesia_core::names::page_key(s, prefs.case_insensitive_links);
+            let old_key = norm(&old_name);
+            let mut paths = self.links.sources_where(leads_here);
+            if by_name {
+                paths.extend(self.pages.iter()
+                    .filter(|(p, text)| tags::written_tags(text, tags.org, Format::of_page(p)).iter().any(|t| norm(t) == old_key))
+                    .map(|(p, _)| p.clone()));
+            }
             for path in paths {
                 let Ok(text) = std::fs::read_to_string(&path) else { continue };
                 let rename = links::Rename { leads_here: &leads_here, old: &old_name, by_name, new: &new_name };
                 let updated = links::rewrite_links(&text, &rename, prefs.case_insensitive_links, tags, Format::of_page(&path));
                 if let Some(updated) = updated {
-                    crate::write_atomic(&path, &updated)?;
+                    // The page is renamed already: a page that can't be written keeps
+                    // its old link (shown among the broken ones), the others follow
+                    if let Err(e) = crate::write_atomic(&path, &updated) {
+                        eprintln!("rename: links of {path} not updated: {e}");
+                        continue;
+                    }
                     self.store(&path, updated, tags);
                     self.remember(&path);
                 }
@@ -827,6 +860,33 @@ mod tests {
         assert_eq!(p.read(&path_of(&p, "other")).unwrap(), "lien [[new]] #new\n");
         assert_eq!(p.backlinks(&path_of(&p, "new"), false), vec!["other"]);
         assert!(p.broken_links(false).is_empty());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn rename_follows_headline_tags_and_skips_the_rest() {
+        let (dir, mut p) = project("rename-tags", &[("old", "* old\n"), ("tagged", "* Titre :old:\n"), ("plain", "* plain\n")]);
+        let plain = path_of(&p, "plain");
+        let before = std::fs::metadata(&plain).unwrap().modified().unwrap();
+        p.rename(&path_of(&p, "old"), "new", &Prefs::default()).unwrap();
+        assert_eq!(p.read(&path_of(&p, "tagged")).unwrap(), "* Titre :new:\n");
+        assert_eq!(std::fs::metadata(&plain).unwrap().modified().unwrap(), before);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_page_changed_on_disk_is_not_overwritten() {
+        let (dir, mut p) = project("changed-on-disk", &[("a", "* a\n")]);
+        let a = path_of(&p, "a");
+        let tags = Hashtags::Dashes.into();
+        p.write(&a, "* a\nmine\n".into(), tags).unwrap();
+        // Another program writes it (a different size: the stamp changes whatever the clock)
+        std::fs::write(&a, "* a\ntheirs, longer\n").unwrap();
+        assert!(matches!(p.write(&a, "* a\nmine again\n".into(), tags), Err(AppError::ChangedOnDisk(_))));
+        assert_eq!(std::fs::read_to_string(&a).unwrap(), "* a\ntheirs, longer\n");
+        // Seen by `refresh`: the interface asked, writing goes through again
+        p.refresh(tags).unwrap();
+        p.write(&a, "* a\nkept mine\n".into(), tags).unwrap();
         std::fs::remove_dir_all(dir).unwrap();
     }
 

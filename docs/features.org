@@ -80,6 +80,56 @@ The projects menu opened with Ctrl+Alt+P:
 - *Delete*: right click on the page (list or tab), last in the menu. The page goes
   to the project's [[#trash][trash]].
 
+** Folders
+Pages go in folders and subfolders of =pages/= (=pages/Games/Quests/Dragon.org=).
+- *A page's name*: its path from =pages/=, without the extension: =Games/Quests/Dragon=.
+  Links name it so (=[[Games/Quests/Dragon]]=), as do quick open and completion.
+- *The pages list* is a tree: folders and pages together, in alphabetical order (case
+  and accents ignored), each folder with its number of pages. A click folds or unfolds a
+  folder; the folded ones are kept for each project. The journal's days are in a
+  "Journal" folder of their own, folded at first, newest first. The filter unfolds the
+  folders of the pages found.
+- *Right click on a folder*: new page here, new folder here, rename the folder, delete
+  the folder. *On a page*: "Move to a folder…". *On the empty area*: new page, new folder.
+- *Commands* (the =>= command list, no shortcut by default): "New folder", "Move the page
+  to a folder", "Rename a folder", "Delete a folder". The name is typed in a small box
+  offering the folders (Tab takes the first).
+- *Moving a page*, or *renaming a folder* (=Other/Games= moves it): the links leading
+  there are rewritten, as for a rename. The folder takes its images and other files
+  along; refused when the destination exists already.
+- *Deleting a folder* (after a confirmation): its pages go to the [[#trash][trash]], "Undo"
+  brings them back, in their folder. What is no page stays.
+- Renaming a page with a path (=Games/Dragon=) moves it too.
+- Not read as pages: hidden folders (=.git=…), =assets/=, the templates' and the
+  journal's folders.
+- A tab too long keeps its last names (=…/Quests/Dragon=); the whole path shows on hover.
+
+** Page templates
+As in Obsidian: a template is a page of a folder of the project, =templates/= by
+default (Settings > Templates > "Templates folder"; an Obsidian vault's =Templates=
+folder works as it is). These files are no pages: not in the list, the links, the
+tags nor the search.
+- *Apply*: in quick open, typing "template" offers "Template: Meeting"… (only those of
+  the open page's format). On a blank page, or one holding only its title, the
+  template takes its place; else a confirmation adds it at the cursor. When the page
+  holds a template already (all its headlines are there), the choice is "Replace the
+  page" or "Add at the cursor". Ctrl+Z undoes.
+- *Variables*: ={{title}}= (the page's name), ={{date}}= (=2026-11-23=), ={{time}}=
+  (=14:05=), and Obsidian-like formats: ={{date:DD/MM/YYYY}}=, ={{time:H[h]mm}}=
+  (=YYYY=, =YY=, =MM=, =M=, =DD=, =D=, =HH=, =H=, =mm=, =[text]= as it is).
+- *Settings > Templates*: the project's templates (a click opens one in the editor), a
+  field to create an empty one, and "Add the suggested templates": Meeting, Person,
+  Reading, Project, in org-mode or Markdown per the default format, in English or French
+  per the language.
+
+** Quick capture
+To note an idea without leaving the page: "Quick capture" (Ctrl+Alt+C in Classic,
+=C-c c= in Emacs, as org-capture) splits the screen and opens, beside the page, the
+day's page (journal on) or the =Inbox= page (created if needed), the cursor on a new
+note at its end: =- 14:05 =. The same shortcut saves it, closes the capture half and
+brings the cursor back to the page. When the screen was split already, the capture
+takes the second half.
+
 ** Quick open
 The "Quick open" shortcut (Ctrl+K in Classic, Ctrl+X B or Alt+X in Emacs) opens a
 field that searches, ignoring case and accents:
@@ -221,6 +271,8 @@ While typing, a list offers:
 - existing tags in the tags of a headline (=* Title :pro=), in =#+FILETAGS:= or after
   =:= in the text (accepting adds the closing =:=).
 
+A page in a folder is found by its own name too: =[[dra= offers =Games/Quests/Dragon=.
+
 Up and down arrows (or Ctrl+N / Ctrl+P) to choose, Enter or Tab to accept, Escape
 (or Ctrl+G) to close. Matching ignores case and accents.
 
@@ -327,7 +379,8 @@ can be kept down for the second key (=Ctrl+X Ctrl+O= works as =Ctrl+X O=).
 * Links and tags
 
 ** Links between pages
-- =[[Page]]= or =[[Page][text shown]]=: link to a page.
+- =[[Page]]= or =[[Page][text shown]]=: link to a page; a page in a folder is named by
+  its path: =[[Games/Dragon]]= (see [[#folders][Folders]]).
 - =#keyword=: link to the page of that name (can be turned off). Dashes are allowed
   by default (=#my-tag=); unchecked, =#my-tag= is read as =#my=, as org-mode does.
 - Ctrl+click, or the "Open link" shortcut (Ctrl+Enter in Classic, Ctrl+C Ctrl+O in
@@ -1151,6 +1204,11 @@ screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
 - The pages on the left (type to filter them), =Enter= opens the page in the editor,
   =Esc= saves it and goes back to the list.
 - Quick open (=quick_open=): a box to find a page, as in the window.
+- Folders: the pages list is the same tree as in the window; =Enter=, =→= and =←= (or a
+  second click) unfold and fold a folder. The commands "new folder", "move page", "rename
+  folder", "delete folder" ask their folder at the bottom, =Tab= completes it.
+- Templates: "template Meeting" in quick open applies it; "edit template", "new template"
+  and "add suggested templates" too. Quick capture: the same shortcut as the window.
 - Mouse: a click puts the cursor or picks a page, =Ctrl+click= follows a link, the
   border of the list can be dragged. A right click in the page offers bold, italic,
   underline and strikethrough for the region (=C-SPC=), and quote for its lines or
@@ -1171,6 +1229,16 @@ screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
 - The session (pages and split screen) comes back on start, the git state is at the
   bottom right, the live preview and the link text first follow the settings.
 - What is copied goes to the system's clipboard too (OSC 52: kitty, foot, WezTerm…).
+- Git: the commit lists the files changed, all ticked (=Space= ticks one or not, =Enter=
+  shows its changes in colour, =c= commits the ticked ones); the history of a page shows
+  what each commit changed (=Enter=), =r= puts that version back in the editor (undo
+  takes it back).
+- Commands of the terminal (=>= in quick open): "delete page" (to the trash), "trash"
+  (=Enter= brings a page back), "empty trash", "undo replace" (the last replacement in
+  the project).
+- A link to a headline (=[[Page::*Titre]]=, =[[*Titre]]=, =<<cible>>=) opens the page on it.
+- A page changed on disk by another program (a sync tool, the window) is read again;
+  with unsaved changes, which text to keep is asked.
 
 ** Shortcuts the terminal can't do
 | Shortcut (Emacs profile)                  | Action                       | Why                                                                                                        |
@@ -1184,10 +1252,11 @@ screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
 Give these actions another key too in the profile (=C-x p g=, =C-x p r=, =C-x ←=,
 =C-c C-o=…): it works in both. What the terminal does differently: =Ctrl+,= opens
 =settings.yaml= in the editor (it counts at the next start), the graph is a list of
-links, a commit takes all the files, the history lists the commits without their changes.
+links.
 
 The configuration files are YAML, which takes comments (=#=): =settings.yaml= has,
-after each setting that does nothing in the terminal, the reason (“# TUI version: …”), and
+above each setting, what it does, and after each one that does nothing in the terminal,
+the reason (“# window only: …”), and
 each keybinding profile starts with these explanations. The =settings.json= and
 =keybindings/*.json= of older versions are converted once, and left as they are for an
 older version of the app.

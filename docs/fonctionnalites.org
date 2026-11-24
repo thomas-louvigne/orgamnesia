@@ -83,6 +83,60 @@ Le menu des projets ouvert par Ctrl+Alt+P :
 - *Supprimer* : clic droit sur la page (liste ou onglet), en dernier dans le menu.
   La page va dans la [[#corbeille][corbeille]] du projet.
 
+** Dossiers
+Les pages se rangent dans des dossiers et des sous-dossiers de =pages/=
+(=pages/Jeux/Quêtes/Dragon.org=).
+- *Nom d'une page* : son chemin depuis =pages/=, sans l'extension : =Jeux/Quêtes/Dragon=.
+  Les liens la nomment ainsi (=[[Jeux/Quêtes/Dragon]]=), comme l'ouverture rapide et
+  la complétion.
+- *La liste des pages* est un arbre : dossiers et pages mêlés, par ordre alphabétique
+  (sans tenir compte de la casse ni des accents), chaque dossier suivi de son nombre de
+  pages. Un clic replie ou déplie un dossier ; les dossiers repliés sont gardés pour
+  chaque projet. Les jours du journal sont dans un dossier « Journal » à part, replié au
+  départ, du plus récent au plus ancien. Le filtre déplie les dossiers des pages trouvées.
+- *Clic droit sur un dossier* : nouvelle page ici, nouveau dossier ici, renommer le
+  dossier, supprimer le dossier. *Sur une page* : « Déplacer dans un dossier… ». *Dans
+  le vide* : nouvelle page, nouveau dossier.
+- *Commandes* (liste des commandes =>=, sans raccourci par défaut) : « Nouveau dossier »,
+  « Déplacer la page dans un dossier », « Renommer un dossier », « Supprimer un dossier ».
+  Le nom se tape dans une petite boîte qui propose les dossiers (Tab prend le premier).
+- *Déplacer une page*, ou *renommer un dossier* (=Autre/Jeux= le déplace) : les liens qui
+  y mènent sont réécrits, comme pour un renommage. Le dossier emporte ses images et ses
+  autres fichiers ; c'est refusé si la destination existe déjà.
+- *Supprimer un dossier* (après confirmation) : ses pages vont à la [[#corbeille][corbeille]],
+  « Annuler » les ramène, dans leur dossier. Ce qui n'est pas une page reste en place.
+- Renommer une page avec un chemin (=Jeux/Dragon=) la déplace aussi.
+- Ne sont pas lus comme des pages : les dossiers cachés (=.git=…), =assets/=, le dossier
+  des modèles et celui du journal.
+- Un onglet trop long ne garde que ses derniers noms (=…/Quêtes/Dragon=) ; le chemin
+  complet s'affiche au survol.
+
+** Modèles de page
+Comme dans Obsidian : un modèle est une page d'un dossier du projet, =templates/= par
+défaut (Réglages > Modèles > « Dossier des modèles » ; le dossier =Templates= d'un coffre
+Obsidian marche tel quel). Ces fichiers ne sont pas des pages : ni dans la liste, ni dans
+les liens, les tags ou la recherche.
+- *Appliquer* : dans l'ouverture rapide, taper « modèle » propose « Modèle : Réunion »…
+  (seuls ceux du format de la page ouverte). Sur une page vide, ou qui n'a que son titre,
+  le modèle la remplace ; sinon une confirmation l'ajoute au curseur. Si la page contient
+  déjà un modèle (tous ses titres y sont), on choisit entre « Remplacer la page » et
+  « Ajouter au curseur ». Ctrl+Z annule.
+- *Variables* : ={{title}}= (le nom de la page), ={{date}}= (=2026-11-23=), ={{time}}=
+  (=14:05=), et des formats à la Obsidian : ={{date:DD/MM/YYYY}}=, ={{time:H[h]mm}}=
+  (=YYYY=, =YY=, =MM=, =M=, =DD=, =D=, =HH=, =H=, =mm=, =[texte]= tel quel).
+- *Réglages > Modèles* : la liste des modèles du projet (un clic l'ouvre dans l'éditeur),
+  un champ pour en créer un vide, et « Ajouter les modèles proposés » : Réunion,
+  Personne, Lecture, Projet, en org-mode ou en Markdown selon le format par défaut, en
+  français ou en anglais selon la langue.
+
+** Capture rapide
+Pour noter une idée sans quitter la page : « Capture rapide » (Ctrl+Alt+C en Classique,
+=C-c c= en Emacs, comme org-capture) partage l'écran et ouvre, à côté de la page, celle
+du jour (journal activé) ou la page =Inbox= (créée si besoin), le curseur sur une
+nouvelle note en fin de page : =- 14:05 =. Le même raccourci l'enregistre, referme la
+moitié capture et ramène le curseur sur la page. Si l'écran était déjà partagé, la
+capture prend la seconde moitié.
+
 ** Ouverture rapide
 Le raccourci « Ouverture rapide » (Ctrl+K en Classique, Ctrl+X B ou Alt+X en Emacs)
 ouvre un champ qui cherche, sans tenir compte de la casse ni des accents :
@@ -228,6 +282,9 @@ Pendant la frappe, une liste propose :
 - les tags existants dans les tags d'un titre (=* Titre :pro=), dans =#+FILETAGS:= ou
   après =:= dans le texte (accepter ajoute le =:= final).
 
+Une page dans un dossier se trouve aussi par son propre nom : =[[dra= propose
+=Jeux/Quêtes/Dragon=.
+
 Flèches haut et bas (ou Ctrl+N / Ctrl+P) pour choisir, Entrée ou Tab pour accepter,
 Échap (ou Ctrl+G) pour fermer. La recherche ignore la casse et les accents.
 
@@ -339,7 +396,8 @@ abandonnée après 4 secondes. On peut garder Ctrl enfoncé pour la deuxième to
 * Liens et tags
 
 ** Liens entre pages
-- =[[Page]]= ou =[[Page][texte affiché]]= : lien vers une page.
+- =[[Page]]= ou =[[Page][texte affiché]]= : lien vers une page ; une page rangée dans un
+  dossier se nomme par son chemin : =[[Jeux/Dragon]]= (voir [[#dossiers][Dossiers]]).
 - =#mot-clé= : lien vers la page du même nom (désactivable). Les tirets sont acceptés
   par défaut (=#mon-tag=) ; décoché, =#mon-tag= est lu comme =#mon=, comme org-mode.
 - Ctrl+clic, ou le raccourci « Suivre le lien » (Ctrl+Entrée en Classique,
@@ -1214,6 +1272,11 @@ projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profi
 - Liste des pages à gauche (on tape pour filtrer), =Entrée= ouvre la page dans
   l'éditeur, =Échap= l'enregistre et revient à la liste.
 - Ouverture rapide (=quick_open=) : une boîte de recherche des pages, comme dans la fenêtre.
+- Dossiers : la liste des pages est le même arbre que dans la fenêtre ; =Entrée=, =→= et =←=
+  (ou un second clic) déplient et replient un dossier. Les commandes « new folder », « move
+  page », « rename folder », « delete folder » demandent leur dossier en bas, =Tab= le complète.
+- Modèles : « template Réunion » dans l'ouverture rapide l'applique ; « edit template », « new
+  template » et « add suggested templates » aussi. Capture rapide : même raccourci que la fenêtre.
 - Souris : un clic place le curseur ou choisit une page, =Ctrl+clic= suit un lien, la
   bordure de la liste se déplace. Un clic droit dans la page propose gras, italique,
   souligné et barré pour la zone (=C-SPC=), et citation pour ses lignes ou la ligne
@@ -1236,6 +1299,16 @@ projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profi
   droite, l'aperçu en direct et la mise en avant du texte des liens suivent les réglages.
 - Ce qui est copié va aussi dans le presse-papiers du système (OSC 52 : kitty, foot,
   WezTerm…).
+- Git : le commit liste les fichiers modifiés, tous cochés (=Espace= coche ou décoche,
+  =Entrée= montre leurs différences en couleur, =c= commite les cochés) ; l'historique
+  d'une page montre ce que chaque commit a changé (=Entrée=), =r= remet cette version
+  dans l'éditeur (annuler la reprend).
+- Commandes du terminal (=>= dans l'ouverture rapide) : « delete page » (à la corbeille),
+  « trash » (=Entrée= ramène une page), « empty trash », « undo replace » (le dernier
+  remplacement dans le projet).
+- Un lien vers un titre (=[[Page::*Titre]]=, =[[*Titre]]=, =<<cible>>=) ouvre la page dessus.
+- Une page modifiée sur le disque par un autre programme (outil de synchro, la fenêtre)
+  est relue ; avec des modifications non enregistrées, on demande quel texte garder.
 
 ** Raccourcis incompatibles avec le terminal
 | Raccourci (profil Emacs)                  | Action                       | Pourquoi                                                                                                   |
@@ -1249,12 +1322,11 @@ projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profi
 Pour ces actions, gardez aussi une autre touche dans le profil (=C-x p g=, =C-x p r=,
 =C-x ←=, =C-c C-o=…) : elle marche dans les deux. Ce que le terminal fait autrement :
 =Ctrl+,= ouvre =settings.yaml= dans l'éditeur (il compte au prochain lancement), le
-graphe est une liste de liens, le commit prend tous les fichiers, l'historique liste
-les commits sans leurs différences.
+graphe est une liste de liens.
 
 Les fichiers de configuration sont en YAML, qui accepte les commentaires (=#=) :
-=settings.yaml= porte à la suite de chaque réglage sans effet dans le terminal la raison
-(« # TUI version: … »), et chaque profil de raccourcis commence par ces explications. Les
+=settings.yaml= porte au-dessus de chaque réglage ce qu'il fait, et à la suite de chaque
+réglage sans effet dans le terminal la raison (« # window only: … »), et chaque profil de raccourcis commence par ces explications. Les
 =settings.json= et =keybindings/*.json= des versions précédentes sont convertis une
 fois, et laissés tels quels pour une version plus ancienne de l'application.
 

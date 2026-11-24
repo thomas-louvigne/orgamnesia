@@ -177,7 +177,7 @@ mod tests {
         assert_eq!((s.vault_path.as_deref(), s.config.autosave), (Some("/x"), Some(false)));
         assert!(config.problems().is_empty());
         let text = std::fs::read_to_string(dir.join("settings.yaml")).unwrap();
-        assert!(!text.contains("projects") && text.contains("autosave: false"), "{text}");
+        assert!(!text.contains("\nprojects:") && text.contains("autosave: false"), "{text}");
         assert!(text.starts_with("# Orgamnesia"));
         // The JSON file stays, for an older version of the app
         assert!(dir.join("settings.json").exists());
@@ -221,7 +221,7 @@ mod tests {
         assert_eq!(c.git_commit_template.as_deref(), Some("Notes du {date}"));
         assert_eq!((s.vault_path.as_deref(), s.projects.len()), (Some("/notes"), 1));
         let yaml = std::fs::read_to_string(dir.join("settings.yaml")).unwrap();
-        assert!(yaml.starts_with("# Orgamnesia") && yaml.contains("# TUI version: no images"), "{yaml}");
+        assert!(yaml.starts_with("# Orgamnesia") && yaml.contains("# window only: no images"), "{yaml}");
         // The profile, YAML too, in effect
         assert!(dir.join("keybindings/Personnalisé.yaml").exists());
         let kb = config.keybindings(c.keybinding_profile.as_deref());

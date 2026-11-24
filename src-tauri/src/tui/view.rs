@@ -105,9 +105,17 @@ impl App {
             }
             let text: Vec<Line> = p.lines.iter().enumerate().map(|(i, l)| {
                 let s = if list && i == p.selected { Style::new().add_modifier(Modifier::REVERSED) } else { Style::new() };
+                // A diff: added lines green, removed ones red, the places of the changes cyan
+                let s = match l.as_bytes().first() {
+                    _ if !p.diff || l.starts_with("+++") || l.starts_with("---") => s,
+                    Some(b'+') => s.fg(Color::Green),
+                    Some(b'-') => s.fg(Color::Red),
+                    Some(b'@') => s.fg(Color::Cyan),
+                    _ => s,
+                };
                 Line::from(l.as_str()).style(s)
             }).collect();
-            let keys = if list { "↑↓ Enter, Esc closes" } else { "↑↓, any other key closes" };
+            let keys = p.keys.unwrap_or(if list { "↑↓ Enter, Esc closes" } else { "↑↓, any other key closes" });
             let empty = if p.lines.is_empty() { vec![Line::from("(nothing)")] } else { text };
             f.render_widget(Paragraph::new(empty).scroll((p.scroll, 0))
                 .block(Block::bordered().title(format!(" {} — {keys} ", p.title))), right);

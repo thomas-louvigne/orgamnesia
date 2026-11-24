@@ -4,6 +4,19 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.8.5
+- Dossiers : les pages se rangent dans des dossiers et sous-dossiers de =pages/=, nommés par leur chemin dans les liens (=[[Jeux/Dragon]]=). La liste des pages devient un arbre repliable, par ordre alphabétique, le journal dans un dossier à part. Clic droit ou commandes pour créer un dossier, y déplacer une page, renommer ou supprimer un dossier ; les liens suivent.
+- Modèles de page, comme dans Obsidian : les fichiers du dossier =templates/= (réglable), avec ={{title}}=, ={{date}}=, ={{time}}=, appliqués depuis l'ouverture rapide (taper « modèle »). Un onglet Modèles dans les réglages, et quatre modèles proposés : réunion, personne, lecture, projet.
+- Capture rapide : Ctrl+Alt+C (C-c c en Emacs) ouvre à côté de la page celle du jour (ou Inbox) sur une nouvelle note ; le même raccourci la referme.
+- Les noms d'onglets trop longs ne gardent que leurs derniers dossiers (…/Quêtes/Dragon).
+- Tout cela aussi dans le terminal, et dans « Le saviez-vous ? ».
+- Une page modifiée sur le disque par un autre programme (Syncthing, un autre éditeur) pendant qu'on l'édite n'est plus écrasée : l'application demande quel texte garder. Le terminal voit maintenant ces changements lui aussi.
+- =settings.yaml= explique chaque réglage dans un commentaire au-dessus.
+- Terminal : supprimer une page et la ramener de la corbeille (commandes « delete page », « trash », « empty trash »), annuler le dernier remplacement dans le projet ; un lien vers un titre (=[[Page::*Titre]]=) ouvre la page dessus.
+- Terminal : le commit liste les fichiers modifiés à cocher, avec leurs différences en couleur ; l'historique d'une page montre ce que chaque commit a changé, et remet une ancienne version.
+- Renommer un dossier de nombreuses pages est bien plus rapide ; une page dont les liens ne peuvent pas être mis à jour n'arrête plus un renommage en cours de route.
+- Git : quand git échoue, la fenêtre de commit ne montre plus une page comme entièrement ajoutée.
+
 * 1.8.4
 - Mode zen : le texte au milieu de l'écran, à une largeur de lecture.
 

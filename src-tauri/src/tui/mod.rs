@@ -53,6 +53,7 @@ pub fn run(folder: Option<String>) -> Result<(), String> {
     let project = Project::open(&path, prefs.tags(), prefs.formats(), &prefs.journal_folder, &prefs.templates_folder).map_err(|e| e.to_string())?;
     prune_trash(&project, &prefs);
     let mut app = App::new(project, prefs, kb);
+    app.watch_disk();
     app.projects = settings.projects.clone();
     // The columns as wide as they were dragged
     (app.split, app.right_split) = (settings.tui_left_width, settings.tui_right_width);
@@ -218,16 +219,26 @@ struct App {
     /// The projects of the settings, and the folder of the settings.
     projects: Vec<String>,
     config_dir: Option<PathBuf>,
+    /// The folders of the pages, read from the disk again only when they may have
+    /// changed (see `folders_changed`), not at each drawing.
+    folders: Vec<String>,
+    /// The pages open with unsaved changes that another program changed on disk:
+    /// which text to keep is asked, one after the other (see `disk_changes`).
+    disk_conflicts: Vec<String>,
+    /// Watches the project's folder (see `watch_disk`): set when a page changed
+    /// there. `None` (not watched): the folder is read again at each pause.
+    disk_watch: Option<(crate::watch::Watcher, std::sync::Arc<std::sync::atomic::AtomicBool>)>,
 }
 
 impl App {
     fn new(project: Project, prefs: Prefs, kb: Keybindings) -> Self {
+        let folders = project.folders();
         let mut app = Self {
             project, prefs, help: [help(&kb, false), help(&kb, true)], kb, chord: keys::Chord::default(),
             filter: String::new(), list: ListState::default(), editor: None, link: None,
             scroll: 0, height: 0, width: 0, split: None, total: 0, dragging: None, right_split: None, right_x: 0, list_area: Rect::default(), back: vec![], forward: vec![], status: String::new(), zen: false, tip: clock_nanos() as usize,
             page_area: Rect::default(), other_area: Rect::default(), other: None, split_dir: None, active_slot: 0, capture: None, closed: [orgamnesia_core::tree::JOURNAL.to_string()].into(), tabs: vec![], hits: None,
-            projects: vec![], config_dir: None, git: None, last_session: None,
+            projects: vec![], config_dir: None, git: None, last_session: None, folders, disk_conflicts: vec![], disk_watch: None,
             mode: Mode::Normal, frame_state: Default::default(), frame_areas: vec![], right_column: true,
         };
         app.list.select_first();
@@ -251,7 +262,24 @@ impl App {
         if self.hits.is_some() {
             return self.shown().into_iter().map(|f| Row::Page { name: f.name.clone(), file: f, depth: 0 }).collect();
         }
-        rows(&self.project.files(), &self.project.folders(), Some("Journal"), &self.closed, &self.filter)
+        rows(&self.project.files(), &self.folders, Some("Journal"), &self.closed, &self.filter)
+    }
+
+    /// Watch the open project's folder, so that `disk_changes` only reads it
+    /// again when a page changed there.
+    fn watch_disk(&mut self) {
+        use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+        let changed = Arc::new(AtomicBool::new(false));
+        let flag = changed.clone();
+        self.disk_watch = crate::watch::start(Path::new(&self.project.path), move |events| {
+            if crate::watch::touched(events.iter().map(|e| e.path.as_path())).0 { flag.store(true, Ordering::Relaxed); }
+        }).ok().map(|w| (w, changed));
+    }
+
+    /// The folders of the pages read again, after what may have made, moved or
+    /// deleted one (a page created in a folder, a rename, a pull…).
+    fn folders_changed(&mut self) {
+        self.folders = self.project.folders();
     }
 
     /// The page chosen in the list (none on a folder).
@@ -334,7 +362,12 @@ impl App {
                 if let Some(o) = &mut self.other && o.path == e.path { o.sync_from(e); }
                 true
             }
-            Err(err) => { self.status = format!("not saved: {err}"); false }
+            Err(err) => {
+                self.status = format!("not saved: {err}");
+                // Changed by another program: which text to keep is asked
+                if matches!(err, crate::error::AppError::ChangedOnDisk(_)) { self.disk_changes(true); }
+                false
+            }
         }
     }
 
@@ -434,6 +467,8 @@ impl App {
                     if self.git.as_ref().is_some_and(|g| g.remote) { let _ = crate::git::fetch(&self.project.path, &self.prefs.git_ssh_key); }
                     looked = None;
                 }
+                // The pages changed on disk by another program (a sync tool, the window)
+                self.disk_changes(false);
                 // The state at the bottom looked at again every few seconds
                 if looked.is_none_or(|t| t.elapsed().as_secs() >= 5) {
                     looked = Some(std::time::Instant::now());
@@ -555,7 +590,9 @@ impl App {
             if let Some(text) = e.clipboard.take() { commands::to_clipboard(&text); }
             if let Some(m) = e.message.take() { self.status = m; }
         }
-        if self.prefs.autosave && self.editor.as_ref().is_some_and(|e| e.dirty) {
+        // Not while a page changed on disk waits for its answer: saving would choose for it
+        let waiting = !self.disk_conflicts.is_empty() || matches!(&self.mode, Mode::Prompt(p) if p.asks_disk_conflict());
+        if self.prefs.autosave && !waiting && self.editor.as_ref().is_some_and(|e| e.dirty) {
             let status = std::mem::take(&mut self.status);
             if self.save() { self.status = status; }
         }
@@ -619,20 +656,41 @@ impl App {
             self.status = match crate::open_with_system(&outside) { Ok(()) => format!("opened {outside}"), Err(e) => e.to_string() };
             return;
         }
-        // `[[Page::*Titre]]`: the page; the place in it is not reached yet
-        let (name, _place) = links::split(target);
-        if name.is_empty() { self.status = "a place in this page: not in the terminal yet".into(); return; }
+        // `[[Page::*Titre]]`: the page, at the headline; `[[*Titre]]`: this page's
+        let (name, place) = links::split(target);
+        if name.is_empty() {
+            if let Some(place) = place {
+                if self.editor.is_none() && let Some(path) = current.clone() { self.edit(&path); }
+                self.goto_place(place);
+            }
+            return;
+        }
         let file = match self.resolver().resolve(name).cloned() {
             Some(f) => f,
             None => match self.project.create(name, None, self.prefs.tags()) {
-                Ok(f) => { self.status = format!("{name}: page created"); f }
+                Ok(f) => { self.folders_changed(); self.status = format!("{name}: page created"); f }
                 Err(e) => { self.status = e.to_string(); return; }
             },
         };
         if !self.save() { return; }
         self.back.extend(current);
         self.forward.clear();
-        self.show(&file.path);
+        match place {
+            // A place is in the editor, where the cursor can go
+            Some(place) => { self.edit(&file.path); self.goto_place(place); }
+            None => self.show(&file.path),
+        }
+    }
+
+    /// The cursor on the place `place` of the page edited: the headline of `*Titre`,
+    /// the `<<cible>>` of `cible` (else its headline), as the window finds them.
+    fn goto_place(&mut self, place: &str) {
+        let todo = self.prefs.todo();
+        let Some(e) = &mut self.editor else { return };
+        match links::find(&e.text(), place, todo.as_ref(), e.format()) {
+            Some((at, _)) => e.goto(at),
+            None => self.status = format!("{place}: not found in this page"),
+        }
     }
 
     /// Back to the page left by following a link (`forward`: the other way).
@@ -664,7 +722,7 @@ impl App {
         let page = match existing {
             Some(page) => page,
             None => match self.project.create(&name, None, self.prefs.tags()) {
-                Ok(page) => page,
+                Ok(page) => { self.folders_changed(); page }
                 Err(e) => { self.status = e.to_string(); return; }
             },
         };
@@ -717,7 +775,7 @@ impl App {
         let page = match existing {
             Some(page) => page,
             None => match self.project.create(&name, None, self.prefs.tags()) {
-                Ok(page) => page,
+                Ok(page) => { self.folders_changed(); page }
                 Err(e) => { self.status = e.to_string(); return; }
             },
         };

@@ -81,7 +81,9 @@ From the sources, =main= on Arch, macOS and Windows particulars:
   replace (Ctrl+Shift+F), page history, switching project from the keyboard.
 - *Graph* (beta): the pages and their links in 3D.
 - *Journal*: a page for each day, named by its date (=2026-11-15=). A shortcut opens today's page, and creates it if it doesn't exist yet.
-- *Random page*: a shortcut (or the =>= commands) opens a page picked at random, to bring old notes back.
+- *Folders*: pages go in folders and subfolders, shown as a foldable tree (the journal apart). Right click or commands to create, move, rename, delete; links follow (=[[Games/Dragon]]=).
+- *Page templates*, as in Obsidian: a =templates/= folder, ={{title}}=, ={{date}}=, applied from quick open. Four suggested ones (meeting, person, reading, project).
+- *Quick capture*: a shortcut opens, beside the page, the day's page (or =Inbox=) on a new note; the same one closes it.
 - *Zen mode*: =F11= leaves only the page, full screen; =F11= again brings everything back.
 - *Frames*: pages, backlinks, tags, to do, git, tips… placed where you want.
 - *Themes*: Night, Day, Fjord, Paper, Dracula, or your own in one CSS file.
@@ -144,7 +146,6 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Agenda: the =SCHEDULED:= and =DEADLINE:= of the pages, by date, in a frame
 - [ ] Agenda view: a calendar of the journal, to move from day to day and open the page of a date
 - [ ] Aliases (=#+ALIAS:=, Logseq's =alias::=): a page answering to several names
-- [X] Random page
 - [ ] Bring notes back: orphan pages (no link at all), what was written a year ago
 - [X] Page templates, as in Obsidian: a folder of the project (=templates/= by default, configurable), ={{title}}=, ={{date}}=, ={{time}}=, applied from the quick open, in the terminal too
 - [ ] Terminal in the editor

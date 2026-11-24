@@ -15,6 +15,8 @@ pub enum AppError {
     NotAPage(String),
     /// A page with this name already exists.
     PageExists(String),
+    /// The page changed on disk since the app last read or wrote it.
+    ChangedOnDisk(String),
     /// A page name must be non-empty and hold no `/` or `\`.
     InvalidName(String),
     /// Org-bloom failed; what it said.
@@ -78,6 +80,7 @@ impl AppError {
             Self::NotAFolder(p)    => ("not_a_folder", some(p), None),
             Self::NotAPage(p)      => ("not_a_page", some(p), None),
             Self::PageExists(n)    => ("page_exists", some(n), None),
+            Self::ChangedOnDisk(p) => ("changed_on_disk", some(p), None),
             Self::InvalidName(n)   => ("invalid_name", some(n), None),
             Self::OrgBloom(e)      => ("tool_output", some(e), None),
             Self::OrgBloomNotFound(c) => ("org_bloom_not_found", some(c), None),
@@ -118,7 +121,7 @@ mod tests {
         let all = [
             AppError::Io(std::io::Error::other("disk")), AppError::NoProject, AppError::VaultNotFound("v".into()),
             AppError::NotAFolder("f".into()), AppError::NotAPage("p".into()), AppError::PageExists("e".into()),
-            AppError::InvalidName("n".into()), AppError::OrgBloom("o".into()), AppError::OrgBloomNotFound("b".into()),
+            AppError::ChangedOnDisk("d".into()),            AppError::InvalidName("n".into()), AppError::OrgBloom("o".into()), AppError::OrgBloomNotFound("b".into()),
             AppError::CannotRun { program: "x".into(), error: "y".into() }, AppError::FolderNotFound("d".into()),
             AppError::Settings("s".into()), AppError::ConfigInvalid("c".into()), AppError::Dialog,
             AppError::Git("g".into()), AppError::NoRemote, AppError::Update("u".into()), AppError::NotAnImage("i".into()),
