@@ -31,18 +31,10 @@ for f in changelog.org changelog.fr.org; do
     grep -q "^\* $v\b" "$f" || sed -i "0,/^\* [0-9]/s//* $v\n\n&/" "$f"
 done
 
-srcinfo=packaging/arch-release/.SRCINFO
-if command -v makepkg >/dev/null; then
-    (cd packaging/arch-release && makepkg --printsrcinfo) > "$srcinfo.new"
-else
-    # makepkg refuses to run as root
-    docker run --rm -v "$PWD/packaging/arch-release:/pkg:ro" archlinux:latest bash -c \
-        'useradd -m b && install -o b -m 644 /pkg/PKGBUILD /home/b/ && cd /home/b && su b -c "makepkg --printsrcinfo"' > "$srcinfo.new"
-fi
-[[ -s "$srcinfo.new" ]] && mv "$srcinfo.new" "$srcinfo" || { rm -f "$srcinfo.new"; echo "the .SRCINFO could not be made" >&2; exit 1; }
+scripts/srcinfo.sh packaging/arch-release
 
 echo "Version $v written. Still to do:"
 echo "  - the notes of $v in changelog.org and changelog.fr.org"
 echo "  - python3 packaging/release/changelog.py check $v"
-echo "  - scripts/check.sh, then commit, tag v$v, push (the AUR after the tag)"
-echo "  - orgamnesia-bin once the release has its .pkg.tar.zst (packaging/arch-release/aur.org)"
+echo "  - scripts/check.sh, commit, git push origin main (the Release workflow tags v$v)"
+echo "  - once the release is on GitHub: scripts/aur.sh (both AUR packages)"

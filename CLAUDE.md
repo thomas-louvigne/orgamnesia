@@ -64,9 +64,11 @@ Parity: everything works in the window **and** the TUI. The usual path:
    `.SRCINFO` (in the `archlinux` Docker image), empty changelog sections.
 2. Write the notes in `changelog.org` and `changelog.fr.org` (for users, plain text),
    then `python3 packaging/release/changelog.py check X.Y.Z`.
-3. `scripts/check.sh`.
-4. AUR publication: `packaging/arch-release/aur.org`. `orgamnesia-bin`
-   (`packaging/arch-bin`) waits for the release's `.pkg.tar.zst`.
+3. `scripts/check.sh`, commit, `git push origin main` (by the user): the Release
+   workflow builds the packages and creates the tag `vX.Y.Z`.
+4. Once the release is on GitHub: `scripts/aur.sh` publishes both AUR packages
+   (`orgamnesia` from the tag, `orgamnesia-bin` with the checksum of the
+   release's `.pkg.tar.zst`). Details: `packaging/arch-release/aur.org`.
 
 ## Rules of the user
 

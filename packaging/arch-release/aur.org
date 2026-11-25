@@ -33,8 +33,13 @@ branch =master=.
 
 * Each release
 
-=scripts/bump.sh X.Y.Z= (at the root) already does what follows, with the
-rest of the version change. By hand, once the release's tag is on GitHub, from this folder:
+Once the release is on GitHub (pushing =main= with a new version makes it),
+=scripts/aur.sh= does all that follows for both packages: copy, commit and push
+to the AUR clones of =~/aur=, the checksum of =orgamnesia-bin= taken from the
+release's package.
+
+By hand: =scripts/bump.sh X.Y.Z= already did the following with the version
+change; once the release's tag is on GitHub, from this folder:
 
 #+BEGIN_SRC sh
 sed -i "s/^pkgver=.*/pkgver=X.Y.Z/; s/^pkgrel=.*/pkgrel=1/" PKGBUILD
