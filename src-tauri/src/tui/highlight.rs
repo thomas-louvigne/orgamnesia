@@ -1,7 +1,7 @@
 //! A page drawn in colour in the terminal: its lines cut into pieces by
 //! `orgamnesia_core::highlight`, as the window's editor cuts them, each piece
 //! given the colours of its class in the window's stylesheet (`.h1`, `.link-t`,
-//! `.em-b`… in `app.css`).
+//! `.em-b`… in `public/css/panels.css`).
 
 use orgamnesia_core::highlight::{self as hl, Node};
 use orgamnesia_core::{links, Format, TagSyntax, TodoKeywords};
@@ -127,7 +127,7 @@ impl Paint<'_, '_> {
         }
     }
 
-    /// `s` with the colours of the class `class` (`app.css`).
+    /// `s` with the colours of the class `class` (`public/css/panels.css`).
     fn style(&self, s: Style, class: &str, link_text: bool) -> Style {
         let first = self.d.text_first;
         match class {
@@ -146,6 +146,8 @@ impl Paint<'_, '_> {
             "tags" => s.fg(Color::Magenta),
             "tag-t" => s.add_modifier(Modifier::UNDERLINED),
             "kw" => s.fg(Color::DarkGray),
+            "fn" => s.fg(Color::Magenta),
+            "fn-def" => s.add_modifier(Modifier::BOLD),
             "tbl" => s.fg(Color::Cyan),
             "tbl-head" => s.add_modifier(Modifier::BOLD),
             "em-b" => s.add_modifier(Modifier::BOLD),
@@ -184,7 +186,7 @@ fn mark_found(st: &mut [Style], start: usize, found: &Found) {
 }
 
 /// A configuration file (YAML) in colour, as the window draws it
-/// (`src/highlight/yaml.rs`, `.cfg-*` in `app.css`), its pieces cut by the same
+/// (`src/highlight/yaml.rs`, `.cfg-*` in `public/css/lists.css`), its pieces cut by the same
 /// `yaml_tokens`: keys, strings, numbers, `true` / `false` / `null`,
 /// punctuation, comments.
 pub fn render_yaml(text: &str, found: &Found) -> Vec<Line<'static>> {

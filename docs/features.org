@@ -393,6 +393,20 @@ can be kept down for the second key (=Ctrl+X Ctrl+O= works as =Ctrl+X O=).
   for its target (the pages are proposed) and the text shown; the selected text
   becomes that text. On a link, it edits it.
 
+** Aliases
+A page can answer to other names: =#+ALIAS: Drake, Le dragon= (org-mode, on one or
+more lines), =alias:: Drake= (Logseq, both formats) or =aliases: [Drake]= in the front
+matter (Markdown, as Obsidian writes it). =[[Drake]]= then leads to the page: its
+backlinks, the graph and the completion of links count it. A page's own name wins
+over another page's alias. Renaming a page leaves the links naming an alias as they are.
+
+** Unlinked mentions
+Under the backlinks, the places other pages write the name of the page shown (or one
+of its aliases) as plain text: whole words, ignoring case and accents, outside links
+and =#+= lines; names of 3 letters at least. A click opens the page on the mention;
+"Link" makes it a link (=[[Dragon][dragon]]= when the text differs from the name). In
+the terminal, they follow the backlinks (F8); =l= makes the one chosen a link.
+
 ** Links to a headline or a target
 A link can lead to a place in a page, written as org-mode's search option
 (=[[file:page.org::*Title]]=):
@@ -431,6 +445,24 @@ first, and a time if wanted, and inserts an org-mode timestamp: =<2026-10-26 Mon
 =<2026-10-26 Mon 14:30>=. An active date =<…>= puts the entry in org-mode's agenda;
 an inactive one =[…]= (Ctrl+C ! in Emacs, or the box unchecked) only notes when. On
 a date, it edits it, keeping what follows the time (a repeater =+1w=…).
+
+** Calendar of the journal
+Beside the agenda (Ctrl+Alt+A, C-c a), the calendar of the month: today framed, the
+week shown shaded, a dot under each day having a page in the journal. A click shows
+the week of a day, a double click opens its page (made when there is none); =‹ ›=
+change the month. "Previous day of the journal" / "Next day of the journal"
+(Ctrl+Alt+PageUp / PageDown in Classic, C-c ← / C-c → in Emacs) open the page of the
+journal before or after the day shown (today, from another page). In the terminal,
+the agenda starts with the calendar as text: =[25]= today, =24•= a day of the journal.
+
+** Footnotes
+=[fn:1]= in org-mode, =[^1]= in Markdown; the definition on a line of its own:
+=[fn:1] Text=, =[^1]: Text=. Org-mode's inline notes =[fn:: Text]= are read too.
+"Insert a footnote" (Ctrl+Alt+F in Classic, C-c C-x f in Emacs) puts the next number
+at the cursor and its definition at the end of the page (in org-mode under a
+=Footnotes= headline, added when needed), the cursor on it. "Open link" on a reference
+goes to its definition, and from a definition back to its first reference. The
+export numbers them and gathers them at the end of the page.
 
 ** Org-mode tags
 - =#+FILETAGS: :a:b:= tags the whole page; =* Title :a:b:= tags a headline (its
@@ -675,7 +707,8 @@ you know?".
 
 [[file:images/side-panel.png]]
 
-- *Backlinks*: the pages linking to the page shown.
+- *Backlinks*: the pages linking to the page shown, then its unlinked mentions
+  (see [[#unlinked-mentions][Unlinked mentions]]).
 - *Tags*: every tag of the project with its count, and the tag search. The =+= of the
   header adds a tag to the page shown (in =#+FILETAGS:=); the =+= of a tag in the list
   adds that one directly.

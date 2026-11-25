@@ -24,7 +24,7 @@ git clone ssh://aur@aur.archlinux.org/orgamnesia.git ~/aur/orgamnesia
 cp PKGBUILD .SRCINFO ~/aur/orgamnesia/
 cd ~/aur/orgamnesia
 git add PKGBUILD .SRCINFO
-git commit -m "orgamnesia 1.9.0"
+git commit -m "orgamnesia 1.10.0"
 git push origin HEAD:master
 #+END_SRC
 
@@ -33,7 +33,8 @@ branch =master=.
 
 * Each release
 
-Once the release's tag is on GitHub, from this folder:
+=scripts/bump.sh X.Y.Z= (at the root) already does what follows, with the
+rest of the version change. By hand, once the release's tag is on GitHub, from this folder:
 
 #+BEGIN_SRC sh
 sed -i "s/^pkgver=.*/pkgver=X.Y.Z/; s/^pkgrel=.*/pkgrel=1/" PKGBUILD

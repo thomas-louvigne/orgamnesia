@@ -13,6 +13,8 @@ pub const MARK_ACTIONS: &[EditorAction] = &[EditorAction::SetMark, EditorAction:
 
 /// Application actions of the git extension; shown in their own section.
 pub const GIT_ACTIONS: &[AppAction] = &[AppAction::GitCommit, AppAction::GitPull, AppAction::GitPush, AppAction::GitHistory];
+/// The actions of the journal extension, left out while it is off.
+pub const JOURNAL_ACTIONS: &[AppAction] = &[AppAction::Journal, AppAction::JournalPrevious, AppAction::JournalNext];
 
 /// Editor actions of the TODO states; shown in their own section.
 pub const TODO_ACTIONS: &[EditorAction] = &[EditorAction::TodoNext, EditorAction::TodoPrev, EditorAction::Schedule, EditorAction::Deadline];

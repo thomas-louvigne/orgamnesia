@@ -26,7 +26,7 @@ pub async fn write_tab(ctx: AppCtx, tab: &Tab) -> bool {
         }
         if tab.content.try_get_untracked().is_none_or(|c| c == content) {
             tab.dirty.try_set(false);
-            ctx.bump_links();
+            ctx.page_written(&tab.path, &content);
             return true;
         }
     }

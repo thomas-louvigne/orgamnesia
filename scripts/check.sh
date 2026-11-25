@@ -13,6 +13,11 @@ export RUSTFLAGS="-D warnings" CARGO_TERM_COLOR=always
 
 step() { printf '\n\033[1;35m==> %s\033[0m\n' "$*"; }
 
+step "No code file over 500 lines (split it by theme)"
+too_long=$(git ls-files -co --exclude-standard -- '*.rs' '*.css' '*.sh' '*.py' '*.js' \
+    | xargs wc -l | awk '$1 > 500 && $2 != "total" { print "  " $1 "  " $2 }')
+if [[ -n "$too_long" ]]; then echo "$too_long"; exit 1; fi
+
 step "Rust stable up to date (the CI's version)"
 rustup update stable --no-self-update >/dev/null
 rustup target add wasm32-unknown-unknown >/dev/null

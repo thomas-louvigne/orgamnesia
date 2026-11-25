@@ -39,6 +39,9 @@ pub struct Resolver<'a> {
     files: Cow<'a, [FileEntry]>,
     /// Indexes in `files` of the pages, by the key of their name (without extension).
     by_name: HashMap<String, Vec<usize>>,
+    /// Index in `files` of the page, by the key of each of its aliases (the first
+    /// page giving it).
+    by_alias: HashMap<String, usize>,
 }
 
 impl<'a> Resolver<'a> {
@@ -46,10 +49,12 @@ impl<'a> Resolver<'a> {
     pub fn new(files: impl Into<Cow<'a, [FileEntry]>>, loose: bool, default: Format) -> Self {
         let files = files.into();
         let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut by_alias: HashMap<String, usize> = HashMap::new();
         for (i, f) in files.iter().enumerate() {
             by_name.entry(page_key(f.name.trim(), loose)).or_default().push(i);
+            for a in &f.aliases { by_alias.entry(page_key(a.trim(), loose)).or_insert(i); }
         }
-        Self { loose, default, files, by_name }
+        Self { loose, default, files, by_name, by_alias }
     }
 
     fn pages(&self, key: &str) -> impl Iterator<Item = &FileEntry> {
@@ -57,8 +62,14 @@ impl<'a> Resolver<'a> {
     }
 
     /// The page `name` leads to: `Note.md` to that file when it exists; `Note` to
-    /// the page of that name, the one of the default format when there are two.
+    /// the page of that name, the one of the default format when there are two;
+    /// else to the page having `Note` as an alias.
     pub fn resolve(&self, name: &str) -> Option<&FileEntry> {
+        self.resolve_name(name).or_else(|| self.by_alias.get(&page_key(name.trim(), self.loose)).map(|&i| &self.files[i]))
+    }
+
+    /// The page `name` leads to by the page names alone, not their aliases.
+    pub fn resolve_name(&self, name: &str) -> Option<&FileEntry> {
         let name = name.trim();
         if let Some((stem, format)) = split_ext(name)
             && let Some(f) = self.pages(&page_key(stem.trim(), self.loose)).find(|f| Format::of_path(&f.path) == Some(format))
@@ -78,6 +89,12 @@ impl<'a> Resolver<'a> {
     /// Whether another page has the name of `file`, in the other format.
     pub fn has_twin(&self, file: &FileEntry) -> bool {
         self.by_name.get(&page_key(file.name.trim(), self.loose)).is_some_and(|fs| fs.len() > 1)
+    }
+
+    /// The names links can give the pages, to complete them: each one's link
+    /// name (see `link_name`), then its aliases.
+    pub fn link_names(&self) -> Vec<String> {
+        self.files.iter().flat_map(|f| std::iter::once(self.link_name(f)).chain(f.aliases.iter().cloned())).collect()
     }
 
     /// The name links give `file`: its name, or with its extension when its
@@ -113,7 +130,7 @@ mod tests {
 
     fn entry(path: &str) -> FileEntry {
         let name = file_name(path).rsplit_once('.').unwrap().0.to_string();
-        FileEntry { name, path: path.to_string() }
+        FileEntry { name, path: path.to_string(), ..Default::default() }
     }
 
     #[test]
@@ -139,5 +156,17 @@ mod tests {
         assert_eq!(r.resolve("Note").unwrap().path, "/p/Note.md");
         assert!(r.resolve("note").is_none());
         assert_eq!(r.link_name(&files[0]), "Note.org");
+    }
+
+    #[test]
+    fn aliases_lead_to_their_page_after_the_names() {
+        let mut dragon = entry("/p/Dragon.org");
+        dragon.aliases = vec!["Le dragon".into(), "Note".into()];
+        let files = vec![dragon, entry("/p/Note.org")];
+        let r = Resolver::new(&files, true, Format::Org);
+        assert_eq!(r.resolve("le Dragon").unwrap().path, "/p/Dragon.org");
+        assert!(r.resolve_name("Le dragon").is_none());
+        // A page's own name wins over another's alias
+        assert_eq!(r.resolve("Note").unwrap().path, "/p/Note.org");
     }
 }

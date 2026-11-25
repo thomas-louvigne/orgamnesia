@@ -202,7 +202,7 @@ pub fn ProjectSearchPopin() -> impl IntoView {
     });
     let open_hit = move |page: String, path: String, start: usize, end: usize| {
         ctx.ui.search.open.set(None);
-        actions::open_file(ctx, FileEntry { name: page, path }, Some(Goto::Range(start, end)));
+        actions::open_file(ctx, FileEntry { name: page, path, ..Default::default() }, Some(Goto::Range(start, end)));
     };
     let open_selected = move || {
         if let Some((page, path, a, b)) = flat().into_iter().nth(selected.get_untracked()) {

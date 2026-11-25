@@ -3,10 +3,13 @@
 use serde::{Deserialize, Serialize};
 
 /// A page of the project.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct FileEntry {
     pub name: String,
     pub path: String,
+    /// Its other names (see `aliases`): links naming them lead to it too.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
 }
 
 /// The pages of the project and the links between them, for the graph view.
@@ -195,6 +198,24 @@ pub struct TodoHit {
     /// It has a `SCHEDULED:` or `DEADLINE:` date.
     #[serde(default)]
     pub dated: bool,
+}
+
+/// A page's name, or one of its aliases, written in another page without a link.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MentionHit {
+    /// The page writing it, and its file.
+    pub page: String,
+    pub path: String,
+    /// Line in that page (0-based), and char range in its text.
+    pub line: usize,
+    pub start: usize,
+    pub end: usize,
+    /// The text of the mention, as written.
+    pub text: String,
+    /// The name a link to the page mentioned uses (its name, or the alias written).
+    pub target: String,
+    /// Its line, trimmed.
+    pub context: String,
 }
 
 /// A line of the agenda: a headline on a day, somewhere in the project.

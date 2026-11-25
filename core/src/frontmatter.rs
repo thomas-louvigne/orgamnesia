@@ -49,8 +49,25 @@ pub fn title(text: &str) -> Option<String> {
 /// The `tags:` of the front matter (`[a, b]`, `a, b`, `a b`, or a `- a` list
 /// under it), without a leading `#`.
 pub fn tags(text: &str) -> Vec<String> {
+    list(text, &["tags", "tag"], true).into_iter()
+        .map(|w| w.strip_prefix('#').map(|w| w.trim().to_string()).unwrap_or(w))
+        .filter(|w| !w.is_empty())
+        .fold(Vec::new(), |mut out, w| { if !out.contains(&w) { out.push(w); } out })
+}
+
+/// The `aliases:` (or `alias:`) of the front matter, as Obsidian writes them:
+/// `[a, b]`, `a, b` or a `- a` list under it. Commas only part them: an alias
+/// may hold spaces.
+pub fn aliases(text: &str) -> Vec<String> {
+    list(text, &["aliases", "alias"], false)
+}
+
+/// The values of the first of `keys` in the front matter: `[a, b]`, `a, b`
+/// (and `a b` with `spaces`), or a `- a` list under it. Unquoted, without empty
+/// ones or doubles.
+fn list(text: &str, keys: &[&str], spaces: bool) -> Vec<String> {
     let Some((fields, _)) = lines(text) else { return vec![] };
-    let Some((n, v)) = value(&fields, "tags").or_else(|| value(&fields, "tag")) else { return vec![] };
+    let Some((n, v)) = keys.iter().find_map(|k| value(&fields, k)) else { return vec![] };
     let v = v.trim();
     let words: Vec<&str> = if v.is_empty() {
         fields[n + 1..].iter()
@@ -59,12 +76,11 @@ pub fn tags(text: &str) -> Vec<String> {
             .collect()
     } else {
         let v = v.strip_prefix('[').and_then(|v| v.strip_suffix(']')).unwrap_or(v);
-        v.split([',', ' ']).collect()
+        if spaces { v.split([',', ' ']).collect() } else { v.split(',').collect() }
     };
     let mut out: Vec<String> = Vec::new();
     for w in words {
-        let w = unquote(w);
-        let w = w.strip_prefix('#').unwrap_or(w).trim();
+        let w = unquote(w).trim();
         if !w.is_empty() && !out.iter().any(|t| t == w) { out.push(w.to_string()); }
     }
     out
@@ -129,6 +145,8 @@ mod tests {
         assert_eq!(tags("---\ntags: a, b c\n---"), vec!["a", "b", "c"]);
         assert!(title("# Pas d'en-tête\n---\ntitle: x\n---").is_none());
         assert!(title("---\ntitle: x\n").is_none());
+        assert_eq!(aliases("---\naliases: [Le Dragon, \"Drake\"]\n---"), vec!["Le Dragon", "Drake"]);
+        assert_eq!(aliases("---\nalias:\n  - Un nom\n  - Deux\n---"), vec!["Un nom", "Deux"]);
     }
 
     #[test]

@@ -3,15 +3,22 @@
 //! list and edited there; their links followed; the shortcuts those of the
 //! window (the keybinding profile in effect).
 
+mod agenda;
 mod commands;
 mod complete;
+mod quick;
 mod editor;
+mod frames;
+mod git;
 mod input;
 mod view;
 #[cfg(test)]
 mod tests;
 mod highlight;
 mod keys;
+mod navigation;
+mod pages;
+mod panes;
 
 use std::path::{Path, PathBuf};
 
@@ -141,11 +148,11 @@ pub(super) enum Mode {
     /// A frame of a column (TODO, tags, backlinks, broken links).
     Frame(orgamnesia_core::Frame),
     /// Text or a list over the page (the shortcuts, a panel, the history…).
-    Popup(commands::Popup),
+    Popup(frames::Popup),
     /// A value typed at the bottom (a link, a date, a tag, a search…).
     Prompt(commands::Prompt),
     /// The quick open.
-    Quick(commands::Quick),
+    Quick(quick::Quick),
     /// The names completing what is typed at the cursor (a link, a tag).
     Suggest(complete::Suggest),
     /// The page's replacement going on: what, with what.
@@ -333,122 +340,6 @@ impl App {
         highlight::links(&text, &self.draw_of(&path, None, &|_| false))
     }
 
-    /// Another page chosen: no link of it chosen yet, seen from its top.
-    fn moved(&mut self) {
-        self.link = None;
-        self.scroll = 0;
-    }
-
-    /// Choose the page `path`, the filter cleared.
-    fn select_path(&mut self, path: &str) {
-        self.filter.clear();
-        // Its folders unfolded
-        let name = self.project.name_of(path);
-        let mut at = 0;
-        while let Some(i) = name[at..].find('/') { self.closed.remove(&name[..at + i]); at += i + 1; }
-        if orgamnesia_core::tree::is_day(&name) { self.closed.remove(orgamnesia_core::tree::JOURNAL); }
-        let i = self.rows().iter().position(|r| matches!(r, orgamnesia_core::tree::Row::Page { file, .. } if file.path == path));
-        self.list.select(i);
-        self.moved();
-    }
-
-    /// Write the page edited, if changed; false when it could not be (the
-    /// editor then stays, its text kept).
-    fn save(&mut self) -> bool {
-        let Some(e) = self.editor.as_mut().filter(|e| e.dirty) else { return true };
-        let written = if e.page { self.project.write(&e.path, e.text(), self.prefs.tags()) } else { crate::write_atomic(&e.path, e.text()).map_err(Into::into) };
-        match written {
-            Ok(()) => {
-                e.dirty = false;
-                self.status = "saved".into();
-                if let Some(o) = &mut self.other && o.path == e.path { o.sync_from(e); }
-                true
-            }
-            Err(err) => {
-                self.status = format!("not saved: {err}");
-                // Changed by another program: which text to keep is asked
-                if matches!(err, crate::error::AppError::ChangedOnDisk(_)) { self.disk_changes(true); }
-                false
-            }
-        }
-    }
-
-    /// Leave the editor, the page saved; false when it could not be.
-    fn close(&mut self) -> bool {
-        if !self.save() || !self.save_other() { return false; }
-        self.editor = None;
-        self.single();
-        true
-    }
-
-    /// Back to the list of the pages, the pages edited saved; the screen stays
-    /// split, the page chosen then opened in the active window. False when not saved.
-    fn back_to_list(&mut self) -> bool {
-        if !self.save() || !self.save_other() { return false; }
-        self.editor = None;
-        true
-    }
-
-    /// The previewed page edited first, so that the window left keeps it.
-    fn edit_previewed(&mut self) {
-        if self.editor.is_none() && let Some(p) = self.selected() { self.edit(&p.path); }
-    }
-
-    /// Write the page of the other window, if it is another page and changed.
-    fn save_other(&mut self) -> bool {
-        let same = matches!((&self.editor, &self.other), (Some(a), Some(b)) if a.path == b.path);
-        if same || !self.other.as_ref().is_some_and(|o| o.dirty) { return true; }
-        self.swap();
-        let saved = self.save();
-        self.swap();
-        saved
-    }
-
-    /// The other window becomes the active one; on the same page, with its text.
-    fn swap(&mut self) {
-        std::mem::swap(&mut self.editor, &mut self.other);
-        self.active_slot ^= 1;
-        if let (Some(a), Some(b)) = (&mut self.editor, &self.other) && a.path == b.path { a.sync_from(b); }
-    }
-
-    /// The screen split `dir` (the page in both halves), else turned the other way.
-    fn split(&mut self, dir: Direction) {
-        if self.editor.is_none() && let Some(p) = self.selected() { self.edit(&p.path); }
-        let Some(e) = &self.editor else { return };
-        if self.other.is_none() { self.other = Some(e.twin()); }
-        self.split_dir = Some(dir);
-    }
-
-    /// One window only: the other one closed (its page saved).
-    fn single(&mut self) {
-        self.other = None;
-        self.split_dir = None;
-        self.active_slot = 0;
-    }
-
-    /// Edit the page `path` (the one edited saved first).
-    fn edit(&mut self, path: &str) {
-        if !self.save() { return; }
-        match self.project.read(path) {
-            Ok(text) => {
-                let query = self.hits.as_ref().map(|(q, _)| q.clone());
-                self.select_path(path);
-                let mut e = Editor::new(path.to_string(), &text, true);
-                e.prefs = editor::EditPrefs::from(&self.prefs);
-                // Opened from a search of the project: on its first match
-                if let Some(q) = query { e.search_for(&q); }
-                self.editor = Some(e);
-                if !self.tabs.iter().any(|t| t == path) { self.tabs.push(path.to_string()); }
-            }
-            Err(e) => self.status = e.to_string(),
-        }
-    }
-
-    /// Go to the page `path`: edited when the editor is open, else chosen.
-    fn show(&mut self, path: &str) {
-        if self.editor.is_some() { self.edit(path); } else { self.select_path(path); }
-    }
-
     fn run(&mut self, terminal: &mut DefaultTerminal) -> std::io::Result<()> {
         let minutes = |n: u64| std::time::Duration::from_secs(n * 60);
         let (mut synced, mut fetched, mut looked) = (std::time::Instant::now(), None::<std::time::Instant>, None::<std::time::Instant>);
@@ -499,52 +390,7 @@ impl App {
         self.git = self.prefs.git_ext.then(|| crate::git::status(&self.project.path)).flatten().filter(|g| g.repo);
     }
 
-    /// Open again the pages and windows of `session`, when it is this project's
-    /// (the pages deleted since left out), as the window does.
-    fn restore_session(&mut self, session: orgamnesia_core::Session) {
-        let same = |a: &str, b: &str| a.trim_end_matches('/') == b.trim_end_matches('/');
-        if !same(&crate::slash(&session.project), &self.project.path) { return; }
-        let files = self.project.files();
-        let exists = |p: &Option<String>| p.clone().filter(|p| files.iter().any(|f| f.path == *p));
-        self.tabs = session.tabs.iter().filter(|t| files.iter().any(|f| f.path == **t)).cloned().collect();
-        let (Some(first), second) = (exists(&session.active), exists(&session.other)) else { return };
-        // The window with the focus is the one edited, the other one beside it
-        let (focused, beside) = match (&second, session.focus_second) {
-            (Some(second), true) => (second.clone(), Some(first)),
-            _ => (first, second),
-        };
-        self.edit(&focused);
-        let (Some(split), Some(beside)) = (session.split, beside) else { return };
-        if let Ok(text) = self.project.read(&beside) {
-            let mut e = Editor::new(beside, &text, true);
-            e.prefs = editor::EditPrefs::from(&self.prefs);
-            self.other = Some(e);
-            self.split_dir = Some(match split {
-                orgamnesia_core::SplitKind::Vertical => Direction::Horizontal,
-                orgamnesia_core::SplitKind::Horizontal => Direction::Vertical,
-            });
-            self.active_slot = session.focus_second as usize;
-        }
-    }
-
-    /// The pages and windows open, as the window saves them on quit.
-    fn session(&self) -> Option<orgamnesia_core::Session> {
-        let (first, second) = if self.active_slot == 0 { (&self.editor, &self.other) } else { (&self.other, &self.editor) };
-        let page = |e: &Option<Editor>| e.as_ref().filter(|e| e.page).map(|e| e.path.clone());
-        Some(orgamnesia_core::Session {
-            project: self.project.path.clone(),
-            tabs: self.tabs.clone(),
-            active: page(first),
-            split: self.split_dir.filter(|_| self.other.is_some()).map(|d| match d {
-                Direction::Horizontal => orgamnesia_core::SplitKind::Vertical,
-                Direction::Vertical => orgamnesia_core::SplitKind::Horizontal,
-            }),
-            other: page(second),
-            focus_second: self.active_slot == 1 && self.other.is_some(),
-        })
-    }
-
-    pub(super) fn popup(&self) -> Option<&commands::Popup> {
+    pub(super) fn popup(&self) -> Option<&frames::Popup> {
         if let Mode::Popup(p) = &self.mode { Some(p) } else { None }
     }
 
@@ -579,211 +425,11 @@ impl App {
     /// The focus on the frame `frame`, on its first line leading somewhere.
     pub(super) fn focus_frame(&mut self, frame: orgamnesia_core::Frame) {
         let (_, items) = self.frame_items(frame);
-        let first = items.iter().position(|(_, t)| *t != commands::Target::None);
+        let first = items.iter().position(|(_, t)| *t != frames::Target::None);
         let state = self.frame_state.entry(frame).or_default();
         if state.selected().is_none_or(|i| i >= items.len()) { state.select(first); }
         self.mode = Mode::Frame(frame);
     }
-
-    /// After a key or a click: what the editor copied to the clipboard, what
-    /// it says, and the page saved when the settings say so (`autosave`).
-    fn after_event(&mut self) {
-        if let Some(e) = &mut self.editor {
-            if let Some(text) = e.clipboard.take() { commands::to_clipboard(&text); }
-            if let Some(m) = e.message.take() { self.status = m; }
-        }
-        // Not while a page changed on disk waits for its answer: saving would choose for it
-        let waiting = !self.disk_conflicts.is_empty() || matches!(&self.mode, Mode::Prompt(p) if p.asks_disk_conflict());
-        if self.prefs.autosave && !waiting && self.editor.as_ref().is_some_and(|e| e.dirty) {
-            let status = std::mem::take(&mut self.status);
-            if self.save() { self.status = status; }
-        }
-    }
-
-    /// Escape: leave the link chosen, else the filter; with neither, quit.
-    fn cancel(&mut self) -> bool {
-        if self.link.is_some() { self.link = None; return false; }
-        if !self.filter.is_empty() || self.hits.is_some() { self.filter.clear(); self.hits = None; self.list.select_first(); self.moved(); return false; }
-        true
-    }
-
-    /// Choose the next link of the page (the previous one with `!forward`), in view.
-    fn next_link(&mut self, forward: bool) {
-        let links = self.page_links();
-        if links.is_empty() { self.status = "no link in this page".into(); return; }
-        let n = links.len();
-        let i = match self.link {
-            Some(i) if forward => (i + 1) % n,
-            Some(i) => (i + n - 1) % n,
-            None if forward => 0,
-            None => n - 1,
-        };
-        self.link = Some(i);
-        self.scroll = (links[i].line as u16).saturating_sub(self.height / 3);
-        self.status = links[i].target.clone();
-    }
-
-    fn follow_chosen(&mut self) {
-        if let Some(l) = self.link.and_then(|i| self.page_links().into_iter().nth(i)) { self.follow(&l.target); }
-    }
-
-    /// Follow the link under the cursor of the editor.
-    fn follow_at_cursor(&mut self) {
-        match self.link_at_cursor() {
-            Some(target) => self.follow(&target),
-            None => self.status = "no link under the cursor".into(),
-        }
-    }
-
-    /// The target of the link under the cursor of the page, if any.
-    fn link_at_cursor(&self) -> Option<String> {
-        let (line, col) = self.editor.as_ref()?.line_col();
-        self.page_links().into_iter().find(|l| l.line == line && (l.start..=l.end).contains(&col)).map(|l| l.target)
-    }
-
-    /// Follow the link `target` as the window does: an address or a file with the
-    /// system's program, a page shown (made when there is none).
-    fn follow(&mut self, target: &str) {
-        let current = self.current_path();
-        let outside = if target.contains("://") || target.starts_with("mailto:") {
-            Some(target.to_string())
-        } else {
-            links::file_target(target).map(|f| {
-                let f = crate::expand_home(f);
-                let base = current.as_deref().and_then(|c| Path::new(c).parent().map(Path::to_path_buf)).unwrap_or_default();
-                crate::slash(base.join(f))
-            })
-        };
-        if let Some(outside) = outside {
-            self.status = match crate::open_with_system(&outside) { Ok(()) => format!("opened {outside}"), Err(e) => e.to_string() };
-            return;
-        }
-        // `[[Page::*Titre]]`: the page, at the headline; `[[*Titre]]`: this page's
-        let (name, place) = links::split(target);
-        if name.is_empty() {
-            if let Some(place) = place {
-                if self.editor.is_none() && let Some(path) = current.clone() { self.edit(&path); }
-                self.goto_place(place);
-            }
-            return;
-        }
-        let file = match self.resolver().resolve(name).cloned() {
-            Some(f) => f,
-            None => match self.project.create(name, None, self.prefs.tags()) {
-                Ok(f) => { self.folders_changed(); self.status = format!("{name}: page created"); f }
-                Err(e) => { self.status = e.to_string(); return; }
-            },
-        };
-        if !self.save() { return; }
-        self.back.extend(current);
-        self.forward.clear();
-        match place {
-            // A place is in the editor, where the cursor can go
-            Some(place) => { self.edit(&file.path); self.goto_place(place); }
-            None => self.show(&file.path),
-        }
-    }
-
-    /// The cursor on the place `place` of the page edited: the headline of `*Titre`,
-    /// the `<<cible>>` of `cible` (else its headline), as the window finds them.
-    fn goto_place(&mut self, place: &str) {
-        let todo = self.prefs.todo();
-        let Some(e) = &mut self.editor else { return };
-        match links::find(&e.text(), place, todo.as_ref(), e.format()) {
-            Some((at, _)) => e.goto(at),
-            None => self.status = format!("{place}: not found in this page"),
-        }
-    }
-
-    /// Back to the page left by following a link (`forward`: the other way).
-    fn go(&mut self, forward: bool) {
-        if !self.save() { return; }
-        let current = self.current_path();
-        let (from, to) = if forward { (&mut self.forward, &mut self.back) } else { (&mut self.back, &mut self.forward) };
-        let Some(path) = from.pop() else { return };
-        to.extend(current);
-        self.show(&path);
-    }
-
-    /// Quick capture, as the window does it (see `orgamnesia_core::capture`): the
-    /// page notes go to (the day's, else `Inbox`, made if needed) in the other
-    /// window, the screen split when it isn't, a new note at its end. Again, it
-    /// closes (saved), back to the page edited.
-    fn capture(&mut self) {
-        if let Some(split_here) = self.capture.take() && self.other.is_some() {
-            if !self.save() { self.capture = Some(split_here); return; }
-            self.swap();
-            if split_here { self.single(); }
-            return;
-        }
-        use chrono::{Datelike, Timelike};
-        let t = chrono::Local::now();
-        let now = orgamnesia_core::templates::Now { year: t.year(), month: t.month(), day: t.day(), hour: t.hour(), minute: t.minute() };
-        let name = orgamnesia_core::capture::page(self.prefs.journal, now);
-        let existing = self.project.files().into_iter().find(|f| f.name.eq_ignore_ascii_case(&name));
-        let page = match existing {
-            Some(page) => page,
-            None => match self.project.create(&name, None, self.prefs.tags()) {
-                Ok(page) => { self.folders_changed(); page }
-                Err(e) => { self.status = e.to_string(); return; }
-            },
-        };
-        if self.editor.is_some() {
-            let split_here = self.other.is_none();
-            if split_here { self.split(Direction::Horizontal); }
-            self.swap();
-            self.capture = Some(split_here);
-        }
-        self.edit(&page.path);
-        if let Some(e) = self.editor.as_mut().filter(|e| e.path == page.path) {
-            let text = e.text();
-            let end = text.chars().count();
-            e.put(end, end, &orgamnesia_core::capture::entry(&text, now));
-        }
-        if let Some(keys) = self.shortcut("capture") { self.status = format!("capture: {keys} again to close"); }
-    }
-
-    fn journal(&mut self) {
-        if !self.prefs.journal { self.status = "the journal extension is off (settings)".into(); return; }
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-        self.open_or_create(today);
-    }
-
-    /// The first shortcut of the action `id`, as the terminal shows it.
-    fn shortcut(&self, id: &str) -> Option<String> {
-        self.kb.app.get(id).and_then(|b| b.iter().find(|b| !b.is_empty())).map(|b| keys::display(b))
-    }
-
-    /// Edit a page picked at random, other than the one edited.
-    fn random_page(&mut self) {
-        let r = clock_nanos() as f64 / 1e9;
-        let files = self.project.files();
-        let shown = self.editor.as_ref().map(|e| e.path.as_str());
-        match orgamnesia_core::pages::random_page(&files, shown, r).map(|f| f.path.clone()) {
-            Some(path) => self.edit(&path),
-            None => self.status = "no page in this project yet".into(),
-        }
-    }
-
-    /// Edit the page `name`, made first when there is none.
-    fn open_or_create(&mut self, name: String) {
-        if name.is_empty() { self.status = "type the name of the new page first".into(); return; }
-        let existing = self.project.files().into_iter().find(|f| f.name.eq_ignore_ascii_case(&name));
-        // The format of each new page asked, when the settings say so
-        if existing.is_none() && self.prefs.ask_format && !self.prefs.single_format {
-            self.ask_format(name);
-            return;
-        }
-        let page = match existing {
-            Some(page) => page,
-            None => match self.project.create(&name, None, self.prefs.tags()) {
-                Ok(page) => { self.folders_changed(); page }
-                Err(e) => { self.status = e.to_string(); return; }
-            },
-        };
-        self.edit(&page.path);
-    }
-
 }
 
 /// shortcut: the clock's nanoseconds as the dice, enough to pick a page or a tip.

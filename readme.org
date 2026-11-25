@@ -140,17 +140,17 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Vi keybindings
 - [X] Second brain with AI: a =CLAUDE.md= template ([[file:docs/CLAUDE.template.md][docs/CLAUDE.template.md]]) to put in a project, so an agent (Claude Code…) understands the pages, links, tags and TODOs
 - [ ] MCP server: search, read, backlinks, tags, TODOs and page creation from Claude Desktop, Claude Code or another client
-- [ ] Unlinked mentions: the pages naming the open page without a link, with a button to link them
+- [X] Unlinked mentions: the pages naming the open page without a link, with a button to link them
 - [X] Quick capture: a shortcut (=Ctrl+Alt+C=, =C-c c=) opens the day's page (or =Inbox=) beside the page, on a new note; again, it closes it. In the terminal too
 - [ ] Weekly review (pages changed, open TODOs)
-- [ ] Agenda: the =SCHEDULED:= and =DEADLINE:= of the pages, by date, in a frame
-- [ ] Agenda view: a calendar of the journal, to move from day to day and open the page of a date
-- [ ] Aliases (=#+ALIAS:=, Logseq's =alias::=): a page answering to several names
+- [X] Agenda: the =SCHEDULED:= and =DEADLINE:= of the pages, by date, in a frame
+- [X] Agenda view: a calendar of the journal, to move from day to day and open the page of a date
+- [X] Aliases (=#+ALIAS:=, Logseq's =alias::=): a page answering to several names
 - [ ] Bring notes back: orphan pages (no link at all), what was written a year ago
 - [X] Page templates, as in Obsidian: a folder of the project (=templates/= by default, configurable), ={{title}}=, ={{date}}=, ={{time}}=, applied from the quick open, in the terminal too
 - [ ] Terminal in the editor
 - [X] Folders and subfolders in the pages: a foldable tree (the journal apart), right click and commands to create, move, rename, delete; links name a page by its path (=[[Jeux/Dragon]]=). In the terminal too
-- [ ] Footnotes
+- [X] Footnotes
 - [ ] Git diff & merge tools: see the changes of a page, resolve a diverged history or a conflict without a terminal
 - [X] Zen mode: only the text, without frames or bars
 - [ ] Multiple cursors

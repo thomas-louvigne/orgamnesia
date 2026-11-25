@@ -111,9 +111,12 @@ impl App {
             KeyCode::PageDown => p.scroll = p.scroll.saturating_add(half),
             KeyCode::PageUp => p.scroll = p.scroll.saturating_sub(half),
             // The commit's files: ticked, committed; a commit of the history: put back
-            KeyCode::Char(' ') if p.targets.iter().any(|t| matches!(t, commands::Target::Change { .. })) => self.tick_change(),
-            KeyCode::Char('c') if p.targets.iter().any(|t| matches!(t, commands::Target::Change { .. })) => self.commit_ticked(),
-            KeyCode::Char('r') if matches!(p.targets.get(p.selected), Some(commands::Target::Commit { .. })) => self.restore_version(),
+            KeyCode::Char(' ') if p.targets.iter().any(|t| matches!(t, frames::Target::Change { .. })) => self.tick_change(),
+            KeyCode::Char('c') if p.targets.iter().any(|t| matches!(t, frames::Target::Change { .. })) => self.commit_ticked(),
+            KeyCode::Char('r') if matches!(p.targets.get(p.selected), Some(frames::Target::Commit { .. })) => self.restore_version(),
+            KeyCode::Char('l') if matches!(p.targets.get(p.selected), Some(frames::Target::Unlinked(_))) => {
+                if let Some(frames::Target::Unlinked(m)) = p.targets.get(p.selected).cloned() { self.link_mention(&m); }
+            }
             // Closed: back to the popup it came from, if any
             _ => {
                 let back = p.parent.take();
@@ -237,13 +240,15 @@ impl App {
                 match &mut self.editor { Some(e) => { e.action("keyboard_quit", 0, None); } None => { self.cancel(); } }
                 self.status.clear();
             }
-            "quick_open" => self.mode = Mode::Quick(commands::Quick::default()),
+            "quick_open" => self.mode = Mode::Quick(quick::Quick::default()),
             "new_page" => {
                 let name = if editing { String::new() } else { self.filter.trim().to_string() };
                 if name.is_empty() && editing { self.close(); self.status = "type the name of the new page, then this shortcut again".into(); }
                 else { self.open_or_create(name); }
             }
             "journal" => self.journal(),
+            "journal_previous" => self.journal_step(false),
+            "journal_next" => self.journal_step(true),
             "capture" => self.capture(),
             "new_folder" | "move_page" | "rename_folder" | "delete_folder" => { self.folder_action(id); }
             "open_link" if editing => self.follow_at_cursor(),
@@ -272,7 +277,7 @@ impl App {
             let mut i = state.selected().unwrap_or(0);
             for _ in 0..n {
                 i = if forward { (i + 1).min(n.saturating_sub(1)) } else { i.saturating_sub(1) };
-                if items[i].1 != commands::Target::None { state.select(Some(i)); return; }
+                if items[i].1 != frames::Target::None { state.select(Some(i)); return; }
             }
         };
         match key.code {
@@ -282,6 +287,9 @@ impl App {
             _ if previous => step(state, false),
             KeyCode::Enter => if let Some((_, target)) = state.selected().and_then(|i| items.get(i)).cloned() { self.open(target); },
             KeyCode::Esc => self.mode = Mode::Normal,
+            KeyCode::Char('l') if matches!(state.selected().and_then(|i| items.get(i)), Some((_, frames::Target::Unlinked(_)))) => {
+                if let Some((_, frames::Target::Unlinked(m))) = state.selected().and_then(|i| items.get(i)).cloned() { self.link_mention(&m); }
+            }
             _ => { self.mode = Mode::Normal; return false; }
         }
         true
@@ -307,9 +315,9 @@ impl App {
                 let chosen = self.quick_list(&query).into_iter().nth(selected);
                 self.mode = Mode::Normal;
                 match chosen {
-                    Some(commands::QuickItem::Page { path, .. }) => { self.hits = None; self.edit(&path); }
-                    Some(commands::QuickItem::Create(name)) => self.open_or_create(name),
-                    Some(commands::QuickItem::Command { id, .. }) => return self.run_action(&id).unwrap_or(false),
+                    Some(quick::QuickItem::Page { path, .. }) => { self.hits = None; self.edit(&path); }
+                    Some(quick::QuickItem::Create(name)) => self.open_or_create(name),
+                    Some(quick::QuickItem::Command { id, .. }) => return self.run_action(&id).unwrap_or(false),
                     Some(item) => self.template_chosen(item),
                     None => {}
                 }
@@ -376,7 +384,7 @@ impl App {
         }
         if row <= a.y || row + 1 >= a.y + a.height { return true; }
         let i = state.offset() + (row - a.y - 1) as usize;
-        if let Some((_, target)) = items.get(i).cloned() && target != commands::Target::None {
+        if let Some((_, target)) = items.get(i).cloned() && target != frames::Target::None {
             state.select(Some(i));
             self.open(target);
         }
@@ -389,13 +397,13 @@ impl App {
         if !matches!(self.mode, Mode::Normal) { return; }
         let region = self.editor.as_ref().is_some_and(|e| e.region().is_some_and(|(a, b)| a < b));
         if !region && !self.click_page(column, row) { return; }
-        let item = |label: &str, id| (format!(" {label}"), commands::Target::Action(id));
+        let item = |label: &str, id| (format!(" {label}"), frames::Target::Action(id));
         let mut items = vec![];
         if region {
             items.extend([item("Bold", "bold"), item("Italic", "italic"), item("Underline", "underline"), item("Strikethrough", "strikethrough")]);
         }
         items.push(item("Quote", "quote"));
-        self.mode = Mode::Popup(commands::Popup::pick("Format".into(), items));
+        self.mode = Mode::Popup(frames::Popup::pick("Format".into(), items));
     }
 
     /// A click on a line of a popup list: that line opened.
@@ -404,7 +412,7 @@ impl App {
         let Mode::Popup(p) = &mut self.mode else { return };
         if row <= a.y || row + 1 >= a.y + a.height { self.mode = Mode::Normal; return; }
         let i = p.scroll as usize + (row - a.y - 1) as usize;
-        if p.targets.get(i).is_some_and(|t| *t != commands::Target::None) {
+        if p.targets.get(i).is_some_and(|t| *t != frames::Target::None) {
             p.selected = i;
             self.open_target();
         }

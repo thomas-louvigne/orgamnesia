@@ -1,6 +1,6 @@
 //! Backlinks, broken links, tags and TODO headlines of the project.
 
-use orgamnesia_core::{AgendaHit, BrokenLink, Graph, TagCount, TagHit, TodoHit};
+use orgamnesia_core::{AgendaHit, BrokenLink, Graph, MentionHit, TagCount, TagHit, TodoHit};
 use tauri::State;
 
 use super::Cmd;
@@ -11,6 +11,14 @@ use crate::AppState;
 pub async fn get_backlinks(state: State<'_, AppState>, path: String) -> Cmd<Vec<String>> {
     let ignore_case = state.prefs().case_insensitive_links;
     state.with_project(|p| Ok(p.backlinks(&path, ignore_case)))
+}
+
+/// The places other pages name the page `path` without a link.
+#[tauri::command]
+pub async fn get_unlinked_mentions(state: State<'_, AppState>, path: String) -> Cmd<Vec<MentionHit>> {
+    let prefs = state.prefs();
+    let (tags, ignore_case) = (prefs.tags(), prefs.case_insensitive_links);
+    state.with_project(|p| Ok(p.unlinked_mentions(&path, tags, ignore_case)))
 }
 
 /// The pages and the links between them, for the graph view.

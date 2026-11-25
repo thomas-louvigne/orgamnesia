@@ -52,6 +52,24 @@ pub fn open_journal(ctx: AppCtx) {
     follow_link(ctx, format!("{:04}-{:02}-{:02}", now.get_full_year(), now.get_month() + 1, now.get_date()));
 }
 
+/// The page of the journal before the day shown (the page open, when it is a
+/// day; else today), or after it with `forward`.
+pub fn journal_step(ctx: AppCtx, forward: bool) {
+    use orgamnesia_core::agenda;
+    let shown = ctx.work.active_tab_data().and_then(|t| agenda::day_of_name(&t.name)).unwrap_or_else(super::today);
+    let days: Vec<agenda::Day> = ctx.project.files.with_untracked(|fs| fs.iter().filter_map(|f| agenda::day_of_name(&f.name)).collect());
+    match agenda::journal_step(days, shown, forward) {
+        Some(day) => open_page_named(ctx, &day_page_name(day), None),
+        None => ctx.notify_t(if forward { "journal_no_next" } else { "journal_no_previous" }, ""),
+    }
+}
+
+/// The name of the journal's page of `day`: `2026-11-24`.
+pub fn day_page_name(day: orgamnesia_core::agenda::Day) -> String {
+    let (y, m, d) = orgamnesia_core::agenda::date_of(day);
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
 /// Where a link points outside the project's pages: a web page, or a file
 /// (`file:`, `./`, `../`, `/`, `~/`).
 #[derive(Debug, PartialEq)]

@@ -1,0 +1,408 @@
+/* Org-mode highlighting, the frames (backlinks, tags, TODO, agenda), the status bar, git, the context menu.
+   Loaded after app.css, in the order of index.html. */
+
+/* ── Org-mode highlighting ─────────────────────────────────── */
+/* Each level apart from the next on more than its colour: neighbouring levels far apart
+   in hue, the weight going down with depth (bold to level 2, plain from level 3).
+   Nothing that changes the width of a character: the text must stay on the
+   textarea's columns */
+.h1 { color: var(--h1); font-weight: bold; }
+.h2 { color: var(--h2); font-weight: bold; }
+.h3 { color: var(--h3); }
+.h4 { color: var(--h4); }
+.h5 { color: var(--h5); }
+.h6 { color: var(--h6); }
+.h-stars { opacity: 0.5; }
+/* org-hide-leading-stars: the stars before the last fade into the page, the level
+   reads as an indent */
+.hide-stars .h-lead { opacity: 0.15; }
+/* Live preview: the markup (and the stars) fades away, except on the line of the caret.
+   Faded, not removed: it keeps its columns */
+.live :is(.mk, .h-stars) { opacity: 0.12; }
+.live .cur .mk { opacity: 1; }
+.live .cur .h-stars { opacity: 0.5; }
+/* TODO keywords (org-mode): no padding, the text must stay on the textarea's columns */
+.todo  { color: var(--red);   background: color-mix(in srgb, var(--red) 16%, transparent);   border-radius: 3px; }
+.done  { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); border-radius: 3px; }
+.h-done { color: var(--fg-dim); }
+
+.tags  { color: var(--purple); }
+.tbl   { color: var(--cyan); }
+
+.em-b  { color: var(--fg-strong); font-weight: bold; }
+.em-i  { color: var(--green); font-style: italic; }
+.em-u  { color: var(--link); text-decoration: underline; }
+.em-s  { text-decoration: line-through; }
+
+/* Timestamps: the date, the day and the time each in its colour; `[…]` (inactive,
+   outside the agenda) faded */
+.ts :is(.mk, .ts-rest) { color: var(--fg-dim); }
+.ts-date    { color: var(--ts-date); }
+.ts-day     { color: var(--ts-day); }
+.ts-time    { color: var(--ts-time); font-weight: bold; }
+.ts-off     { opacity: 0.6; }
+
+.kw         { color: var(--fg-dim); }
+/* A footnote: its reference, and the marker starting its definition */
+.fn         { color: var(--purple); font-size: .9em; }
+.fn-def     { font-weight: bold; font-size: 1em; }
+.tag-t      { text-decoration: underline; text-underline-offset: 2px; }
+.link       { color: var(--cyan); }
+.link-t     { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+.link-d     { color: var(--cyan); text-decoration: underline; text-underline-offset: 2px; }
+/* A link leading nowhere (a page that doesn't exist, a missing file): in red, dashed,
+   and a cross in the margin of its line, where the mark of a folded headline goes */
+.link.broken, .link.broken :is(.link-t, .link-d) { color: var(--red); text-decoration-style: dashed; }
+/* "Bring out the text of links": the target and brackets dimmed, the target underlined;
+   the text (or the target of a link without one, which is then its text) in bold */
+.link-text-first .link:not(.broken),
+.link-text-first .link:not(.broken) .link-t { color: var(--link-target); }
+.link-text-first .link:not(.broken) .link-d,
+.link-text-first .link:not(.broken, :has(.link-d)) .link-t { color: var(--link-text); font-weight: var(--link-text-weight); }
+.link-text-first .link:not(.broken) .link-d { text-decoration: none; }
+.broken-mark { position: absolute; margin-left: -20px; pointer-events: none; user-select: none; }
+.broken-mark::before { content: "❌"; font-size: 10px; }
+.editor-wrap.line-numbers .broken-mark { margin-left: calc(-0.9ch - 6px); }
+
+/* ── Backlinks, tags, to do ────────────────────────────────── */
+
+.panel-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    font-size: var(--fs-label);
+    letter-spacing: .05em;
+}
+
+.panel-body { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+.panel-header-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.panel-add {
+    background: none; border: 1px solid var(--border); border-radius: 4px;
+    color: var(--fg-dim); cursor: pointer; font-size: var(--fs-body); line-height: 1;
+    width: 20px; height: 20px; padding: 0; margin: -4px 0;
+}
+.panel-add:hover:not(:disabled) { color: var(--fg); border-color: var(--accent); }
+.panel-add:disabled { opacity: .4; cursor: default; }
+
+/* "Did you know?": one tip, quiet */
+.tips-text { margin: 0; padding: 8px 12px 10px; color: var(--fg-dim); font-size: var(--fs-meta); line-height: 1.45; }
+
+.no-backlinks {
+    padding: 12px 16px;
+    color: var(--fg-dim);
+    font-size: var(--fs-meta);
+    font-style: italic;
+}
+
+.backlink-item {
+    padding: 5px 16px;
+    cursor: pointer;
+    font-size: var(--fs-ui);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--accent2);
+    border-left: 2px solid transparent;
+}
+.backlink-item:hover {
+    background: var(--bg3);
+    border-left-color: var(--accent);
+}
+
+/* Unlinked mentions: the page, its line, a button making it a link */
+.mentions-header {
+    padding: 10px 16px 4px; color: var(--fg-dim); font-size: var(--fs-meta);
+    border-top: 1px solid var(--border); margin-top: 6px;
+}
+.mention-item {
+    display: flex; align-items: center; gap: 8px; padding: 4px 16px;
+    cursor: pointer; font-size: var(--fs-ui); border-left: 2px solid transparent;
+}
+.mention-item:hover, .mention-item:focus-visible { background: var(--bg3); border-left-color: var(--accent); }
+.mention-page { color: var(--accent2); white-space: nowrap; }
+.mention-context {
+    flex: 1; min-width: 0; color: var(--fg-dim); font-size: var(--fs-meta);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mention-link {
+    background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--fg-dim);
+    font-size: var(--fs-meta); padding: 1px 6px; cursor: pointer;
+}
+.mention-link:hover, .mention-link:focus-visible { color: var(--fg); border-color: var(--accent); }
+
+
+.tag-search { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.tag-item { display: flex; justify-content: space-between; gap: 8px; }
+.tag-count { color: var(--fg-dim); font-size: var(--fs-meta); }
+/* Tags proposed while typing a tag search */
+.tag-search { position: relative; }
+.tag-suggest {
+    position: absolute; left: 10px; right: 10px; top: 100%; z-index: 20; margin-top: -4px;
+    list-style: none; padding: 4px 0; background: var(--bg2);
+    border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.35);
+}
+.tag-field { position: relative; }
+.tag-field .tag-suggest { left: 0; right: 0; margin-top: 2px; }
+.tag-suggest li { padding: 3px 10px; cursor: pointer; color: var(--purple); font-size: var(--fs-ui); }
+.tag-suggest li.selected { background: var(--accent); color: #fff; }
+.tag-item { align-items: center; }
+.tag-item-end { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.tag-add-btn { width: 18px; height: 18px; padding: 0; line-height: 1; font-size: var(--fs-body); opacity: .45; }
+.tag-item:hover .tag-add-btn { opacity: 1; }
+.tag-add-btn:disabled { display: none; }
+.tag-hit-page { overflow: hidden; text-overflow: ellipsis; }
+.tag-hit-heading { color: var(--fg-dim); font-size: var(--fs-meta); overflow: hidden; text-overflow: ellipsis; }
+
+/* "To do": the TODO headlines of the project, by page */
+.todo-filter {
+    background: var(--bg); color: var(--fg-dim); border: 1px solid var(--border);
+    border-radius: 4px; font: inherit; font-size: var(--fs-meta); font-weight: normal; padding: 1px 4px;
+}
+.todo-page {
+    padding: 8px 12px 2px; color: var(--fg-dim); font-size: var(--fs-meta);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.todo-item { display: flex; gap: 6px; align-items: baseline; }
+.todo-item .todo, .todo-item .done { font-size: var(--fs-meta); font-weight: 600; padding: 0 4px; flex-shrink: 0; }
+.todo-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-item.is-done .todo-item-title { color: var(--fg-dim); }
+.todo-tags { margin: 0 12px 4px; width: auto; font-size: var(--fs-meta); }
+
+/* The agenda of a week: its days, the dated headlines of each */
+.agenda-nav { display: flex; gap: 4px; margin-left: auto; margin-right: 8px; }
+.agenda-body { overflow-y: auto; display: flex; gap: 24px; align-items: flex-start; }
+.agenda-week { flex: 1; min-width: 0; }
+/* The calendar of the month: the days of the journal marked */
+.agenda-calendar { flex: 0 0 auto; width: 15em; position: sticky; top: 0; }
+.calendar-head { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.calendar-month { flex: 1; text-align: center; text-transform: capitalize; font-size: var(--fs-ui); }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.calendar-weekday { text-align: center; color: var(--fg-dim); font-size: var(--fs-meta); padding: 2px 0; }
+.calendar-day {
+    position: relative; background: none; border: 1px solid transparent; border-radius: 4px;
+    color: var(--fg); font-size: var(--fs-meta); padding: 4px 0; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.calendar-day:hover, .calendar-day:focus-visible { border-color: var(--accent); }
+.calendar-day.other-month { color: var(--fg-dim); opacity: .6; }
+.calendar-day.in-week { background: var(--bg3); }
+.calendar-day.today { color: var(--accent2); font-weight: 600; border-color: var(--accent2); }
+.calendar-day.has-page::after {
+    content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px;
+    margin-left: -2px; border-radius: 50%; background: var(--accent);
+}
+@media (max-width: 760px) { .agenda-body { flex-direction: column; } .agenda-calendar { position: static; } }
+.agenda-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.agenda-day { margin: 14px 0 4px; font-size: var(--fs-ui); color: var(--fg-dim); text-transform: capitalize; }
+.agenda-day.today { color: var(--accent2); }
+.agenda-list { list-style: none; margin: 0; padding: 0; }
+.agenda-item { padding: 3px 10px; cursor: pointer; border-left: 2px solid transparent; }
+.agenda-item.active { background: var(--bg3); border-left-color: var(--accent); }
+.agenda-page { color: var(--fg-dim); min-width: 10em; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.agenda-time { min-width: 3em; flex-shrink: 0; }
+.agenda-when { color: var(--cyan); flex-shrink: 0; }
+.agenda-item.is-late .agenda-when { color: var(--red); }
+
+/* ── Status bar ────────────────────────────────────────────── */
+.status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--accent);
+    color: #fff;
+    padding: 4px 12px 4px 16px;
+    font-size: var(--fs-meta);
+    flex-shrink: 0;
+}
+
+.status-close {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.8);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+    margin-left: 12px;
+}
+.status-close:hover { color: #fff; }
+
+/* ── Git extension: buttons under the project's state, commit window ── */
+.git-buttons { display: flex; gap: 4px; }
+.git-btn {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    background: none; border: 1px solid var(--border); border-radius: 4px;
+    color: var(--fg-dim); font: inherit; font-size: var(--fs-meta); padding: 2px 4px; cursor: pointer;
+}
+.git-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--fg-dim); }
+.git-btn:disabled { opacity: .4; cursor: default; }
+.git-btn.ready { color: var(--accent2); border-color: var(--accent); }
+.git-btn.ready:hover:not(:disabled) { color: var(--fg); border-color: var(--accent2); }
+.git-count {
+    min-width: 14px; padding: 0 4px; border-radius: 7px; line-height: 14px; text-align: center;
+    background: var(--accent); color: var(--bg); font-size: .85em; font-weight: 600;
+}
+.git-btn.running { color: var(--accent2); border-color: var(--accent); opacity: 1; cursor: progress; }
+/* Setting up: create the repository, add a remote */
+.git-setup-btn {
+    align-self: stretch; background: none; border: 1px dashed var(--border); border-radius: 4px;
+    color: var(--fg-dim); font: inherit; font-size: var(--fs-meta); padding: 2px 6px; cursor: pointer;
+}
+.git-setup-btn:hover:not(:disabled) { color: var(--accent2); border-color: var(--accent); }
+.git-setup-btn:disabled { opacity: .4; cursor: default; }
+/* What is asked in the git frame: the passphrase, a remote, a branch */
+.git-form { align-self: stretch; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-meta); }
+.git-form label { display: flex; flex-direction: column; gap: 4px; color: var(--fg); overflow-wrap: anywhere; }
+.git-form input { width: 100%; box-sizing: border-box; }
+.git-form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.git-form-actions button { padding: 3px 10px; font-size: var(--fs-meta); }
+.git-spinner {
+    width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%;
+    border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
+    animation: git-spin .8s linear infinite;
+}
+/* Org-bloom extension: the button building the site */
+.bloom-frame { padding: 8px 8px 8px 12px; display: flex; }
+.bloom-btn { padding: 4px; font-size: var(--fs-ui); }
+.bloom-btn:hover:not(:disabled) { color: var(--accent2); border-color: var(--accent); }
+/* Marker of the site: built (green), being built (pulsing), old or never built (orange ring) */
+.bloom-mark { width: 7px; height: 7px; flex-shrink: 0; margin-left: 2px; border-radius: 50%; box-sizing: border-box; }
+.bloom-mark.built { background: var(--green); }
+.bloom-mark.running { background: var(--accent2); animation: bloom-pulse 1.2s ease-in-out infinite; }
+.bloom-mark.stale { border: 2px solid var(--orange); }
+@keyframes bloom-pulse { 50% { opacity: .25; } }
+@keyframes git-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .git-spinner { animation-duration: 2.4s; }
+    .bloom-mark.running { animation: none; }
+}
+/* A new version: what changed in each version since the running one */
+.update-modal { width: min(620px, 94vw); }
+.update-body { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; }
+.update-version h3 { margin: 4px 0; font-size: var(--fs-ui); color: var(--accent2); }
+.update-version ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; }
+.update-check-now { align-self: flex-start; }
+/* The link / date window: the text it will insert */
+.insert-preview {
+    align-self: flex-start; font-family: var(--font-mono); font-size: var(--fs-meta);
+    color: var(--fg-dim); min-height: 1.4em; word-break: break-all;
+}
+.commit-body { display: flex; flex-direction: column; gap: 8px; }
+.commit-files-title, .commit-label { font-size: var(--fs-meta); color: var(--fg-dim); }
+.commit-files {
+    list-style: none; margin: 0; padding: 6px 0; max-height: 280px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
+}
+.commit-files li { display: flex; gap: 8px; align-items: baseline; padding: 2px 10px; font-size: var(--fs-meta); }
+.commit-kind { flex-shrink: 0; min-width: 70px; font-weight: 600; }
+.commit-added { color: var(--green); }
+.commit-modified { color: var(--orange); }
+.commit-deleted { color: var(--red); }
+.commit-renamed { color: var(--cyan); }
+.commit-files-title { display: flex; align-items: center; gap: 6px; }
+.commit-files li > input { align-self: center; margin: 0; }
+.commit-path {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace);
+    background: none; border: none; padding: 0; color: inherit; font-size: inherit; text-align: left; cursor: pointer;
+}
+.commit-path:hover, .commit-path[aria-expanded="true"] { color: var(--accent2); text-decoration: underline; }
+.commit-files li.commit-diff { display: block; padding: 2px 10px 8px; }
+/* A diff: lines added, removed, and where they are */
+.diff-view {
+    margin: 0; padding: 6px 0; max-height: 260px; overflow: auto;
+    font-family: var(--font-mono, monospace); font-size: var(--fs-meta); line-height: 1.5;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px; white-space: pre;
+}
+pre.diff-view:not(:has(.diff-line)) { padding: 6px 10px; }
+.diff-line { padding: 0 10px; min-height: 1.5em; }
+.diff-add { color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+.diff-del { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+.diff-hunk { color: var(--cyan); margin-top: 4px; }
+/* History of a page: its commits, and the one chosen */
+.history-body { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 12px; }
+.history-list {
+    list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; min-height: 0;
+    border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
+}
+.history-item { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; cursor: pointer; border-left: 2px solid transparent; }
+.history-item:hover { background: var(--bg3); }
+.history-item.active { background: var(--bg3); border-left-color: var(--accent); }
+.history-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-ui); color: var(--fg); }
+.history-meta { font-size: var(--fs-meta); color: var(--fg-dim); }
+.history-view { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+.history-view .diff-view { flex: 1; max-height: none; }
+.history-switch { display: flex; gap: 4px; }
+.history-switch .active { color: var(--accent2); border-color: var(--accent); }
+@media (max-width: 640px) {
+    .history-body { grid-template-columns: 1fr; grid-template-rows: 35% 1fr; }
+}
+.commit-message { min-height: 150px; resize: vertical; font-family: var(--font-mono, monospace); line-height: 1.5; }
+/* Site folder of org-bloom: a link opening it */
+.bloom-site.off { opacity: 0.5; }
+.bloom-site code { font-style: normal; font-family: var(--font-mono, monospace); }
+.bloom-folder {
+    display: flex; align-items: center; gap: 8px; align-self: flex-start; max-width: 100%;
+    background: none; border: none; padding: 0; cursor: pointer;
+    color: var(--accent); font: inherit; font-size: var(--fs-ui); text-align: left;
+}
+.bloom-folder-path { text-decoration: underline; overflow-wrap: anywhere; }
+.bloom-folder:hover .bloom-folder-path { text-decoration-thickness: 2px; }
+.ssh-help, .install-help { display: flex; flex-direction: column; gap: 4px; }
+.ssh-help p, .install-help p { margin: 0; }
+/* No spelling dictionary: a warning, then how to install one */
+.install-help { border-left-color: var(--orange); }
+.install-help-title { font-style: normal; font-weight: 600; color: var(--fg); }
+.install-cmd { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.install-cmd span { min-width: 110px; }
+.install-help .setting-doc-link { padding-left: 0; }
+.ssh-help code, .install-help code {
+    font-style: normal; font-family: var(--font-mono, monospace); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; align-self: flex-start; user-select: all;
+}
+.status-undo {
+    margin-left: auto; background: rgba(0, 0, 0, .2); border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 4px; color: #fff; font: inherit; font-weight: 600; padding: 1px 10px; cursor: pointer;
+}
+.status-undo:hover { background: rgba(0, 0, 0, .35); }
+
+/* ── Context menu ──────────────────────────────────────────── */
+.ctx-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+}
+
+.ctx-menu {
+    position: fixed;
+    z-index: 151;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.45);
+    min-width: 160px;
+    padding: 4px 0;
+}
+
+.ctx-menu-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--fg);
+    font-size: var(--fs-ui);
+    padding: 7px 14px;
+    text-align: left;
+    cursor: pointer;
+}
+.ctx-menu-danger { color: var(--red); }
+/* The shortcut of a menu item, at its right */
+.ctx-menu-key { color: var(--fg-dim); font-size: var(--fs-meta); }
+.ctx-menu-item:hover:not(:disabled) .ctx-menu-key { color: inherit; }
+.ctx-menu-sep { height: 1px; margin: 4px 0; background: var(--border); }
+.ctx-menu-item:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.ctx-menu-item:disabled { opacity: .45; cursor: default; }

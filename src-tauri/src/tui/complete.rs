@@ -22,10 +22,10 @@ pub struct Suggest {
 }
 
 impl App {
-    /// The page names the links of the project use (a twin page by its file name).
+    /// The page names the links of the project use (a twin page by its file
+    /// name), and their aliases.
     pub(super) fn link_names(&self) -> Vec<String> {
-        let resolver = self.resolver();
-        self.project.files().iter().map(|f| resolver.link_name(f)).collect()
+        self.resolver().link_names()
     }
 
     /// The tags of the project.

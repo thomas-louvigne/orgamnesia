@@ -4,6 +4,14 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.10.0
+- Aliases: =#+ALIAS: Drake, Le dragon= (org-mode), =alias:: Drake= (Logseq) or =aliases: [Drake]= in the front matter (Markdown, as Obsidian) give a page other names. =[[Drake]]= leads to it, and its backlinks, the graph and the completion of links count it. A page's own name wins over another's alias; renaming a page keeps the links naming an alias.
+- Unlinked mentions: under the backlinks, the pages writing the name of the page shown (or an alias) without a link. A click opens the page there, "Link" makes the mention a link (=[[Dragon][dragon]]=).
+- Calendar of the journal, beside the agenda: a dot under each day having a page, the week shown shaded. A click shows the week of a day, a double click opens its page (made if needed).
+- Previous and next day of the journal: Ctrl+Alt+PageUp / PageDown (C-c ← / C-c → in Emacs) open the page of the journal before or after the day shown.
+- Footnotes: =[fn:1]= (org-mode), =[^1]= (Markdown) and =[fn:: inline]= coloured. Ctrl+Alt+F (C-c C-x f in Emacs) inserts the next one, its definition at the end of the page; "Open link" goes from a reference to its definition and back. The export numbers them at the end of the page.
+- All of it in the terminal too: mentions under the backlinks (F8, =l= to link), the calendar at the top of the agenda.
+
 * 1.9.0
 - Agenda, as in Emacs: Ctrl+Alt+A (C-c a in Emacs) shows the week day by day: scheduled and due headlines, dated notes and list items, the pages named after a date. A late schedule or a coming deadline shows on today. On a line: =t= the next TODO state, =s= / =d= its dates, Shift+arrows a day later or earlier, =f= / =b= the next or previous week, Enter opens the page.
 - Schedule and deadline: C-c C-s / C-c C-d (Emacs) ask for a date, typed as =2026-12-01=, =+3d=, =tomorrow=, =monday=, =14:00=; =-= removes it.

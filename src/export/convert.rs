@@ -1,10 +1,12 @@
 //! A page's org-mode or Markdown text made into HTML: title, headlines, lists,
-//! tables, blocks, images, links.
+//! tables, blocks, images, links, footnotes.
 
 use crate::{html::escape, images, links};
-use orgamnesia_core::{links as place, names::fold, Format, TodoKeywords};
+use orgamnesia_core::{footnotes, links as place, names::fold, Format, TodoKeywords};
 
 mod markdown;
+mod lines;
+use lines::*;
 
 /// The HTML of the page `text` called `name`. `image` gives the URL an image
 /// link target is shown from.
@@ -28,11 +30,41 @@ pub fn page_html(
         None if first_headline.is_some_and(|h| fold(&h) == fold(name)) => None,
         None => Some(name.to_string()),
     };
-    let doc = Doc { keywords, image, shift: usize::from(title.is_some()), format, extended };
+    let (lines, defs) = footnote_definitions(lines, format);
+    let doc = Doc { keywords, image, shift: usize::from(title.is_some()), format, extended, defs, notes: Default::default() };
     let mut out = String::new();
     if let Some(t) = title { out.push_str(&format!("<h1 class='title'>{}</h1>", escape(&t))); }
-    out.push_str(&doc.body(lines));
+    out.push_str(&doc.body(&lines));
+    out.push_str(&doc.footnotes());
     out
+}
+
+/// `lines` without the definitions of footnotes (a marker starting a line, and
+/// the lines after it up to a blank one) nor org-mode's `Footnotes` headline;
+/// the definitions apart, by label.
+fn footnote_definitions<'a>(lines: &[&'a str], format: Format) -> (Vec<&'a str>, Vec<(String, String)>) {
+    let mut kept = Vec::new();
+    let mut defs: Vec<(String, String)> = Vec::new();
+    let mut open = false;
+    for &line in lines {
+        let chars: Vec<char> = line.chars().collect();
+        let indent = chars.iter().take_while(|c| c.is_whitespace()).count();
+        let def = (chars.get(indent) == Some(&'[')).then(|| footnotes::at(&chars, indent, format)).flatten().filter(|n| n.definition);
+        if let Some(n) = def {
+            defs.push((n.label, chars[n.end..].iter().collect::<String>().trim().to_string()));
+            open = true;
+        } else if open && !line.trim().is_empty() && format.heading_level_of(line).is_none() {
+            let text = &mut defs.last_mut().expect("a definition is open").1;
+            text.push(' ');
+            text.push_str(line.trim());
+        } else if format == Format::Org && format.heading_level_of(line).is_some() && line.trim_start_matches('*').trim() == "Footnotes" {
+            open = false;
+        } else {
+            open = false;
+            kept.push(line);
+        }
+    }
+    (kept, defs)
 }
 
 /// What the HTML of a page is made with.
@@ -45,6 +77,11 @@ struct Doc<'a> {
     format: Format,
     /// The links not of org-mode read.
     extended: place::LinkSyntax,
+    /// The definitions of the footnotes, by label.
+    defs: Vec<(String, String)>,
+    /// The footnotes referred to, in the order of their first reference: their
+    /// label (none for an inline one) and the text of an inline one.
+    notes: std::cell::RefCell<Vec<(String, Option<String>)>>,
 }
 
 impl Doc<'_> {
@@ -130,6 +167,46 @@ impl Doc<'_> {
         }
         self.paragraph(&mut out, &mut para);
         out
+    }
+
+    /// The reference to the footnote `n`, numbered in the order of the first ones.
+    fn footnote_ref(&self, n: &footnotes::Note, chars: &[char]) -> String {
+        // `[fn:` then the label: a `:` after it makes an inline note
+        let after = n.start + 4 + n.label.chars().count();
+        let inline = self.format == Format::Org && chars.get(after) == Some(&':');
+        let mut notes = self.notes.borrow_mut();
+        let k = if inline {
+            // `[fn:: texte]`, `[fn:nom: texte]`: the text after the second `:`
+            let text: String = chars[after + 1..n.end - 1].iter().collect();
+            notes.push((n.label.clone(), Some(text.trim().to_string())));
+            notes.len()
+        } else {
+            match notes.iter().position(|(l, t)| t.is_none() && *l == n.label) {
+                Some(k) => k + 1,
+                None => { notes.push((n.label.clone(), None)); notes.len() }
+            }
+        };
+        format!("<sup class='fn'><a href='#fn-{k}' id='fnref-{k}'>{k}</a></sup>")
+    }
+
+    /// The footnotes referred to (then those defined without a reference), as a
+    /// numbered list at the end of the page.
+    fn footnotes(&self) -> String {
+        let unused: Vec<String> = self.defs.iter().map(|(l, _)| l.clone())
+            .filter(|l| !self.notes.borrow().iter().any(|(n, t)| t.is_none() && n == l)).collect();
+        if self.notes.borrow().is_empty() && unused.is_empty() { return String::new(); }
+        self.notes.borrow_mut().extend(unused.into_iter().map(|l| (l, None)));
+        let mut items = String::new();
+        // A note may refer to another one: the list grows as it is written
+        let mut k = 0;
+        loop {
+            // Not borrowed while the note is written: it may add others
+            let Some((label, inline)) = self.notes.borrow().get(k).cloned() else { break };
+            k += 1;
+            let text = inline.or_else(|| self.defs.iter().find(|(l, _)| *l == label).map(|(_, t)| t.clone())).unwrap_or_default();
+            items.push_str(&format!("<li id='fn-{k}'>{} <a href='#fnref-{k}'>↩</a></li>", self.inline(&text)));
+        }
+        format!("<section class='footnotes'><hr><ol>{items}</ol></section>")
     }
 
     /// The lines of text gathered so far, as a paragraph.
@@ -271,6 +348,11 @@ impl Doc<'_> {
                 i = f.1;
                 continue;
             }
+            if c == '[' && let Some(n) = footnotes::at(&chars, i, self.format) {
+                out.push_str(&self.footnote_ref(&n, &chars));
+                i = n.end;
+                continue;
+            }
             if c == '[' && let Some((target, desc, end)) = self.link_at(&chars, i) {
                 out.push_str(&self.link(&target, desc.as_deref()));
                 i = end;
@@ -349,172 +431,5 @@ impl Doc<'_> {
     }
 }
 
-/// A line that ends a paragraph in a page of `format`: a headline, block,
-/// keyword, table, list item, rule…
-fn is_structure(line: &str, format: Format) -> bool {
-    if format == Format::Markdown { return markdown::is_structure(line); }
-    let t = line.trim();
-    format.heading_level_of(line).is_some() || t.starts_with("#+") || t.starts_with('|') || t.starts_with(": ")
-        || t == ":" || list_item(line, format).is_some() || image_line(t).is_some() || is_drawer(t)
-        || (t.len() >= 5 && t.chars().all(|c| c == '-'))
-}
-
-/// `#+BEGIN_SRC python` → `src`.
-fn block_kind(t: &str) -> Option<String> {
-    let rest = t.get(..8).filter(|k| k.eq_ignore_ascii_case("#+begin_"))
-        .map(|_| &t[8..])?;
-    let kind = rest.split_whitespace().next()?.to_ascii_lowercase();
-    (!kind.is_empty()).then_some(kind)
-}
-
-/// `:PROPERTIES:`, `:LOGBOOK:`…
-fn is_drawer(t: &str) -> bool {
-    t.len() > 2 && t.starts_with(':') && t.ends_with(':') && !t.eq_ignore_ascii_case(":end:")
-        && t[1..t.len() - 1].chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-}
-
-/// The `:width` of an `#+ATTR_ORG:` line, in pixels when it has no unit.
-fn attr_width(t: &str) -> Option<String> {
-    let mut words = t.split_whitespace();
-    words.find(|w| *w == ":width")?;
-    let w = words.next()?;
-    Some(if w.chars().all(|c| c.is_ascii_digit()) { format!("{w}px") } else { w.to_string() })
-}
-
-/// A list item (`- a`, `+ a`, ` * a`, `1. a`, `1) a`): its indent, whether it is
-/// numbered, and its text.
-fn list_item(line: &str, format: Format) -> Option<(usize, bool, &str)> {
-    let md = format == Format::Markdown;
-    let indent = line.len() - line.trim_start().len();
-    let t = line.trim_start();
-    for bullet in ["- ", "+ ", "* "] {
-        // `* ` at the start of a line is an org-mode headline, a bullet in Markdown
-        if (t.starts_with(bullet) || t == bullet.trim()) && (bullet != "* " || indent > 0 || md) {
-            return Some((indent, false, t.get(2..).unwrap_or("")));
-        }
-    }
-    let digits = t.chars().take_while(char::is_ascii_digit).count();
-    let after = t.get(digits..)?;
-    (digits > 0 && (after.starts_with(". ") || after.starts_with(") "))).then(|| (indent, true, &after[2..]))
-}
-
-/// How many of `lines` the list starting at the first takes: its items, the
-/// lines indented under them, and the blank lines between.
-fn list_lines(lines: &[&str], format: Format) -> usize {
-    let mut n = 0;
-    for (i, line) in lines.iter().enumerate() {
-        if line.trim().is_empty() {
-            let next = lines[i + 1..].iter().find(|l| !l.trim().is_empty());
-            if !next.is_some_and(|l| list_item(l, format).is_some() || l.starts_with([' ', '\t'])) { break; }
-            continue;
-        }
-        let indented = line.starts_with([' ', '\t']) && format.heading_level_of(line).is_none();
-        if list_item(line, format).is_none() && !indented { break; }
-        n = i + 1;
-    }
-    n
-}
-
-/// A line holding only a link to an image, maybe with Logseq's size after it:
-/// its target and width.
-fn image_line(t: &str) -> Option<(String, Option<String>)> {
-    let chars: Vec<char> = t.chars().collect();
-    let link = place::link_at(&chars, 0).filter(|l| l.description.is_none())?;
-    let target = link.target(&chars);
-    let rest = chars[link.end..].iter().collect::<String>();
-    let rest = rest.trim();
-    if !images::is_image(&target) { return None; }
-    if rest.is_empty() { return Some((target, None)); }
-    // `{:height 200, :width 300}`
-    let size = rest.strip_prefix('{')?.strip_suffix('}')?;
-    let width = size.split(',').find_map(|p| p.trim().strip_prefix(":width").map(|w| format!("{}px", w.trim())));
-    Some((target, width))
-}
-
-/// Where the emphasis opened by the marker at `start` closes, as org-mode reads it:
-/// the marker after a space or punctuation, the text not starting nor ending with
-/// a space, the closing marker followed by a space or punctuation.
-fn emphasis_end(chars: &[char], start: usize) -> Option<usize> {
-    let m = chars[start];
-    let before_ok = start == 0 || chars[start - 1].is_whitespace() || "-({'\"".contains(chars[start - 1]);
-    if !before_ok || chars.get(start + 1).is_none_or(|c| c.is_whitespace() || *c == m) { return None; }
-    (start + 2..chars.len()).find(|&j| {
-        chars[j] == m && !chars[j - 1].is_whitespace()
-            && chars.get(j + 1).is_none_or(|c| c.is_whitespace() || "-.,:!?;'\")}[".contains(*c))
-    })
-}
-
-fn starts_with(chars: &[char], s: &str) -> bool {
-    s.chars().enumerate().all(|(i, c)| chars.get(i) == Some(&c))
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn html(text: &str) -> String {
-        let k = TodoKeywords::parse("TODO | DONE");
-        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"), Format::Org, place::LinkSyntax::NONE)
-    }
-
-    fn md(text: &str) -> String {
-        let k = TodoKeywords::parse("TODO | DONE");
-        page_html(text, "Page", Some(&k), &|t| format!("url:{t}"), Format::Markdown, place::LinkSyntax::ALL)
-    }
-
-    #[test]
-    fn markdown_pages() {
-        assert_eq!(md("---\ntitle: Mon titre\ntags: [a]\n---\n## TODO Faire **vite** ##\ntexte *it* `co*de*`"),
-            "<h1 class='title'>Mon titre</h1><h3><span class='todo'>TODO</span> Faire <b>vite</b></h3><p>texte <i>it</i> <code>co*de*</code></p>");
-        assert_eq!(md("# Page\n* un\n* [x] deux\n\n> cité\n\n```\n# pas un titre\n```\n---"),
-            "<h1>Page</h1><ul><li>un</li><li>☑ deux</li></ul><blockquote><p>cité</p></blockquote><pre># pas un titre</pre><hr>");
-        assert_eq!(md("# Page\n| a | b |\n|---|:-:|\n| 1 | 2 |"),
-            "<h1>Page</h1><table><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>");
-        assert_eq!(md("# Page\n[[B|bé]] [lien](Ma%20page.md) [site](https://a.org) snake_case\n![](../assets/a%20b.png)"),
-            "<h1>Page</h1><p><span class='link'>bé</span> <span class='link'>lien</span> <a href='https://a.org'>site</a> snake_case</p>\
-            <p class='image'><img src='url:../assets/a b.png' alt=''></p>");
-    }
-
-    #[test]
-    fn title_from_the_page() {
-        assert!(html("#+TITLE: Mon titre\ntexte").starts_with("<h1 class='title'>Mon titre</h1><p>texte</p>"));
-        // A new page starts with a headline holding its name: not twice
-        assert_eq!(html("* Page\ntexte"), "<h1>Page</h1><p>texte</p>");
-        assert!(html("texte").starts_with("<h1 class='title'>Page</h1>"));
-    }
-
-    #[test]
-    fn headlines_with_keyword_and_tags() {
-        assert_eq!(html("* Page\n** TODO Faire *vite* :a:b:"),
-            "<h1>Page</h1><h2><span class='todo'>TODO</span> Faire <b>vite</b> <span class='tag'>a</span><span class='tag'>b</span></h2>");
-    }
-
-    #[test]
-    fn paragraphs_lists_and_blocks() {
-        let out = html("* Page\nune\nligne\n\n- a\n  suite\n  - b\n- [X] c\n1. un\n#+BEGIN_SRC rust\nlet x = 1 < 2;\n#+END_SRC\n:PROPERTIES:\n:ID: x\n:END:\n# commentaire\n-----");
-        assert_eq!(out, "<h1>Page</h1><p>une\nligne</p>\
-            <ul><li>a suite<ul><li>b</li></ul></li><li>☑ c</li></ul><ol><li>un</li></ol>\
-            <pre>let x = 1 &lt; 2;</pre><hr>");
-    }
-
-    #[test]
-    fn tables_with_a_header() {
-        assert_eq!(html("* Page\n| a | b |\n|---+---|\n| 1 | =x= |"),
-            "<h1>Page</h1><table><tr><th>a</th><th>b</th></tr><tr><td>1</td><td><code>x</code></td></tr></table>");
-    }
-
-    #[test]
-    fn links_and_images() {
-        let out = html("* Page\nvoir [[Recettes::*Desserts]], [[https://a.org][site]], [[B][bé]] et https://b.org <<ici>>\n#+ATTR_ORG: :width 300\n[[../assets/a.png]]");
-        assert_eq!(out, "<h1>Page</h1><p>voir <span class='link'>Recettes › Desserts</span>, \
-            <a href='https://a.org'>site</a>, <span class='link'>bé</span> et <a href='https://b.org'>https://b.org</a> </p>\
-            <p class='image'><img src='url:../assets/a.png' alt='' style='width: 300px'></p>");
-    }
-
-    #[test]
-    fn emphasis_as_org_reads_it() {
-        let d = Doc { keywords: None, image: &|t| t.to_string(), shift: 0, format: Format::Org, extended: place::LinkSyntax::NONE };
-        assert_eq!(d.inline("a /b/ c_d_e 2*3*4 +x+"), "a <i>b</i> c_d_e 2*3*4 <s>x</s>");
-        assert_eq!(d.inline("=a*b*= ~<t>~"), "<code>a*b*</code> <code>&lt;t&gt;</code>");
-    }
-}
+mod tests;

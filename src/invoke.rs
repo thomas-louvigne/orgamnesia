@@ -6,6 +6,10 @@ use wasm_bindgen_futures::JsFuture;
 use orgamnesia_core::config::{File as ConfigFile, InEffect, Problem};
 
 use crate::{i18n::{t, Lang}, keybindings::Keybindings, state::{BrokenLink, FileEntry, Session, Settings, SiteConfig, GitChange, GitCommit, GitStatus, UpdateInfo, TagCount, TagHit, TodoHit, VaultChanges, ReplaceOutcome, ReplaceSkip, SearchOptions, SearchResults}};
+mod git;
+pub use git::*;
+mod config;
+pub use config::*;
 
 #[wasm_bindgen]
 extern "C" {
@@ -300,6 +304,11 @@ pub async fn get_backlinks(path: &str) -> Result<Vec<String>, String> {
     call("get_backlinks", serde_json::json!({ "path": path })).await
 }
 
+/// The places other pages name the page `path` without a link.
+pub async fn get_unlinked_mentions(path: &str) -> Result<Vec<orgamnesia_core::MentionHit>, String> {
+    call("get_unlinked_mentions", serde_json::json!({ "path": path })).await
+}
+
 /// The pages and the links between them, for the graph view.
 pub async fn get_graph() -> Result<orgamnesia_core::Graph, String> {
     call("get_graph", serde_json::json!({})).await
@@ -347,75 +356,6 @@ pub async fn site_config() -> Result<Option<SiteConfig>, String> {
     call("site_config", serde_json::json!({})).await
 }
 
-/// File names of the user's themes (`themes/*.css` of the configuration).
-pub async fn list_themes() -> Result<Vec<String>, String> {
-    call("list_themes", serde_json::json!({})).await
-}
-
-/// The CSS of the user's theme `name`.
-pub async fn read_theme(name: &str) -> Result<String, String> {
-    call("read_theme", serde_json::json!({ "name": name })).await
-}
-
-/// A new theme of the user holding `text`, named after `name`; its file name.
-pub async fn create_theme(name: &str, text: &str) -> Result<String, String> {
-    call("create_theme", serde_json::json!({ "name": name, "text": text })).await
-}
-
-/// Show the themes folder in the file manager.
-pub async fn open_themes_folder() -> Result<(), String> {
-    call("open_themes_folder", serde_json::json!({})).await
-}
-
-/// Show a folder in the file manager.
-pub async fn open_folder(path: &str) -> Result<(), String> {
-    call("open_folder", serde_json::json!({ "path": path })).await
-}
-
-/// Folder picker (titled `title`), where a folder may also be created.
-pub async fn pick_folder(title: Option<&str>) -> Result<Option<String>, String> {
-    call("pick_folder", serde_json::json!({ "title": title })).await
-}
-
-pub async fn get_keybindings() -> Result<Keybindings, String> {
-    call("get_keybindings", serde_json::json!({})).await
-}
-
-/// Write the keybinding profiles; the keybindings as they now are (the profiles
-/// named after their files).
-pub async fn set_keybindings(kb: &Keybindings) -> Result<Keybindings, String> {
-    call("set_keybindings", serde_json::json!({ "keybindings": kb })).await
-}
-
-/// The configuration files, as the pages of the "preference" project.
-pub async fn config_files() -> Result<Vec<FileEntry>, String> {
-    call("config_files", serde_json::json!({})).await
-}
-
-pub async fn read_config(file: &ConfigFile) -> Result<String, String> {
-    call("read_config", serde_json::json!({ "file": file })).await
-}
-
-/// Write `content` as `file` and put it in effect; what it holds.
-pub async fn apply_config(file: &ConfigFile, content: &str) -> Result<InEffect, String> {
-    call("apply_config", serde_json::json!({ "file": file, "content": content })).await
-}
-
-/// The versions kept of `file`, newest first: when each was replaced (ms since 1970).
-pub async fn config_versions(file: &ConfigFile) -> Result<Vec<u64>, String> {
-    call("config_versions", serde_json::json!({ "file": file })).await
-}
-
-/// Put back in effect the version of `file` replaced at `version`, or the last valid one.
-pub async fn restore_config(file: &ConfigFile, version: Option<u64>) -> Result<Restored, String> {
-    call("restore_config", serde_json::json!({ "file": file, "version": version })).await
-}
-
-/// The configuration files found wrong as the app started.
-pub async fn config_problems() -> Result<Vec<ConfigInvalid>, String> {
-    call("config_problems", serde_json::json!({})).await
-}
-
 /// The system's print dialog for the window (where a page is saved as a PDF).
 pub async fn print_window() -> Result<(), String> {
     call("print_window", serde_json::json!({})).await
@@ -433,87 +373,6 @@ pub async fn save_html(name: &str, html: &str) -> Result<Option<String>, String>
 
 pub async fn quit_app() -> Result<(), String> {
     call("quit_app", serde_json::json!({})).await
-}
-
-pub async fn git_status(path: &str) -> Result<Option<GitStatus>, String> {
-    call("git_status", serde_json::json!({ "path": path })).await
-}
-
-pub async fn git_changes() -> Result<Vec<GitChange>, String> {
-    call("git_changes", serde_json::json!({})).await
-}
-
-/// What changed in `file` (relative to the root of the repository) since the last commit.
-pub async fn git_diff(file: &str, old_path: Option<&str>) -> Result<String, String> {
-    call("git_diff", serde_json::json!({ "file": file, "oldPath": old_path })).await
-}
-
-/// Each returns what git says. With `files`, only those are committed.
-pub async fn git_commit(message: &str, files: Option<&[String]>) -> Result<String, String> {
-    call("git_commit", serde_json::json!({ "message": message, "files": files })).await
-}
-
-pub async fn git_fetch() -> Result<String, String> {
-    call("git_fetch", serde_json::json!({})).await
-}
-
-/// The name and email git signs the commits with (empty when not set).
-pub async fn git_identity() -> Result<(String, String), String> {
-    call("git_identity", serde_json::json!({})).await
-}
-
-pub async fn git_set_identity(name: &str, email: &str) -> Result<(), String> {
-    call("git_set_identity", serde_json::json!({ "name": name, "email": email })).await
-}
-
-pub async fn git_init() -> Result<String, String> {
-    call("git_init", serde_json::json!({})).await
-}
-
-pub async fn git_add_remote(url: &str) -> Result<String, String> {
-    call("git_add_remote", serde_json::json!({ "url": url })).await
-}
-
-/// Clone `url` into a new folder of `parent`; returns that folder.
-pub async fn git_clone(parent: &str, url: &str) -> Result<String, String> {
-    call("git_clone", serde_json::json!({ "parent": parent, "url": url })).await
-}
-
-/// The commits that changed the page `file` (full path), newest first.
-pub async fn git_log(file: &str) -> Result<Vec<GitCommit>, String> {
-    call("git_log", serde_json::json!({ "file": file })).await
-}
-
-/// What `hash` changed in `file` (relative to the root of the repository).
-pub async fn git_commit_diff(hash: &str, file: &str) -> Result<String, String> {
-    call("git_commit_diff", serde_json::json!({ "hash": hash, "file": file })).await
-}
-
-/// The text of `file` (relative to the root of the repository) in `hash`.
-pub async fn git_show(hash: &str, file: &str) -> Result<String, String> {
-    call("git_show", serde_json::json!({ "hash": hash, "file": file })).await
-}
-
-pub async fn git_pull() -> Result<String, String> {
-    call("git_pull", serde_json::json!({})).await
-}
-
-pub async fn git_push() -> Result<String, String> {
-    call("git_push", serde_json::json!({})).await
-}
-
-/// The passphrase of the SSH key, kept in memory until the app closes; `None` forgets it.
-pub async fn git_set_passphrase(passphrase: Option<&str>) -> Result<(), String> {
-    call("git_set_passphrase", serde_json::json!({ "passphrase": passphrase })).await
-}
-
-pub async fn git_branches() -> Result<Vec<String>, String> {
-    call("git_branches", serde_json::json!({})).await
-}
-
-/// Switch to the branch `name`; with `create`, a new one.
-pub async fn git_switch(name: &str, create: bool) -> Result<String, String> {
-    call("git_switch", serde_json::json!({ "name": name, "create": create })).await
 }
 
 /// A newer version of the app, with what changed since this one; `None` when
@@ -593,24 +452,4 @@ pub async fn spell_add(word: &str) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Every code the backend sends (`backend/src/error.rs`) has its text in
-    /// both languages, except the output of a tool, shown as it is.
-    #[test]
-    fn every_backend_error_is_worded() {
-        let source = include_str!("../backend/src/error.rs");
-        let codes: Vec<&str> = source.lines()
-            .filter_map(|l| l.split_once("=> (\"")).filter_map(|(_, rest)| rest.split_once('"')).map(|(code, _)| code)
-            .filter(|c| !matches!(*c, "io" | "tool_output"))
-            .collect();
-        assert!(codes.len() > 10, "{codes:?}");
-        for code in codes {
-            for lang in [Lang::Fr, Lang::En] {
-                let err = BackendError { code: code.to_string(), detail: None, cause: None };
-                assert_ne!(error_text(&err, lang), code, "no text for the backend error {code}");
-            }
-        }
-    }
-}
+mod tests;

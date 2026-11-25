@@ -1,7 +1,9 @@
 //! The agenda of a week, as org-mode's (`C-c a a`): the dated headlines of the
 //! project, day by day. On a line: `t` the next TODO state, `s` / `d` its
 //! dates, Shift+arrows a day later or earlier; `f` / `b` the next or previous
-//! week, `.` this one, Enter opens the page there.
+//! week, `.` this one, Enter opens the page there. Beside it, the calendar of
+//! the month: the days having a page in the journal marked; a click shows the
+//! week of a day, a double click opens its page (made when there is none).
 
 use leptos::prelude::*;
 use orgamnesia_core::agenda::{self, When};
@@ -21,6 +23,71 @@ fn day_name(d: agenda::Day, lang: Lang) -> String {
     }
     let locale = if matches!(lang, Lang::Fr) { "fr-FR" } else { "en-GB" };
     String::from(date.to_locale_date_string(locale, &options))
+}
+
+/// The month of the day `d` (`novembre 2026`), in the words of `lang`.
+fn month_name(d: agenda::Day, lang: Lang) -> String {
+    let (y, m, _) = agenda::date_of(d);
+    let date = js_sys::Date::new_with_year_month_day(y as u32, m as i32 - 1, 1);
+    let options = js_sys::Object::new();
+    for (k, v) in [("month", "long"), ("year", "numeric")] {
+        let _ = js_sys::Reflect::set(&options, &k.into(), &v.into());
+    }
+    let locale = if matches!(lang, Lang::Fr) { "fr-FR" } else { "en-GB" };
+    String::from(date.to_locale_date_string(locale, &options))
+}
+
+/// The day `months` months from the first of the month of `d`.
+fn month_moved(d: agenda::Day, months: i32) -> agenda::Day {
+    let (y, m, _) = agenda::date_of(d);
+    let n = y * 12 + m as i32 - 1 + months;
+    agenda::day_of(n.div_euclid(12), n.rem_euclid(12) as u32 + 1, 1)
+}
+
+/// The calendar of the month of `month`: the days of the journal marked, the
+/// week of `from` shown; a click shows the week of a day, a double click opens its page.
+#[component]
+fn Calendar(month: RwSignal<agenda::Day>, from: RwSignal<agenda::Day>, today: agenda::Day, show_week: Callback<agenda::Day>, open_day: Callback<agenda::Day>) -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let lang = move || ctx.lang.get();
+    let journal = Memo::new(move |_| ctx.project.files.with(|fs| {
+        fs.iter().filter_map(|f| agenda::day_of_name(&f.name)).collect::<std::collections::HashSet<_>>()
+    }));
+    let weekdays = move || if matches!(lang(), Lang::Fr) { ["lu", "ma", "me", "je", "ve", "sa", "di"] } else { ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] };
+    view! {
+        <div class="agenda-calendar">
+            <div class="calendar-head">
+                <button class="btn-secondary" aria-label=move || t("calendar_previous", lang()) title=move || t("calendar_previous", lang())
+                    on:click=move |_| month.update(|m| *m = month_moved(*m, -1))>"‹"</button>
+                <span class="calendar-month">{move || month_name(month.get(), lang())}</span>
+                <button class="btn-secondary" aria-label=move || t("calendar_next", lang()) title=move || t("calendar_next", lang())
+                    on:click=move |_| month.update(|m| *m = month_moved(*m, 1))>"›"</button>
+            </div>
+            <div class="calendar-grid" role="grid">
+                {move || weekdays().into_iter().map(|w| view! { <span class="calendar-weekday">{w}</span> }).collect_view()}
+                {move || {
+                    let shown = agenda::date_of(month.get()).1;
+                    let week = from.get();
+                    agenda::month_grid(month.get()).into_iter().map(|day| {
+                        let (_, m, n) = agenda::date_of(day);
+                        let mut class = String::from("calendar-day");
+                        if m != shown { class.push_str(" other-month"); }
+                        if day == today { class.push_str(" today"); }
+                        if (week..week + 7).contains(&day) { class.push_str(" in-week"); }
+                        let page = journal.with(|j| j.contains(&day));
+                        if page { class.push_str(" has-page"); }
+                        let title = format!("{}{}", day_name(day, lang()), if page { format!(" — {}", t("calendar_has_page", lang())) } else { String::new() });
+                        view! {
+                            <button class=class title=title.clone() aria-label=title
+                                on:click=move |_| show_week.run(day)
+                                on:dblclick=move |_| open_day.run(day)>{n}</button>
+                        }
+                    }).collect_view()
+                }}
+            </div>
+            <p class="setting-hint">{move || t("calendar_hint", lang())}</p>
+        </div>
+    }
 }
 
 /// What puts a headline on its day, as org-mode writes it (`Sched.3x:`, `In 2 d.:`).
@@ -70,6 +137,11 @@ pub fn AgendaPage() -> impl IntoView {
     };
     Effect::new(move |_| { from.track(); load(); });
     let week = move |days: i64| { selected.set(0); from.update(|f| *f += days); };
+    // The calendar shows the month of the week shown, and can go to others
+    let month = RwSignal::new(from.get_untracked());
+    Effect::new(move |_| month.set(from.get()));
+    let show_week = Callback::new(move |day| { selected.set(0); from.set(agenda::week_start(day)); });
+    let open_day = Callback::new(move |day| { close(); actions::follow_link(ctx, actions::day_page_name(day)); });
 
     let current = move || hits.with_untracked(|h| h.as_ref().and_then(|h| h.get(selected.get_untracked()).cloned()));
     // The page of the day is only opened
@@ -145,6 +217,8 @@ pub fn AgendaPage() -> impl IntoView {
                 <button class="btn-close" aria-label=move || t("close", lang()) on:click=move |_| close()>"×"</button>
             </div>
             <div class="modal-body agenda-body">
+                <Calendar month from today show_week open_day />
+                <div class="agenda-week">
                 <div class="agenda-actions">
                     <button class="btn-secondary" on:click=move |_| cycle()>{move || t("agenda_state", lang())}</button>
                     <button class="btn-secondary" on:click=move |_| plan(When::Scheduled)>{move || t("agenda_plan", lang())}</button>
@@ -189,6 +263,7 @@ pub fn AgendaPage() -> impl IntoView {
                         }).collect_view().into_any()
                     }
                 }}
+                </div>
             </div>
         </div>
     }

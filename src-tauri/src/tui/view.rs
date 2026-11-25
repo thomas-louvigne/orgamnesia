@@ -132,14 +132,14 @@ impl App {
             f.set_cursor_position(Position::new(input.x + 1 + q.query.chars().count() as u16, input.y + 1));
             // The commands in the accent colour, apart from the pages
             let lines: Vec<ListItem> = items.iter().map(|i| match i {
-                commands::QuickItem::Page { name, open: true, .. } => ListItem::new(format!("● {name}")),
-                commands::QuickItem::Page { name, .. } => ListItem::new(format!("  {name}")),
-                commands::QuickItem::Create(name) => ListItem::new(format!("+ create “{name}”")).style(Style::new().fg(Color::Green)),
-                commands::QuickItem::Command { id, keys } => ListItem::new(format!("› {:<28} {keys}", id.replace('_', " "))).style(Style::new().fg(Color::Cyan)),
-                commands::QuickItem::Template { name, edit: false, .. } => ListItem::new(format!("▤ template: {name}")).style(Style::new().fg(Color::Cyan)),
-                commands::QuickItem::Template { name, .. } => ListItem::new(format!("✎ edit template: {name}")).style(Style::new().fg(Color::Cyan)),
-                commands::QuickItem::NewTemplate => ListItem::new("› new template").style(Style::new().fg(Color::Cyan)),
-                commands::QuickItem::SuggestedTemplates => ListItem::new("› add suggested templates").style(Style::new().fg(Color::Cyan)),
+                quick::QuickItem::Page { name, open: true, .. } => ListItem::new(format!("● {name}")),
+                quick::QuickItem::Page { name, .. } => ListItem::new(format!("  {name}")),
+                quick::QuickItem::Create(name) => ListItem::new(format!("+ create “{name}”")).style(Style::new().fg(Color::Green)),
+                quick::QuickItem::Command { id, keys } => ListItem::new(format!("› {:<28} {keys}", id.replace('_', " "))).style(Style::new().fg(Color::Cyan)),
+                quick::QuickItem::Template { name, edit: false, .. } => ListItem::new(format!("▤ template: {name}")).style(Style::new().fg(Color::Cyan)),
+                quick::QuickItem::Template { name, .. } => ListItem::new(format!("✎ edit template: {name}")).style(Style::new().fg(Color::Cyan)),
+                quick::QuickItem::NewTemplate => ListItem::new("› new template").style(Style::new().fg(Color::Cyan)),
+                quick::QuickItem::SuggestedTemplates => ListItem::new("› add suggested templates").style(Style::new().fg(Color::Cyan)),
             }).collect();
             let mut state = ListState::default().with_selected(Some(q.selected));
             f.render_stateful_widget(List::new(lines).block(Block::bordered().title(" ↑↓ Enter · Esc "))
@@ -235,7 +235,7 @@ impl App {
             _ => {
                 let (title, items) = self.frame_items(frame);
                 let lines: Vec<Line> = items.iter().map(|(l, t)| {
-                    let s = if *t == commands::Target::None { Style::new().add_modifier(Modifier::BOLD) } else { Style::new() };
+                    let s = if *t == frames::Target::None { Style::new().add_modifier(Modifier::BOLD) } else { Style::new() };
                     Line::from(l.clone()).style(s)
                 }).collect();
                 let lines = if lines.is_empty() { vec![Line::from("(none)").style(Style::new().fg(ratatui::style::Color::DarkGray))] } else { lines };

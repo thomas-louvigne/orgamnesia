@@ -7,7 +7,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     actions,
     i18n::t,
-    keybindings::{AppAction, EditorAction, APP_ACTIONS, EDITOR_ACTIONS, GIT_ACTIONS, PALETTE_EDITOR_ACTIONS},
+    keybindings::{AppAction, EditorAction, APP_ACTIONS, EDITOR_ACTIONS, GIT_ACTIONS, JOURNAL_ACTIONS, PALETTE_EDITOR_ACTIONS},
     state::{AppCtx, FileEntry, Goto, Tab},
 };
 
@@ -125,7 +125,7 @@ fn commands(ctx: AppCtx, q: &str, templates: &[FileEntry]) -> Vec<QuickItem> {
         // Opening this very list is no command
         .filter(|a| a.action != AppAction::QuickOpen
             && (a.action != AppAction::Graph || graph)
-            && (a.action != AppAction::Journal || journal)
+            && (!JOURNAL_ACTIONS.contains(&a.action) || journal)
             && (!GIT_ACTIONS.contains(&a.action) || git))
         .map(|a| QuickItem::Command { action: a.action, label: t(a.label_key, lang).to_string(), keys: ctx.shortcut(a.id) })
         // The editing ones only with a page open
@@ -310,7 +310,7 @@ mod tests {
     use super::*;
 
     fn file(name: &str) -> FileEntry {
-        FileEntry { name: name.into(), path: format!("/p/{name}.org") }
+        FileEntry { name: name.into(), path: format!("/p/{name}.org"), ..Default::default() }
     }
 
     fn names(items: &[QuickItem]) -> Vec<String> {

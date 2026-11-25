@@ -127,6 +127,11 @@ pub fn run_app_action(ctx: AppCtx, action: AppAction) {
         } else {
             actions::open_journal(ctx);
         },
+        AppAction::JournalPrevious | AppAction::JournalNext => if !ctx.pref_untracked(|p| p.journal) {
+            ctx.notify_t("journal_off", "");
+        } else {
+            actions::journal_step(ctx, action == AppAction::JournalNext);
+        },
         AppAction::ZenMode => {
             let on = !ctx.ui.zen.get_untracked();
             ctx.ui.zen.set(on);

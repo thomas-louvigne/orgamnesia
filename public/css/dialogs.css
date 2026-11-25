@@ -1,0 +1,345 @@
+/* The modal windows: settings, frame layout, keybinding editor.
+   Loaded after app.css, in the order of index.html. */
+
+/* ── Modal ─────────────────────────────────────────────────── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+}
+
+.modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 520px;
+    max-width: 95vw;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+
+/* A panel (the settings, a commit, the history of a page…): the whole workspace, over the pages */
+.main-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    outline: none;
+}
+.main-panel .modal-body { flex: 1; min-width: 0; min-height: 0; max-height: none; }
+.main-panel .modal-footer { flex-wrap: wrap; }
+
+/* The graph of the pages (graph extension): a canvas, its colours read from these */
+.graph-body { position: relative; padding: 0; overflow: hidden; }
+.graph-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; outline: none; }
+.graph-canvas.pointing { cursor: pointer; }
+.graph-canvas.dragging { cursor: grabbing; }
+.graph-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.graph-beta {
+    font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--orange); border: 1px solid var(--orange); border-radius: 4px; padding: 1px 5px; vertical-align: middle;
+}
+.graph-fps {
+    position: absolute; left: 12px; top: 10px; pointer-events: none;
+    font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--fg-dim);
+}
+.graph-tools {
+    position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+}
+.graph-tools input[type=range] { width: 140px; }
+.graph-tools .btn-secondary { min-width: 28px; }
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+}
+.modal-header h2 { font-size: var(--fs-heading); color: var(--fg); }
+
+/* Settings window: the tabs in a column on the left, the selected one's settings on the right */
+.modal-main { flex: 1; display: flex; min-height: 0; border-top: 1px solid var(--border); }
+
+.modal-tabs {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--bg3);
+    flex-shrink: 0;
+    min-width: 130px;
+    padding: 6px 0;
+    overflow-y: auto;
+}
+
+.modal-tab {
+    background: none;
+    border: none;
+    border-left: 2px solid transparent;
+    color: var(--fg-dim);
+    cursor: pointer;
+    font-size: var(--fs-ui);
+    padding: 9px 20px 9px 16px;
+    text-align: left;
+}
+.modal-tab:hover { color: var(--fg); }
+.modal-tab.active { color: var(--fg); border-left-color: var(--accent); background: var(--bg2); }
+
+.tab-content { display: flex; flex-direction: column; gap: 16px; }
+.tab-content .setting-doc-link { max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+.about-head { display: flex; flex-direction: column; align-items: center; padding: 12px 0 8px; }
+.about-head .empty-logo { width: 128px; height: 128px; margin-bottom: 12px; }
+.about-title { font-family: var(--font-display); font-size: 32px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
+
+.btn-close {
+    background: none; border: none; color: var(--fg-dim);
+    font-size: 20px; cursor: pointer; line-height: 1;
+}
+.btn-close:hover { color: var(--red); }
+
+.modal-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    max-height: 60vh;
+}
+
+.setting-row { display: flex; flex-direction: column; gap: 6px; }
+/* Explanations under a setting: read as help, not as another setting */
+.setting-hint {
+    font-size: var(--fs-meta); font-style: italic; color: var(--fg-dim);
+    line-height: 1.45; padding-left: 10px; border-left: 2px solid var(--border);
+}
+.setting-row label { font-size: var(--fs-meta); color: var(--fg-dim); }
+
+.setting-sub { padding-left: 24px; }
+/* A link from a setting to its documentation, opened in the browser */
+.setting-doc-link {
+    align-self: flex-start; background: none; border: none; padding: 0 0 0 12px; cursor: pointer;
+    color: var(--accent); font: inherit; font-size: var(--fs-meta); text-decoration: underline;
+}
+.setting-doc-link:hover { text-decoration-thickness: 2px; }
+/* Between two groups of settings (one extension and the next) */
+.setting-separator { border: none; border-top: 1px solid var(--border); margin: 4px 0; width: 100%; }
+.setting-sub:has(input:disabled) { opacity: 0.5; }
+
+.setting-check { display: flex !important; flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
+
+.setting-input-row { display: flex; gap: 8px; }
+
+.setting-input {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--fg); padding: 6px 10px; font-size: var(--fs-ui);
+    outline: none;
+}
+.setting-input:focus { border-color: var(--accent); }
+.prompt-box { display: flex; flex-direction: column; gap: 8px; min-width: 360px; }
+.prompt-choices { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; }
+.template-new { flex-direction: row; align-items: center; gap: 8px; }
+.template-list { margin: 0; padding-left: 18px; }
+
+.btn-pick {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--fg); padding: 6px 10px;
+    font-size: var(--fs-ui); cursor: pointer;
+}
+.btn-pick:hover { border-color: var(--accent); color: var(--accent2); }
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+}
+
+.btn-primary {
+    background: var(--accent); border: none; border-radius: 4px;
+    color: #fff; padding: 7px 20px; font-size: var(--fs-ui); cursor: pointer;
+}
+.btn-primary:hover { opacity: .9; }
+
+.btn-secondary {
+    background: none; border: 1px solid var(--border);
+    border-radius: 4px; color: var(--fg); padding: 7px 16px;
+    font-size: var(--fs-ui); cursor: pointer;
+}
+.btn-secondary:hover { border-color: var(--fg-dim); }
+
+.btn-danger {
+    background: var(--red); border: none; border-radius: 4px;
+    color: #fff; padding: 7px 20px; font-size: var(--fs-ui); cursor: pointer;
+}
+.btn-danger:hover { opacity: .9; }
+.btn-pick-danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 50%, var(--border)); }
+.btn-pick-danger:hover:not(:disabled) { color: #fff; background: var(--red); border-color: var(--red); }
+.btn-pick-danger:disabled { opacity: .4; cursor: not-allowed; }
+.number-row { align-items: center; }
+.setting-number { max-width: 160px; font-variant-numeric: tabular-nums; }
+.setting-unit { font-size: var(--fs-meta); color: var(--fg-dim); white-space: nowrap; }
+.trash-row { align-items: center; justify-content: space-between; font-size: var(--fs-ui); }
+.btn-secondary:focus-visible, .btn-danger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Frame layout editor (Display settings) ────────────────── */
+/* The two columns as they stand beside the editor */
+.layout-editor { display: flex; gap: 8px; align-items: stretch; }
+.layout-col {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 6px;
+}
+.layout-col-title {
+    font-size: var(--fs-label); font-weight: 600; color: var(--fg-dim);
+    text-transform: uppercase; letter-spacing: .05em; padding: 2px 4px 6px;
+}
+.layout-editor-center {
+    width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    writing-mode: vertical-rl; font-size: var(--fs-meta); color: var(--fg-dim);
+    border: 1px dashed var(--border); border-radius: 6px;
+}
+.layout-empty { padding: 6px 4px; font-size: var(--fs-meta); font-style: italic; color: var(--fg-dim); }
+.layout-frame {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding: 4px 4px 4px 6px; border-radius: 4px; background: var(--bg2);
+    border: 1px solid var(--border); font-size: var(--fs-ui);
+}
+.layout-frame .setting-check { min-width: 0; color: var(--fg); font-size: var(--fs-ui); }
+.layout-frame.off .setting-check { color: var(--fg-dim); }
+.layout-frame .setting-check:has(input:disabled) { opacity: .5; cursor: help; }
+.layout-arrows { display: flex; flex-shrink: 0; }
+.layout-arrow { font-size: var(--fs-ui); padding: 2px 5px; border-radius: 3px; }
+.layout-arrow:hover:not(:disabled) { background: var(--bg3); color: var(--accent2); }
+.layout-arrow:disabled { opacity: .3; cursor: default; }
+.layout-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.layout-reset { align-self: flex-start; }
+.layout-reset:disabled { opacity: .5; cursor: default; }
+
+/* ── Keybinding editor ─────────────────────────────────────── */
+.setting-section-title {
+    font-size: var(--fs-label);
+    font-weight: 600;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+}
+
+.keybinding-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.keybinding-row label {
+    font-size: var(--fs-ui);
+    color: var(--fg);
+    flex: 1;
+}
+
+.keybinding-slots {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.keybinding-field-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.keybinding-header { margin-bottom: -6px; }
+.keybinding-col-title {
+    width: 170px;
+    text-align: center;
+    font-size: var(--fs-label);
+    font-weight: 600;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+.keybinding-field-row { width: 170px; }
+/* A long chord is cut with an ellipsis, given whole in the tooltip */
+.keybinding-field { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.keybinding-field.conflict { border-color: var(--red); color: var(--red); background: rgba(239,111,131,.12); }
+
+.conflict-banner {
+    border: 1px solid var(--red); border-radius: 4px; background: rgba(239,111,131,.12);
+    color: var(--red); padding: 10px 12px; font-size: var(--fs-meta);
+    display: flex; flex-direction: column; gap: 4px;
+}
+.btn-secondary.pending { border-color: var(--orange); color: var(--orange); }
+.pending-dot { color: var(--orange); margin-right: 6px; font-size: 10px; vertical-align: middle; }
+.btn-secondary:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+.alert-overlay {
+    position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center;
+}
+.alert-box {
+    background: var(--bg2); border: 2px solid var(--red); border-radius: 8px;
+    padding: 20px 24px; max-width: 460px; display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+}
+.alert-box h3 { color: var(--red); font-size: var(--fs-heading); }
+.alert-box h3.disk-conflict-title { color: var(--orange); }
+.alert-box p { font-size: var(--fs-ui); color: var(--fg); white-space: pre-line; }
+.alert-list { font-family: inherit; font-size: var(--fs-ui); color: var(--red); white-space: pre-wrap; }
+.alert-box.confirm { border-color: var(--border); z-index: 500; }
+.alert-overlay:has(.confirm) { z-index: 500; }
+.alert-buttons { display: flex; justify-content: flex-end; gap: 10px; }
+.alert-box .btn-primary { align-self: flex-end; }
+
+.keybinding-field {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--fg);
+    font-size: var(--fs-meta);
+    font-family: var(--font-mono);
+    padding: 4px 10px;
+    cursor: pointer;
+    text-align: center;
+}
+.keybinding-field:hover { border-color: var(--accent2); }
+
+/* The search over the shortcuts stays at the top while the list scrolls */
+.shortcut-search {
+    position: sticky; top: -20px; z-index: 1;
+    margin: -8px -20px; padding: 8px 20px;
+    background: var(--bg2);
+}
+.shortcut-search .setting-input { width: 100%; }
+/* Wrappers of the search: their content is laid out as if they were not there */
+.shortcut-section, .shortcut-row { display: contents; }
+.shortcut-section.hidden, .shortcut-row.hidden { display: none; }
+
+.keybinding-field.recording {
+    border-color: var(--accent);
+    color: var(--fg-dim);
+    cursor: text;
+    outline: none;
+}
+
+.keybinding-clear {
+    background: none;
+    border: none;
+    color: var(--fg-dim);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+.keybinding-clear:hover { color: var(--red); }

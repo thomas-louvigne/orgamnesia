@@ -80,6 +80,7 @@ Usage:
             commands::pages::delete_folder,
             commands::pages::create_template,
             commands::links::get_backlinks,
+            commands::links::get_unlinked_mentions,
             commands::links::get_broken_links,
             commands::links::get_graph,
             commands::links::list_tags,

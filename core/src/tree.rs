@@ -97,7 +97,7 @@ mod tests {
     use super::*;
 
     fn file(name: &str) -> FileEntry {
-        FileEntry { name: name.into(), path: format!("/p/{name}.org") }
+        FileEntry { name: name.into(), path: format!("/p/{name}.org"), ..Default::default() }
     }
 
     fn show(rows: &[Row]) -> Vec<String> {

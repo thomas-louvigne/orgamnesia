@@ -412,6 +412,22 @@ abandonnée après 4 secondes. On peut garder Ctrl enfoncé pour la deuxième to
   org-mode) demande sa cible (les pages sont proposées) et le texte affiché ; le
   texte sélectionné devient ce texte. Sur un lien, il le modifie.
 
+** Alias
+Une page peut répondre à d'autres noms : =#+ALIAS: Drake, Le dragon= (org-mode, sur
+une ou plusieurs lignes), =alias:: Drake= (Logseq, les deux formats) ou
+=aliases: [Drake]= dans l'en-tête (Markdown, comme Obsidian l'écrit). =[[Drake]]=
+mène alors à la page : ses liens entrants, le graphe et la complétion des liens en
+tiennent compte. Le nom d'une page l'emporte sur l'alias d'une autre. Renommer une
+page laisse tels quels les liens qui nomment un alias.
+
+** Mentions non liées
+Sous les liens entrants, les endroits où d'autres pages écrivent le nom de la page
+affichée (ou un de ses alias) en texte simple : mots entiers, sans tenir compte de
+la casse ni des accents, hors des liens et des lignes =#+= ; noms de 3 lettres au
+moins. Un clic ouvre la page sur la mention ; « Lier » en fait un lien
+(=[[Dragon][dragon]]= quand le texte diffère du nom). Dans le terminal, elles
+suivent les liens entrants (F8) ; =l= lie celle choisie.
+
 ** Liens vers un titre ou une cible
 Un lien peut viser un endroit d'une page, écrit comme l'option de recherche
 d'org-mode (=[[file:page.org::*Titre]]=) :
@@ -451,6 +467,25 @@ aujourd'hui d'abord, et une heure si on veut, et insère une date org-mode :
 dans l'agenda d'org-mode ; une date inactive =[…]= (Ctrl+C ! en Emacs, ou la case
 décochée) note seulement quand. Sur une date, il la modifie, en gardant ce qui
 suit l'heure (une répétition =+1w=…).
+
+** Calendrier du journal
+À côté de l'agenda (Ctrl+Alt+A, C-c a), le calendrier du mois : aujourd'hui
+encadré, la semaine affichée grisée, un point sous chaque jour qui a une page dans
+le journal. Un clic affiche la semaine d'un jour, un double clic ouvre sa page
+(créée s'il n'y en a pas) ; =‹ ›= changent de mois. « Jour précédent du journal » /
+« Jour suivant du journal » (Ctrl+Alt+Page préc. / Page suiv. en Classique, C-c ← /
+C-c → en Emacs) ouvrent la page du journal avant ou après le jour affiché
+(aujourd'hui, depuis une autre page). Dans le terminal, l'agenda commence par le
+calendrier en texte : =[25]= aujourd'hui, =24•= un jour du journal.
+
+** Notes de bas de page
+=[fn:1]= en org-mode, =[^1]= en Markdown ; la définition sur une ligne à elle :
+=[fn:1] Texte=, =[^1]: Texte=. Les notes en ligne d'org-mode =[fn:: Texte]= sont
+lues aussi. « Insérer une note de bas de page » (Ctrl+Alt+F en Classique,
+C-c C-x f en Emacs) met le numéro suivant au curseur et sa définition en fin de page
+(en org-mode sous un titre =Footnotes=, ajouté au besoin), le curseur dessus.
+« Suivre le lien » sur un renvoi va à sa définition, et d'une définition revient à
+son premier renvoi. L'export les numérote et les regroupe en fin de page.
 
 ** Tags org-mode
 - =#+FILETAGS: :a:b:= tague toute la page ; =* Titre :a:b:= tague un titre (et ses
@@ -712,7 +747,8 @@ liens entrants, tags, à faire, pages non créées, « Le saviez-vous ? ».
 
 [[file:images/side-panel.png]]
 
-- *Liens entrants* : les pages qui ont un lien vers la page affichée.
+- *Liens entrants* : les pages qui ont un lien vers la page affichée, puis ses
+  mentions non liées (voir [[#mentions-non-liées][Mentions non liées]]).
 - *Tags* : tous les tags du projet avec leur nombre, et la recherche de tags.
   Le =+= de l'en-tête ajoute un tag à la page affichée (dans =#+FILETAGS:=) ; le =+=
   d'un tag de la liste l'y ajoute directement.

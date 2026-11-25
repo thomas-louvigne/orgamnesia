@@ -30,7 +30,7 @@ pub fn list_templates(vault_path: &str, setting: &str, formats: Formats) -> Vec<
     let Ok(dir) = std::fs::read_dir(templates_dir(vault_path, setting)) else { return vec![] };
     let mut list: Vec<FileEntry> = dir.filter_map(|e| e.ok())
         .filter(|e| page_format(&e.path()).is_some_and(|f| formats.accepts(f)))
-        .map(|e| FileEntry { name: page_name(&e.path().to_string_lossy()), path: crate::slash(e.path()) })
+        .map(|e| FileEntry { name: page_name(&e.path().to_string_lossy()), path: crate::slash(e.path()), ..Default::default() })
         .collect();
     list.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
     list
@@ -130,7 +130,7 @@ pub fn list_pages(vault_path: &str, formats: Formats, journal: &str, templates: 
         .filter(|p| page_format(p).is_some_and(|f| formats.accepts(f)))
         .map(|p| {
             let path = crate::slash(&p);
-            FileEntry { name: name_in(vault_path, journal, &path), path }
+            FileEntry { name: name_in(vault_path, journal, &path), path, ..Default::default() }
         })
         .collect();
     files.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));

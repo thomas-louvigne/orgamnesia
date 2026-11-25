@@ -4,6 +4,14 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.10.0
+- Alias : =#+ALIAS: Drake, Le dragon= (org-mode), =alias:: Drake= (Logseq) ou =aliases: [Drake]= dans l'en-tête (Markdown, comme Obsidian) donnent d'autres noms à une page. =[[Drake]]= y mène, et ses liens entrants, le graphe et la complétion des liens en tiennent compte. Le nom d'une page l'emporte sur l'alias d'une autre ; renommer une page garde les liens qui nomment un alias.
+- Mentions non liées : sous les liens entrants, les pages qui écrivent le nom de la page affichée (ou un alias) sans lien. Un clic ouvre la page à cet endroit, « Lier » fait de la mention un lien (=[[Dragon][dragon]]=).
+- Calendrier du journal, à côté de l'agenda : un point sous chaque jour qui a une page, la semaine affichée grisée. Un clic affiche la semaine d'un jour, un double clic ouvre sa page (créée au besoin).
+- Jour précédent et suivant du journal : Ctrl+Alt+Page préc. / Page suiv. (C-c ← / C-c → en Emacs) ouvrent la page du journal avant ou après le jour affiché.
+- Notes de bas de page : =[fn:1]= (org-mode), =[^1]= (Markdown) et =[fn:: en ligne]= colorées. Ctrl+Alt+F (C-c C-x f en Emacs) insère la suivante, sa définition en fin de page ; « Suivre le lien » va d'un renvoi à sa définition et retour. L'export les numérote en fin de page.
+- Tout cela aussi dans le terminal : les mentions sous les liens entrants (F8, =l= pour lier), le calendrier en tête de l'agenda.
+
 * 1.9.0
 - Agenda, comme dans Emacs : Ctrl+Alt+A (C-c a en Emacs) montre la semaine jour par jour : titres planifiés et à échéance, notes et éléments de liste datés, pages nommées par une date. Une planification en retard ou une échéance proche s'affiche aujourd'hui. Sur une ligne : =t= l'état TODO suivant, =s= / =d= ses dates, Maj+flèches un jour plus tard ou plus tôt, =f= / =b= la semaine suivante ou précédente, Entrée ouvre la page.
 - Planifier et échéance : C-c C-s / C-c C-d (Emacs) demandent une date, tapée =2026-12-01=, =+3j=, =demain=, =lundi=, =14:00= ; =-= l'enlève.

@@ -7,7 +7,7 @@ use crate::{
     i18n::{t, Lang},
     keybindings::{
         self, AppAction, Bindings, EditorAction, Keybindings,
-        GIT_ACTIONS, MARK_ACTIONS, SPLIT_ACTIONS, TODO_ACTIONS,
+        GIT_ACTIONS, JOURNAL_ACTIONS, MARK_ACTIONS, SPLIT_ACTIONS, TODO_ACTIONS,
     },
     state::{AppCtx, Prefs},
 };
@@ -35,7 +35,7 @@ fn sections(kb: &Keybindings, prefs: &Prefs) -> Vec<(&'static str, Vec<Entry>)> 
         .filter_map(|a| entry(&kb.editor, a.id, a.label_key))
         .collect::<Vec<_>>();
     let mut out = vec![
-        ("shortcut_section_app", app(&|a| !SPLIT_ACTIONS.contains(a) && !GIT_ACTIONS.contains(a) && (*a != AppAction::Graph || prefs.graph) && (*a != AppAction::Journal || prefs.journal))),
+        ("shortcut_section_app", app(&|a| !SPLIT_ACTIONS.contains(a) && !GIT_ACTIONS.contains(a) && (*a != AppAction::Graph || prefs.graph) && (!JOURNAL_ACTIONS.contains(a) || prefs.journal))),
         ("shortcut_section_split", app(&|a| SPLIT_ACTIONS.contains(a))),
         ("shortcut_section_editor", editor(&|a| !MARK_ACTIONS.contains(a) && !TODO_ACTIONS.contains(a))),
     ];

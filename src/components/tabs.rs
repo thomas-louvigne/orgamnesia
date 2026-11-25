@@ -197,7 +197,7 @@ fn TabItem(
                                         on:click=move |e: web_sys::MouseEvent| {
                                             e.stop_propagation();
                                             menu.set(None);
-                                            crate::git::open_history(ctx, FileEntry { name: name.clone(), path: path.get_value() });
+                                            crate::git::open_history(ctx, FileEntry { name: name.clone(), path: path.get_value(), ..Default::default() });
                                         }
                                     >
                                         {move || t("git_history_menu", ctx.lang.get())}
@@ -228,7 +228,7 @@ fn TabItem(
                                 class="ctx-menu-item ctx-menu-danger"
                                 on:click=move |_| {
                                     menu.set(None);
-                                    actions::delete_page(ctx, FileEntry { name: name.clone(), path: path.get_value() });
+                                    actions::delete_page(ctx, FileEntry { name: name.clone(), path: path.get_value(), ..Default::default() });
                                 }
                             >
                                 {move || t("delete_page", ctx.lang.get())}
