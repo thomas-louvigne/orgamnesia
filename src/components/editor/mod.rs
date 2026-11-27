@@ -388,6 +388,7 @@ fn context_menu(
             {item("shortcut_underline", Some("underline"), selected, action(EditorAction::Underline))}
             {item("shortcut_strikethrough", Some("strikethrough"), selected, action(EditorAction::Strikethrough))}
             {item("shortcut_quote", Some("quote"), true, action(EditorAction::Quote))}
+            {item("shortcut_comment", Some("comment"), true, action(EditorAction::Comment))}
             <div class="ctx-menu-sep" role="separator" />
             {item("shortcut_undo_edit", Some("undo"), true, action(EditorAction::Undo))}
             {item("shortcut_redo", Some("redo"), true, action(EditorAction::Redo))}

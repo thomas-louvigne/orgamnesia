@@ -179,6 +179,7 @@ pub fn PagesFrame() -> impl IntoView {
                         let path_s = file.path.clone();
                         let link = orgamnesia_core::pages::file_name(&file.path).to_string();
                         let name = leaf;
+                        let path_e = file.path.clone();
                         let file_open = file.clone();
                         let file_menu = file.clone();
                         let file_drag = file.clone();
@@ -239,7 +240,8 @@ pub fn PagesFrame() -> impl IntoView {
                                     let path_s = path_s.clone();
                                     let shadowed = Signal::derive(move || twins.with(|t| t.get(&path_s) == Some(&true)));
                                     let link = link.clone();
-                                    let name = name.clone();
+                                    let (name, path_e) = (name.clone(), path_e.clone());
+                                    let name = move || orgamnesia_core::pages::listed_name(&name, &path_e, ctx.pref(|p| p.show_extensions));
                                     view! {
                                         <span
                                             class=move || if shadowed.get() { "file-name file-shadowed" } else { "file-name" }

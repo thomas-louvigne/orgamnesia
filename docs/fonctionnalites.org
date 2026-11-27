@@ -270,6 +270,16 @@ rien n'est écrit dans le fichier. Désactivable.
 En option, dans la marge. Ils suivent les lignes du fichier, même quand un tableau
 est dessiné ou un titre plié.
 
+** Commentaires
+=comment= (=M-;= en Emacs, =Ctrl+/= dans les raccourcis classiques, ou le menu du clic
+droit) met les lignes de la sélection, ou la ligne du curseur, dans un commentaire masqué
+à l'export : un bloc =#+begin_comment= … =#+end_comment= en org-mode, =<!--= … =-->= en
+Markdown. Refait dans le commentaire, il le retire.
+
+** Extensions dans la liste des pages
+=show_extensions= (Réglages › Affichage) écrit =.org= ou =.md= après le nom de chaque page
+dans la liste des pages, dans la fenêtre et le terminal.
+
 ** Complétion
 Pendant la frappe, une liste propose :
 - les noms de pages après =[[= (accepter ferme le lien avec =]]=) ;
@@ -1322,7 +1332,7 @@ projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profi
   template » et « add suggested templates » aussi. Capture rapide : même raccourci que la fenêtre.
 - Souris : un clic place le curseur ou choisit une page, =Ctrl+clic= suit un lien, la
   bordure de la liste se déplace. Un clic droit dans la page propose gras, italique,
-  souligné et barré pour la zone (=C-SPC=), et citation pour ses lignes ou la ligne
+  souligné et barré pour la zone (=C-SPC=), et citation ou commentaire pour ses lignes ou la ligne
   cliquée, écrits comme le veut le format de la page (org-mode ou Markdown).
 - Le titre de chaque fenêtre est le =#+TITLE:= de la page (=title:= en Markdown).
 - Avec plusieurs pages ouvertes, leurs noms sont dans une barre au-dessus de la page ;

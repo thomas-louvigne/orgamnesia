@@ -242,8 +242,9 @@ impl App {
             }
             "quick_open" => self.mode = Mode::Quick(quick::Quick::default()),
             "new_page" => {
+                // The filter of the list names it; otherwise asked, as Emacs' find-file
                 let name = if editing { String::new() } else { self.filter.trim().to_string() };
-                if name.is_empty() && editing { self.close(); self.status = "type the name of the new page, then this shortcut again".into(); }
+                if name.is_empty() { self.ask("Find or create page: ", "", commands::Then::FindPage); }
                 else { self.open_or_create(name); }
             }
             "journal" => self.journal(),
@@ -400,7 +401,7 @@ impl App {
         if region {
             items.extend([item("Bold", "bold"), item("Italic", "italic"), item("Underline", "underline"), item("Strikethrough", "strikethrough")]);
         }
-        items.push(item("Quote", "quote"));
+        items.extend([item("Quote", "quote"), item("Comment", "comment")]);
         self.mode = Mode::Popup(frames::Popup::pick("Format".into(), items));
     }
 

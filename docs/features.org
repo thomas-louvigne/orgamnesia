@@ -259,6 +259,16 @@ to the file. Can be turned off.
 Optional, in the margin. They follow the lines of the file, even when a table is
 drawn or a headline folded.
 
+** Comments
+=comment= (=M-;= in Emacs, =Ctrl+/= in the classic shortcuts, or the right-click menu)
+puts the lines of the selection, or the line of the cursor, in a comment hidden from the
+exports: a =#+begin_comment= … =#+end_comment= block in org-mode, =<!--= … =-->= in
+Markdown. Again inside the comment takes it away.
+
+** Extensions in the list of the pages
+=show_extensions= (Settings › Display) writes =.org= or =.md= after the name of each
+page in the list of the pages, in the window and the terminal.
+
 ** Completion
 While typing, a list offers:
 - page names after =[[= (accepting closes the link with =]]=);
@@ -1251,7 +1261,7 @@ screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
   and "add suggested templates" too. Quick capture: the same shortcut as the window.
 - Mouse: a click puts the cursor or picks a page, =Ctrl+click= follows a link, the
   border of the list can be dragged. A right click in the page offers bold, italic,
-  underline and strikethrough for the region (=C-SPC=), and quote for its lines or
+  underline and strikethrough for the region (=C-SPC=), and quote or comment for its lines or
   the line clicked, written as the page's format wants them (org-mode or Markdown).
 - Each window's title is the page's =#+TITLE:= (=title:= in Markdown).
 - With several pages open, their names are in a bar above the page; a click opens one.

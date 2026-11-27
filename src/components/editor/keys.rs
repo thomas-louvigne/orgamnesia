@@ -195,9 +195,11 @@ pub(super) fn run_action(pane: Pane, find: Find, insert: Insert, el: &Textarea, 
         EditorAction::Redo => { pane.undo(true); }
 
         // ── Emphasis (*bold* in org-mode, **bold** in Markdown…) and quotes ───
-        EditorAction::Bold | EditorAction::Italic | EditorAction::Underline | EditorAction::Strikethrough | EditorAction::Quote => {
+        EditorAction::Bold | EditorAction::Italic | EditorAction::Underline | EditorAction::Strikethrough
+        | EditorAction::Quote | EditorAction::Comment => {
             let (a, b, with, sel_start, sel_end) = match edit::emphasis_marks(action, pane.fmt()) {
                 Some((open, close)) => edit::toggle_emphasis(&chars, start, end, open, close),
+                None if action == EditorAction::Comment => edit::toggle_comment(&chars, start, end, pane.fmt()),
                 None => edit::toggle_quote(&chars, start, end, pane.fmt()),
             };
             splice(el, a, b, &with);

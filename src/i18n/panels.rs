@@ -165,6 +165,8 @@ pub(super) fn t(key: &str, lang: Lang) -> Option<&'static str> {
         ("show_quit_button", Lang::Fr) => "Bouton pour quitter",
         ("show_line_numbers", Lang::En) => "Line numbers in the margin of the editor",
         ("show_line_numbers", Lang::Fr) => "Numéros de ligne dans la marge de l'éditeur",
+        ("show_extensions", Lang::En) => "Extension of the files (.org, .md) in the list of the pages",
+        ("show_extensions", Lang::Fr) => "Extension des fichiers (.org, .md) dans la liste des pages",
         ("tab_frames",       Lang::En) => "Frames",
         ("tab_frames",       Lang::Fr) => "Cadres",
         ("layout_hint",      Lang::En) => "Tick the frames to show. The arrows move a frame above or below its neighbour, or to the other column. Settings stay reachable with {key}.",

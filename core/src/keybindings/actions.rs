@@ -50,7 +50,7 @@ pub enum EditorAction {
     BackToIndentation, PreviousHeading, NextHeading, BackwardHeading, ForwardHeading, UpHeading, OpenLink, SetMark, KeyboardQuit,
     Find, FindPrevious, Replace, TableNextCell, TablePrevCell, GlobalCycle,
     InsertLink, InsertDate, InsertInactiveDate, InsertFootnote,
-    Bold, Italic, Underline, Strikethrough, Quote, TodoNext, TodoPrev, Schedule, Deadline,
+    Bold, Italic, Underline, Strikethrough, Quote, Comment, TodoNext, TodoPrev, Schedule, Deadline,
     PromoteSubtree, DemoteSubtree, MoveLineUp, MoveLineDown, SpellNext,
 }
 
@@ -61,7 +61,7 @@ pub const PALETTE_EDITOR_ACTIONS: &[EditorAction] = {
     use EditorAction::*;
     &[
         InsertLink, InsertDate, InsertInactiveDate, InsertFootnote,
-        Bold, Italic, Underline, Strikethrough, Quote,
+        Bold, Italic, Underline, Strikethrough, Quote, Comment,
         NewHeading, TodoNext, TodoPrev, Schedule, Deadline, PromoteSubtree, DemoteSubtree, GlobalCycle, MoveLineUp, MoveLineDown,
         Find, Replace, OpenLink, SpellNext,
         UpcaseWord, DowncaseWord, CapitalizeWord, UpcaseRegion, DowncaseRegion, FillParagraph,
@@ -203,6 +203,7 @@ pub const EDITOR_ACTIONS: &[ActionDef<EditorAction>] = &[
     ActionDef { action: EditorAction::Underline, id: "underline",           label_key: "shortcut_underline" },
     ActionDef { action: EditorAction::Strikethrough, id: "strikethrough",       label_key: "shortcut_strikethrough" },
     ActionDef { action: EditorAction::Quote, id: "quote",               label_key: "shortcut_quote" },
+    ActionDef { action: EditorAction::Comment, id: "comment",           label_key: "shortcut_comment" },
     ActionDef { action: EditorAction::TodoNext, id: "todo_next",           label_key: "shortcut_todo_next" },
     ActionDef { action: EditorAction::TodoPrev, id: "todo_prev",           label_key: "shortcut_todo_prev" },
     ActionDef { action: EditorAction::Schedule, id: "schedule",            label_key: "shortcut_schedule" },

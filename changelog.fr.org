@@ -4,6 +4,13 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.10.2
+- Commentaire : Alt+; (Emacs) ou Ctrl+/ (classique), ou le menu du clic droit, met les lignes choisies dans un commentaire masqué à l'export (=#+begin_comment= en org-mode, =<!-- -->= en Markdown) ; refait dedans, il le retire.
+- Un réglage affiche l'extension des fichiers (.org, .md) dans la liste des pages.
+- Ctrl+Entrée dans une liste fait un nouvel élément (raccourcis Emacs), comme Alt+Entrée.
+- Tab dans la page écrit une tabulation quand il n'y a rien à plier ni de cellule de tableau où aller, au lieu de quitter l'éditeur.
+- Terminal : Ctrl+X Ctrl+F demande le nom de la page à ouvrir ou créer.
+
 * 1.10.1
 - Glisser une page à la souris sur un dossier l'y déplace, sur une page la met dans le dossier de celle-ci, dans le vide la sort au premier niveau.
 - De la place sous la dernière ligne de la page, comme dans Emacs : Ctrl+L peut l'amener au milieu de la vue.

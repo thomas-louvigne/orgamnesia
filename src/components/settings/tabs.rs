@@ -196,6 +196,8 @@ pub fn DisplayTab(draft: RwSignal<Prefs>) -> impl IntoView {
                 label="show_page_nav" hint="show_page_nav_hint" sub=true disabled=|p| !p.show_page_title />
             <Check draft get=|p| p.show_line_numbers set=|p, v| p.show_line_numbers = v
                 label="show_line_numbers" />
+            <Check draft get=|p| p.show_extensions set=|p, v| p.show_extensions = v
+                label="show_extensions" />
             <Check draft get=|p| p.show_images set=|p, v| p.show_images = v
                 label="show_images" hint="show_images_hint" />
             <div class="setting-row setting-sub">

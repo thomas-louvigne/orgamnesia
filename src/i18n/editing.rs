@@ -15,6 +15,8 @@ pub(super) fn t(key: &str, lang: Lang) -> Option<&'static str> {
         ("shortcut_strikethrough", Lang::Fr) => "Barré",
         ("shortcut_quote",         Lang::En) => "Quote",
         ("shortcut_quote",         Lang::Fr) => "Citation",
+        ("shortcut_comment",       Lang::En) => "Comment (hidden from exports)",
+        ("shortcut_comment",       Lang::Fr) => "Commentaire (masqué à l'export)",
         ("shortcut_todo_next",     Lang::En) => "Next TODO state of the headline",
         ("shortcut_todo_next",     Lang::Fr) => "État TODO suivant du titre",
         ("shortcut_todo_prev",     Lang::En) => "Previous TODO state of the headline",

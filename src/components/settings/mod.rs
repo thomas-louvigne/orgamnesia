@@ -72,7 +72,7 @@ fn reset_tab(tab: Tab, p: &mut Prefs, d: Prefs) {
             hashtag_dashes, org_tag_links, org_tag_dashes, mark_broken_links, link_preview, link_preview_trigger),
         Tab::Editing => take!(autosave, electric_mode, electric_emphasis, find_match_case, indent_headings, tab_folds, todo_enabled,
             todo_keywords, delete_empty, delete_title_only, trash_auto_empty, trash_keep_days, trash_max_bytes),
-        Tab::Display => take!(show_page_title, show_page_nav, show_line_numbers, show_images, image_size_format, show_excalidraw,
+        Tab::Display => take!(show_page_title, show_page_nav, show_line_numbers, show_extensions, show_images, image_size_format, show_excalidraw,
             show_video_thumbnails, hide_leading_stars, live_preview, ligatures, link_text_first),
         Tab::Frames => take!(layout, show_brand, show_project, show_git, show_pages,
             show_backlinks, show_tags, show_broken_links, show_todos, show_org_bloom, show_graph, show_tips, show_quit_button,

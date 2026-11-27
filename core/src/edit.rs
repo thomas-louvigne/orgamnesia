@@ -384,21 +384,39 @@ pub fn toggle_quote(chars: &[char], start: usize, end: usize, format: crate::For
             text.lines().map(|l| format!("> {l}")).collect::<Vec<_>>().join("\n")
         }
     } else {
-        let line = |s: usize, e: usize| chars[s..e].iter().collect::<String>().trim().to_lowercase();
-        // Already in a block: its two lines go away
-        if a > 0 && b < chars.len() {
-            let before = line_bounds(chars, a - 1);
-            let after = line_bounds(chars, b + 1);
-            if line(before.0, before.1) == "#+begin_quote" && line(after.0, after.1) == "#+end_quote" {
-                return (before.0, after.1, text, before.0, before.0 + (b - a));
-            }
-        }
-        let with = format!("#+begin_quote\n{text}\n#+end_quote");
-        let len = with.chars().count();
-        return (a, b, with, a + 14, a + len - 12);
+        return toggle_block(chars, a, b, "#+begin_quote", "#+end_quote");
     };
     let len = with.chars().count();
     (a, b, with, a, a + len)
+}
+
+/// The lines of `start..end` made a comment, hidden from the exports (org-mode's
+/// `#+begin_comment` block, Markdown's `<!--` `-->`), or no longer one when they
+/// are. Returns as `toggle_quote`.
+pub fn toggle_comment(chars: &[char], start: usize, end: usize, format: crate::Format) -> (usize, usize, String, usize, usize) {
+    let last = if end > start && chars[end - 1] == '\n' { end - 1 } else { end };
+    let (a, b) = (line_bounds(chars, start).0, line_bounds(chars, last).1);
+    let (open, close) = if format == crate::Format::Markdown { ("<!--", "-->") } else { ("#+begin_comment", "#+end_comment") };
+    toggle_block(chars, a, b, open, close)
+}
+
+/// The lines `a..b` put between the lines `open` and `close`, or taken out when
+/// they already are; the new selection on the lines.
+fn toggle_block(chars: &[char], a: usize, b: usize, open: &str, close: &str) -> (usize, usize, String, usize, usize) {
+    let text: String = chars[a..b].iter().collect();
+    let line = |s: usize, e: usize| chars[s..e].iter().collect::<String>().trim().to_lowercase();
+    // Already in a block: its two lines go away
+    if a > 0 && b < chars.len() {
+        let before = line_bounds(chars, a - 1);
+        let after = line_bounds(chars, b + 1);
+        if line(before.0, before.1) == open && line(after.0, after.1) == close {
+            return (before.0, after.1, text, before.0, before.0 + (b - a));
+        }
+    }
+    let with = format!("{open}\n{text}\n{close}");
+    let (o, c) = (open.chars().count() + 1, close.chars().count() + 1);
+    let len = with.chars().count();
+    (a, b, with, a + o, a + len - c)
 }
 #[cfg(test)]
 mod tests;

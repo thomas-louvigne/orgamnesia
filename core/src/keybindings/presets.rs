@@ -229,7 +229,7 @@ pub fn preset_editor(preset: &str) -> Bindings {
             // mark-whole-buffer
             ("select_all",          &["ctrl+x h"]),
             // org-meta-return: a new headline, or a new item on a list item
-            ("new_heading",         &["alt+Enter"]),
+            ("new_heading",         &["alt+Enter", "ctrl+Enter"]),
             ("open_link",           &["ctrl+c ctrl+o"]),
             ("forward_char",        &["ctrl+f"]),
             ("backward_char",       &["ctrl+b"]),
@@ -281,6 +281,8 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("italic",              &["ctrl+c ctrl+x ctrl+f /", "ctrl+c ctrl+x ctrl+f shift+/"]),
             ("underline",           &["ctrl+c ctrl+x ctrl+f _", "ctrl+c ctrl+x ctrl+f shift+_"]),
             ("strikethrough",       &["ctrl+c ctrl+x ctrl+f +", "ctrl+c ctrl+x ctrl+f shift++"]),
+            // comment-dwim; `;` needs Shift on some keyboards
+            ("comment",             &["alt+;", "shift+alt+;"]),
             // org-shiftright / org-shiftleft on a headline (elsewhere, Shift+arrows select)
             ("todo_next",           &["shift+ArrowRight", "ctrl+c ctrl+t"]),
             ("todo_prev",           &["shift+ArrowLeft"]),
@@ -305,6 +307,7 @@ pub fn preset_editor(preset: &str) -> Bindings {
             ("redo",        &["ctrl+shift+z", "ctrl+y"]),
             ("new_heading", &["shift+Enter"]),
             ("open_link",   &["ctrl+Enter"]),
+            ("comment",     &["ctrl+/", "ctrl+shift+/"]),
             ("find",          &["ctrl+f", "F3"]),
             ("find_previous", &["shift+F3"]),
             ("replace",       &["ctrl+h"]),

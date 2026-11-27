@@ -95,10 +95,11 @@ impl Editor {
                 let end = a + with.chars().count();
                 self.replace(a, b, &with, end, Change::Other);
             }
-            Bold | Italic | Underline | Strikethrough | Quote => {
+            Bold | Italic | Underline | Strikethrough | Quote | Comment => {
                 let (s, e) = self.region().unwrap_or((c, c));
                 let (a, b, with, sel_start, sel_end) = match edit::emphasis_marks(action, self.format()) {
                     Some((open, close)) => edit::toggle_emphasis(&self.text, s, e, open, close),
+                    None if action == Comment => edit::toggle_comment(&self.text, s, e, self.format()),
                     None => edit::toggle_quote(&self.text, s, e, self.format()),
                 };
                 let had_region = s < e;

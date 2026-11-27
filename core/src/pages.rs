@@ -113,9 +113,25 @@ pub fn random_page<'f>(files: &'f [FileEntry], shown: Option<&str>, r: f64) -> O
     Some(pool[i])
 }
 
+/// The name of a page in the list of the pages: with the extension of its
+/// file (`path`) when the settings say so (`show_extensions`).
+pub fn listed_name(name: &str, path: &str, extension: bool) -> String {
+    match file_name(path).rsplit_once('.') {
+        Some((_, ext)) if extension => format!("{name}.{ext}"),
+        _ => name.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn listed_name_with_the_extension() {
+        assert_eq!(listed_name("Note", "/p/Jeux/Note.md", true), "Note.md");
+        assert_eq!(listed_name("Note", "/p/Jeux/Note.md", false), "Note");
+        assert_eq!(listed_name("Note", "Note", true), "Note");
+    }
 
     #[test]
     fn random_page_skips_the_page_shown() {

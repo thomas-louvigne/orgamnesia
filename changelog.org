@@ -4,6 +4,13 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.10.2
+- Comment: Alt+; (Emacs) or Ctrl+/ (classic), or the right-click menu, puts the selected lines in a comment hidden from the exports (=#+begin_comment= in org-mode, =<!-- -->= in Markdown); again inside it takes it away.
+- A setting shows the extension of the files (.org, .md) in the list of the pages.
+- Ctrl+Enter in a list makes a new item (Emacs shortcuts), as Alt+Enter.
+- Tab in the page writes a tab when there is nothing to fold or no table cell to go to, instead of leaving the editor.
+- Terminal: Ctrl+X Ctrl+F asks the name of the page to open or make.
+
 * 1.10.1
 - Drag a page with the mouse onto a folder to move it there, onto a page to put it in that page's folder, onto the empty area to take it out to the top.
 - Room under the last line of the page, as in Emacs: Ctrl+L can bring it to the middle of the view.

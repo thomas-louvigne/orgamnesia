@@ -319,5 +319,27 @@ use super::*;
         app.prompt_mut().unwrap().input = "md".into();
         app.submit();
         assert!(dir.join("pages/Beta.md").exists());
+        // While editing, `new_page` asks the name (Emacs' find-file) and opens the page
+        app.action("new_page");
+        answer(&mut app, "Alpha");
+        assert!(app.editor.as_ref().is_some_and(|e| e.path.ends_with("Alpha.org")));
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn ctrl_l_recenters_the_view() {
+        let text: String = (0..100).map(|n| format!("ligne {n}\n")).collect();
+        let (dir, _) = app_on("recenter", &[("Alpha", &text)]);
+        let prefs = settings::Settings::default().prefs();
+        let project = Project::open(&crate::slash(&dir), prefs.tags(), prefs.formats(), &prefs.journal_folder, &prefs.templates_folder).unwrap();
+        let mut app = App::new(project, prefs, Keybindings::with_profiles(Some("emacs"), vec![]));
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        let mut term = ratatui::Terminal::new(ratatui::backend::TestBackend::new(140, 40)).unwrap();
+        for _ in 0..60 { press(&mut app, KeyCode::Down, KeyModifiers::NONE); term.draw(|f| app.draw(f)).unwrap(); }
+        press(&mut app, KeyCode::Char('l'), KeyModifiers::CONTROL);
+        term.draw(|f| app.draw(f)).unwrap();
+        let e = app.editor.as_ref().unwrap();
+        let height = app.page_area.height as usize - 2;
+        assert_eq!(e.row() - e.top, height / 2, "status: {}", app.status);
+        let _ = std::fs::remove_dir_all(&dir);
     }

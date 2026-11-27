@@ -229,7 +229,7 @@ impl App {
                     orgamnesia_core::tree::Row::Folder { name, depth, open, pages, .. } =>
                         format!("{}{} {name}/ ({pages})", "  ".repeat(depth), if open { "▾" } else { "▸" }),
                     orgamnesia_core::tree::Row::Page { file, name, depth } =>
-                        format!("{}  {name}{}", "  ".repeat(depth), count(&file).unwrap_or_default()),
+                        format!("{}  {}{}", "  ".repeat(depth), orgamnesia_core::pages::listed_name(&name, &file.path, self.prefs.show_extensions), count(&file).unwrap_or_default()),
                 }).collect();
                 let total = names.len();
                 let title = match (&self.hits, self.filter.is_empty()) {

@@ -105,8 +105,17 @@ pub(super) fn table_cell(pane: Pane, e: &web_sys::KeyboardEvent, el: &Textarea, 
     let chars: Vec<char> = el.value().chars().collect();
     let forward = action == EditorAction::TableNextCell;
     let Some(to) = tables::move_cell(&chars, caret(el), forward) else {
-        if !pane.ctx.pref_untracked(|p| p.tab_folds) { return; }
-        if forward { cycle(pane, e, el); } else if global_cycle(pane, el) { swallow(e); }
+        if pane.ctx.pref_untracked(|p| p.tab_folds) {
+            if forward { cycle(pane, e, el); } else if global_cycle(pane, el) { swallow(e); }
+        }
+        // Nothing folded: a plain Tab writes a tab instead of leaving the editor
+        if forward && !e.default_prevented() && e.key() == "Tab" && unmodified(e) && !e.shift_key() {
+            swallow(e);
+            let (start, end) = get_pos(el);
+            set_cursor(el, splice(el, start, end, "\t"));
+            pane.commit(el);
+            pane.track_caret(el);
+        }
         return;
     };
     swallow(e);

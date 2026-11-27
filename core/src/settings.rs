@@ -158,6 +158,8 @@ pub struct Config {
     pub show_quit_button: Option<bool>,
     /// Line numbers in the margin of the editor.
     pub show_line_numbers: Option<bool>,
+    /// The extension of the files (`.org`, `.md`) in the list of the pages.
+    pub show_extensions: Option<bool>,
     /// Frames shown around the editor: pages menu, backlinks, tags, pages not created.
     pub show_pages: Option<bool>,
     pub show_backlinks: Option<bool>,

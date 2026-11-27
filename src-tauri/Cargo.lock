@@ -3257,7 +3257,7 @@ dependencies = [
 
 [[package]]
 name = "orgamnesia"
-version = "1.10.1"
+version = "1.10.2"
 dependencies = [
  "arboard",
  "chrono",
@@ -3281,7 +3281,7 @@ dependencies = [
 
 [[package]]
 name = "orgamnesia-backend"
-version = "1.10.1"
+version = "1.10.2"
 dependencies = [
  "notify-debouncer-mini",
  "orgamnesia-core",
@@ -3294,7 +3294,7 @@ dependencies = [
 
 [[package]]
 name = "orgamnesia-core"
-version = "1.10.1"
+version = "1.10.2"
 dependencies = [
  "regex",
  "serde",

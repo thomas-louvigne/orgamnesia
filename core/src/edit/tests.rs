@@ -279,6 +279,21 @@ fn quote_toggles() {
 }
 
 #[test]
+fn comment_toggles() {
+    use crate::Format::{Markdown, Org};
+    let t = c("avant\nun\ndeux\napres");
+    let (a, b, with, s, e) = toggle_comment(&t, 7, 10, Org);
+    assert_eq!((a, b, with.as_str()), (6, 13, "#+begin_comment\nun\ndeux\n#+end_comment"));
+    assert_eq!(with.chars().skip(s - a).take(e - s).collect::<String>(), "un\ndeux");
+    let q = c("avant\n#+begin_comment\nun\ndeux\n#+end_comment\napres");
+    assert_eq!(toggle_comment(&q, 22, 27, Org), (6, 43, "un\ndeux".into(), 6, 13));
+    let (_, _, with, s, e) = toggle_comment(&t, 7, 14, Markdown);
+    assert_eq!(with, "<!--\nun\ndeux\n-->");
+    assert_eq!(with.chars().skip(s - 6).take(e - s).collect::<String>(), "un\ndeux");
+    assert_eq!(toggle_comment(&c("<!--\nun\n-->"), 5, 7, Markdown), (0, 11, "un".into(), 0, 2));
+}
+
+#[test]
 fn extended_links_under_the_cursor() {
     let t = c("[[Page|texte]] [[P#Titre]] [lien](Ma%20page.md)");
     let ext = TagSyntax { org_links: crate::links::LinkSyntax::ALL, ..Hashtags::Off.into() };

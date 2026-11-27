@@ -30,7 +30,7 @@ impl Prompt {
     pub(super) fn completes(&self) -> Option<fn(&App) -> Vec<String>> {
         match self.then {
             Then::AddTag | Then::TodoFilter => Some(App::tag_names),
-            Then::LinkTarget { .. } => Some(App::link_names),
+            Then::LinkTarget { .. } | Then::FindPage => Some(App::link_names),
             Then::NewFolder | Then::MovePage(_) | Then::RenameFolder | Then::RenameFolderTo(_) | Then::DeleteFolder => Some(App::folder_names),
             _ => None,
         }
@@ -65,6 +65,8 @@ pub(super) enum Then {
     DeletePage(String),
     /// Every page of the trash deleted for good (`y`).
     EmptyTrash,
+    /// The page of this name opened, made when there is none (`new_page`).
+    FindPage,
     /// The format of the new page named so (`ask_format`).
     NewPage(String),
     /// The page at this path renamed.
@@ -173,6 +175,7 @@ impl App {
                 Err(e) => e.to_string(),
             },
             Then::Rename(old) if !input.is_empty() => self.rename(&old, &input),
+            Then::FindPage => self.open_or_create(input.trim().to_string()),
             Then::NewPage(name) => {
                 let format = match input.to_lowercase().as_str() { "md" | "markdown" => Format::Markdown, _ => Format::Org };
                 match self.project.create(&name, Some(format), self.prefs.tags()) {
