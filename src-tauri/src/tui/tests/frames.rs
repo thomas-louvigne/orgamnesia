@@ -262,3 +262,54 @@ fn tab_and_enter_move_in_a_table() {
     assert_eq!(app.editor.as_ref().unwrap().cursor, 16);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn the_pages_opened_and_the_scrollbar_are_drawn() {
+    let dir = std::env::temp_dir().join(format!("orgamnesia-tui-tabs-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("pages")).unwrap();
+    std::fs::write(dir.join("pages/Short.org"), "x").unwrap();
+    std::fs::write(dir.join("pages/Long.org"), "line\n".repeat(200)).unwrap();
+    let prefs = settings::Settings::default().prefs();
+    let project = Project::open(&crate::slash(&dir), prefs.tags(), prefs.formats(), &prefs.journal_folder, &prefs.templates_folder).unwrap();
+    let mut app = App::new(project, prefs, Keybindings::with_profiles(None, vec![]));
+    let screen = |app: &mut App| {
+        let mut term = ratatui::Terminal::new(ratatui::backend::TestBackend::new(140, 40)).unwrap();
+        term.draw(|f| app.draw(f)).unwrap();
+        term.backend().buffer().content().iter().map(|c| c.symbol()).collect::<String>()
+    };
+    // One page: no tab bar, no thumb
+    app.edit(&crate::slash(dir.join("pages/Short.org")));
+    assert!(!screen(&mut app).contains('█'));
+    // Two pages: their names side by side; the long one has a thumb
+    app.edit(&crate::slash(dir.join("pages/Long.org")));
+    let s = screen(&mut app);
+    assert!(s.contains("Short │ Long") && s.contains('█'), "{s}");
+    // A click on a name of the bar: that page edited
+    let bar = app.tab_bar;
+    app.mouse(MouseEvent { kind: MouseEventKind::Down(MouseButton::Left), column: bar.x + 2, row: bar.y, modifiers: KeyModifiers::NONE });
+    assert!(app.editor.as_ref().unwrap().path.ends_with("Short.org"));
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn an_image_is_drawn_under_its_link_when_the_page_is_read() {
+    let dir = std::env::temp_dir().join(format!("orgamnesia-tui-image-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("assets")).unwrap();
+    std::fs::create_dir_all(dir.join("pages")).unwrap();
+    image::RgbImage::from_pixel(40, 40, image::Rgb([255, 0, 0])).save(dir.join("assets/red.png")).unwrap();
+    std::fs::write(dir.join("pages/P.org"), "before\n[[../assets/red.png]]\nafter").unwrap();
+    let prefs = settings::Settings::default().prefs();
+    let project = Project::open(&crate::slash(&dir), prefs.tags(), prefs.formats(), &prefs.journal_folder, &prefs.templates_folder).unwrap();
+    let mut app = App::new(project, prefs, Keybindings::with_profiles(None, vec![]));
+    app.images.picker = Some(ratatui_image::picker::Picker::halfblocks());
+    let mut term = ratatui::Terminal::new(ratatui::backend::TestBackend::new(140, 40)).unwrap();
+    term.draw(|f| app.draw(f)).unwrap();
+    // Under the link, a row of red half blocks; "after" pushed down below the image
+    let buf = term.backend().buffer();
+    let a = app.page_area;
+    let red = |y| (a.x..a.right()).any(|x| buf[(x, y)].fg == ratatui::style::Color::Rgb(255, 0, 0));
+    let row = |y| (a.x..a.right()).map(|x| buf[(x, y)].symbol()).collect::<String>();
+    assert!(row(a.y + 2).contains("red.png") && red(a.y + 3), "{}", row(a.y + 3));
+    assert!(!row(a.y + 4).contains("after"));
+    std::fs::remove_dir_all(&dir).unwrap();
+}

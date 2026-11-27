@@ -97,6 +97,8 @@ Les pages se rangent dans des dossiers et des sous-dossiers de =pages/=
 - *Clic droit sur un dossier* : nouvelle page ici, nouveau dossier ici, renommer le
   dossier, supprimer le dossier. *Sur une page* : « Déplacer dans un dossier… ». *Dans
   le vide* : nouvelle page, nouveau dossier.
+- *Glisser une page* à la souris (fenêtre) sur un dossier l'y range, sur une page la met
+  dans le dossier de celle-ci, dans le vide la sort au premier niveau.
 - *Commandes* (liste des commandes =>=, sans raccourci par défaut) : « Nouveau dossier »,
   « Déplacer la page dans un dossier », « Renommer un dossier », « Supprimer un dossier ».
   Le nom se tape dans une petite boîte qui propose les dossiers (Tab prend le premier).
@@ -1323,6 +1325,14 @@ projets, écran découpé (=C-x 2=, =C-x 3=). =F1= liste les raccourcis du profi
   souligné et barré pour la zone (=C-SPC=), et citation pour ses lignes ou la ligne
   cliquée, écrits comme le veut le format de la page (org-mode ou Markdown).
 - Le titre de chaque fenêtre est le =#+TITLE:= de la page (=title:= en Markdown).
+- Avec plusieurs pages ouvertes, leurs noms sont dans une barre au-dessus de la page ;
+  un clic en ouvre une. La page, les popups et les listes ont une barre de défilement
+  quand ils dépassent de l'écran.
+- Les images (une ligne qui n'est qu'un lien vers un fichier image, comme dans la
+  fenêtre) sont dessinées sous leur lien quand la page est lue, pas pendant l'édition :
+  avec le graphisme du terminal (kitty, WezTerm, iTerm2, sixel), sinon en demi-blocs
+  colorés. Leur taille suit =#+ATTR_ORG: :width= et les tailles de Logseq ;
+  =show_images= les coupe.
 - Raccourcis des profils, modifiables dans Réglages > Raccourcis comme les autres :
   =F2= renomme la page (les liens suivent), =F4= les titres TODO, =F5= les tags, =F8=
   les pages qui pointent ici, =F9= les pages pas encore créées, en panneaux ; =Entrée=

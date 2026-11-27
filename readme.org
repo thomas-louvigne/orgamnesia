@@ -154,6 +154,11 @@ Setting up the tools and releasing a version: [[file:docs/install.org][docs/inst
 - [ ] Git diff & merge tools: see the changes of a page, resolve a diverged history or a conflict without a terminal
 - [X] Zen mode: only the text, without frames or bars
 - [ ] Multiple cursors
+- [X] Terminal: ratatui 0.30
+- [X] Terminal: scrollbars (page, popups, lists) and a bar of the pages opened
+- [ ] Terminal: ratatui's tables (agenda, git) and calendar (journal)
+- [X] Terminal: images in the page when it is read (=ratatui-image=: kitty, sixel, iTerm, else half blocks)
+- [ ] Terminal: tests of what is drawn (snapshots of =TestBackend=)
 
 * License
 

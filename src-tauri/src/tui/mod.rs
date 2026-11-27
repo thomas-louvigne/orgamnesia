@@ -15,6 +15,7 @@ mod view;
 #[cfg(test)]
 mod tests;
 mod highlight;
+mod images;
 mod keys;
 mod navigation;
 mod pages;
@@ -72,7 +73,11 @@ pub fn run(folder: Option<String>) -> Result<(), String> {
         if !files.is_empty() { app.offer_json_removal(files, settings.clone()); }
     }
     let mut terminal = init();
+    app.pointer = Some(false);
+    // Asked once the screen is taken, before the keys are read; else half blocks
+    if app.prefs.show_images { app.images.picker = Some(ratatui_image::picker::Picker::from_query_stdio().unwrap_or_else(|_| ratatui_image::picker::Picker::halfblocks())); }
     let result = app.run(&mut terminal);
+    app.set_pointer(false);
     // On quit, as the window does: the sync (git_sync_on_quit), the blank pages deleted
     if result.is_ok() && app.prefs.git_sync_on_quit { app.sync(); }
     let p = &app.prefs;
@@ -176,12 +181,14 @@ struct App {
     scroll: u16,
     height: u16,
     width: u16,
-    /// Width of the column of the pages (`None`: 30 % of the screen), of the
+    /// Width of the column of the pages (`None`: a fifth of the screen, 24 to 40 columns), of the
     /// screen, and whether its border is being dragged.
     split: Option<u16>,
     total: u16,
     /// The border being dragged: of the left column (`false`), of the right one (`true`).
     dragging: Option<bool>,
+    /// The mouse pointer is the resize arrow; `None`: never changed (tests).
+    pointer: Option<bool>,
     /// Width of the right column of frames (`None`: a fifth of the screen), and where it starts.
     right_split: Option<u16>,
     right_x: u16,
@@ -212,6 +219,9 @@ struct App {
     closed: std::collections::HashSet<String>,
     /// The pages opened in the editor, in the order they were.
     tabs: Vec<String>,
+    /// Where the bar of the pages opened is drawn (empty: none), to find the one clicked.
+    tab_bar: Rect,
+    images: images::Images,
     /// A search of the project: what, and the pages holding it (with how many times).
     hits: Option<(String, Vec<(String, usize)>)>,
     /// What has the keys (see `Mode`).
@@ -245,8 +255,8 @@ impl App {
         let mut app = Self {
             project, prefs, help: [help(&kb, false), help(&kb, true)], kb, chord: keys::Chord::default(),
             filter: String::new(), list: ListState::default(), editor: None, link: None,
-            scroll: 0, height: 0, width: 0, split: None, total: 0, dragging: None, right_split: None, right_x: 0, list_area: Rect::default(), back: vec![], forward: vec![], status: String::new(), zen: false, tip: clock_nanos() as usize, todo_filter: String::new(),
-            page_area: Rect::default(), other_area: Rect::default(), other: None, split_dir: None, active_slot: 0, capture: None, closed: [orgamnesia_core::tree::JOURNAL.to_string()].into(), tabs: vec![], hits: None,
+            scroll: 0, height: 0, width: 0, split: None, total: 0, dragging: None, pointer: None, right_split: None, right_x: 0, list_area: Rect::default(), back: vec![], forward: vec![], status: String::new(), zen: false, tip: clock_nanos() as usize, todo_filter: String::new(),
+            page_area: Rect::default(), other_area: Rect::default(), other: None, split_dir: None, active_slot: 0, capture: None, closed: [orgamnesia_core::tree::JOURNAL.to_string()].into(), tabs: vec![], tab_bar: Rect::default(), images: Default::default(), hits: None,
             projects: vec![], config_dir: None, git: None, last_session: None, folders, disk_conflicts: vec![], disk_watch: None,
             mode: Mode::Normal, frame_state: Default::default(), frame_areas: vec![], right_column: true,
         };

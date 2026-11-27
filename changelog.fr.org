@@ -4,6 +4,13 @@ Ce qui change à chaque version, la plus récente en premier. L'application mont
 notes quand une nouvelle version est disponible ; elles sont aussi le texte des
 versions publiées sur GitHub. La version anglaise est dans [[file:changelog.org][changelog.org]].
 
+* 1.10.1
+- Glisser une page à la souris sur un dossier l'y déplace, sur une page la met dans le dossier de celle-ci, dans le vide la sort au premier niveau.
+- De la place sous la dernière ligne de la page, comme dans Emacs : Ctrl+L peut l'amener au milieu de la vue.
+- Terminal : les images de la page dessinées sous leur lien quand la page est lue, avec le graphisme du terminal (kitty, WezTerm, iTerm2, sixel), sinon en demi-blocs colorés ; =show_images= les coupe.
+- Terminal : une barre avec les noms des pages ouvertes (un clic en ouvre une), des barres de défilement sur la page, les popups et les listes.
+- Terminal : la colonne des pages plus étroite (un cinquième de l'écran, de 24 à 40 colonnes) ; le pointeur de la souris devient une flèche de redimensionnement sur les bordures des colonnes (kitty, foot, WezTerm, xterm).
+
 * 1.10.0
 - Alias : =#+ALIAS: Drake, Le dragon= (org-mode), =alias:: Drake= (Logseq) ou =aliases: [Drake]= dans l'en-tête (Markdown, comme Obsidian) donnent d'autres noms à une page. =[[Drake]]= y mène, et ses liens entrants, le graphe et la complétion des liens en tiennent compte. Le nom d'une page l'emporte sur l'alias d'une autre ; renommer une page garde les liens qui nomment un alias.
 - Mentions non liées : sous les liens entrants, les pages qui écrivent le nom de la page affichée (ou un alias) sans lien. Un clic ouvre la page à cet endroit, « Lier » fait de la mention un lien (=[[Dragon][dragon]]=).

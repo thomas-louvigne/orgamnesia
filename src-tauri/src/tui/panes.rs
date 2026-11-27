@@ -208,6 +208,16 @@ impl App {
         self.edit(&path);
     }
 
+    /// A click on the bar of the pages opened at column `x`: that page edited.
+    pub(super) fn click_tab(&mut self, x: u16) {
+        // As `Tabs` draws them: a space, the name, a space, the divider
+        let mut end = self.tab_bar.x;
+        let names: Vec<String> = self.tabs.iter().map(|t| crate::project::files::page_name(t)).collect();
+        let Some(i) = names.iter().position(|n| { end += ratatui::text::Line::from(n.as_str()).width() as u16 + 3; x < end }) else { return };
+        let path = self.tabs[i].clone();
+        self.edit(&path);
+    }
+
     /// The page edited closed (saved), the one opened before it in its place.
     pub(super) fn close_tab(&mut self) {
         let Some(path) = self.editor.as_ref().map(|e| e.path.clone()) else { return };

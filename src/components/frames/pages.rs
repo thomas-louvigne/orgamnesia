@@ -53,6 +53,19 @@ pub fn PagesFrame() -> impl IntoView {
         actions::rename_page(ctx, old_path, rename_value.get_untracked());
     };
 
+    // The page being dragged with the mouse, dropped on a folder (or a page: its
+    // folder; the empty area: the top). Mouse events, not HTML5 drag: Tauri's file
+    // drop takes it on Windows.
+    let dragged = RwSignal::new(None::<FileEntry>);
+    let drop_in = move |folder: &str| {
+        let Some(file) = dragged.get_untracked() else { return };
+        dragged.set(None);
+        if actions::folder_of(&file.name) == folder { return; }
+        let leaf = file.name.rsplit('/').next().unwrap_or(&file.name);
+        let name = if folder.is_empty() { leaf.to_string() } else { format!("{folder}/{leaf}") };
+        actions::rename_page(ctx, file.path, name);
+    };
+
     let rows = move || {
         let journal = t("journal_folder_label", ctx.lang.get());
         ctx.project.files.with(|files| ctx.project.folders.with(|folders| closed.with(|closed| {
@@ -108,7 +121,9 @@ pub fn PagesFrame() -> impl IntoView {
                 />
             </div>
             <div
-                class="sidebar-list"
+                class=move || if dragged.get().is_some() { "sidebar-list pages-dragging" } else { "sidebar-list" }
+                on:mouseup=move |_| drop_in("")
+                on:mouseleave=move |_| dragged.set(None)
                 on:contextmenu=move |e: web_sys::MouseEvent| {
                     e.prevent_default();
                     if !ctx.project.preference.get_untracked() { ctx_menu.set(Some((e.client_x(), e.client_y(), Target::Empty))); }
@@ -125,6 +140,7 @@ pub fn PagesFrame() -> impl IntoView {
                     {match row {
                     Row::Folder { key, name, depth, open, pages } => {
                         let key_click = key.clone();
+                        let key_drop = key.clone();
                         let is_journal = key == tree::JOURNAL;
                         view! {
                             <div
@@ -135,6 +151,10 @@ pub fn PagesFrame() -> impl IntoView {
                                 style=format!("padding-left:{}px", 8 + depth * 14)
                                 on:keydown=crate::a11y::list_item_keys
                                 on:click=move |_| toggle(key_click.clone())
+                                on:mouseup=move |e: web_sys::MouseEvent| {
+                                    e.stop_propagation();
+                                    if is_journal { dragged.set(None) } else { drop_in(&key_drop) }
+                                }
                                 on:contextmenu=move |e: web_sys::MouseEvent| {
                                     e.prevent_default();
                                     e.stop_propagation();
@@ -161,6 +181,8 @@ pub fn PagesFrame() -> impl IntoView {
                         let name = leaf;
                         let file_open = file.clone();
                         let file_menu = file.clone();
+                        let file_drag = file.clone();
+                        let page_folder = actions::folder_of(&file.name).to_string();
                         view! {
                             <div
                                 class=move || if active_path.get().as_deref() == Some(path.as_str()) {
@@ -171,6 +193,15 @@ pub fn PagesFrame() -> impl IntoView {
                                 tabindex="0"
                                 aria-current=move || (active_path.get().as_deref() == Some(path_c.as_str())).then_some("page")
                                 on:keydown=crate::a11y::list_item_keys
+                                on:mousedown=move |e: web_sys::MouseEvent| {
+                                    if e.button() == 0 && renaming.get_untracked().is_none() && !ctx.project.preference.get_untracked() {
+                                        dragged.set(Some(file_drag.clone()));
+                                    }
+                                }
+                                on:mouseup=move |e: web_sys::MouseEvent| {
+                                    e.stop_propagation();
+                                    drop_in(&page_folder);
+                                }
                                 on:click=move |_| {
                                     if renaming.get_untracked().is_none() {
                                         actions::open_file(ctx, file_open.clone(), None);

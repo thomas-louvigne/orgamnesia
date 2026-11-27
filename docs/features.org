@@ -91,6 +91,8 @@ Pages go in folders and subfolders of =pages/= (=pages/Games/Quests/Dragon.org=)
   folders of the pages found.
 - *Right click on a folder*: new page here, new folder here, rename the folder, delete
   the folder. *On a page*: "Move to a folder…". *On the empty area*: new page, new folder.
+- *Drag a page* with the mouse (window) onto a folder to move it there, onto a page to
+  put it in that page's folder, onto the empty area to take it out to the top.
 - *Commands* (the =>= command list, no shortcut by default): "New folder", "Move the page
   to a folder", "Rename a folder", "Delete a folder". The name is typed in a small box
   offering the folders (Tab takes the first).
@@ -1252,6 +1254,12 @@ screen (=C-x 2=, =C-x 3=). =F1= lists the shortcuts of the profile.
   underline and strikethrough for the region (=C-SPC=), and quote for its lines or
   the line clicked, written as the page's format wants them (org-mode or Markdown).
 - Each window's title is the page's =#+TITLE:= (=title:= in Markdown).
+- With several pages open, their names are in a bar above the page; a click opens one.
+  The page, the popups and the lists have a scrollbar when they run longer than the screen.
+- Images (a line holding only a link to an image file, as in the window) are drawn
+  under their link when the page is read, not while it is edited: with the terminal's
+  graphics (kitty, WezTerm, iTerm2, sixel), else in coloured half blocks. Their size
+  follows =#+ATTR_ORG: :width= and Logseq's sizes; =show_images= turns them off.
 - Shortcuts of the profiles, to change in Settings > Shortcuts like the others: =F2=
   renames the page (the links follow), =F4= the TODO headlines, =F5= the tags, =F8= the
   pages linking here, =F9= the pages not created yet, shown as panels; =Enter= or a click

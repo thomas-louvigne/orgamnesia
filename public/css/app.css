@@ -298,6 +298,9 @@ select.git-branch option { background: var(--bg2); color: var(--fg); font-weight
 /* The number of pages, at the right end of the line, apart from the name */
 .folder-count { flex: none; margin-left: 12px; font-size: var(--fs-meta); color: var(--fg-dim); font-weight: normal; }
 .file-item:hover { background: var(--bg3); color: var(--accent2); }
+/* A page dragged: the folder under the mouse is where it goes */
+.pages-dragging .file-item { cursor: grabbing; }
+.pages-dragging .folder-item:hover { border-left-color: var(--accent); }
 /* Git extension: the page differs from the remote, to push */
 .file-unpushed {
     position: absolute; right: 4px; top: 50%; transform: translateY(-50%);

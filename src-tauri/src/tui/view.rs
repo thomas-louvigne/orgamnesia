@@ -2,10 +2,10 @@
 //! or not, the screen split), the popups over it, the line at the bottom.
 
 use orgamnesia_core::FileEntry;
-use ratatui::layout::{Constraint, Layout, Position, Rect};
+use ratatui::layout::{Constraint, Layout, Margin, Position, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Tabs, Wrap};
 
 use super::*;
 
@@ -21,6 +21,16 @@ impl App {
         self.right_x = main.width - right_width;
         let left_width = if left_frames.is_empty() { 0 } else { self.split_width(main.width) };
         let [left_col, right, right_col] = Layout::horizontal([Constraint::Length(left_width), Constraint::Fill(1), Constraint::Length(right_width)]).areas(main);
+        // The pages opened, as the window's tab bar, when there are several
+        self.tab_bar = Rect::default();
+        let right = if self.tabs.len() > 1 && !self.zen {
+            let [bar, rest] = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(right);
+            let here = self.editor.as_ref().and_then(|e| self.tabs.iter().position(|t| *t == e.path));
+            let names = self.tabs.iter().map(|t| crate::project::files::page_name(t));
+            f.render_widget(Tabs::new(names).select(here).highlight_style(Style::new().add_modifier(Modifier::REVERSED)), bar);
+            self.tab_bar = bar;
+            rest
+        } else { right };
         self.frame_areas.clear();
         self.list_area = Rect::default();
         for (frames, col) in [(&left_frames, left_col), (&right_frames, right_col)] {
@@ -75,8 +85,19 @@ impl App {
                 let text = self.project.read(&path).unwrap_or_else(|e| e.to_string());
                 let chosen = self.link.and_then(|i| highlight::links(&text, &d).into_iter().nth(i));
                 let name = title_of(&path, &text);
-                f.render_widget(Paragraph::new(highlight::render(&text, &d, chosen.as_ref(), &Default::default())).wrap(Wrap { trim: false })
-                    .scroll((self.scroll, 0)).block(Block::bordered().title(format!(" {name} "))), active);
+                let mut lines = highlight::render(&text, &d, chosen.as_ref(), &Default::default());
+                let slots = self.images.place(&path, &text, &mut lines, active.width.saturating_sub(2));
+                let page = Paragraph::new(lines).wrap(Wrap { trim: false });
+                let total = page.line_count(active.width.saturating_sub(2));
+                f.render_widget(page.scroll((self.scroll, 0)).block(Block::bordered().title(format!(" {name} "))), active);
+                scrollbar(f, active, total, self.scroll as usize);
+                // The images whose top is in view, cut at the bottom of the page
+                let rows = active.height.saturating_sub(2) as usize;
+                for slot in slots.iter().filter(|s| s.row >= self.scroll as usize && s.row < self.scroll as usize + rows) {
+                    let y = (slot.row - self.scroll as usize) as u16;
+                    let area = Rect { x: active.x + 1, y: active.y + 1 + y, width: slot.size.width, height: slot.size.height.min(rows as u16 - y) };
+                    if let Some(p) = self.images.protocol(slot) { f.render_widget(ratatui_image::Image::new(p).allow_clipping(true), area); }
+                }
             }
             _ => f.render_widget(Block::bordered(), active),
         }
@@ -117,8 +138,10 @@ impl App {
             }).collect();
             let keys = p.keys.unwrap_or(if list { "↑↓ Enter, Esc closes" } else { "↑↓, any other key closes" });
             let empty = if p.lines.is_empty() { vec![Line::from("(nothing)")] } else { text };
+            let total = empty.len();
             f.render_widget(Paragraph::new(empty).scroll((p.scroll, 0))
                 .block(Block::bordered().title(format!(" {} — {keys} ", p.title))), right);
+            scrollbar(f, right, total, p.scroll as usize);
         }
         if let Mode::Quick(q) = &self.mode {
             let items = self.quick_list(&q.query.clone());
@@ -142,8 +165,10 @@ impl App {
                 quick::QuickItem::SuggestedTemplates => ListItem::new("› add suggested templates").style(Style::new().fg(Color::Cyan)),
             }).collect();
             let mut state = ListState::default().with_selected(Some(q.selected));
+            let total = lines.len();
             f.render_stateful_widget(List::new(lines).block(Block::bordered().title(" ↑↓ Enter · Esc "))
                 .highlight_style(Style::new().add_modifier(Modifier::REVERSED)), rest, &mut state);
+            scrollbar(f, rest, total, state.offset());
             return;
         }
         if let Mode::Prompt(p) = &self.mode {
@@ -206,6 +231,7 @@ impl App {
                     orgamnesia_core::tree::Row::Page { file, name, depth } =>
                         format!("{}  {name}{}", "  ".repeat(depth), count(&file).unwrap_or_default()),
                 }).collect();
+                let total = names.len();
                 let title = match (&self.hits, self.filter.is_empty()) {
                     (Some((q, _)), _) => format!(" “{q}” "),
                     (None, true) => " Pages ".to_string(),
@@ -217,6 +243,7 @@ impl App {
                     .highlight_style(Style::new().add_modifier(Modifier::REVERSED));
                 self.list_area = area;
                 f.render_stateful_widget(list, area, &mut self.list);
+                scrollbar(f, area, total, self.list.offset());
             }
             Frame::Project => {
                 let name = crate::project::files::page_name(&self.project.path);
@@ -238,14 +265,34 @@ impl App {
                     let s = if *t == frames::Target::None { Style::new().add_modifier(Modifier::BOLD) } else { Style::new() };
                     Line::from(l.clone()).style(s)
                 }).collect();
+                let total = lines.len();
                 let lines = if lines.is_empty() { vec![Line::from("(none)").style(Style::new().fg(ratatui::style::Color::DarkGray))] } else { lines };
                 let list = List::new(lines)
                     .block(Block::bordered().title(frame_title(frame, format!(" {title} "))).border_style(if focused { cyan } else { Style::new() }))
                     .highlight_style(if focused { Style::new().add_modifier(Modifier::REVERSED) } else { Style::new() });
                 let state = self.frame_state.entry(frame).or_default();
                 f.render_stateful_widget(list, area, state);
+                scrollbar(f, area, total, state.offset());
             }
         }
+    }
+
+    /// The border of a column under the mouse at `column`, to drag: either of its
+    /// two lines, of the left column (`false`) or of the right one (`true`).
+    pub(super) fn border_at(&self, column: u16) -> Option<bool> {
+        let border = self.split_width(self.total);
+        if column + 1 == border || column == border { return Some(false); }
+        (self.right_column && (column == self.right_x || column + 1 == self.right_x)).then_some(true)
+    }
+
+    /// The mouse pointer as the resize arrow (`resize`) or the usual one, with
+    /// OSC 22 (kitty, foot, WezTerm, xterm; other terminals ignore it). Sent on a change only.
+    pub(super) fn set_pointer(&mut self, resize: bool) {
+        if self.pointer.is_none_or(|p| p == resize) { return; }
+        self.pointer = Some(resize);
+        use std::io::Write;
+        let mut out = std::io::stdout();
+        let _ = write!(out, "\x1b]22;{}\x1b\\", if resize { "ew-resize" } else { "default" }).and_then(|_| out.flush());
     }
 
     /// Where the popup is drawn: over the page, both halves of a split screen.
@@ -315,6 +362,7 @@ pub(super) fn draw_editor(f: &mut ratatui::Frame, e: &mut Editor, area: Rect, d:
             l
         })
         .collect();
+    let total = lines.len();
     if active {
         let (x, y) = (e.screen_col() - e.left + gutter, e.row() - e.top);
         f.set_cursor_position(Position::new(area.x + 1 + x as u16, area.y + 1 + y as u16));
@@ -323,4 +371,15 @@ pub(super) fn draw_editor(f: &mut ratatui::Frame, e: &mut Editor, area: Rect, d:
     let title = format!(" {name}{} ", if e.dirty { " ●" } else { "" });
     let border = if active { Style::new() } else { Style::new().fg(ratatui::style::Color::DarkGray) };
     f.render_widget(Paragraph::new(lines).scroll((e.top as u16, e.left as u16)).block(Block::bordered().title(title).border_style(border)), area);
+    scrollbar(f, area, total, e.top);
+}
+
+/// A scrollbar on the right border of the bordered `area` showing `total` lines
+/// from the line `top`; nothing when they all fit.
+fn scrollbar(f: &mut ratatui::Frame, area: Rect, total: usize, top: usize) {
+    let rows = area.height.saturating_sub(2) as usize;
+    if total <= rows { return; }
+    let mut state = ScrollbarState::new(total - rows + 1).position(top).viewport_content_length(rows);
+    let bar = Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(None).end_symbol(None).track_symbol(Some("│"));
+    f.render_stateful_widget(bar, area.inner(Margin { vertical: 1, horizontal: 0 }), &mut state);
 }

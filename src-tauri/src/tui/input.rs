@@ -329,13 +329,11 @@ impl App {
 
     /// The border between the pages and the page, dragged with the left button.
     pub(super) fn mouse(&mut self, m: MouseEvent) {
-        let border = self.split_width(self.total);
+        self.set_pointer(self.dragging.is_some() || self.border_at(m.column).is_some());
         match m.kind {
-            // Either of the two lines of the border: the list's right one, the page's left one
-            MouseEventKind::Down(MouseButton::Left) if m.column + 1 == border || m.column == border => self.dragging = Some(false),
-            // The right column's border: its left line, or the page's right one
-            MouseEventKind::Down(MouseButton::Left) if self.right_column && (m.column == self.right_x || m.column + 1 == self.right_x) => self.dragging = Some(true),
+            MouseEventKind::Down(MouseButton::Left) if self.border_at(m.column).is_some() => self.dragging = self.border_at(m.column),
             MouseEventKind::Down(MouseButton::Left) if self.popup().is_some_and(|p| !p.targets.is_empty()) => self.click_popup(m.row),
+            MouseEventKind::Down(MouseButton::Left) if self.tab_bar.contains(ratatui::layout::Position::new(m.column, m.row)) => self.click_tab(m.column),
             MouseEventKind::Down(MouseButton::Left) if self.click_frame(m.column, m.row, None) => {}
             MouseEventKind::Down(MouseButton::Left) => {
                 if matches!(self.mode, Mode::Frame(_)) { self.mode = Mode::Normal; }
@@ -361,7 +359,7 @@ impl App {
 
     /// Width of the column of the pages, for a screen `total` wide: the page keeps 20 columns.
     pub(super) fn split_width(&self, total: u16) -> u16 {
-        self.split.unwrap_or(total * 3 / 10).min(total.saturating_sub(20)).max(8)
+        self.split.unwrap_or((total / 5).clamp(24, 40)).min(total.saturating_sub(20)).max(8)
     }
 
     /// A click on a frame of a column (`wheel`: the wheel turned so many lines over it):

@@ -238,6 +238,9 @@ kbd {
     width: 100%;
     height: 100%;
     padding: 20px 24px;
+    /* Room under the last line, as in Emacs: Ctrl+L brings it to the middle of the
+       view. The same on every layer, so they all scroll as far as the textarea */
+    padding-bottom: 50vh;
     font: inherit;
     line-height: inherit;
     white-space: pre-wrap;

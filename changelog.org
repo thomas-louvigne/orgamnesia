@@ -4,6 +4,13 @@ What changes in each version, newest first. The app shows these notes when a new
 version is available; they are also the text of the versions published on GitHub.
 The French version is in [[file:changelog.fr.org][changelog.fr.org]].
 
+* 1.10.1
+- Drag a page with the mouse onto a folder to move it there, onto a page to put it in that page's folder, onto the empty area to take it out to the top.
+- Room under the last line of the page, as in Emacs: Ctrl+L can bring it to the middle of the view.
+- Terminal: images of the page drawn under their link when the page is read, with the terminal's graphics (kitty, WezTerm, iTerm2, sixel), else in coloured half blocks; =show_images= turns them off.
+- Terminal: a bar with the names of the pages open (a click opens one), scrollbars on the page, the popups and the lists.
+- Terminal: the column of the pages narrower (a fifth of the screen, 24 to 40 columns); the mouse pointer becomes a resize arrow over the borders of the columns (kitty, foot, WezTerm, xterm).
+
 * 1.10.0
 - Aliases: =#+ALIAS: Drake, Le dragon= (org-mode), =alias:: Drake= (Logseq) or =aliases: [Drake]= in the front matter (Markdown, as Obsidian) give a page other names. =[[Drake]]= leads to it, and its backlinks, the graph and the completion of links count it. A page's own name wins over another's alias; renaming a page keeps the links naming an alias.
 - Unlinked mentions: under the backlinks, the pages writing the name of the page shown (or an alias) without a link. A click opens the page there, "Link" makes the mention a link (=[[Dragon][dragon]]=).

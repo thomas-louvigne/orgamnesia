@@ -158,6 +158,11 @@ Installer les outils et publier une version : [[file:docs/installation.org][docs
 - [ ] Outils git de diff et de fusion : voir les changements d'une page, résoudre un historique divergé ou un conflit sans terminal
 - [X] Mode zen : seulement le texte, sans cadres ni barres
 - [ ] Curseurs multiples
+- [X] Terminal : ratatui 0.30
+- [X] Terminal : barres de défilement (page, popups, listes) et barre des pages ouvertes
+- [ ] Terminal : tableaux (agenda, git) et calendrier (journal) de ratatui
+- [X] Terminal : images dans la page lue (=ratatui-image= : kitty, sixel, iTerm, sinon demi-blocs)
+- [ ] Terminal : tests de ce qui est dessiné (instantanés de =TestBackend=)
 
 * Licence
 
